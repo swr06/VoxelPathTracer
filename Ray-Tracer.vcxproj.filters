@@ -1,0 +1,167 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Dependencies">
+      <UniqueIdentifier>{9802824a-7249-49b6-8a01-66b2a7bd1cd2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies\glad">
+      <UniqueIdentifier>{a5792c30-ff80-481c-913c-fec4576e4ea2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dependencies\imgui">
+      <UniqueIdentifier>{d52d53ef-57f9-488b-9d23-976d5b8dd562}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Application">
+      <UniqueIdentifier>{5b4828b0-6ba8-4b7d-8b64-f46a42e8b00c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\GLClasses">
+      <UniqueIdentifier>{85b35144-bb9f-471c-9bd0-dcb7e3d6dbfd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Misc">
+      <UniqueIdentifier>{9a9b706d-9351-4099-ab98-f9859e0998da}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Dependencies\glad\src\glad.c">
+      <Filter>Dependencies\glad</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui_demo.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui_draw.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui_impl_glfw.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui_impl_opengl3.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\imgui\imgui_widgets.cpp">
+      <Filter>Dependencies\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Application\Application.cpp">
+      <Filter>Source Files\Application</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Application\Logger.cpp">
+      <Filter>Source Files\Application</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\Fps.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\Framebuffer.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\FramebufferRed.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\IndexBuffer.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\Shader.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\stb_image.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\Texture.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\TextureArray.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\VertexArray.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GLClasses\VertexBuffer.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\FpsCamera.cpp">
+      <Filter>Source Files\Misc</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\OrthographicCamera.cpp">
+      <Filter>Source Files\Misc</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Dependencies\imgui\imconfig.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imgui.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imgui_impl_glfw.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imgui_impl_opengl3.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imgui_internal.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imstb_rectpack.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imstb_textedit.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\imgui\imstb_truetype.h">
+      <Filter>Dependencies\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Application\Application.h">
+      <Filter>Source Files\Application</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Application\Logger.h">
+      <Filter>Source Files\Application</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Fps.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Framebuffer.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\FramebufferRed.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\IndexBuffer.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Shader.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\stb_image.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Texture.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\TextureArray.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\VertexArray.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\VertexBuffer.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\FpsCamera.h">
+      <Filter>Source Files\Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\OrthographicCamera.h">
+      <Filter>Source Files\Misc</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
