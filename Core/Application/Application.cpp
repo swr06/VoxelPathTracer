@@ -227,8 +227,8 @@ namespace VoxelRT
 	*/
 	void Application::OnUpdate()
 	{
-		VoxelRT_mouse_enabled = !GetCursorLocked();
-		VoxelRT_keyboard_enabled = !GetCursorLocked();
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		glfwGetFramebufferSize(m_Window, &m_CurrentWidth, &m_CurrentHeight);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
