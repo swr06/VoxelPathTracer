@@ -196,6 +196,10 @@
     <ClInclude Include="Dependencies\imgui\imstb_textedit.h" />
     <ClInclude Include="Dependencies\imgui\imstb_truetype.h" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Core\Shaders\RayTraceFrag.glsl" />
+    <None Include="Core\Shaders\RayTraceVert.glsl" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

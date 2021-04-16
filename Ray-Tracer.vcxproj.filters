@@ -27,6 +27,9 @@
     <Filter Include="Source Files\Misc">
       <UniqueIdentifier>{9a9b706d-9351-4099-ab98-f9859e0998da}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders">
+      <UniqueIdentifier>{d4e2325e-7095-4f06-b08e-af80d6e9046e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -163,5 +166,13 @@
     <ClInclude Include="Core\OrthographicCamera.h">
       <Filter>Source Files\Misc</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Core\Shaders\RayTraceFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\RayTraceVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
