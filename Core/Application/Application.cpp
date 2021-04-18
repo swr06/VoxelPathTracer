@@ -212,6 +212,8 @@ namespace VoxelRT
 			std::cout << "\tDEBUG : THE OPENGL SYNCHRONOUS DEBUG EXTENSION IS UN AVAILABLE\n";
 		}
 
+		glfwMaximizeWindow(m_Window);
+
 #ifdef _WIN32
 		system("@del log.txt"); // Delete the already existing log file
 #endif

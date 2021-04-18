@@ -6,6 +6,8 @@
 #include "Core/GLClasses/IndexBuffer.h"
 #include "Core/GLClasses/Shader.h"
 #include "Core/FpsCamera.h"
+#include "Core/GLClasses/Fps.h"
+#include "Core/Chunk.h"
 
 using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
@@ -32,16 +34,26 @@ public:
 
 	void OnImguiRender(double ts) override
 	{
-		ImGui::Text("Test!");
+		ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
+		ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 	}
 
 	void OnEvent(Event e) override
 	{
-		if (e.type == EventTypes::MouseMove)
+		if (e.type == EventTypes::MouseMove && GetCursorLocked())
 		{
 			MainCamera.UpdateOnMouseMovement(GetCursorX(), GetCursorY());
 		}
 
+		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_F1)
+		{
+			this->SetCursorLocked(!this->GetCursorLocked());
+		}
+
+		if (e.type == EventTypes::WindowResize)
+		{
+			MainCamera.SetAspect((float)e.wx / (float)e.wy);
+		}
 	}
 
 };
@@ -50,6 +62,22 @@ int main()
 {
 	RayTracerApp app;
 	app.Initialize();
+
+	Chunk* chunk = new Chunk();
+	Chunk& test_chunk = *chunk;
+
+	for (int x = 0; x < CHUNK_SIZE_X; x++)
+	{
+		for (int y = 0; y < CHUNK_SIZE_Y; y++)
+		{
+			for (int z = 0; z < CHUNK_SIZE_Z; z++)
+			{
+				test_chunk.SetBlock(x, y, z, { 2 });
+			}
+		}
+	}
+
+	test_chunk.Buffer();
 
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
@@ -75,7 +103,7 @@ int main()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
-		float camera_speed = 0.002f;
+		float camera_speed = 0.05f;
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
 		{
@@ -108,6 +136,12 @@ int main()
 			MainCamera.ChangePosition(-(MainCamera.GetUp() * camera_speed));
 		}
 
+		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
+		{
+			RaytraceShader.Recompile();
+			Logger::Log("Recompiled!");
+		}
+
 		MainCamera.OnUpdate();
 		MainCamera.Refresh();
 
@@ -124,11 +158,17 @@ int main()
 
 		RaytraceShader.SetMatrix4("u_InverseView", inv_view);
 		RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
+		RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_3D, test_chunk.m_DataTexture.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
 		app.FinishFrame();
+
+		GLClasses::DisplayFrameRate(app.GetWindow(), "Voxel RT");
 	}
 }

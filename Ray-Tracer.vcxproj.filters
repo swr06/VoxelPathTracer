@@ -30,6 +30,9 @@
     <Filter Include="Source Files\Shaders">
       <UniqueIdentifier>{d4e2325e-7095-4f06-b08e-af80d6e9046e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\voxel-rt">
+      <UniqueIdentifier>{e9c3fd4d-2a2f-475a-a3d9-f924f3d7a199}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -98,6 +101,12 @@
     <ClCompile Include="Core\OrthographicCamera.cpp">
       <Filter>Source Files\Misc</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Chunk.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Texture3D.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -165,6 +174,15 @@
     </ClInclude>
     <ClInclude Include="Core\OrthographicCamera.h">
       <Filter>Source Files\Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Chunk.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Texture3D.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Block.h">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
