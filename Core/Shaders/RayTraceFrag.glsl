@@ -1,5 +1,9 @@
 #version 330 core
 
+#define CHUNK_SIZE_X 64
+#define CHUNK_SIZE_Y 64
+#define CHUNK_SIZE_Z 64
+
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
@@ -30,7 +34,7 @@ float sum(vec3 v)
 bool IsInVoxelizationVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
-        pos.x > 32.0f || pos.y > 32.0f || pos.z > 32.0f)
+        pos.x > float(CHUNK_SIZE_X) || pos.y > float(CHUNK_SIZE_Y) || pos.z > float(CHUNK_SIZE_Z))
     {
         return false;    
     }   
@@ -38,21 +42,11 @@ bool IsInVoxelizationVolume(in vec3 pos)
     return true;
 }
 
-float GetVoxel(vec3 loc)
-{
-    if (IsInVoxelizationVolume(loc))
-    {
-         return texture(u_VoxelDataTexture, loc).r;
-    }
-    
-    return 0.0f;
-}
-
 float GetVoxel(ivec3 loc)
 {
     if (IsInVoxelizationVolume(loc))
     {
-         return texture(u_VoxelDataTexture, vec3(loc)).r;
+         return texelFetch(u_VoxelDataTexture, loc, 0).r;
     }
     
     return 0.0f;
@@ -60,7 +54,7 @@ float GetVoxel(ivec3 loc)
 
 bool VoxelExists(in vec3 loc)
 {
-    if (GetVoxel(loc) != 0.0f) 
+    if (GetVoxel(ivec3(loc)) > 0.0f) 
     {
         return true;
     }
@@ -68,7 +62,53 @@ bool VoxelExists(in vec3 loc)
     return false;
 }
 
-bool RaytraceVoxel(Ray r, out float voxel, out vec3 hitPos, out ivec3 hitIndex, out vec3 hitNormal, const int dist) 
+// Calculates uv from world position
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
+{
+    world_pos.x = abs(world_pos.x);
+    world_pos.y = abs(world_pos.y);
+    world_pos.z = abs(world_pos.z);
+
+    const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+    const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+    const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+    const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+    const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+    const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+    if (normal == NORMAL_TOP)
+    {
+        uv = vec2(fract(world_pos.xz));
+    }
+
+    else if (normal == NORMAL_BOTTOM)
+    {
+        uv = vec2(fract(world_pos.zx));
+    }
+
+    else if (normal == NORMAL_RIGHT)
+    {
+        uv = vec2(fract(world_pos.xy));
+    }
+
+    else if (normal == NORMAL_LEFT)
+    {
+        uv = vec2(fract(world_pos.yx));
+    }
+    
+    else if (normal == NORMAL_FRONT)
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+
+     else if (normal == NORMAL_BOTTOM)
+    {
+        uv = vec2(fract(world_pos.yz));
+    }
+}
+
+// By Snurf (Thanks snurf!)
+bool RaytraceVoxel(Ray r, out float voxel, out vec3 hitPos, out ivec3 hitIndex, out vec3 hitNormal, out vec2 uv, const int dist) 
 {
     vec3 origin = r.Origin;
     vec3 direction = r.Direction;
@@ -97,10 +137,12 @@ bool RaytraceVoxel(Ray r, out float voxel, out vec3 hitPos, out ivec3 hitIndex, 
         sideDist += vec3(mask) * deltaDist;
         mapPos += ivec3(vec3(mask)) * rayStep;
 
-        hitNormal = vec3(mask);
+        hitNormal = rayStep * vec3(mask);
+        CalculateUV((hitPos), vec3(mask), uv);
     }
     
     hitIndex = mapPos;
+
     return hit;
 }
 
@@ -125,17 +167,18 @@ void main()
     Ray r;
     r.Origin = v_RayOrigin;
     r.Direction = normalize(v_RayDirection);
-
+    
     float voxel;
     vec3 hitpos;
     ivec3 hitidx;
     vec3 normal;
+    vec2 uv = vec2(1.0f);
     
-    bool hit_voxel = RaytraceVoxel(r, voxel, hitpos, hitidx, normal, 96);
+    bool hit_voxel = RaytraceVoxel(r, voxel, hitpos, hitidx, normal, uv, 64);
     
     if (hit_voxel)
     {
-        o_Color = vec3(0.0f, 1.0f, 0.0f);
+        o_Color = vec3(uv, 0.0f);
         return;
     }
     

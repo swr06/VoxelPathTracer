@@ -11,6 +11,7 @@
 
 using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
+bool VSync = true;
 
 class RayTracerApp : public Application
 {
@@ -50,6 +51,11 @@ public:
 			this->SetCursorLocked(!this->GetCursorLocked());
 		}
 
+		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_V)
+		{
+			VSync = !VSync;
+		}
+
 		if (e.type == EventTypes::WindowResize)
 		{
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
@@ -66,17 +72,17 @@ int main()
 	Chunk* chunk = new Chunk();
 	Chunk& test_chunk = *chunk;
 
-	for (int x = 0; x < CHUNK_SIZE_X; x++)
+	for (int x = 0; x < 6; x++)
 	{
-		for (int y = 0; y < CHUNK_SIZE_Y; y++)
+		for (int y = 0; y < 6; y++)
 		{
-			for (int z = 0; z < CHUNK_SIZE_Z; z++)
+			for (int z = 0; z < 6; z++)
 			{
-				test_chunk.SetBlock(x, y, z, { 2 });
+				test_chunk.SetBlock(x, y, z, { 128 });
 			}
 		}
 	}
-
+	
 	test_chunk.Buffer();
 
 	GLClasses::VertexBuffer VBO;
@@ -103,7 +109,9 @@ int main()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
-		float camera_speed = 0.05f;
+		glfwSwapInterval((int)VSync);
+
+		float camera_speed = 0.085f;
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
 		{
