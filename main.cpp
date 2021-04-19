@@ -72,18 +72,17 @@ int main()
 	Chunk* chunk = new Chunk();
 	Chunk& test_chunk = *chunk;
 
-	for (int x = 0; x < 8; x++)
+	for (int x = 0; x < 6; x++)
 	{
-		for (int y = 0; y < 8; y++)
+		for (int y = 0; y < 6; y++)
 		{
-			for (int z = 0; z < 8; z++)
+			for (int z = 0; z < 6; z++)
 			{
 				test_chunk.SetBlock(x, y, z, { 128 });
 			}
 		}
 	}
 	
-
 	test_chunk.Buffer();
 
 	GLClasses::VertexBuffer VBO;

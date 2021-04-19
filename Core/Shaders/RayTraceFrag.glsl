@@ -42,21 +42,11 @@ bool IsInVoxelizationVolume(in vec3 pos)
     return true;
 }
 
-float GetVoxel(vec3 loc)
-{
-    if (IsInVoxelizationVolume(loc))
-    {
-         return texture(u_VoxelDataTexture, loc).r;
-    }
-    
-    return 0.0f;
-}
-
 float GetVoxel(ivec3 loc)
 {
     if (IsInVoxelizationVolume(loc))
     {
-         return texture(u_VoxelDataTexture, vec3(loc)).r;
+         return texelFetch(u_VoxelDataTexture, loc, 0).r;
     }
     
     return 0.0f;
@@ -64,7 +54,7 @@ float GetVoxel(ivec3 loc)
 
 bool VoxelExists(in vec3 loc)
 {
-    if (GetVoxel(loc) > 0.0f) 
+    if (GetVoxel(ivec3(loc)) > 0.0f) 
     {
         return true;
     }
@@ -174,30 +164,23 @@ float raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr)
 
 void main()
 {
-    //if (int(gl_FragCoord.x + gl_FragCoord.y) % 2 == 0)
-    //{
-    //    discard;
-    //}
-    //
-    //Ray r;
-    //r.Origin = v_RayOrigin;
-    //r.Direction = normalize(v_RayDirection);
-    //
-    //float voxel;
-    //vec3 hitpos;
-    //ivec3 hitidx;
-    //vec3 normal;
-    //vec2 uv = vec2(1.0f);
-    //
-    //bool hit_voxel = RaytraceVoxel(r, voxel, hitpos, hitidx, normal, uv, 256);
-    //
-    //if (hit_voxel)
-    //{
-    //    o_Color = vec3(uv, 0.0f);
-    //    return;
-    //}
-    //
-	//o_Color = GetSkyColorAt(r.Direction);
-
-    o_Color = vec3(texture(u_VoxelDataTexture, vec3(5, 5, 5)).r);
+    Ray r;
+    r.Origin = v_RayOrigin;
+    r.Direction = normalize(v_RayDirection);
+    
+    float voxel;
+    vec3 hitpos;
+    ivec3 hitidx;
+    vec3 normal;
+    vec2 uv = vec2(1.0f);
+    
+    bool hit_voxel = RaytraceVoxel(r, voxel, hitpos, hitidx, normal, uv, 64);
+    
+    if (hit_voxel)
+    {
+        o_Color = vec3(uv, 0.0f);
+        return;
+    }
+    
+	o_Color = GetSkyColorAt(r.Direction);
 }
