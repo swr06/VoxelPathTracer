@@ -72,11 +72,11 @@ int main()
 	Chunk* chunk = new Chunk();
 	Chunk& test_chunk = *chunk;
 
-	for (int x = 0; x < 6; x++)
+	for (int x = 0; x < CHUNK_SIZE_X; x++)
 	{
-		for (int y = 0; y < 6; y++)
+		for (int y = 0; y < CHUNK_SIZE_Y; y++)
 		{
-			for (int z = 0; z < 6; z++)
+			for (int z = 0; z < CHUNK_SIZE_Z; z++)
 			{
 				test_chunk.SetBlock(x, y, z, { 128 });
 			}

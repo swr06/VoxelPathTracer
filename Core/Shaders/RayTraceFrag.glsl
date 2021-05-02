@@ -1,8 +1,8 @@
 #version 330 core
 
-#define CHUNK_SIZE_X 64
-#define CHUNK_SIZE_Y 64
-#define CHUNK_SIZE_Z 64
+#define CHUNK_SIZE_X 1024
+#define CHUNK_SIZE_Y 128
+#define CHUNK_SIZE_Z 1024
 
 layout (location = 0) out vec3 o_Color;
 
@@ -17,6 +17,10 @@ struct Ray
 	vec3 Origin;
 	vec3 Direction;
 };
+
+
+vec3 MapSize = vec3(CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z);
+
 
 vec3 GetSkyColorAt(vec3 rd) 
 {
@@ -65,10 +69,6 @@ bool VoxelExists(in vec3 loc)
 // Calculates uv from world position
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 {
-    world_pos.x = abs(world_pos.x);
-    world_pos.y = abs(world_pos.y);
-    world_pos.z = abs(world_pos.z);
-
     const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
     const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
     const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
@@ -78,74 +78,175 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 
     if (normal == NORMAL_TOP)
     {
-        uv = vec2(fract(world_pos.xz));
+        uv = vec2(mod(world_pos.xz, 1.0f));
     }
 
     else if (normal == NORMAL_BOTTOM)
     {
-        uv = vec2(fract(world_pos.zx));
+        uv = vec2(mod(world_pos.xz, 1.0f));
     }
 
     else if (normal == NORMAL_RIGHT)
     {
-        uv = vec2(fract(world_pos.xy));
+        uv = vec2(mod(world_pos.zy, 1.0f));
     }
 
     else if (normal == NORMAL_LEFT)
     {
-        uv = vec2(fract(world_pos.yx));
+        uv = vec2(mod(world_pos.zy, 1.0f));
     }
     
     else if (normal == NORMAL_FRONT)
     {
-        uv = vec2(fract(world_pos.zy));
+        uv = vec2(mod(world_pos.xy, 1.0f));
     }
 
-     else if (normal == NORMAL_BOTTOM)
+     else if (normal == NORMAL_BACK)
     {
-        uv = vec2(fract(world_pos.yz));
+        uv = vec2(mod(world_pos.xy, 1.0f));
     }
 }
 
-// By Snurf (Thanks snurf!)
-bool RaytraceVoxel(Ray r, out float voxel, out vec3 hitPos, out ivec3 hitIndex, out vec3 hitNormal, out vec2 uv, const int dist) 
+float ProjectToCube(vec3 ro, vec3 rd) 
+{	
+	float tx1 = (0 - ro.x) / rd.x;
+	float tx2 = (MapSize.x - ro.x) / rd.x;
+
+	float ty1 = (0 - ro.y) / rd.y;
+	float ty2 = (MapSize.y - ro.y) / rd.y;
+
+	float tz1 = (0 - ro.z) / rd.z;
+	float tz2 = (MapSize.z - ro.z) / rd.z;
+
+	float tx = max(min(tx1, tx2), 0);
+	float ty = max(min(ty1, ty2), 0);
+	float tz = max(min(tz1, tz2), 0);
+
+	float t = max(tx, max(ty, tz));
+	
+	return t;
+}
+
+float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType) 
 {
-    vec3 origin = r.Origin;
-    vec3 direction = r.Direction;
+	vec3 origin = orig;
+	const float epsilon = 0.001f;
+	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
+	origin += t1 * direction;
 
-    ivec3 mapPos = ivec3(floor(origin));
-    vec3 deltaDist = abs(vec3(length(direction)) / direction);
-    ivec3 rayStep = ivec3(sign(direction));
-    vec3 sideDist = (sign(direction) * (vec3(mapPos) - origin) + (sign(direction) * 0.5) + 0.5) * deltaDist; 
+	int mapX = int(floor(origin.x));
+	int mapY = int(floor(origin.y));
+	int mapZ = int(floor(origin.z));
 
-    bvec3 mask = bvec3(false);
-    bool hit = false;
-    float id = -1;
-    
-    for (int i = 0; i < dist && !hit; i++) 
-    {
-        voxel = GetVoxel(mapPos);
-        id = voxel;
+	float sideDistX;
+	float sideDistY;
+	float sideDistZ;
 
-        if (id > 0)
-        {
-            hitPos = direction / sum(vec3(mask) * direction) * sum(vec3(mask) * (mapPos + vec3(lessThan(direction, vec3(0))) - origin)) + origin;
-            hit = true;
-        }
+	float deltaDX = abs(1.0f / direction.x);
+	float deltaDY = abs(1.0f / direction.y);
+	float deltaDZ = abs(1.0f / direction.z);
+	float T = -1.0;
 
-        mask = lessThanEqual(sideDist.xyz, min(sideDist.yzx, sideDist.zxy));
-        sideDist += vec3(mask) * deltaDist;
-        mapPos += ivec3(vec3(mask)) * rayStep;
+	int stepX;
+	int stepY;
+	int stepZ;
 
-        hitNormal = rayStep * vec3(mask);
-        CalculateUV((hitPos), vec3(mask), uv);
-    }
-    
-    hitIndex = mapPos;
+	int hit = 0;
+	int side;
 
-    return hit;
+	if (direction.x < 0)
+	{
+		stepX = -1;
+		sideDistX = (origin.x - mapX) * deltaDX;
+	} 
+	
+	else 
+	{
+		stepX = 1;
+		sideDistX = (mapX + 1.0 - origin.x) * deltaDX;
+	}
+
+	if (direction.y < 0) 
+	{
+		stepY = -1;
+		sideDistY = (origin.y - mapY) * deltaDY;
+	} 
+	
+	else 
+	{
+		stepY = 1;
+		sideDistY = (mapY + 1.0 - origin.y) * deltaDY;
+	}
+
+	if (direction.z < 0) 
+	{
+		stepZ = -1;
+		sideDistZ = (origin.z - mapZ) * deltaDZ;
+	} 
+	
+	else 
+	{
+		stepZ = 1;
+		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
+	}
+
+	for (int i = 0; i < 400; i++) 
+	{
+		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
+		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
+
+		if (sideDistX < sideDistY && sideDistX < sideDistZ) 
+		{
+			sideDistX += deltaDX;
+			mapX += stepX;
+			side = 0;
+		} 
+		
+		else if (sideDistY < sideDistX && sideDistY < sideDistZ)
+		{
+			sideDistY += deltaDY;
+			mapY += stepY;
+			side = 1;
+		} 
+		
+		else 
+		{
+			sideDistZ += deltaDZ;
+			mapZ += stepZ;
+			side = 2;
+		}
+
+		float block = GetVoxel(ivec3(mapX, mapY, mapZ));
+
+		if (block != 0) 
+		{
+			hit = 1;
+			blockType = block;
+
+			if (side == 0) 
+			{
+				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
+				normal = vec3(1, 0, 0) * -stepX;
+			}
+
+			else if (side == 1) 
+			{
+				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
+				normal = vec3(0, 1, 0) * -stepY;
+			}
+
+			else
+			{
+				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
+				normal = vec3(0, 0, 1) * -stepZ;
+			}
+
+			break;
+		}
+	}
+
+	return T;
 }
-
 
 float raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr) 
 {
@@ -168,17 +269,19 @@ void main()
     r.Origin = v_RayOrigin;
     r.Direction = normalize(v_RayDirection);
     
-    float voxel;
-    vec3 hitpos;
-    ivec3 hitidx;
-    vec3 normal;
-    vec2 uv = vec2(1.0f);
-    
-    bool hit_voxel = RaytraceVoxel(r, voxel, hitpos, hitidx, normal, uv, 64);
-    
-    if (hit_voxel)
+	vec3 normal;
+	float id;
+
+	float t = voxel_traversal(r.Origin, r.Direction, normal, id);
+    vec3 world_position = r.Origin + (r.Direction * t);
+	bool intersect = t > 0.0f;
+	vec2 UV;
+
+	CalculateUV(world_position, normal, UV);
+
+    if (intersect)
     {
-        o_Color = vec3(uv, 0.0f);
+        o_Color = vec3(UV, 0.0f);
         return;
     }
     

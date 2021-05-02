@@ -7,9 +7,9 @@
 #include "Block.h"
 #include "Texture3D.h"
 
-#define CHUNK_SIZE_X 64
-#define CHUNK_SIZE_Y 64
-#define CHUNK_SIZE_Z 64
+#define CHUNK_SIZE_X 1024
+#define CHUNK_SIZE_Y 128
+#define CHUNK_SIZE_Z 1024
 
 namespace VoxelRT
 {
