@@ -1,8 +1,8 @@
 #version 330 core
 
-#define CHUNK_SIZE_X 1024
+#define CHUNK_SIZE_X 384
 #define CHUNK_SIZE_Y 128
-#define CHUNK_SIZE_Z 1024
+#define CHUNK_SIZE_Z 384
 
 layout (location = 0) out vec3 o_Color;
 
@@ -78,32 +78,32 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 
     if (normal == NORMAL_TOP)
     {
-        uv = vec2(mod(world_pos.xz, 1.0f));
+        uv = vec2(fract(world_pos.xz));
     }
 
     else if (normal == NORMAL_BOTTOM)
     {
-        uv = vec2(mod(world_pos.xz, 1.0f));
+        uv = vec2(fract(world_pos.xz));
     }
 
     else if (normal == NORMAL_RIGHT)
     {
-        uv = vec2(mod(world_pos.zy, 1.0f));
+        uv = vec2(fract(world_pos.zy));
     }
 
     else if (normal == NORMAL_LEFT)
     {
-        uv = vec2(mod(world_pos.zy, 1.0f));
+        uv = vec2(fract(world_pos.zy));
     }
     
     else if (normal == NORMAL_FRONT)
     {
-        uv = vec2(mod(world_pos.xy, 1.0f));
+        uv = vec2(fract(world_pos.xy));
     }
 
      else if (normal == NORMAL_BACK)
     {
-        uv = vec2(mod(world_pos.xy, 1.0f));
+        uv = vec2(fract(world_pos.xy));
     }
 }
 
