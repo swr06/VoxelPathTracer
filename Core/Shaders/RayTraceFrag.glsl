@@ -1,14 +1,16 @@
 #version 330 core
 
-#define CHUNK_SIZE_X 384
-#define CHUNK_SIZE_Y 128
-#define CHUNK_SIZE_Z 384
+#define WORLD_SIZE_X 384
+#define WORLD_SIZE_Y 128
+#define WORLD_SIZE_Z 384
 
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
+
+uniform int u_CurrentFrame;
 
 uniform sampler3D u_VoxelDataTexture;
 
@@ -19,7 +21,7 @@ struct Ray
 };
 
 
-vec3 MapSize = vec3(CHUNK_SIZE_X, CHUNK_SIZE_Y, CHUNK_SIZE_Z);
+vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 
 
 vec3 GetSkyColorAt(vec3 rd) 
@@ -38,7 +40,7 @@ float sum(vec3 v)
 bool IsInVoxelizationVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
-        pos.x > float(CHUNK_SIZE_X) || pos.y > float(CHUNK_SIZE_Y) || pos.z > float(CHUNK_SIZE_Z))
+        pos.x > float(WORLD_SIZE_X) || pos.y > float(WORLD_SIZE_Y) || pos.z > float(WORLD_SIZE_Z))
     {
         return false;    
     }   
@@ -190,7 +192,7 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 100; i++) 
+	for (int i = 0; i < 250; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
@@ -265,6 +267,12 @@ float raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr)
 
 void main()
 {
+	//if (int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame % 2))
+	//{
+	//	o_Color = vec3(0.0f);
+	//	return;
+	//}
+
     Ray r;
     r.Origin = v_RayOrigin;
     r.Direction = normalize(v_RayDirection);

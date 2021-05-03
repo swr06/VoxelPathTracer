@@ -7,8 +7,9 @@
 #include "Core/GLClasses/Shader.h"
 #include "Core/FpsCamera.h"
 #include "Core/GLClasses/Fps.h"
-#include "Core/Chunk.h"
+#include "Core/World.h"
 #include "Core/GLClasses/Framebuffer.h"
+#include "Core/WorldGenerator.h"
 
 using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
@@ -100,21 +101,9 @@ int main()
 
 	// ----
 
-	Chunk* chunk = new Chunk();
-	Chunk& test_chunk = *chunk;
-
-	for (int x = 0; x < CHUNK_SIZE_X; x++)
-	{
-		for (int y = 0; y < CHUNK_SIZE_Y; y++)
-		{
-			for (int z = 0; z < CHUNK_SIZE_Z; z++)
-			{
-				test_chunk.SetBlock(x, y, z, { 128 });
-			}
-		}
-	}
-
-	test_chunk.Buffer();
+	World* world = new World();
+	GenerateWorld(world);
+	world->Buffer();
 
 	// ----
 
@@ -184,9 +173,10 @@ int main()
 		RaytraceShader.SetMatrix4("u_InverseView", inv_view);
 		RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
+		RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, test_chunk.m_DataTexture.GetTextureID());
+		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -136,7 +136,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Dependencies\glm;$(SolutionDir)Dependencies\glfw\include;$(SolutionDir)Dependencies\glad\include;$(SolutionDir)Dependencies\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Dependencies\glm;$(SolutionDir)Dependencies\glfw\include;$(SolutionDir)Dependencies\glad\include;$(SolutionDir)Dependencies\imgui;$(SolutionDir)Dependencies\fast_noise</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -151,7 +151,7 @@
   <ItemGroup>
     <ClCompile Include="Core\Application\Application.cpp" />
     <ClCompile Include="Core\Application\Logger.cpp" />
-    <ClCompile Include="Core\Chunk.cpp" />
+    <ClCompile Include="Core\World.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
     <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
     <ClCompile Include="Core\GLClasses\Fps.cpp" />
@@ -167,6 +167,8 @@
     <ClCompile Include="Core\OrthographicCamera.cpp" />
     <ClCompile Include="Core\RenderTexture.cpp" />
     <ClCompile Include="Core\Texture3D.cpp" />
+    <ClCompile Include="Core\WorldGenerator.cpp" />
+    <ClCompile Include="Dependencies\fast_noise\FastNoise.cpp" />
     <ClCompile Include="Dependencies\glad\src\glad.c" />
     <ClCompile Include="Dependencies\imgui\imgui.cpp" />
     <ClCompile Include="Dependencies\imgui\imgui_demo.cpp" />
@@ -180,7 +182,7 @@
     <ClInclude Include="Core\Application\Application.h" />
     <ClInclude Include="Core\Application\Logger.h" />
     <ClInclude Include="Core\Block.h" />
-    <ClInclude Include="Core\Chunk.h" />
+    <ClInclude Include="Core\World.h" />
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />
     <ClInclude Include="Core\GLClasses\Fps.h" />
@@ -196,6 +198,8 @@
     <ClInclude Include="Core\OrthographicCamera.h" />
     <ClInclude Include="Core\RenderTexture.h" />
     <ClInclude Include="Core\Texture3D.h" />
+    <ClInclude Include="Core\WorldGenerator.h" />
+    <ClInclude Include="Dependencies\fast_noise\FastNoise.h" />
     <ClInclude Include="Dependencies\imgui\imconfig.h" />
     <ClInclude Include="Dependencies\imgui\imgui.h" />
     <ClInclude Include="Dependencies\imgui\imgui_impl_glfw.h" />
@@ -211,6 +215,8 @@
     <None Include="Core\Shaders\RayTraceFrag.glsl" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
+    <None Include="Dependencies\fast_noise\LICENSE" />
+    <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
