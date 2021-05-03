@@ -4,7 +4,8 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
-layout (location = 0) out vec3 o_Color;
+layout (location = 0) out vec4 o_Position;
+layout (location = 1) out vec3 o_Normal;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -22,15 +23,6 @@ struct Ray
 
 
 vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
-
-
-vec3 GetSkyColorAt(vec3 rd) 
-{
-    vec3 unit_direction = normalize(rd);
-
-    float t = 0.5f * (unit_direction.y + 1.0);
-    return (1.0 - t) * vec3(1.0, 1.0, 1.0) +  t * vec3(0.5, 0.7, 1.0);
-}
 
 float sum(vec3 v)
 {
@@ -69,7 +61,7 @@ bool VoxelExists(in vec3 loc)
 }
 
 // Calculates uv from world position
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
 {
     const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
     const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
@@ -81,31 +73,37 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     if (normal == NORMAL_TOP)
     {
         uv = vec2(fract(world_pos.xz));
+		NormalIndex = 0;
     }
 
     else if (normal == NORMAL_BOTTOM)
     {
         uv = vec2(fract(world_pos.xz));
+		NormalIndex = 1;
     }
 
     else if (normal == NORMAL_RIGHT)
     {
         uv = vec2(fract(world_pos.zy));
+		NormalIndex = 2;
     }
 
     else if (normal == NORMAL_LEFT)
     {
         uv = vec2(fract(world_pos.zy));
+		NormalIndex = 3;
     }
     
     else if (normal == NORMAL_FRONT)
     {
         uv = vec2(fract(world_pos.xy));
+		NormalIndex = 4;
     }
 
      else if (normal == NORMAL_BACK)
     {
         uv = vec2(fract(world_pos.xy));
+		NormalIndex = 5;
     }
 }
 
@@ -192,7 +190,7 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 250; i++) 
+	for (int i = 0; i < 400; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
@@ -279,19 +277,25 @@ void main()
     
 	vec3 normal;
 	float id;
-
 	float t = voxel_traversal(r.Origin, r.Direction, normal, id);
-    vec3 world_position = r.Origin + (r.Direction * t);
 	bool intersect = t > 0.0f;
+    vec3 world_position = intersect ? r.Origin + (r.Direction * t) : vec3(-1.0f);
 	vec2 UV;
+	int normal_idx = 0;
 
-	CalculateUV(world_position, normal, UV);
+	CalculateUV(world_position, normal, UV, normal_idx);
 
-    if (intersect)
-    {
-        o_Color = vec3(UV, 0.0f);
-        return;
-    }
-    
-	o_Color = GetSkyColorAt(r.Direction);
+	if (intersect)
+	{
+		o_Position.xyz = world_position;
+		o_Normal = normal;
+	} 
+
+	else
+	{
+		o_Position.xyz = vec3(-1.0f);
+		o_Normal = vec3(-1.0f);
+	}
+
+	o_Position.w = t;
 }

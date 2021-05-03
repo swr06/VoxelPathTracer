@@ -2,26 +2,8 @@
 ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
 
 
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
 
 
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
-
-
-ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
 
