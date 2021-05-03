@@ -107,6 +107,12 @@
     <ClCompile Include="Core\Texture3D.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\GLClasses\ComputeShader.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RenderTexture.cpp">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -184,12 +190,27 @@
     <ClInclude Include="Core\Block.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
+    <ClInclude Include="Core\GLClasses\ComputeShader.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RenderTexture.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Core\Shaders\RayTraceFrag.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\RayTraceVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\RayTraceCompute.comp">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\FBOFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\FBOVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

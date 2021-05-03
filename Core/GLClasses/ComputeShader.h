@@ -19,42 +19,29 @@
 
 namespace GLClasses
 {
-	class Shader
+	class ComputeShader
 	{
-	public:
+	public :
+		ComputeShader();
+		~ComputeShader();
 
-		Shader() {}; 
-
-		Shader(const Shader&) = delete;
-		Shader operator=(Shader const&) = delete;
-		Shader(Shader&& v)
+		ComputeShader(const ComputeShader&) = delete;
+		ComputeShader operator=(ComputeShader const&) = delete;
+		ComputeShader(ComputeShader&& v)
 		{
-			Location_map = v.Location_map;
-			m_Program = v.m_Program;
-			m_VertexData = v.m_VertexData;
-			m_VertexPath = v.m_VertexPath;
-			m_FragmentData = v.m_FragmentData;
-			m_FragmentPath = v.m_FragmentPath;
+			m_ID = v.m_ID;
+			m_ComputeID = v.m_ComputeID;
+			m_ComputePath = v.m_ComputePath;
+			m_ShaderContents = v.m_ShaderContents;
 
-			v.m_Program = 0;
+			v.m_ID = 0;
+			v.m_ComputeID = 0;
 		}
 
+		void CreateComputeShader(const std::string& path);
+		void Compile();
+		void Use() const noexcept { glUseProgram(m_ID); return; }
 
-		~Shader();
-
-		void CompileShaders();
-		void CreateShaderProgramFromFile(const std::string& vertex_pth, const std::string& fragment_pth, const std::string& geometry_path = "");
-		void CreateShaderProgramFromString(const std::string& vertex_data, const std::string& fragment_data, const std::string& geometry_data = "");
-		inline GLuint GetProgramID() const { return m_Program; };
-		
-		inline void Use() 
-		{
-			glUseProgram(this->m_Program);
-		}
-
-		void Destroy();
-		void ValidateProgram();
-		void Recompile();
 		void SetFloat(const std::string& name, GLfloat value, GLboolean useShader = GL_FALSE);
 		void SetInteger(const std::string& name, GLint value, GLboolean useShader = GL_FALSE);
 		void SetBool(const std::string& name, bool value, GLboolean useShader = GL_FALSE);
@@ -69,18 +56,16 @@ namespace GLClasses
 		void SetIntegerArray(const std::string& name, const GLint* value, GLsizei count, GLboolean useShader = GL_FALSE);
 		void SetTextureArray(const std::string& name, const GLuint first, const GLuint count, GLboolean useShader = GL_FALSE);
 
-	 private:
+		void Recompile();
+
+	private :
 
 		std::unordered_map<std::string, GLint> Location_map; // To avoid unnecessary calls to glGetUniformLocation()
 		GLint GetUniformLocation(const std::string& uniform_name);
 
-		GLuint m_Program = 0;
-
-		std::string m_VertexData = "";
-		std::string m_VertexPath = "";
-		std::string m_FragmentData = "";
-		std::string m_FragmentPath = "";
-		std::string m_GeometryData = "";
-		std::string m_GeometryPath = "";
+		std::string m_ShaderContents = "";
+		std::string m_ComputePath = "";
+		GLuint m_ID;
+		GLuint m_ComputeID;
 	};
 }

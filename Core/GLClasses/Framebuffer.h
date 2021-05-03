@@ -10,7 +10,7 @@ namespace GLClasses
 	class Framebuffer
 	{
 	public :
-		Framebuffer(unsigned int w, unsigned int h, bool hdr, bool has_depth_attachment = true);
+		Framebuffer(unsigned int w = 16, unsigned int h = 16, bool hdr = true, bool has_depth_attachment = false);
 		~Framebuffer();
 
 		Framebuffer(const Framebuffer&) = delete;

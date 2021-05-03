@@ -8,10 +8,13 @@
 #include "Core/FpsCamera.h"
 #include "Core/GLClasses/Fps.h"
 #include "Core/Chunk.h"
+#include "Core/GLClasses/Framebuffer.h"
 
 using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
 bool VSync = true;
+
+float InitialTraceResolution = 0.75f;
 
 class RayTracerApp : public Application
 {
@@ -37,6 +40,7 @@ public:
 	{
 		ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 		ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+		ImGui::SliderFloat("InitialTraceResolution", &InitialTraceResolution, 0.1f, 1.1f);
 	}
 
 	void OnEvent(Event e) override
@@ -69,25 +73,16 @@ int main()
 	RayTracerApp app;
 	app.Initialize();
 
-	Chunk* chunk = new Chunk();
-	Chunk& test_chunk = *chunk;
-
-	for (int x = 0; x < CHUNK_SIZE_X; x++)
-	{
-		for (int y = 0; y < CHUNK_SIZE_Y; y++)
-		{
-			for (int z = 0; z < CHUNK_SIZE_Z; z++)
-			{
-				test_chunk.SetBlock(x, y, z, { 128 });
-			}
-		}
-	}
-	
-	test_chunk.Buffer();
-
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
 	GLClasses::Shader RaytraceShader;
+	GLClasses::Shader FinalShader;
+	GLClasses::Framebuffer InitialTraceFBO(16, 16, true, false);
+
+	RaytraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/RayTraceFrag.glsl");
+	RaytraceShader.CompileShaders();
+	FinalShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/FBOFrag.glsl");
+	FinalShader.CompileShaders();
 
 	float Vertices[] =
 	{
@@ -103,13 +98,32 @@ int main()
 	VBO.VertexAttribPointer(1, 2, GL_FLOAT, 0, 4 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
 	VAO.Unbind();
 
-	RaytraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/RayTraceFrag.glsl");
-	RaytraceShader.CompileShaders();
+	// ----
+
+	Chunk* chunk = new Chunk();
+	Chunk& test_chunk = *chunk;
+
+	for (int x = 0; x < CHUNK_SIZE_X; x++)
+	{
+		for (int y = 0; y < CHUNK_SIZE_Y; y++)
+		{
+			for (int z = 0; z < CHUNK_SIZE_Z; z++)
+			{
+				test_chunk.SetBlock(x, y, z, { 128 });
+			}
+		}
+	}
+
+	test_chunk.Buffer();
+
+	// ----
+
 	app.SetCursorLocked(true);
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
 		glfwSwapInterval((int)VSync);
+		InitialTraceFBO.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 
 		float camera_speed = 0.085f;
 
@@ -156,6 +170,9 @@ int main()
 		app.OnUpdate();
 
 		// ---------------------
+
+		InitialTraceFBO.Bind();
+		glClear(GL_COLOR_BUFFER_BIT);
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
 
@@ -175,8 +192,27 @@ int main()
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
-		app.FinishFrame();
 
+		// ---- FINAL ----
+
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, app.GetWidth(), app.GetHeight());
+
+		FinalShader.Use();
+		FinalShader.SetInteger("u_FramebufferTexture", 0);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetTexture());
+
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+
+		// Finish Frame
+		app.FinishFrame();
 		GLClasses::DisplayFrameRate(app.GetWindow(), "Voxel RT");
 	}
 }

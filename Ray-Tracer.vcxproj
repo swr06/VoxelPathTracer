@@ -153,6 +153,7 @@
     <ClCompile Include="Core\Application\Logger.cpp" />
     <ClCompile Include="Core\Chunk.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
+    <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
     <ClCompile Include="Core\GLClasses\Fps.cpp" />
     <ClCompile Include="Core\GLClasses\Framebuffer.cpp" />
     <ClCompile Include="Core\GLClasses\FramebufferRed.cpp" />
@@ -164,6 +165,7 @@
     <ClCompile Include="Core\GLClasses\VertexArray.cpp" />
     <ClCompile Include="Core\GLClasses\VertexBuffer.cpp" />
     <ClCompile Include="Core\OrthographicCamera.cpp" />
+    <ClCompile Include="Core\RenderTexture.cpp" />
     <ClCompile Include="Core\Texture3D.cpp" />
     <ClCompile Include="Dependencies\glad\src\glad.c" />
     <ClCompile Include="Dependencies\imgui\imgui.cpp" />
@@ -180,6 +182,7 @@
     <ClInclude Include="Core\Block.h" />
     <ClInclude Include="Core\Chunk.h" />
     <ClInclude Include="Core\FpsCamera.h" />
+    <ClInclude Include="Core\GLClasses\ComputeShader.h" />
     <ClInclude Include="Core\GLClasses\Fps.h" />
     <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\GLClasses\FramebufferRed.h" />
@@ -191,6 +194,7 @@
     <ClInclude Include="Core\GLClasses\VertexArray.h" />
     <ClInclude Include="Core\GLClasses\VertexBuffer.h" />
     <ClInclude Include="Core\OrthographicCamera.h" />
+    <ClInclude Include="Core\RenderTexture.h" />
     <ClInclude Include="Core\Texture3D.h" />
     <ClInclude Include="Dependencies\imgui\imconfig.h" />
     <ClInclude Include="Dependencies\imgui\imgui.h" />
@@ -202,8 +206,11 @@
     <ClInclude Include="Dependencies\imgui\imstb_truetype.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Core\Shaders\FBOFrag.glsl" />
+    <None Include="Core\Shaders\FBOVert.glsl" />
     <None Include="Core\Shaders\RayTraceFrag.glsl" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
+    <None Include="Core\Shaders\RayTraceCompute.comp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
