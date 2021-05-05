@@ -18,6 +18,7 @@ FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
 bool VSync = true;
 
 float InitialTraceResolution = 1.0f;
+float DiffuseTraceResolution = 0.25f;
 
 class RayTracerApp : public Application
 {
@@ -147,7 +148,7 @@ int main()
 
 		glfwSwapInterval((int)VSync);
 		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-		DiffuseTraceFBO.SetSize(app.GetWidth(), app.GetHeight());
+		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 		TemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
 		PrevTemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
 		DenoisedFBO.SetSize(app.GetWidth(), app.GetHeight());
@@ -296,19 +297,19 @@ int main()
 
 		// ---- Smart Denoise ----
 
-		//DenoisedFBO.Bind();
-		//DenoiseFilter.Use();
-		//
-		//DenoiseFilter.SetInteger("u_Texture", 0);
-		//
-		//glActiveTexture(GL_TEXTURE0);
-		//glBindTexture(GL_TEXTURE_2D, TemporalFBO.GetTexture());
-		//
-		//VAO.Bind();
-		//glDrawArrays(GL_TRIANGLES, 0, 6);
-		//VAO.Unbind();
-		//
-		//DenoisedFBO.Unbind();
+		DenoisedFBO.Bind();
+		DenoiseFilter.Use();
+		
+		DenoiseFilter.SetInteger("u_Texture", 0);
+		
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, TemporalFBO.GetTexture());
+		
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+		
+		DenoisedFBO.Unbind();
 
 		// ---- FINAL ----
 
@@ -322,7 +323,7 @@ int main()
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, TemporalFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DenoisedFBO.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

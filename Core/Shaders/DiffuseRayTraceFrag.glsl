@@ -6,8 +6,7 @@
 
 //#define USE_HEMISPHERICAL_DIFFUSE_SCATTERING
 #define ANIMATE_NOISE
-#define MAX_VOXEL_DIST 20
-#define MAX_RAY_BOUNCE_LIMIT 4
+#define MAX_VOXEL_DIST 10
 
 layout (location = 0) out vec3 o_Color;
 
@@ -35,6 +34,7 @@ bool VoxelExists(in vec3 loc);
 float GetVoxel(ivec3 loc);
 bool IsInVoxelizationVolume(in vec3 pos);
 vec3 RandomPointInUnitSphereRejective();
+vec3 CosineSampleHemisphere(float u1, float u2);
 
 vec3 g_Normal;
 int RNG_SEED = 0;
@@ -53,7 +53,7 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 
 	if (T > 0.0f) 
 	{ 
-		return vec3(0.5f); 
+		return vec3(0.7f); 
 	} 
 
 	else 
@@ -73,7 +73,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	r1.Origin = initial_origin;
 
 	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r1.Direction = initial_normal + cosWeightedRandomHemisphereDirection(initial_normal);
+	r1.Direction = cosWeightedRandomHemisphereDirection(initial_normal);
 	#else 
 	r1.Direction = initial_normal + RandomPointInUnitSphereRejective();
 	#endif
@@ -91,7 +91,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	vec3 col_2 = GetBlockRayColor(r2, t2, n2, i2); 
 
 	vec3 diff = mix(col_1, col_2, 0.4f);
-	diff = pow(diff, vec3(2.5f));
+	diff = pow(diff, vec3(3.5f));
 
 	return vec3(diff);
 }
@@ -104,6 +104,14 @@ void main()
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 	#endif
 
+	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
+
+	if (InitialTracePosition.w == -1.0f)
+	{
+		o_Color = GetSkyColorAt(normalize(v_RayDirection));
+		return;
+	}
+
     vec3 Normals[6] = vec3[](
 	                  vec3(0.0f, 1.0f, 0.0f),
                       vec3(0.0f, -1.0f, 0.0f),
@@ -113,16 +121,26 @@ void main()
                       vec3(1.0f, 0.0f, 0.0f)
     );
 
-    vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords); // initial intersection point
-    vec3 InitialNormal = texture(u_NormalTexture, v_TexCoords).rgb;
+	vec2 Pixel;
+	Pixel.x = v_TexCoords.x * u_Dimensions.x;
+	Pixel.y = v_TexCoords.y * u_Dimensions.y;
 
-    if (InitialTracePosition.w == -1.0f)
-    {
-        o_Color = GetSkyColorAt(normalize(v_RayDirection));
-        return;
-    }
+	const int SPP = 4;
 
-    o_Color = CalculateDiffuse(InitialTracePosition.xyz, InitialNormal);
+	for (int s = 0 ; s < SPP ; s++)
+	{
+		float u = (Pixel.x + nextFloat(RNG_SEED)) / u_Dimensions.x;
+		float v = (Pixel.y + nextFloat(RNG_SEED)) / u_Dimensions.y;
+		vec2 uv = vec2(u, v);
+
+		vec4 Position = texture(u_PositionTexture, uv); // initial intersection point
+		vec3 Normal = texture(u_NormalTexture, uv).rgb;
+
+		o_Color += CalculateDiffuse(Position.xyz, Normal);
+
+	}
+
+	o_Color = o_Color / SPP;
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)
@@ -384,4 +402,15 @@ vec3 RandomPointInUnitSphereRejective()
 	}
 
 	return vec3(x, y, z);
+}
+
+vec3 CosineSampleHemisphere(float u1, float u2)
+{
+    float r = sqrt(u1);
+    float theta = 2 * 3.14159265 * u2;
+ 
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+ 
+    return vec3(x, y, sqrt(max(0.0f, 1 - u1)));
 }
