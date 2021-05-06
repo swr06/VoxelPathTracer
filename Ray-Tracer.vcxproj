@@ -118,7 +118,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)Dependencies\glm;$(SolutionDir)Dependencies\glfw\include;$(SolutionDir)Dependencies\glad\include;$(SolutionDir)Dependencies\imgui</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)Dependencies\glm;$(SolutionDir)Dependencies\glfw\include;$(SolutionDir)Dependencies\glad\include;$(SolutionDir)Dependencies\imgui;$(SolutionDir)Dependencies\fast_noise</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -219,13 +219,17 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Core\Shaders\ColorPassFrag.glsl" />
+    <None Include="Core\Shaders\ColorPassVert.glsl" />
     <None Include="Core\Shaders\FBOFrag.glsl" />
     <None Include="Core\Shaders\FBOVert.glsl" />
     <None Include="Core\Shaders\InitialRayTraceFrag.glsl" />
+    <None Include="Core\Shaders\PostProcessingFrag.glsl" />
+    <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
-    <None Include="Core\Shaders\TemporalFilter.glsl" />
+    <None Include="Core\Shaders\DiffuseTemporalFilter.glsl" />
+    <None Include="Core\Shaders\ColorTemporalFilter.glsl" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>

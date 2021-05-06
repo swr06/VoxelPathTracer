@@ -3,6 +3,7 @@
 #include <iostream>
 #include <string>
 #include <array>
+#include <glm/glm.hpp>
 
 #include "Block.h"
 #include "Texture3D.h"
@@ -19,7 +20,8 @@ namespace VoxelRT
 
 		World()
 		{
-			memset(&m_ChunkData, 0, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z);
+			memset(&m_ChunkData, 0, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z); 
+			m_Buffered = false;
 		}
 
 		const Block& GetBlock(uint16_t x, uint16_t y, uint16_t z)
@@ -35,9 +37,17 @@ namespace VoxelRT
 		void Buffer()
 		{
 			m_DataTexture.CreateTexture(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, m_ChunkData.data());
+			m_Buffered = true;
 		}
 
+		void ChangeCurrentlyHeldBlock();
+
+		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
 		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_ChunkData;
 		Texture3D m_DataTexture;
+
+	private :
+		bool m_Buffered = false;
+		uint8_t m_CurrentlyHeldBlock = 0;
 	};
 }

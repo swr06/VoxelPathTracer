@@ -93,7 +93,6 @@ namespace VoxelRT
 
 		switch (severity) {
 		case GL_DEBUG_SEVERITY_HIGH:
-			assert(0);
 			_severity = (char*)"HIGH";
 			break;
 

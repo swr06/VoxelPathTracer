@@ -4,7 +4,7 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
-//#define USE_HEMISPHERICAL_DIFFUSE_SCATTERING
+#define USE_HEMISPHERICAL_DIFFUSE_SCATTERING
 #define ANIMATE_NOISE
 #define MAX_VOXEL_DIST 10
 
@@ -58,7 +58,7 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 
 	else 
 	{	
-		return vec3(1.0f);
+		return GetSkyColorAt(r.Direction);
 	}
 }
 
@@ -72,9 +72,9 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	r1.Origin = initial_origin;
 
 	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r1.Direction = cosWeightedRandomHemisphereDirection(initial_normal);
+	r1.Direction = normalize(cosWeightedRandomHemisphereDirection(initial_normal));
 	#else 
-	r1.Direction = initial_normal + RandomPointInUnitSphereRejective();
+	r1.Direction = normalize(initial_normal + RandomPointInUnitSphereRejective());
 	#endif
 
 	vec3 col_1 = GetBlockRayColor(r1, t1, n1, i1); 
@@ -82,17 +82,14 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	r2.Origin = r1.Origin + (r1.Direction * t1);
 
 	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r2.Direction = n1 + cosWeightedRandomHemisphereDirection(n1);
+	r2.Direction = normalize(cosWeightedRandomHemisphereDirection(n1));
 	#else 
-	r2.Direction = n1 + RandomPointInUnitSphereRejective();
+	r2.Direction = normalize(n1 + RandomPointInUnitSphereRejective());
 	#endif
 
 	vec3 col_2 = GetBlockRayColor(r2, t2, n2, i2); 
 
-	vec3 diff = mix(col_1, col_2, 0.4f);
-	diff = pow(diff, vec3(7.5f));
-
-	return vec3(diff);
+	return pow((col_1 + col_2), vec3(3.0f)) / 6.0f;
 }
 
 void main()
@@ -102,6 +99,10 @@ void main()
 	#else
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 	#endif
+
+	RNG_SEED ^= RNG_SEED << 13;
+    RNG_SEED ^= RNG_SEED >> 17;
+    RNG_SEED ^= RNG_SEED << 5;
 
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 

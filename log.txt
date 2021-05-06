@@ -2,8 +2,275 @@
 ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
 
 
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
 ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
 
 
 ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InverseView  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InverseProjection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertCurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Dimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_VertDimensions  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_CurrentFrame  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_Projection  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_View  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTraceResolution  
+
+
+ERROR! : UNIFORM NOT FOUND!    |    UNIFORM : u_InitialTracePositionTexture  
 

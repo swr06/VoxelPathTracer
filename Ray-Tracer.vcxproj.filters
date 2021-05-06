@@ -258,13 +258,25 @@
     <None Include="Core\Shaders\RayTraceVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\TemporalFilter.glsl">
+    <None Include="Core\Shaders\DiffuseTemporalFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SmartDenoise.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\ColorPassFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ColorTemporalFilter.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ColorPassVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\PostProcessingFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\PostProcessingVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

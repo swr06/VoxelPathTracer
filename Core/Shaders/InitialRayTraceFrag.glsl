@@ -15,6 +15,7 @@ in vec3 v_RayOrigin;
 uniform int u_CurrentFrame;
 
 uniform sampler3D u_VoxelDataTexture;
+uniform vec2 u_Dimensions;
 
 struct Ray
 {
@@ -191,7 +192,7 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 200; i++) 
+	for (int i = 0; i < 175; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
@@ -275,7 +276,7 @@ void main()
     Ray r;
     r.Origin = v_RayOrigin;
     r.Direction = normalize(v_RayDirection);
-    
+
 	vec3 normal;
 	float id;
 	float t = voxel_traversal(r.Origin, r.Direction, normal, id);

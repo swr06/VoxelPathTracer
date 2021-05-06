@@ -18,8 +18,10 @@ using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
 bool VSync = true;
 
-float InitialTraceResolution = 1.0f;
+float InitialTraceResolution = 0.5f;
 float DiffuseTraceResolution = 0.5f;
+World* world = nullptr;
+bool ModifiedWorld = false;
 
 class RayTracerApp : public Application
 {
@@ -54,6 +56,24 @@ public:
 			MainCamera.UpdateOnMouseMovement(GetCursorX(), GetCursorY());
 		}
 
+		if (e.type == EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_LEFT && this->GetCursorLocked())
+		{
+			if (world)
+			{
+				world->Raycast(false, MainCamera.GetPosition(), MainCamera.GetFront());
+				ModifiedWorld = true;
+			}
+		}
+
+		if (e.type == EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_RIGHT && this->GetCursorLocked())
+		{
+			if (world)
+			{
+				world->Raycast(true, MainCamera.GetPosition(), MainCamera.GetFront());
+				ModifiedWorld = true;
+			}
+		}
+
 		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_F1)
 		{
 			this->SetCursorLocked(!this->GetCursorLocked());
@@ -62,6 +82,11 @@ public:
 		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_V)
 		{
 			VSync = !VSync;
+		}
+
+		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_Q)
+		{
+			world->ChangeCurrentlyHeldBlock();
 		}
 
 		if (e.type == EventTypes::WindowResize)
@@ -78,23 +103,35 @@ int main()
 	app.Initialize();
 	BlockDatabase::Initialize();
 
+	// --
+	world = new World();
+	GenerateWorld(world);
+	world->Buffer();
+
+	// --
+
+
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
 	GLClasses::Shader RaytraceShader;
 	GLClasses::Shader FinalShader;
 	GLClasses::Shader DiffuseTraceShader;
-	GLClasses::Shader TemporalFilter;
+	GLClasses::Shader DiffuseTemporalFilter;
 	GLClasses::Shader DenoiseFilter;
 	GLClasses::Shader ColorShader;
+	GLClasses::Shader TemporalShader;
+	GLClasses::Shader PostProcessingShader;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO;
 	GLClasses::Framebuffer DiffuseTraceFBO;
-	GLClasses::Framebuffer TemporalFBO1;
-	GLClasses::Framebuffer TemporalFBO2;
+	GLClasses::Framebuffer DiffuseTemporalFBO1;
+	GLClasses::Framebuffer DiffuseTemporalFBO2;
 	GLClasses::Framebuffer DenoisedFBO;
 	GLClasses::Framebuffer ColoredFBO;
+	GLClasses::Framebuffer PostProcessingFBO;
 
 	GLClasses::CubeTextureMap Skymap;
+	GLClasses::CubeTextureMap SkymapLOWRES;
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
 
@@ -104,12 +141,16 @@ int main()
 	FinalShader.CompileShaders();
 	DiffuseTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
 	DiffuseTraceShader.CompileShaders();
-	TemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalFilter.glsl");
-	TemporalFilter.CompileShaders();
+	DiffuseTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/DiffuseTemporalFilter.glsl");
+	DiffuseTemporalFilter.CompileShaders();
 	DenoiseFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
 	DenoiseFilter.CompileShaders();
-	ColorShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
+	ColorShader.CreateShaderProgramFromFile("Core/Shaders/ColorPassVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
 	ColorShader.CompileShaders();
+	TemporalShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ColorTemporalFilter.glsl");
+	TemporalShader.CompileShaders();
+	PostProcessingShader.CreateShaderProgramFromFile("Core/Shaders/PostProcessingVert.glsl", "Core/Shaders/PostProcessingFrag.glsl");
+	PostProcessingShader.CompileShaders();
 
 	Skymap.CreateCubeTextureMap(
 		{
@@ -119,6 +160,17 @@ int main()
 		"Res/bottom.bmp",
 		"Res/front.bmp",
 		"Res/back.bmp"
+		}, true
+	);
+
+	SkymapLOWRES.CreateCubeTextureMap(
+		{
+		"Res/skymap_lowres/right.bmp",
+		"Res/skymap_lowres/left.bmp",
+		"Res/skymap_lowres/top.bmp",
+		"Res/skymap_lowres/bottom.bmp",
+		"Res/skymap_lowres/front.bmp",
+		"Res/skymap_lowres/back.bmp"
 		}, false
 	);
 
@@ -136,30 +188,25 @@ int main()
 	VBO.VertexAttribPointer(1, 2, GL_FLOAT, 0, 4 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
 	VAO.Unbind();
 
-	// ----
-
-	World* world = new World();
-	GenerateWorld(world);
-	world->Buffer();
-
-	// ----
-
 	app.SetCursorLocked(true);
 
 	glDisable(GL_BLEND);
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
-		GLClasses::Framebuffer& TemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? TemporalFBO1 : TemporalFBO2;
-		GLClasses::Framebuffer& PrevTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? TemporalFBO2 : TemporalFBO1;
-
 		glfwSwapInterval((int)VSync);
-		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		
+		// Resize the framebuffers
 		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		TemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
-		PrevTemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
-		ColoredFBO.SetSize(app.GetWidth(), app.GetHeight());
+		DiffuseTemporalFBO1.SetSize(app.GetWidth(), app.GetHeight());
+		DiffuseTemporalFBO2.SetSize(app.GetWidth(), app.GetHeight());
+		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		DenoisedFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		ColoredFBO.SetSize(app.GetWidth(), app.GetHeight());
+
+		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
+		GLClasses::Framebuffer& PrevDiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO2 : DiffuseTemporalFBO1;
 
 		float camera_speed = 0.125f;
 
@@ -197,11 +244,12 @@ int main()
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
 		{
 			RaytraceShader.Recompile();
-			DiffuseTraceShader.Recompile();
 			FinalShader.Recompile();
-			TemporalFilter.Recompile();
+			DiffuseTraceShader.Recompile();
+			DiffuseTemporalFilter.Recompile();
 			DenoiseFilter.Recompile();
 			ColorShader.Recompile();
+			TemporalShader.Recompile();
 			Logger::Log("Recompiled!");
 		}
 
@@ -231,6 +279,9 @@ int main()
 		RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
 		RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+		RaytraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
+		RaytraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
+		RaytraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -255,7 +306,7 @@ int main()
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseTraceFBO.GetWidth(), DiffuseTraceFBO.GetHeight()));
 		DiffuseTraceShader.SetFloat("u_Time", glfwGetTime() * 1.2f);
-		RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -267,7 +318,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetID());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -275,19 +326,21 @@ int main()
 
 		DiffuseTraceFBO.Unbind();
 
-		///// Temporal filtering /////
+		///// Temporal filter the calculated diffuse /////
 
-		TemporalFBO.Bind();
-		TemporalFilter.Use();
+		DiffuseTemporalFBO.Bind();
+		DiffuseTemporalFilter.Use();
 
-		TemporalFilter.SetInteger("u_CurrentColorTexture", 0);
-		TemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
-		TemporalFilter.SetInteger("u_PreviousColorTexture", 2);
+		DiffuseTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
+		DiffuseTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
+		DiffuseTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
 
-		TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
-		TemporalFilter.SetMatrix4("u_View", CurrentView);
-		TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
-		TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+		DiffuseTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
+		DiffuseTemporalFilter.SetMatrix4("u_View", CurrentView);
+		DiffuseTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
+		DiffuseTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+		
+		DiffuseTemporalFilter.SetBool("u_WorldModified", ModifiedWorld);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -296,15 +349,15 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, PrevTemporalFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
-		TemporalFBO.Unbind();
+		DiffuseTemporalFBO.Unbind();
 
-		// ---- Smart Denoise ----
+		// ---- Denoise the diffuse ----
 
 		DenoisedFBO.Bind();
 		DenoiseFilter.Use();
@@ -312,7 +365,7 @@ int main()
 		DenoiseFilter.SetInteger("u_Texture", 0);
 		
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, TemporalFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
 		
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -333,6 +386,7 @@ int main()
 		ColorShader.SetInteger("u_Skybox", 5);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
+		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth()* InitialTraceResolution), floor(app.GetHeight()* InitialTraceResolution)));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DenoisedFBO.GetTexture());
@@ -358,6 +412,27 @@ int main()
 
 		ColoredFBO.Unbind();
 
+		// ---- POST PROCESSING ----
+
+		PostProcessingFBO.Bind();
+		PostProcessingShader.Use();
+
+		PostProcessingShader.SetMatrix4("u_InverseView", inv_view);
+		PostProcessingShader.SetMatrix4("u_InverseProjection", inv_projection);
+		PostProcessingShader.SetInteger("u_FramebufferTexture", 0);
+		PostProcessingShader.SetInteger("u_PositionTexture", 1);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+
+		PostProcessingFBO.Unbind();
 
 		// ---- FINAL ----
 
@@ -369,9 +444,13 @@ int main()
 
 		FinalShader.Use();
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
+		FinalShader.SetInteger("u_InitialTracePositionTexture", 1);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -380,5 +459,9 @@ int main()
 		// Finish Frame
 		app.FinishFrame();
 		GLClasses::DisplayFrameRate(app.GetWindow(), "Voxel RT");
+
+		ModifiedWorld = false;
 	}
+
+	delete world;
 }

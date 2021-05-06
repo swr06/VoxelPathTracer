@@ -61,19 +61,37 @@ void main()
 
     if (WorldPosition.w > 0.0f)
     {
-        float id = texture(u_DataTexture, v_TexCoords).r;
-        vec3 Diffuse = WeightedSample(u_DiffuseTexture, v_TexCoords).rgb;
+        vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
+        float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
+        float PixelDepth2 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
+        float PixelDepth3 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
+        float PixelDepth4 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
 
-        vec2 uv;
-        CalculateUV(WorldPosition.xyz, SampledNormals, uv);
+        if (PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
+        {
+            float id = texture(u_DataTexture, v_TexCoords).r;
+            vec3 Diffuse = WeightedSample(u_DiffuseTexture, v_TexCoords).rgb;
 
-        //o_Color = vec3(uv, 1.0f);
-        o_Color = vec3(texture(u_BlockAlbedoTextures, vec3(uv, id))) * Diffuse;
+            vec2 uv;
+            CalculateUV(WorldPosition.xyz, SampledNormals, uv);
+
+            //o_Color = vec3(uv, 1.0f);
+            vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
+            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(uv, id)).rgb;
+            vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
+
+            o_Color = Ambient + ((AlbedoColor) * (Diffuse * 1.0f));
+        }
+
+        else 
+        {
+            o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
+        }
     }
 
     else 
     {
-        o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb;
+        o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
     }
 }
 

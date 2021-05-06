@@ -13,6 +13,8 @@ uniform mat4 u_View;
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
+uniform bool u_WorldModified;
+
 vec2 View;
 vec2 Dimensions;
 vec2 TexCoord;
@@ -79,7 +81,7 @@ void main()
 		float ClosestDepth;
 		vec2 BestOffset;
 
-		//PrevColor.rgb = NeighbourhoodClamping(CurrentColor.rgb, PrevColor.rgb, AverageColor);
+		PrevColor.rgb = NeighbourhoodClamping(CurrentColor.rgb, PrevColor.rgb, AverageColor);
 
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 
@@ -88,11 +90,11 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		BlendFactor *= (exp(-length(velocity)) * 0.62f) + 0.55f; // 0.35f
-		BlendFactor = clamp(BlendFactor, 0.03, 0.95);
+		BlendFactor *= (exp(-length(velocity)) * 0.62f) + 0.23; // 0.35f
+		BlendFactor = clamp(BlendFactor, 0.03f, 0.95f);
 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
-		//o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;
+		o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;
 	}
 
 	else 
