@@ -6,6 +6,7 @@
 
 layout (location = 0) out vec4 o_Position;
 layout (location = 1) out vec3 o_Normal;
+layout (location = 2) out vec4 o_Data;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -298,4 +299,5 @@ void main()
 	}
 
 	o_Position.w = t;
+	o_Data = vec4(id * 255.0f, 1.0f, 1.0f, 1.0f);
 }

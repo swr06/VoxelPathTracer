@@ -34,10 +34,12 @@ namespace VoxelRT
 
 			m_PositionTexture = v.m_PositionTexture;
 			m_NormalTexture = v.m_NormalTexture;
+			m_DataTexture = v.m_DataTexture;
 			m_FBO = v.m_FBO;
 
 			v.m_PositionTexture = 0;
 			v.m_NormalTexture = 0;
+			v.m_DataTexture = 0;
 			v.m_FBO = 0;
 		}
 
@@ -65,6 +67,7 @@ namespace VoxelRT
 		inline GLuint GetFramebufferID() const noexcept { return m_FBO; }
 		inline GLuint GetPositionTexture() const noexcept { return m_PositionTexture; }
 		inline GLuint GetNormalTexture() const noexcept { return m_NormalTexture; }
+		inline GLuint GetDataTexture() const noexcept { return m_DataTexture; }
 		void GenerateFramebuffers();
 
 	private:
@@ -73,6 +76,7 @@ namespace VoxelRT
 
 		GLuint m_PositionTexture = 0;
 		GLuint m_NormalTexture = 0;
+		GLuint m_DataTexture = 0;
 
 		GLuint m_FBO = 0;
 		uint32_t m_Width = 0;

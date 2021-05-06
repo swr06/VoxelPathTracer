@@ -49,16 +49,15 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 {
 	float b;
 
-	T = voxel_traversal(r.Origin, r.Direction, out_n, b, 10);
+	T = voxel_traversal(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
 
 	if (T > 0.0f) 
 	{ 
-		return vec3(0.7f); 
+		return vec3(0.05f); 
 	} 
 
 	else 
 	{	
-		//return GetSkyColorAt(r.Direction);
 		return vec3(1.0f);
 	}
 }
@@ -91,7 +90,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	vec3 col_2 = GetBlockRayColor(r2, t2, n2, i2); 
 
 	vec3 diff = mix(col_1, col_2, 0.4f);
-	diff = pow(diff, vec3(3.5f));
+	diff = pow(diff, vec3(7.5f));
 
 	return vec3(diff);
 }

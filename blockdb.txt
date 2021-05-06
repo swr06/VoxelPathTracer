@@ -1,0 +1,120 @@
+{
+	Name : Grass
+	Albedo_top : Res/Block/Grass/Top/Albedo.png
+	Albedo_bottom : Res/Block/Dirt/Albedo.png
+	Albedo : Res/Block/Grass/Side/Albedo.png
+	
+	Normal_top : Res/Block/Grass/Top/Normal.png
+	Normal_bottom : Res/Block/Dirt/Normal.png
+	Normal : Res/Block/Grass/Side/Normal.png
+	
+	PBR_top : Res/Block/Grass/Top/PBR.png
+	PBR_bottom : Res/Block/Dirt/PBR.png
+	PBR : Res/Block/Grass/Side/PBR.png
+}
+
+{
+	Name : Dirt
+	
+	Albedo : Res/Block/Dirt/Albedo.png
+	Normal : Res/Block/Dirt/Normal.png
+	PBR : Res/Block/Dirt/PBR.png
+}
+
+{
+	Name : Stone
+	Albedo : Res/Block/Stone/Albedo.png
+	Normal : Res/Block/Stone/Normal.png
+	PBR : Res/Block/Stone/PBR.png
+}
+
+{
+	Name : Cobblestone
+	Albedo : Res/Block/Cobblestone/Albedo.png
+	Normal : Res/Block/Cobblestone/Normal.png
+	PBR : Res/Block/Cobblestone/PBR.png
+}
+
+{
+	Name : Sand
+	Albedo : Res/Block/Sand/Albedo.png
+	Normal : Res/Block/Sand/Normal.png
+	PBR : Res/Block/Sand/PBR.png
+}
+
+{
+	Name : oak_log
+
+	Albedo_top : Res/Block/Bark/Top/Albedo.png
+	Albedo :  Res/Block/Bark/Side/Albedo.png
+
+	Normal_top :  Res/Block/Bark/Top/Normal.png
+	Normal :  Res/Block/Bark/Side/Normal.png
+
+	PBR_top :  Res/Block/Bark/Top/PBR.png
+	PBR :  Res/Block/Bark/Side/PBR.png
+}
+
+{
+	Name : oak_leaves
+	Albedo : Res/Block/Leaves/Albedo.png
+	Normal : Res/Block/Leaves/Normal.png
+	PBR : Res/Block/Leaves/PBR.png
+	Transparent;
+}
+
+{
+	Name : Brick
+	Albedo : Res/Block/Brick/Albedo.png
+	Normal : Res/Block/Brick/Normal.png
+	PBR : Res/Block/Brick/PBR.png
+}
+
+{
+	Name : Brick1
+	Albedo : Res/Block/Brick1/Albedo.png
+	Normal : Res/Block/Brick1/Normal.png
+	PBR : Res/Block/Brick1/PBR.png
+}
+
+{
+	Name : Fab1
+	Albedo : Res/Block/Fab1/Albedo.png
+	Normal : Res/Block/Fab1/Normal.png
+	PBR : Res/Block/Fab1/PBR.png
+}
+
+{
+	Name : Gravel
+	Albedo : Res/Block/Gravel/Albedo.png
+	Normal : Res/Block/Gravel/Normal.png
+	PBR : Res/Block/Gravel/PBR.png
+}
+
+{
+	Name : Metal
+	Albedo : Res/Block/Metal/Albedo.png
+	Normal : Res/Block/Metal/Normal.png
+	PBR : Res/Block/Metal/PBR.png
+}
+
+{
+	Name : Metal1
+	Albedo : Res/Block/Metal1/Albedo.png
+	Normal : Res/Block/Metal1/Normal.png
+	PBR : Res/Block/Metal1/PBR.png
+}
+
+{
+	Name : Leather
+	Albedo : Res/Block/Leather/Albedo.png
+	Normal : Res/Block/Leather/Normal.png
+	PBR : Res/Block/Leather/PBR.png
+}
+
+{
+	Name : MISC_LEAVE_THIS_AT_THE_END
+	Albedo : Res/Block/Misc/Albedo.png
+	Normal : Res/Block/Misc/Normal.png
+	PBR : Res/Block/Misc/PBR.png
+}

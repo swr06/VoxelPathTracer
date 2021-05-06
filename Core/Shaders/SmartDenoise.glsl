@@ -12,7 +12,7 @@ uniform sampler2D u_Texture;
 vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius = round(kSigma*sigma);
-    radius = 3;
+    radius = 2;
     float radQ = radius * radius;
     
     float invSigmaQx2 = .5 / (sigma * sigma);      // 1.0 / (sigma^2 * 2.0)

@@ -128,6 +128,12 @@
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp">
       <Filter>Source Files\GLClasses</Filter>
     </ClCompile>
+    <ClCompile Include="Core\BlockDatabase.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\BlockDatabaseParser.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -223,6 +229,12 @@
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h">
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
+    <ClInclude Include="Core\BlockDatabase.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BlockDatabaseParser.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -250,6 +262,9 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SmartDenoise.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ColorPassFrag.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

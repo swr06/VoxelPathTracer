@@ -1,5 +1,7 @@
 #include "WorldGenerator.h"
 
+#include "BlockDatabase.h"
+
 static FastNoise NoiseGenerator(2384); // World generator
 
 uint8_t GRASS_ID = 16;
@@ -8,6 +10,10 @@ uint8_t DIRT_ID = 48;
 
 void SetVerticalBlocks(VoxelRT::World* world, int x, int z, int y_level)
 {
+	GRASS_ID = VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top);
+	DIRT_ID = VoxelRT::BlockDatabase::GetBlockTexture("Dirt", VoxelRT::BlockDatabase::BlockFaceType::Top);
+	STONE_ID = VoxelRT::BlockDatabase::GetBlockTexture("Stone", VoxelRT::BlockDatabase::BlockFaceType::Top);
+
 	for (int y = 0; y < y_level; y++)
 	{
 		if (y >= y_level - 1)

@@ -12,13 +12,14 @@
 #include "Core/WorldGenerator.h"
 #include "Core/InitialTraceFBO.h"
 #include "Core/GLClasses/CubeTextureMap.h"
+#include "Core/BlockDatabase.h"
 
 using namespace VoxelRT;
 FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
 bool VSync = true;
 
 float InitialTraceResolution = 1.0f;
-float DiffuseTraceResolution = 0.25f;
+float DiffuseTraceResolution = 0.5f;
 
 class RayTracerApp : public Application
 {
@@ -75,6 +76,7 @@ int main()
 {
 	RayTracerApp app;
 	app.Initialize();
+	BlockDatabase::Initialize();
 
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
@@ -83,11 +85,14 @@ int main()
 	GLClasses::Shader DiffuseTraceShader;
 	GLClasses::Shader TemporalFilter;
 	GLClasses::Shader DenoiseFilter;
+	GLClasses::Shader ColorShader;
+
 	VoxelRT::InitialRTFBO InitialTraceFBO;
 	GLClasses::Framebuffer DiffuseTraceFBO;
 	GLClasses::Framebuffer TemporalFBO1;
 	GLClasses::Framebuffer TemporalFBO2;
 	GLClasses::Framebuffer DenoisedFBO;
+	GLClasses::Framebuffer ColoredFBO;
 
 	GLClasses::CubeTextureMap Skymap;
 	glm::mat4 CurrentProjection, CurrentView;
@@ -103,6 +108,8 @@ int main()
 	TemporalFilter.CompileShaders();
 	DenoiseFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
 	DenoiseFilter.CompileShaders();
+	ColorShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
+	ColorShader.CompileShaders();
 
 	Skymap.CreateCubeTextureMap(
 		{
@@ -151,7 +158,8 @@ int main()
 		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 		TemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
 		PrevTemporalFBO.SetSize(app.GetWidth(), app.GetHeight());
-		DenoisedFBO.SetSize(app.GetWidth(), app.GetHeight());
+		ColoredFBO.SetSize(app.GetWidth(), app.GetHeight());
+		DenoisedFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 
 		float camera_speed = 0.125f;
 
@@ -193,6 +201,7 @@ int main()
 			FinalShader.Recompile();
 			TemporalFilter.Recompile();
 			DenoiseFilter.Recompile();
+			ColorShader.Recompile();
 			Logger::Log("Recompiled!");
 		}
 
@@ -311,6 +320,45 @@ int main()
 		
 		DenoisedFBO.Unbind();
 
+		// ---- COLOR PASS ----
+
+		ColoredFBO.Bind();
+
+		ColorShader.Use();
+		ColorShader.SetInteger("u_DiffuseTexture", 0);
+		ColorShader.SetInteger("u_NormalTexture", 1);
+		ColorShader.SetInteger("u_InitialTracePositionTexture", 2);
+		ColorShader.SetInteger("u_DataTexture", 3);
+		ColorShader.SetInteger("u_BlockAlbedoTextures", 4);
+		ColorShader.SetInteger("u_Skybox", 5);
+		ColorShader.SetMatrix4("u_InverseView", inv_view);
+		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, DenoisedFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetDataTexture());
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetID());
+
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+
+		ColoredFBO.Unbind();
+
+
 		// ---- FINAL ----
 
 		glDisable(GL_CULL_FACE);
@@ -323,7 +371,7 @@ int main()
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DenoisedFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
