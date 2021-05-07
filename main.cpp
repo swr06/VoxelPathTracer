@@ -113,7 +113,7 @@ int main()
 
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
-	GLClasses::Shader RaytraceShader;
+	GLClasses::Shader InitialTraceShader;
 	GLClasses::Shader FinalShader;
 	GLClasses::Shader DiffuseTraceShader;
 	GLClasses::Shader DiffuseTemporalFilter;
@@ -135,8 +135,8 @@ int main()
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
 
-	RaytraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
-	RaytraceShader.CompileShaders();
+	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
+	InitialTraceShader.CompileShaders();
 	FinalShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/FBOFrag.glsl");
 	FinalShader.CompileShaders();
 	DiffuseTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
@@ -192,6 +192,28 @@ int main()
 
 	glDisable(GL_BLEND);
 
+	///// Set the block texture data uniforms    /////
+
+	InitialTraceShader.Use();
+
+	for (int i = 0; i < 128; i++)
+	{
+		// BLOCK_TEXTURE_DATA
+
+		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+		glm::vec3 data;
+
+		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+		InitialTraceShader.SetVector3f(name.c_str(), data);
+	}
+
+	glUseProgram(0);
+
+	/////                                     /////
+
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
 		glfwSwapInterval((int)VSync);
@@ -243,13 +265,36 @@ int main()
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
 		{
-			RaytraceShader.Recompile();
+			InitialTraceShader.Recompile();
 			FinalShader.Recompile();
 			DiffuseTraceShader.Recompile();
 			DiffuseTemporalFilter.Recompile();
 			DenoiseFilter.Recompile();
 			ColorShader.Recompile();
 			TemporalShader.Recompile();
+
+			///// Set the block texture data uniforms    /////
+
+			InitialTraceShader.Use();
+
+			for (int i = 0; i < 128; i++)
+			{
+				// BLOCK_TEXTURE_DATA
+
+				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+				glm::vec3 data;
+
+				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+				InitialTraceShader.SetVector3f(name.c_str(), data);
+			}
+
+			glUseProgram(0);
+
+			/////                                     /////
+
 			Logger::Log("Recompiled!");
 		}
 
@@ -274,15 +319,27 @@ int main()
 			glDisable(GL_CULL_FACE);
 			glDisable(GL_DEPTH_TEST);
 
-			RaytraceShader.Use();
+			InitialTraceShader.Use();
 
-			RaytraceShader.SetMatrix4("u_InverseView", inv_view);
-			RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
-			RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
-			RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
-			RaytraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
-			RaytraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
-			RaytraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+			InitialTraceShader.SetMatrix4("u_InverseView", inv_view);
+			InitialTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
+			InitialTraceShader.SetInteger("u_VoxelDataTexture", 0);
+			InitialTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
+			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
+			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+
+			/// TEMPORARY ///
+			InitialTraceShader.SetInteger("u_GrassBlockProps[0]", BlockDatabase::GetBlockID("Grass"));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[1]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[2]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[3]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[4]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[5]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[6]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[7]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[8]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[9]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -306,6 +363,8 @@ int main()
 		DiffuseTraceShader.SetInteger("u_PositionTexture", 1);
 		DiffuseTraceShader.SetInteger("u_NormalTexture", 2);
 		DiffuseTraceShader.SetInteger("u_Skymap", 3);
+		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
+		DiffuseTraceShader.SetInteger("u_DataTexture", 5);
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseTraceFBO.GetWidth(), DiffuseTraceFBO.GetHeight()));
@@ -323,6 +382,12 @@ int main()
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetDataTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -387,7 +452,9 @@ int main()
 		ColorShader.SetInteger("u_InitialTracePositionTexture", 2);
 		ColorShader.SetInteger("u_DataTexture", 3);
 		ColorShader.SetInteger("u_BlockAlbedoTextures", 4);
-		ColorShader.SetInteger("u_Skybox", 5);
+		ColorShader.SetInteger("u_BlockNormalTextures", 5);
+		ColorShader.SetInteger("u_BlockPBRTextures", 6);
+		ColorShader.SetInteger("u_Skybox", 7);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth()* InitialTraceResolution), floor(app.GetHeight()* InitialTraceResolution)));
@@ -408,6 +475,12 @@ int main()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
+
+		glActiveTexture(GL_TEXTURE7);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetID());
 
 		VAO.Bind();

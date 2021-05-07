@@ -10,10 +10,6 @@ uint8_t DIRT_ID = 48;
 
 void SetVerticalBlocks(VoxelRT::World* world, int x, int z, int y_level)
 {
-	GRASS_ID = VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top);
-	DIRT_ID = VoxelRT::BlockDatabase::GetBlockTexture("Dirt", VoxelRT::BlockDatabase::BlockFaceType::Top);
-	STONE_ID = VoxelRT::BlockDatabase::GetBlockTexture("Stone", VoxelRT::BlockDatabase::BlockFaceType::Top);
-
 	for (int y = 0; y < y_level; y++)
 	{
 		if (y >= y_level - 1)
@@ -37,6 +33,10 @@ void SetVerticalBlocks(VoxelRT::World* world, int x, int z, int y_level)
 
 void VoxelRT::GenerateWorld(World* chunk)
 {
+	GRASS_ID = VoxelRT::BlockDatabase::GetBlockID("Grass");
+	DIRT_ID = VoxelRT::BlockDatabase::GetBlockID("Dirt");
+	STONE_ID = VoxelRT::BlockDatabase::GetBlockID("Stone");
+
 	bool gen_type = 1;
 
 	if (gen_type)

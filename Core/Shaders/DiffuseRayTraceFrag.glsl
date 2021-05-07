@@ -7,6 +7,7 @@
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING
 #define ANIMATE_NOISE
 #define MAX_VOXEL_DIST 10
+#define NORMAL_MAP_LOD 2
 
 layout (location = 0) out vec3 o_Color;
 
@@ -18,6 +19,9 @@ uniform sampler3D u_VoxelData;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_PositionTexture;
 uniform samplerCube u_Skymap;
+uniform sampler2DArray u_BlockNormalTextures;
+uniform sampler2D u_DataTexture;
+
 uniform vec2 u_Dimensions;
 uniform float u_Time;
 
@@ -35,7 +39,9 @@ float GetVoxel(ivec3 loc);
 bool IsInVoxelizationVolume(in vec3 pos);
 vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
+// Globals
 vec3 g_Normal;
 int RNG_SEED = 0;
 
@@ -64,6 +70,21 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 
 vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 {
+	// Temporarily hardcoded double bounce diffuse 
+
+	vec3 tnormal;
+	vec2 tuv;
+	vec3 ttan;
+	vec3 tbitan;
+	mat3 tbn;
+	int idx;
+
+	CalculateVectors(initial_origin, initial_normal, ttan, tbitan, tuv);
+	tbn = mat3(normalize(ttan), normalize(tbitan), normalize(initial_normal));
+
+	idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
+	tnormal = tbn * textureLod(u_BlockNormalTextures, vec3(tuv, idx), NORMAL_MAP_LOD).rgb;
+
 	Ray r1, r2;
 	float t1, t2;
 	vec3 n1, n2;
@@ -72,24 +93,30 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
 	r1.Origin = initial_origin;
 
 	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r1.Direction = normalize(cosWeightedRandomHemisphereDirection(initial_normal));
+	r1.Direction = normalize(cosWeightedRandomHemisphereDirection(tnormal));
 	#else 
-	r1.Direction = normalize(initial_normal + RandomPointInUnitSphereRejective());
+	r1.Direction = normalize(tnormal + RandomPointInUnitSphereRejective());
 	#endif
 
 	vec3 col_1 = GetBlockRayColor(r1, t1, n1, i1); 
 
 	r2.Origin = r1.Origin + (r1.Direction * t1);
 
+	CalculateVectors(r2.Origin, n1, ttan, tbitan, tuv);
+	tbn = mat3(normalize(ttan), normalize(tbitan), normalize(n1));
+	idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
+	tnormal = tbn * textureLod(u_BlockNormalTextures, vec3(tuv, idx), NORMAL_MAP_LOD).rgb;
+
 	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r2.Direction = normalize(cosWeightedRandomHemisphereDirection(n1));
+	r2.Direction = normalize(cosWeightedRandomHemisphereDirection(tnormal));
 	#else 
 	r2.Direction = normalize(n1 + RandomPointInUnitSphereRejective());
 	#endif
 
+
 	vec3 col_2 = GetBlockRayColor(r2, t2, n2, i2); 
 
-	return pow((col_1 + col_2), vec3(3.0f)) / 6.0f;
+	return pow((col_1 + col_2), vec3(3.5f)) / 6.0f;
 }
 
 void main()
@@ -413,4 +440,65 @@ vec3 CosineSampleHemisphere(float u1, float u2)
     float y = r * sin(theta);
  
     return vec3(x, y, sqrt(max(0.0f, 1 - u1)));
+}
+
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
+{
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+	if (normal == Normals[0])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (normal == Normals[1])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (normal == Normals[2])
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
+    }
+
+    else if (normal == Normals[3])
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
+    }
+	
+    else if (normal == Normals[4])
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
+    }
+    
+
+    else if (normal == Normals[5])
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
+    }
 }

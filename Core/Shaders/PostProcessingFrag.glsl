@@ -1,5 +1,35 @@
 #version 330 core
 
+#define CG_RR 255 
+#define CG_RG 0 
+#define CG_RB 0 
+#define CG_RI 1.00 
+#define CG_RM 0 
+#define CG_RC 1.00 
+
+#define CG_GR 0 
+#define CG_GG 255 
+#define CG_GB 0 
+#define CG_GI 1.00 
+#define CG_GM 0 
+#define CG_GC 1.00 
+
+#define CG_BR 0 
+#define CG_BG 0 
+#define CG_BB 255
+#define CG_BI 1.00 
+#define CG_BM 0 
+#define CG_BC 1.00 
+
+#define CG_TR 255 
+#define CG_TG 255 
+#define CG_TB 255 
+#define CG_TI 1.00 
+#define CG_TM 0.0 
+
+#define SATURATION 1.0f
+#define VIBRANCE 1.6f
+
 layout(location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
@@ -83,6 +113,34 @@ void Vignette(inout vec3 color)
 	color.rgb *= 1.0f - dist * 0.5;
 }
 
+void ColorGrading(inout vec3 color)
+{
+	vec3 cgColor = pow(color.r, CG_RC) * pow(vec3(CG_RR, CG_RG, CG_RB) / 255.0, vec3(2.2)) +
+				   pow(color.g, CG_GC) * pow(vec3(CG_GR, CG_GG, CG_GB) / 255.0, vec3(2.2)) +
+				   pow(color.b, CG_BC) * pow(vec3(CG_BR, CG_BG, CG_BB) / 255.0, vec3(2.2));
+	vec3 cgMin = pow(vec3(CG_RM, CG_GM, CG_BM) / 255.0, vec3(2.2));
+	color = (cgColor * (1.0 - cgMin) + cgMin) * vec3(CG_RI, CG_GI, CG_BI);
+	
+	vec3 cgTint = pow(vec3(CG_TR, CG_TG, CG_TB) / 255.0, vec3(2.2)) * GetLuminance(color) * CG_TI;
+	color = mix(color, cgTint, CG_TM);
+}
+
+void ColorSaturation(inout vec3 color) 
+{
+	float grayVibrance = (color.r + color.g + color.b) / 3.0;
+	float graySaturation = grayVibrance;
+	if (SATURATION < 1.00) graySaturation = dot(color, vec3(0.299, 0.587, 0.114));
+
+	float mn = min(color.r, min(color.g, color.b));
+	float mx = max(color.r, max(color.g, color.b));
+	float sat = (1.0 - (mx - mn)) * (1.0 - mx) * grayVibrance * 5.0;
+	vec3 lightness = vec3((mn + mx) * 0.5);
+
+	color = mix(color, mix(color, lightness, 1.0 - VIBRANCE), sat);
+	color = mix(color, lightness, (1.0 - lightness) * (2.0 - VIBRANCE) / 2.0 * abs(VIBRANCE - 1.0));
+	color = color * SATURATION - graySaturation * (SATURATION - 1.0);
+}
+
 void main()
 {
 	vec2 TexSize = textureSize(u_PositionTexture, 0);
@@ -94,6 +152,8 @@ void main()
 	if (texture(u_PositionTexture, v_TexCoords).w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
 	{
 		vec3 SharpenedColor = sharpen(u_FramebufferTexture, v_TexCoords);
+		ColorGrading(SharpenedColor);
+		ColorSaturation(SharpenedColor);
 		SharpenedColor = ACESFitted(vec4(SharpenedColor, 1.0f), 4.5f).rgb;
 		Vignette(SharpenedColor);
 		o_Color = SharpenedColor;

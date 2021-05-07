@@ -9,7 +9,7 @@ namespace VoxelRT
 		static uint8_t v = 0;
 		v++;
 
-		if (v == 255)
+		if (v >= 128)
 		{
 			throw "Too many blocks in the block database! Unable to generate more blocks!";
 		}

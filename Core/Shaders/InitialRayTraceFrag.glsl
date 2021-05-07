@@ -4,6 +4,8 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
+#define MULTIPLE_TEXTURING_GRASS
+
 layout (location = 0) out vec4 o_Position;
 layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_Data;
@@ -16,6 +18,17 @@ uniform int u_CurrentFrame;
 
 uniform sampler3D u_VoxelDataTexture;
 uniform vec2 u_Dimensions;
+uniform vec3 BLOCK_TEXTURE_DATA[128];
+
+// Temporary solution to have multi texturing for grass blocks
+// Data stored : 
+// Grass block ID
+// top face index (albedo, normal, pbr),
+// right/left/front/back face index (albedo, normal, pbr),
+// bottom face index (albedo, normal, pbr)
+// 9 + 1 ints total
+
+uniform int u_GrassBlockProps[10];
 
 struct Ray
 {
@@ -25,6 +38,14 @@ struct Ray
 
 
 vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
+
+const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
 
 float sum(vec3 v)
 {
@@ -65,13 +86,6 @@ bool VoxelExists(in vec3 loc)
 // Calculates uv from world position
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
 {
-    const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-    const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-    const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-    const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-    const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-    const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
     if (normal == NORMAL_TOP)
     {
         uv = vec2(fract(world_pos.xz));
@@ -267,6 +281,7 @@ float raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr)
 
 void main()
 {
+	// checker boarding test
 	//if (int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame % 2))
 	//{
 	//	o_Color = vec3(0.0f);
@@ -300,5 +315,38 @@ void main()
 	}
 
 	o_Position.w = t;
-	o_Data = vec4(id * 255.0f, 1.0f, 1.0f, 1.0f);
+
+	int reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
+	vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+
+	#ifdef MULTIPLE_TEXTURING_GRASS
+
+	// /* Specific to grass texture. Temporary solution */
+	if (reference_id == u_GrassBlockProps[0])
+	{
+	    if (normal == NORMAL_LEFT || normal == NORMAL_RIGHT || normal == NORMAL_FRONT || normal == NORMAL_BACK)
+		{
+			texture_ids.x = u_GrassBlockProps[4];
+			texture_ids.y = u_GrassBlockProps[5];
+			texture_ids.z = u_GrassBlockProps[6];
+		}
+
+		else if (normal == NORMAL_TOP)
+		{
+			texture_ids.x = u_GrassBlockProps[1];
+			texture_ids.y = u_GrassBlockProps[2];
+			texture_ids.z = u_GrassBlockProps[3];
+		}
+
+		else if (normal == NORMAL_BOTTOM)
+		{
+			texture_ids.x = u_GrassBlockProps[7];
+			texture_ids.y = u_GrassBlockProps[8];
+			texture_ids.z = u_GrassBlockProps[9];
+		}
+	}
+
+	#endif
+
+	o_Data = vec4(texture_ids.x, texture_ids.y, texture_ids.z, 1.0f);
 }

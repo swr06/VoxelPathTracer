@@ -48,6 +48,6 @@ namespace VoxelRT
 
 	private :
 		bool m_Buffered = false;
-		uint8_t m_CurrentlyHeldBlock = 0;
+		uint8_t m_CurrentlyHeldBlock = 1;
 	};
 }

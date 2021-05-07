@@ -10,6 +10,8 @@ uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTracePositionTexture;
 uniform sampler2D u_DataTexture;
 uniform sampler2DArray u_BlockAlbedoTextures;
+uniform sampler2DArray u_BlockNormalTextures;
+uniform sampler2DArray u_BlockPBRTextures;
 uniform samplerCube u_Skybox;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
@@ -58,9 +60,13 @@ void main()
     vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
 
     o_Color = vec3(1.0f);
+    o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
 
     if (WorldPosition.w > 0.0f)
     {
+        vec2 uv;
+        CalculateUV(WorldPosition.xyz, SampledNormals, uv); uv.y = 1.0f - uv.y;
+
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
         float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
         float PixelDepth2 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
@@ -69,29 +75,18 @@ void main()
 
         if (PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
         {
-            float id = texture(u_DataTexture, v_TexCoords).r;
+            vec4 data = texture(u_DataTexture, v_TexCoords);
+            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(uv, data.x)).rgb;
+            vec3 NormalMap = texture(u_BlockNormalTextures, vec3(uv, data.y)).rgb;
+            vec3 PBRMap = texture(u_BlockPBRTextures, vec3(uv, data.z)).rgb;
+
             vec3 Diffuse = WeightedSample(u_DiffuseTexture, v_TexCoords).rgb;
 
-            vec2 uv;
-            CalculateUV(WorldPosition.xyz, SampledNormals, uv);
-
-            //o_Color = vec3(uv, 1.0f);
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
-            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(uv, id)).rgb;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
             o_Color = Ambient + ((AlbedoColor) * (Diffuse * 1.0f));
         }
-
-        else 
-        {
-            o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
-        }
-    }
-
-    else 
-    {
-        o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
     }
 }
 

@@ -6,9 +6,9 @@ void VoxelRT::World::ChangeCurrentlyHeldBlock()
 {
 	m_CurrentlyHeldBlock++;
 
-	if (m_CurrentlyHeldBlock >= BlockDatabase::GetNumberOfBlocksInDatabase())
+	if (m_CurrentlyHeldBlock >= BlockDatabase::GetNumberOfBlocksInDatabase() || m_CurrentlyHeldBlock >= 127)
 	{
-		m_CurrentlyHeldBlock = 0;
+		m_CurrentlyHeldBlock = 1;
 	}
 }
 
@@ -65,7 +65,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 
 				if (place)
 				{
-					uint8_t editblock = BlockDatabase::GetBlockTexture(m_CurrentlyHeldBlock, VoxelRT::BlockDatabase::BlockFaceType::Top);
+					uint8_t editblock = m_CurrentlyHeldBlock;
 
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { editblock });
 					
