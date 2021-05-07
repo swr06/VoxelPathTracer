@@ -14,6 +14,7 @@ uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
 uniform bool u_WorldModified;
+uniform bool u_CameraMoved;
 
 vec2 View;
 vec2 Dimensions;
@@ -88,9 +89,10 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float BlendFactorModifier = u_WorldModified ? 0.1f : 0.4f;
+		float x = (u_CameraMoved ? 0.323f : 0.9002f);
+		float BlendFactorModifier = u_WorldModified ? 0.05f : x;
 		BlendFactor *= (exp(-length(velocity)) * 0.62f) + BlendFactorModifier; // 0.35f
-		BlendFactor = clamp(BlendFactor, 0.03f, 0.95f);
+		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 		//o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;

@@ -19,7 +19,7 @@ FPSCamera MainCamera(90.0f, (float)800.0f / (float)600.0f);
 bool VSync = true;
 
 float InitialTraceResolution = 0.5f;
-float DiffuseTraceResolution = 0.5f;
+float DiffuseTraceResolution = 0.4f;
 World* world = nullptr;
 bool ModifiedWorld = false;
 
@@ -47,6 +47,8 @@ public:
 	{
 		ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 		ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+		ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
+		ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 	}
 
 	void OnEvent(Event e) override
@@ -134,6 +136,7 @@ int main()
 	GLClasses::CubeTextureMap SkymapLOWRES;
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
+	glm::vec3 CurrentPosition, PreviousPosition;
 
 	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
 	InitialTraceShader.CompileShaders();
@@ -305,15 +308,18 @@ int main()
 		// ---------------------
 
 		glm::mat4 TempView = PreviousView;
+
 		PreviousProjection = CurrentProjection;
 		PreviousView = CurrentView;
+		PreviousPosition = CurrentPosition;
 		CurrentProjection = MainCamera.GetProjectionMatrix();
 		CurrentView = MainCamera.GetViewMatrix();
+		CurrentPosition = MainCamera.GetPosition();
 
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
 
-		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld)
+		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld || app.GetCurrentFrame() % 4 == 0)
 		{
 			InitialTraceFBO.Bind();
 			glDisable(GL_CULL_FACE);
@@ -409,6 +415,8 @@ int main()
 		DiffuseTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 		DiffuseTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 		
+		DiffuseTemporalFilter.SetBool("u_WorldModified", ModifiedWorld);
+		DiffuseTemporalFilter.SetBool("u_CameraMoved", PreviousPosition != MainCamera.GetPosition());
 		DiffuseTemporalFilter.SetBool("u_WorldModified", ModifiedWorld);
 
 		glActiveTexture(GL_TEXTURE0);

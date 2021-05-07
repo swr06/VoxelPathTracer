@@ -53,6 +53,76 @@ vec3 sharpen(in sampler2D tex, in vec2 coords)
 	return sum;
 }
 
+vec4 ClampedTexture(sampler2D tex, vec2 txc)
+{
+    return texture(tex, clamp(txc, 0.0f, 1.0f));
+}
+
+vec3 NeighbourhoodClamping(vec3 tempColor, sampler2D tex, vec2 txc) 
+{
+	vec2 neighbourhoodOffsets[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+	vec3 minclr = vec3(0.0f), maxclr = vec3(1.0);
+    vec2 View = 1.0f / textureSize(tex, 0);
+
+	for(int i = 0; i < 8; i++) 
+	{
+		vec2 offset = neighbourhoodOffsets[i] * View;
+		vec3 clr = texture(tex, txc + offset, 0.0).rgb;
+		minclr = min(minclr, clr);
+		maxclr = max(maxclr, clr);
+	}
+
+	return clamp(tempColor, minclr, maxclr);
+}
+
+vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    float normal_weights[4] = float[](0.0f, 0.0f, 0.0f, 0.0f);
+    float depth_weights[4]  = float[](0.0f, 0.0f, 0.0f, 0.0f);
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    for (int i = 0; i < 4; i++) 
+    {
+        vec3 sampled_normal = ClampedTexture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
+        normal_weights[i] = pow(abs(dot(sampled_normal, base_normal)), 32);
+
+        float sampled_depth = ClampedTexture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
+        depth_weights[i] = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+    }
+
+    vec3 color = vec3(0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+        float computed_weight = normal_weights[i] * depth_weights[i];
+        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
+        weight_sum += max(computed_weight, 0.1f) + 0.01f;
+    }
+
+    color /= weight_sum;
+    color = clamp(color, texture(tex, txc).rgb * 0.4f, vec3(1.0f));
+    return color;
+}
 
 void main()
 {
@@ -80,12 +150,14 @@ void main()
             vec3 NormalMap = texture(u_BlockNormalTextures, vec3(uv, data.y)).rgb;
             vec3 PBRMap = texture(u_BlockPBRTextures, vec3(uv, data.z)).rgb;
 
-            vec3 Diffuse = WeightedSample(u_DiffuseTexture, v_TexCoords).rgb;
+            //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
+            vec3 Diffuse = textureBicubic(u_DiffuseTexture, v_TexCoords).rgb;
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
-            o_Color = Ambient + ((AlbedoColor) * (Diffuse * 1.0f));
+            o_Color = Ambient + ((AlbedoColor * 1.5f) * (Diffuse * 1.0f));
+            return;
         }
     }
 }
