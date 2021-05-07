@@ -253,42 +253,46 @@ int main()
 			Logger::Log("Recompiled!");
 		}
 
-		MainCamera.OnUpdate();
 		MainCamera.Refresh();
 
 		app.OnUpdate();
 
 		// ---------------------
 
+		glm::mat4 TempView = PreviousView;
 		PreviousProjection = CurrentProjection;
 		PreviousView = CurrentView;
 		CurrentProjection = MainCamera.GetProjectionMatrix();
 		CurrentView = MainCamera.GetViewMatrix();
 
-		InitialTraceFBO.Bind();
-		glClear(GL_COLOR_BUFFER_BIT);
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_DEPTH_TEST);
-
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
 
-		RaytraceShader.Use();
+		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld)
+		{
+			InitialTraceFBO.Bind();
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST);
 
-		RaytraceShader.SetMatrix4("u_InverseView", inv_view);
-		RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
-		RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
-		RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
-		RaytraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
-		RaytraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
-		RaytraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+			RaytraceShader.Use();
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+			RaytraceShader.SetMatrix4("u_InverseView", inv_view);
+			RaytraceShader.SetMatrix4("u_InverseProjection", inv_projection);
+			RaytraceShader.SetInteger("u_VoxelDataTexture", 0);
+			RaytraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+			RaytraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
+			RaytraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
+			RaytraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
-		VAO.Bind();
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		VAO.Unbind();
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			InitialTraceFBO.Unbind();
+		}
 
 		// Diffuse tracing
 
