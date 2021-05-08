@@ -1,5 +1,9 @@
 #version 330 core
 
+/*
+Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
+*/
+
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384

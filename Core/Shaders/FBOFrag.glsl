@@ -136,7 +136,6 @@ void main()
 {
     //o_Color = sharpen(u_FramebufferTexture, v_TexCoords).rgb;
     vec2 FragCoord = v_TexCoords * textureSize(u_FramebufferTexture, 0);
-
     o_Color = apply(u_FramebufferTexture, FragCoord, textureSize(u_FramebufferTexture, 0)).rgb;
     o_Color = pow(o_Color, vec3(1.0f / 2.2f)); 
 }

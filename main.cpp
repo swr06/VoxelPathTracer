@@ -215,6 +215,24 @@ int main()
 
 	glUseProgram(0);
 
+	DiffuseTraceShader.Use();
+
+	for (int i = 0; i < 128; i++)
+	{
+		// BLOCK_TEXTURE_DATA
+
+		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+		glm::vec3 data;
+
+		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+		DiffuseTraceShader.SetVector3f(name.c_str(), data);
+	}
+
+	glUseProgram(0);
+
 	/////                                     /////
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
@@ -238,12 +256,14 @@ int main()
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_W) == GLFW_PRESS)
 		{
 			// Take the cross product of the MainCamera's right and up.
-			MainCamera.ChangePosition(MainCamera.GetFront() * camera_speed);
+			glm::vec3 front = -glm::cross(MainCamera.GetRight(), MainCamera.GetUp());
+			MainCamera.ChangePosition(front* camera_speed);
 		}
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_S) == GLFW_PRESS)
 		{
-			MainCamera.ChangePosition(-MainCamera.GetFront() * camera_speed);
+			glm::vec3 front = -glm::cross(MainCamera.GetRight(), MainCamera.GetUp());
+			MainCamera.ChangePosition(-front * camera_speed);
 		}
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_A) == GLFW_PRESS)
@@ -292,6 +312,24 @@ int main()
 				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
 
 				InitialTraceShader.SetVector3f(name.c_str(), data);
+			}
+
+			glUseProgram(0);
+
+			DiffuseTraceShader.Use();
+
+			for (int i = 0; i < 128; i++)
+			{
+				// BLOCK_TEXTURE_DATA
+
+				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+				glm::vec3 data;
+
+				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+				DiffuseTraceShader.SetVector3f(name.c_str(), data);
 			}
 
 			glUseProgram(0);
@@ -363,6 +401,8 @@ int main()
 		glDisable(GL_DEPTH_TEST);
 
 		DiffuseTraceFBO.Bind();
+		glClear(GL_COLOR_BUFFER_BIT);
+
 		DiffuseTraceShader.Use();
 
 		DiffuseTraceShader.SetInteger("u_VoxelData", 0);
@@ -371,6 +411,7 @@ int main()
 		DiffuseTraceShader.SetInteger("u_Skymap", 3);
 		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
 		DiffuseTraceShader.SetInteger("u_DataTexture", 5);
+		DiffuseTraceShader.SetInteger("u_BlockAlbedoTextures", 6);
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseTraceFBO.GetWidth(), DiffuseTraceFBO.GetHeight()));
@@ -394,6 +435,9 @@ int main()
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetDataTexture());
+
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

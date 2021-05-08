@@ -66,11 +66,11 @@ vec3 sharpen(in sampler2D tex, in vec2 coords)
 	float dx = 1.0 / renderSize.x;
 	float dy = 1.0 / renderSize.y;
 	vec3 sum = vec3(0.0);
-	sum += -1. * smoothfilter(tex, coords + vec2( -1.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , -1.0 * dy));
-	sum += 5. * smoothfilter(tex, coords + vec2( 0.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , 1.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 1.0 * dx , 0.0 * dy));
+	sum += -1. * texture(tex, coords + vec2( -1.0 * dx , 0.0 * dy)).rgb;
+	sum += -1. * texture(tex, coords + vec2( 0.0 * dx , -1.0 * dy)).rgb;
+	sum += 5. * texture(tex, coords + vec2( 0.0 * dx , 0.0 * dy)).rgb;
+	sum += -1. * texture(tex, coords + vec2( 0.0 * dx , 1.0 * dy)).rgb;
+	sum += -1. * texture(tex, coords + vec2( 1.0 * dx , 0.0 * dy)).rgb;
 	return sum;
 }
 
@@ -151,12 +151,15 @@ void main()
 
 	if (texture(u_PositionTexture, v_TexCoords).w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
 	{
-		vec3 SharpenedColor = sharpen(u_FramebufferTexture, v_TexCoords);
-		ColorGrading(SharpenedColor);
-		ColorSaturation(SharpenedColor);
-		SharpenedColor = ACESFitted(vec4(SharpenedColor, 1.0f), 4.5f).rgb;
-		Vignette(SharpenedColor);
-		o_Color = SharpenedColor;
+		vec3 InputColor;
+		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
+		InputColor = mix(texture(u_FramebufferTexture, v_TexCoords).rgb, Sharpened, 0.5f);
+
+		ColorGrading(InputColor);
+		ColorSaturation(InputColor);
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), 4.5f).rgb;
+		Vignette(InputColor);
+		o_Color = InputColor;
 	}
 
 	else 

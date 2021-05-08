@@ -89,7 +89,7 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float x = (u_CameraMoved ? 0.323f : 0.9002f);
+		float x = (u_CameraMoved ? 0.523f : 0.9002f);
 		float BlendFactorModifier = u_WorldModified ? 0.05f : x;
 		BlendFactor *= (exp(-length(velocity)) * 0.62f) + BlendFactorModifier; // 0.35f
 		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);

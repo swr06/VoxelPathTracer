@@ -4,10 +4,13 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
-#define USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-#define ANIMATE_NOISE
+#define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
+#define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
+#define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
 #define MAX_VOXEL_DIST 10
-#define NORMAL_MAP_LOD 2
+#define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
+#define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
+#define MAX_BOUNCE_LIMIT 4
 
 layout (location = 0) out vec3 o_Color;
 
@@ -19,11 +22,17 @@ uniform sampler3D u_VoxelData;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_PositionTexture;
 uniform samplerCube u_Skymap;
+
 uniform sampler2DArray u_BlockNormalTextures;
+uniform sampler2DArray u_BlockAlbedoTextures;
+
 uniform sampler2D u_DataTexture;
 
 uniform vec2 u_Dimensions;
 uniform float u_Time;
+
+uniform vec3 BLOCK_TEXTURE_DATA[128];
+
 
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
@@ -41,6 +50,10 @@ vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
+
+
+
+
 // Globals
 vec3 g_Normal;
 int RNG_SEED = 0;
@@ -51,15 +64,24 @@ struct Ray
 	vec3 Direction;
 };
 
-vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection)
+vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 
+					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc)
 {
 	float b;
 
 	T = voxel_traversal(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
+	tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
 
 	if (T > 0.0f) 
 	{ 
-		return vec3(0.05f); 
+		CalculateVectors(r.Origin + (r.Direction * T), out_n, tangent, bitangent, txc);
+
+		#ifdef USE_COLORED_DIFFUSE
+		int albedo_tex_index = int(floor(BLOCK_TEXTURE_DATA[tex_ref].r));
+		return textureLod(u_BlockAlbedoTextures, vec3(txc, albedo_tex_index), ALBEDO_MAP_LOD).rgb * 0.96f;
+		#else 
+		return vec3(0.2f, 0.2f, 0.23f);
+		#endif
 	} 
 
 	else 
@@ -68,55 +90,46 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 	}
 }
 
-vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 initial_normal)
+vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 {
-	// Temporarily hardcoded double bounce diffuse 
+	vec3 initial_normal;
+	vec2 initial_uv;
+	vec3 initial_tan;
+	vec3 initial_bitan;
+	mat3 initial_tbn;
+	int initial_idx;
 
-	vec3 tnormal;
-	vec2 tuv;
-	vec3 ttan;
-	vec3 tbitan;
+	CalculateVectors(initial_origin, input_normal, initial_tan, initial_bitan, initial_uv);
+	initial_tbn = mat3(normalize(initial_tan), normalize(initial_bitan), normalize(input_normal));
+	initial_idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
+	initial_normal = initial_tbn * (textureLod(u_BlockNormalTextures, vec3(initial_uv, initial_idx), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+
+	Ray new_ray = Ray(initial_origin, cosWeightedRandomHemisphereDirection(initial_normal));
+
+	vec3 total_color = vec3(0.0f);;
+
+	float T;
+	vec3 N;
+	bool intersection;
+	int tex_ref;
+	vec3 Tangent, Bitangent;
+	vec2 TexCoord;
 	mat3 tbn;
-	int idx;
 
-	CalculateVectors(initial_origin, initial_normal, ttan, tbitan, tuv);
-	tbn = mat3(normalize(ttan), normalize(tbitan), normalize(initial_normal));
+	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
+	{
+		total_color = GetBlockRayColor(new_ray, T, N, intersection, tex_ref, Tangent, Bitangent, TexCoord);
+		tbn =  mat3(normalize(Tangent), normalize(Bitangent), normalize(N));
 
-	idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
-	tnormal = tbn * textureLod(u_BlockNormalTextures, vec3(tuv, idx), NORMAL_MAP_LOD).rgb;
+		vec3 tangent_normal = tbn * (textureLod(u_BlockNormalTextures, vec3(TexCoord, BLOCK_TEXTURE_DATA[tex_ref].g), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+		new_ray.Origin = new_ray.Origin + (new_ray.Direction * T);
+		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
+	}
+	
+	total_color = pow((total_color), vec3(3.5f)) / float((MAX_BOUNCE_LIMIT - 1.0f));
+	//total_color = total_color / 4.0f;
 
-	Ray r1, r2;
-	float t1, t2;
-	vec3 n1, n2;
-	bool i1, i2;
-
-	r1.Origin = initial_origin;
-
-	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r1.Direction = normalize(cosWeightedRandomHemisphereDirection(tnormal));
-	#else 
-	r1.Direction = normalize(tnormal + RandomPointInUnitSphereRejective());
-	#endif
-
-	vec3 col_1 = GetBlockRayColor(r1, t1, n1, i1); 
-
-	r2.Origin = r1.Origin + (r1.Direction * t1);
-
-	CalculateVectors(r2.Origin, n1, ttan, tbitan, tuv);
-	tbn = mat3(normalize(ttan), normalize(tbitan), normalize(n1));
-	idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
-	tnormal = tbn * textureLod(u_BlockNormalTextures, vec3(tuv, idx), NORMAL_MAP_LOD).rgb;
-
-	#ifdef USE_HEMISPHERICAL_DIFFUSE_SCATTERING
-	r2.Direction = normalize(cosWeightedRandomHemisphereDirection(tnormal));
-	#else 
-	r2.Direction = normalize(n1 + RandomPointInUnitSphereRejective());
-	#endif
-
-
-	vec3 col_2 = GetBlockRayColor(r2, t2, n2, i2); 
-
-	return pow((col_1 + col_2), vec3(3.5f)) / 6.0f;
+	return total_color;
 }
 
 void main()
@@ -444,6 +457,8 @@ vec3 CosineSampleHemisphere(float u1, float u2)
 
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
+	// Hard coded normals, tangents and bitangents
+
     const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
 					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
 					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
