@@ -134,6 +134,12 @@
     <ClCompile Include="Core\BlockDatabaseParser.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Player.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer2D.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -235,6 +241,12 @@
     <ClInclude Include="Core\BlockDatabaseParser.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Player.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer2D.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -277,6 +289,12 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\PostProcessingVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\TemporalAA.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\InitialRayTraceVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

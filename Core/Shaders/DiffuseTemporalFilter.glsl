@@ -31,36 +31,6 @@ vec2 Reprojection(vec3 pos)
 	return ProjectedPosition.xy;
 }
 
-vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor, out vec3 avg_col) 
-{
-	vec2 neighbourhoodOffsets[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-	vec3 minclr = color, maxclr = color;
-
-	for(int i = 0; i < 8; i++) 
-	{
-		vec2 offset = neighbourhoodOffsets[i] * View;
-		vec3 clr = texture(u_CurrentColorTexture, TexCoord + offset, 0.0).rgb;
-		avg_col += clr;
-		minclr = min(minclr, clr);
-		maxclr = max(maxclr, clr);
-	}
-
-	avg_col /= 8.0f;
-
-	return clamp(tempColor, minclr, maxclr);
-}
-
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -89,10 +59,10 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float x = (u_CameraMoved ? 0.523f : 0.9002f);
-		float BlendFactorModifier = u_WorldModified ? 0.05f : x;
+		float x = (u_CameraMoved ? 0.6623f : 0.8502f);
+		float BlendFactorModifier = u_WorldModified ? 0.25f : x;
 		BlendFactor *= (exp(-length(velocity)) * 0.62f) + BlendFactorModifier; // 0.35f
-		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
+		BlendFactor = clamp(BlendFactor, 0.03f, 0.9f);
 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 		//o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;

@@ -155,6 +155,8 @@
     <ClCompile Include="Core\BlockDatabaseParser.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
     <ClCompile Include="Core\InitialTraceFBO.cpp" />
+    <ClCompile Include="Core\Player.cpp" />
+    <ClCompile Include="Core\Renderer2D.cpp" />
     <ClCompile Include="Core\World.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
     <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
@@ -190,6 +192,8 @@
     <ClInclude Include="Core\BlockDatabaseParser.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
     <ClInclude Include="Core\InitialTraceFBO.h" />
+    <ClInclude Include="Core\Player.h" />
+    <ClInclude Include="Core\Renderer2D.h" />
     <ClInclude Include="Core\World.h" />
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />
@@ -223,6 +227,7 @@
     <None Include="Core\Shaders\FBOFrag.glsl" />
     <None Include="Core\Shaders\FBOVert.glsl" />
     <None Include="Core\Shaders\InitialRayTraceFrag.glsl" />
+    <None Include="Core\Shaders\InitialRayTraceVert.glsl" />
     <None Include="Core\Shaders\PostProcessingFrag.glsl" />
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
@@ -230,6 +235,7 @@
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\DiffuseTemporalFilter.glsl" />
     <None Include="Core\Shaders\ColorTemporalFilter.glsl" />
+    <None Include="Core\Shaders\TemporalAA.glsl" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>

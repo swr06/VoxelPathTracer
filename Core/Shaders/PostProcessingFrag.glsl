@@ -153,7 +153,7 @@ void main()
 	{
 		vec3 InputColor;
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
-		InputColor = mix(texture(u_FramebufferTexture, v_TexCoords).rgb, Sharpened, 0.5f);
+		InputColor =texture(u_FramebufferTexture, v_TexCoords).rgb;
 
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);

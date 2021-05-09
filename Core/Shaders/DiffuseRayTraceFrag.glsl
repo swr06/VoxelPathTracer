@@ -126,8 +126,8 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
 	}
 	
-	total_color = pow((total_color), vec3(3.5f)) / float((MAX_BOUNCE_LIMIT - 1.0f));
-	//total_color = total_color / 4.0f;
+	total_color = pow((total_color), vec3(MAX_BOUNCE_LIMIT)) / float((MAX_BOUNCE_LIMIT - 1.0f));
+	//total_color = total_color / MAX_BOUNCE_LIMIT;
 
 	return total_color;
 }

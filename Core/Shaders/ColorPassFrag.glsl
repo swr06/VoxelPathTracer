@@ -95,31 +95,25 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
         vec2(0.0, -1.0f)
     );
 
-    float normal_weights[4] = float[](0.0f, 0.0f, 0.0f, 0.0f);
-    float depth_weights[4]  = float[](0.0f, 0.0f, 0.0f, 0.0f);
-
     vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    for (int i = 0; i < 4; i++) 
-    {
-        vec3 sampled_normal = ClampedTexture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        normal_weights[i] = pow(abs(dot(sampled_normal, base_normal)), 32);
-
-        float sampled_depth = ClampedTexture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
-        depth_weights[i] = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-    }
 
     vec3 color = vec3(0.0f, 0.0f, 0.0f);
     float weight_sum;
 
     for (int i = 0; i < 4; i++) 
     {
-        float computed_weight = normal_weights[i] * depth_weights[i];
+        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
+        float nweight = pow(abs(dot(sampled_normal, base_normal)), 32);
+
+        float sampled_depth = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = nweight * dweight;
         color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += max(computed_weight, 0.1f) + 0.01f;
+        weight_sum += computed_weight;
     }
 
-    color /= weight_sum;
+    color /= max(weight_sum, 0.2f);
     color = clamp(color, texture(tex, txc).rgb * 0.4f, vec3(1.0f));
     return color;
 }
@@ -156,7 +150,7 @@ void main()
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
-            o_Color = Ambient + ((AlbedoColor * 1.5f) * (Diffuse * 1.0f));
+            o_Color = Ambient + ((AlbedoColor * 1.4f) * (Diffuse * 1.0f));
             return;
         }
     }

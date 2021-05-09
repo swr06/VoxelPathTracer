@@ -37,7 +37,7 @@ void VoxelRT::GenerateWorld(World* chunk)
 	DIRT_ID = VoxelRT::BlockDatabase::GetBlockID("Dirt");
 	STONE_ID = VoxelRT::BlockDatabase::GetBlockID("Stone");
 
-	bool gen_type = 1;
+	bool gen_type = 0;
 
 	if (gen_type)
 	{
