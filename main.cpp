@@ -20,9 +20,9 @@ using namespace VoxelRT;
 Player MainPlayer;
 bool VSync = true;
 
-float InitialTraceResolution = 0.5f;
+float InitialTraceResolution = 0.75f;
 float DiffuseTraceResolution = 0.25f;
-float ShadowTraceResolution = 0.3;
+float ShadowTraceResolution = 0.40;
 float SunTick = 50.0f;
 
 bool FullyDynamicShadows = true;
@@ -535,7 +535,7 @@ int main()
 
 		// ---- SHADOW TRACE ----
 
-		bool UpdateShadows = FullyDynamicShadows ? PlayerMoved : (app.GetCurrentFrame() % 4 == 0);
+		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 4 == 0);
 
 		if (ModifiedWorld || UpdateShadows)
 		{
@@ -583,8 +583,9 @@ int main()
 		ColorShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 		ColorShader.SetMatrix4("u_ShadowView", ShadowView);
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
-		ColorShader.SetVector3f("SunDirection", SunDirection);
-		ColorShader.SetVector3f("MoonDirection", MoonDirection);
+		ColorShader.SetVector3f("u_SunDirection", SunDirection);
+		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
+		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());

@@ -120,7 +120,7 @@ float voxel_traversal(in vec3 orig, in vec3 direction)
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 250; i++) 
+	for (int i = 0; i < 200; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
@@ -189,7 +189,7 @@ void main()
 
 	if (T > 0.0f) 
 	{ 
-		o_Shadow = 0.5f; 
+		o_Shadow = 0.745f; 
 	}
 	
 	else 

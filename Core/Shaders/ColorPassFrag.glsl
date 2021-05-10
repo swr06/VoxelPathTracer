@@ -2,6 +2,7 @@
 
 #define PCF_COUNT 6
 #define SMOOTH_SHADOW_SAMPLING
+#define PI 3.14159265359
 
 layout (location = 0) out vec3 o_Color;
 
@@ -19,14 +20,19 @@ uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlueNoiseTextures;
 uniform samplerCube u_Skybox;
 
-uniform vec3 SunDirection;
-uniform vec3 MoonDirection;
+uniform vec3 u_SunDirection;
+uniform vec3 u_MoonDirection;
 
 uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
 
+
+uniform vec3 u_ViewerPosition;
+
+
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
@@ -201,6 +207,10 @@ bool IsInScreenSpaceBounds(in vec2 tx)
     return false;
 }
 
+// COLORS //
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.4f;
+const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 0.18f;
+
 void main()
 {
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
@@ -211,16 +221,13 @@ void main()
 
     if (WorldPosition.w > 0.0f)
     {
-        vec2 uv;
         vec2 ReprojectedShadowPos = ReprojectShadow(WorldPosition.xyz);
-        float RayTracedShadow = 1.0f;
+        float RayTracedShadow = 0.0f;
         
         if (IsInScreenSpaceBounds(ReprojectedShadowPos))
         {
-            RayTracedShadow = 1.0f - ComputeShadow(ReprojectedShadowPos);
+            RayTracedShadow = ComputeShadow(ReprojectedShadowPos);
         }
-
-        CalculateUV(WorldPosition.xyz, SampledNormals, uv); uv.y = 1.0f - uv.y;
 
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
         float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
@@ -230,10 +237,16 @@ void main()
 
         if (PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
         {
+            vec2 UV;
+            vec3 Tangent, Bitangent;
+
+            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
+
             vec4 data = texture(u_DataTexture, v_TexCoords);
-            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(uv, data.x)).rgb;
-            vec3 NormalMap = texture(u_BlockNormalTextures, vec3(uv, data.y)).rgb;
-            vec3 PBRMap = texture(u_BlockPBRTextures, vec3(uv, data.z)).rgb;
+            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV, data.x)).rgb;
+            vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+            vec3 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgb;
 
             //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
             vec3 Diffuse = textureBicubic(u_DiffuseTexture, v_TexCoords).rgb;
@@ -241,27 +254,97 @@ void main()
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
-            o_Color = Ambient + ((AlbedoColor * 1.7f) * (Diffuse * 1.2f)) * RayTracedShadow;
+            o_Color = (AlbedoColor * SUN_AMBIENT) + (sqrt((Diffuse)) * 3.5f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap, RayTracedShadow);
             return;
         }
     }
 
     else 
     {
-        vec3 ray_dir = normalize(v_RayDirection); bool intersect_body;
+        vec3 ray_dir = normalize(v_RayDirection); bool intersect_body = false;
 
-        if(dot(ray_dir, normalize(SunDirection)) > 0.9997f)
+        if(dot(ray_dir, normalize(u_SunDirection)) > 0.9997f)
         {
             o_Color = vec3(4.0f) * 3.0f; intersect_body = true;
         }
 
-        if(dot(ray_dir, normalize(MoonDirection)) > 0.99986f)
+        if(dot(ray_dir, normalize(u_MoonDirection)) > 0.99986f)
         {
             o_Color = vec3(0.6f, 0.6f, 0.9f) * 50.0f; intersect_body = true;
         }
     }
 
 
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / max(denom, 0.001); 
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
+{
+    float ShadowIntensity = 0.98f;
+    float Shadow = min(shadow * ShadowIntensity, 1.0f);
+
+	vec3 V = normalize(u_ViewerPosition - world_pos);
+    vec3 L = normalize(light_dir);
+    vec3 H = normalize(V + L);
+
+    float Roughness = pbr.r;
+    float Metalness = pbr.g;
+
+    float NDF = DistributionGGX(normal, H, Roughness);   
+    float G = GeometrySmith(normal, V, L, Roughness);      
+    vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), vec3(0.04));
+       
+    vec3 nominator = NDF * G * F; 
+    float denominator = 4.0f * max(dot(normal, V), 0.0) * max(dot(normal, L), 0.0);
+    vec3 specular = nominator / max(denominator, 0.001f);
+    
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - Metalness;	
+
+    float NdotL = max(dot(normal, L), 0.0);
+	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
+
+    return Result * (1.0f - Shadow);
 }
 
 vec4 cubic(float v){
@@ -309,42 +392,66 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     , sy);
 }
 
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
-    const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-    const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-    const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-    const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-    const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-    const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+	// Hard coded normals, tangents and bitangents
 
-    if (normal == NORMAL_TOP)
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+	if (normal == Normals[0])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (normal == Normals[1])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (normal == Normals[2])
     {
         uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
     }
 
-    else if (normal == NORMAL_BOTTOM)
+    else if (normal == Normals[3])
     {
         uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
     }
-
-    else if (normal == NORMAL_RIGHT)
+	
+    else if (normal == Normals[4])
     {
         uv = vec2(fract(world_pos.zy));
-    }
-
-    else if (normal == NORMAL_LEFT)
-    {
-        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
     }
     
-    else if (normal == NORMAL_FRONT)
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
 
-     else if (normal == NORMAL_BACK)
+    else if (normal == Normals[5])
     {
-        uv = vec2(fract(world_pos.xy));
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
     }
 }
+
