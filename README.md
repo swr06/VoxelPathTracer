@@ -25,6 +25,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
+- ScratchAPixel
 
 # Thanks
 - UglySwedishFish
