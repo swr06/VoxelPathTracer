@@ -27,8 +27,10 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
 
 # Thanks
+- UglySwedishFish
 - Snurf 
 - Telo 
+- Moonsheep
 
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
