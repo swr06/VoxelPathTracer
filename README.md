@@ -11,12 +11,16 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Physically based lighting
 - Fast Shadow Tracing
 - Temporal Anti Aliasing
-- Tonemapping, Gamma correction, Upsampling
+- FXAA
+- Tonemapping, Gamma correction
+- Bilateral Upsampling
 
 # Features to implement
+- Volumetrics
 - Importance sampling
 - Proper denoising
 - Ray traced reflections 
+- Water Rendering
 - Voxel intersection acceleration structure (DAGs? Octrees?) 
 - POM (Maybe?)
 - Atmosphere
