@@ -381,6 +381,7 @@ int main()
 
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
+		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
 
 		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld || app.GetCurrentFrame() % 4 == 0)
 		{
@@ -534,7 +535,7 @@ int main()
 
 		// ---- SHADOW TRACE ----
 
-		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 4 == 0);
+		bool UpdateShadows = FullyDynamicShadows ? PlayerMoved : (app.GetCurrentFrame() % 4 == 0);
 
 		if (ModifiedWorld || UpdateShadows)
 		{
