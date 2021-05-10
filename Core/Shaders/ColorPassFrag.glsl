@@ -1,5 +1,8 @@
 #version 330 core
 
+#define PCF_COUNT 6
+#define SMOOTH_SHADOW_SAMPLING
+
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
@@ -9,10 +12,18 @@ uniform sampler2D u_DiffuseTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTracePositionTexture;
 uniform sampler2D u_DataTexture;
+uniform sampler2D u_ShadowTexture;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockPBRTextures;
+uniform sampler2DArray u_BlueNoiseTextures;
 uniform samplerCube u_Skybox;
+
+uniform vec3 SunDirection;
+uniform vec3 MoonDirection;
+
+uniform mat4 u_ShadowView;
+uniform mat4 u_ShadowProjection;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -118,6 +129,78 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     return color;
 }
 
+const vec2 PoissonDisk[32] = vec2[]
+(
+    vec2(-0.613392, 0.617481),  vec2(0.751946, 0.453352),
+    vec2(0.170019, -0.040254),  vec2(0.078707, -0.715323),
+    vec2(-0.299417, 0.791925),  vec2(-0.075838, -0.529344),
+    vec2(0.645680, 0.493210),   vec2(0.724479, -0.580798),
+    vec2(-0.651784, 0.717887),  vec2(0.222999, -0.215125),
+    vec2(0.421003, 0.027070),   vec2(-0.467574, -0.405438),
+    vec2(-0.817194, -0.271096), vec2(-0.248268, -0.814753),
+    vec2(-0.705374, -0.668203), vec2(0.354411, -0.887570),
+    vec2(0.977050, -0.108615),  vec2(0.175817, 0.382366),
+    vec2(0.063326, 0.142369),   vec2(0.487472, -0.063082),
+    vec2(0.203528, 0.214331),   vec2(-0.084078, 0.898312),
+    vec2(-0.667531, 0.326090),  vec2(0.488876, -0.783441),
+    vec2(-0.098422, -0.295755), vec2(0.470016, 0.217933),
+    vec2(-0.885922, 0.215369),  vec2(-0.696890, -0.549791),
+    vec2(0.566637, 0.605213),   vec2(-0.149693, 0.605762),
+    vec2(0.039766, -0.396100),  vec2(0.034211, 0.979980)
+);
+
+vec2 ReprojectShadow(in vec3 world_pos)
+{
+	vec3 WorldPos = world_pos;
+
+	vec4 ProjectedPosition = u_ShadowProjection * u_ShadowView * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+
+	return ProjectedPosition.xy;
+}
+
+float ComputeShadow(in vec2 txc)
+{
+    float shadow;
+
+#ifdef SMOOTH_SHADOW_SAMPLING
+    vec2 TexSize = textureSize(u_ShadowTexture, 0);
+    vec2 TexelSize = 1.0 / TexSize; 
+
+	for(int x = 0; x <= PCF_COUNT; x++)
+	{
+        float noise = texture(u_BlueNoiseTextures, vec3(gl_FragCoord.xy / textureSize(u_BlueNoiseTextures, 0).xy, 0.0f)).r;
+        float theta = noise * 6.28318530718;
+        float cosTheta = cos(theta);
+        float sinTheta = sin(theta);
+        mat2 dither = mat2(vec2(cosTheta, -sinTheta), vec2(sinTheta, cosTheta));
+
+		vec2 jitter_value;
+        jitter_value = PoissonDisk[x] * dither;
+
+        float pcf = texture(u_ShadowTexture, txc + jitter_value * TexelSize).r; 
+		shadow += pcf;        
+	}
+
+	shadow /= float(PCF_COUNT);
+#else 
+    shadow = textureBicubic(u_ShadowTexture, txc).r;
+#endif
+
+    return shadow;
+}
+
+bool IsInScreenSpaceBounds(in vec2 tx)
+{
+    if (tx.x > 0.0f && tx.y > 0.0f && tx.x < 1.0f && tx.y < 1.0f)
+    {
+        return true;
+    }
+
+    return false;
+}
+
 void main()
 {
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
@@ -129,6 +212,14 @@ void main()
     if (WorldPosition.w > 0.0f)
     {
         vec2 uv;
+        vec2 ReprojectedShadowPos = ReprojectShadow(WorldPosition.xyz);
+        float RayTracedShadow = 1.0f;
+        
+        if (IsInScreenSpaceBounds(ReprojectedShadowPos))
+        {
+            RayTracedShadow = 1.0f - ComputeShadow(ReprojectedShadowPos);
+        }
+
         CalculateUV(WorldPosition.xyz, SampledNormals, uv); uv.y = 1.0f - uv.y;
 
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
@@ -150,10 +241,27 @@ void main()
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
-            o_Color = Ambient + ((AlbedoColor * 1.4f) * (Diffuse * 1.0f));
+            o_Color = Ambient + ((AlbedoColor * 1.7f) * (Diffuse * 1.2f)) * RayTracedShadow;
             return;
         }
     }
+
+    else 
+    {
+        vec3 ray_dir = normalize(v_RayDirection); bool intersect_body;
+
+        if(dot(ray_dir, normalize(SunDirection)) > 0.9997f)
+        {
+            o_Color = vec3(4.0f) * 3.0f; intersect_body = true;
+        }
+
+        if(dot(ray_dir, normalize(MoonDirection)) > 0.99986f)
+        {
+            o_Color = vec3(0.6f, 0.6f, 0.9f) * 50.0f; intersect_body = true;
+        }
+    }
+
+
 }
 
 vec4 cubic(float v){

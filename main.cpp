@@ -14,6 +14,7 @@
 #include "Core/GLClasses/CubeTextureMap.h"
 #include "Core/BlockDatabase.h"
 #include "Core/Player.h"
+#include "Core/GLClasses/FramebufferRed.h"
 
 using namespace VoxelRT;
 Player MainPlayer;
@@ -21,6 +22,14 @@ bool VSync = true;
 
 float InitialTraceResolution = 0.5f;
 float DiffuseTraceResolution = 0.25f;
+float ShadowTraceResolution = 0.3;
+float SunTick = 50.0f;
+
+bool FullyDynamicShadows = true;
+
+glm::vec3 SunDirection;
+glm::vec3 MoonDirection;
+
 World* world = nullptr;
 bool ModifiedWorld = false;
 FPSCamera& MainCamera = MainPlayer.Camera;
@@ -51,6 +60,9 @@ public:
 		ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 		ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
+		ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
+		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
+		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 	}
 
 	void OnEvent(Event e) override
@@ -112,13 +124,17 @@ int main()
 	app.Initialize();
 	BlockDatabase::Initialize();
 
+	bool gen_type = 0;
+
+	std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, SIMPLEX FRACTAL = 1) : "; 
+	std::cin >> gen_type;
+	std::cout << "\n\n";
+
 	// --
 	world = new World();
-	GenerateWorld(world);
+	GenerateWorld(world, gen_type);
 	world->Buffer();
-
 	// --
-
 
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
@@ -131,6 +147,7 @@ int main()
 	GLClasses::Shader TemporalShader;
 	GLClasses::Shader PostProcessingShader;
 	GLClasses::Shader TemporalAAShader;
+	GLClasses::Shader ShadowTraceShader;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO;
 	GLClasses::Framebuffer DiffuseTraceFBO;
@@ -142,11 +159,13 @@ int main()
 	GLClasses::Framebuffer TAAFBO1;
 	GLClasses::Framebuffer TAAFBO2;
 	GLClasses::TextureArray BlueNoise;
+	GLClasses::Framebuffer ShadowFBO;
 
 	GLClasses::CubeTextureMap Skymap;
 	GLClasses::CubeTextureMap SkymapLOWRES;
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
+	glm::mat4 ShadowProjection, ShadowView;
 	glm::vec3 CurrentPosition, PreviousPosition;
 
 	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
@@ -167,6 +186,8 @@ int main()
 	PostProcessingShader.CompileShaders();
 	TemporalAAShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalAA.glsl");
 	TemporalAAShader.CompileShaders();
+	ShadowTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
+	ShadowTraceShader.CompileShaders();
 
 	Skymap.CreateCubeTextureMap(
 		{
@@ -259,6 +280,15 @@ int main()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		// Tick the sun and moon
+		float time_angle = SunTick * 2.0f;
+		glm::mat4 sun_rotation_matrix;
+
+		sun_rotation_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(time_angle), glm::vec3(0.0f, 0.0f, 1.0f));
+		SunDirection = glm::vec3(sun_rotation_matrix * glm::vec4(1.0f));
+		MoonDirection = glm::vec3(-SunDirection.x, -SunDirection.y, SunDirection.z);
+
+
 		glfwSwapInterval((int)VSync);
 
 		// Resize the framebuffers
@@ -271,6 +301,7 @@ int main()
 		ColoredFBO.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
+		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
@@ -287,6 +318,9 @@ int main()
 			DenoiseFilter.Recompile();
 			ColorShader.Recompile();
 			TemporalShader.Recompile();
+			PostProcessingShader.Recompile();
+			TemporalAAShader.Recompile();
+			ShadowTraceShader.Recompile();
 
 			///// Set the block texture data uniforms    /////
 
@@ -498,6 +532,36 @@ int main()
 
 		DiffuseTemporalFBO.Unbind();
 
+		// ---- SHADOW TRACE ----
+
+		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 4 == 0);
+
+		if (ModifiedWorld || UpdateShadows)
+		{
+			ShadowProjection = CurrentProjection;
+			ShadowView = CurrentView;
+
+			ShadowFBO.Bind();
+			ShadowTraceShader.Use();
+
+			ShadowTraceShader.SetInteger("u_PositionTexture", 0);
+			ShadowTraceShader.SetInteger("u_VoxelData", 1);
+			ShadowTraceShader.SetVector3f("u_SunDirection", SunDirection);
+			ShadowTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			ShadowFBO.Unbind();
+		}
+
 		// ---- COLOR PASS ----
 
 		ColoredFBO.Bind();
@@ -511,9 +575,15 @@ int main()
 		ColorShader.SetInteger("u_BlockNormalTextures", 5);
 		ColorShader.SetInteger("u_BlockPBRTextures", 6);
 		ColorShader.SetInteger("u_Skybox", 7);
+		ColorShader.SetInteger("u_ShadowTexture", 8);
+		ColorShader.SetInteger("u_BlueNoiseTextures", 9);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
+		ColorShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
+		ColorShader.SetMatrix4("u_ShadowView", ShadowView);
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
+		ColorShader.SetVector3f("SunDirection", SunDirection);
+		ColorShader.SetVector3f("MoonDirection", MoonDirection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
@@ -538,6 +608,12 @@ int main()
 
 		glActiveTexture(GL_TEXTURE7);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetID());
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -31,13 +31,11 @@ void SetVerticalBlocks(VoxelRT::World* world, int x, int z, int y_level)
 }
 
 
-void VoxelRT::GenerateWorld(World* chunk)
+void VoxelRT::GenerateWorld(World* world, bool gen_type)
 {
 	GRASS_ID = VoxelRT::BlockDatabase::GetBlockID("Grass");
 	DIRT_ID = VoxelRT::BlockDatabase::GetBlockID("Dirt");
 	STONE_ID = VoxelRT::BlockDatabase::GetBlockID("Stone");
-
-	bool gen_type = 0;
 
 	if (gen_type)
 	{
@@ -57,7 +55,7 @@ void VoxelRT::GenerateWorld(World* chunk)
 				h = (NoiseGenerator.GetNoise(real_x, real_z));
 				height = ((h + 1.0f) / 2.0f) * 100;
 
-				SetVerticalBlocks(chunk, x, z, height);
+				SetVerticalBlocks(world, x, z, height);
 			}
 		}
 	}
@@ -71,7 +69,7 @@ void VoxelRT::GenerateWorld(World* chunk)
 				float real_x = x;
 				float real_z = z;
 
-				SetVerticalBlocks(chunk, x, z, 40);
+				SetVerticalBlocks(world, x, z, 40);
 			}
 		}
 	}

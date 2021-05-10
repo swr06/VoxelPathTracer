@@ -6,5 +6,5 @@
 
 namespace VoxelRT
 {
-	void GenerateWorld(World* world);
+	void GenerateWorld(World* world, bool gen_type);
 }
