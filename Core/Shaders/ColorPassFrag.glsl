@@ -21,13 +21,15 @@ uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlueNoiseTextures;
 uniform samplerCube u_Skybox;
+uniform sampler2D u_ReflectionTraceTexture;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 
 uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
-
+uniform mat4 u_ReflectionView;
+uniform mat4 u_ReflectionProjection;
 
 uniform vec3 u_ViewerPosition;
 
@@ -133,9 +135,10 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     }
 
     color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.4f, vec3(1.0f));
+    color = clamp(color, texture(tex, txc).rgb * 0.1f, vec3(1.0f));
     return color;
 }
+
 
 const vec2 PoissonDisk[32] = vec2[]
 (
@@ -162,6 +165,17 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	vec3 WorldPos = world_pos;
 
 	vec4 ProjectedPosition = u_ShadowProjection * u_ShadowView * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+
+	return ProjectedPosition.xy;
+}
+
+vec2 ReprojectReflection(in vec3 world_pos)
+{
+	vec3 WorldPos = world_pos;
+
+	vec4 ProjectedPosition = u_ReflectionProjection * u_ReflectionView * vec4(WorldPos, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
 
@@ -221,6 +235,7 @@ void main()
     o_Color = vec3(1.0f);
     o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
 
+
     if (WorldPosition.w > 0.0f)
     {
         vec2 ReprojectedShadowPos = ReprojectShadow(WorldPosition.xyz);
@@ -264,11 +279,21 @@ void main()
             o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.01f));
 
-            o_Normal = NormalMapped;
+            o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR = PBRMap.xyz;
+
+            //vec2 ReprojectedReflectionCoord = ReprojectReflection(WorldPosition.xyz);
+            vec2 ReprojectedReflectionCoord = v_TexCoords;
+            vec3 ReflectionTrace = BilateralUpsample(u_ReflectionTraceTexture, ReprojectedReflectionCoord, SampledNormals, WorldPosition.z).rgb;
+
+            if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
+            {
+                o_Color = mix(o_Color, ReflectionTrace, 0.075f);
+            }
 
             return;
         }
+
     }
 
     else 
@@ -284,10 +309,10 @@ void main()
         {
             o_Color = vec3(0.6f, 0.6f, 0.9f) * 50.0f; intersect_body = true;
         }
-    }
 
-    o_Normal = vec3(-1.0f);
-    o_PBR = vec3(-1.0f);
+        o_Normal = vec3(-1.0f);
+        o_PBR = vec3(-1.0f);
+    }
 }
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)

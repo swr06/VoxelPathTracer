@@ -27,7 +27,7 @@ void main()
 	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
 
 	// For Temporal upsampling and temporal anti aliasing 
-	eye.xy += ((BayerSequenceOffsets[int(mod(u_VertCurrentFrame, 12.0f))] * 2.0 - 1.0) / (u_VertDimensions * 2.5f));
+	eye.xy += ((BayerSequenceOffsets[int(mod(u_VertCurrentFrame, 12.0f))] * 2.0 - 1.0) / (u_VertDimensions * 2.9f));
 
 	v_RayDirection = vec3(u_InverseView * eye);
 	v_RayOrigin = u_InverseView[3].xyz;

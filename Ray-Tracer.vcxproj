@@ -234,6 +234,7 @@
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
+    <None Include="Core\Shaders\ReflectionTraceFrag.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\DiffuseTemporalFilter.glsl" />

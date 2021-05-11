@@ -1,3 +1,18 @@
+/* VoxelRT - A Voxel Raytracing Engine
+Written by : Samuel Rasquinha
+
+Contributors : 
+UglySwedishFish
+Telo
+Moonsheep
+Snurf
+
+Resources : 
+https://github.com/BrutPitt/glslSmartDeNoise/
+https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
+ScratchAPixel
+*/
+
 #include <iostream>
 
 #include "Core/Application/Application.h"
@@ -16,6 +31,8 @@
 #include "Core/Player.h"
 #include "Core/GLClasses/FramebufferRed.h"
 #include "Core/ColorPassFBO.h"
+#include "Core/GLClasses/Texture.h"
+#include "Core/Renderer2D.h"
 
 using namespace VoxelRT;
 Player MainPlayer;
@@ -24,6 +41,7 @@ bool VSync = true;
 float InitialTraceResolution = 0.75f;
 float DiffuseTraceResolution = 0.25f;
 float ShadowTraceResolution = 0.40;
+float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
 
 bool FullyDynamicShadows = true;
@@ -34,6 +52,7 @@ glm::vec3 MoonDirection;
 World* world = nullptr;
 bool ModifiedWorld = false;
 FPSCamera& MainCamera = MainPlayer.Camera;
+VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
 class RayTracerApp : public Application
 {
@@ -62,6 +81,7 @@ public:
 		ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
+		ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 	}
@@ -114,6 +134,7 @@ public:
 		if (e.type == EventTypes::WindowResize)
 		{
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
+			OCamera.SetProjection(0.0f, e.wx, 0.0f, e.wy);
 		}
 	}
 
@@ -137,6 +158,8 @@ int main()
 	world->Buffer();
 	// --
 
+	VoxelRT::Renderer2D RendererUI;
+
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
 	GLClasses::Shader InitialTraceShader;
@@ -149,6 +172,7 @@ int main()
 	GLClasses::Shader PostProcessingShader;
 	GLClasses::Shader TemporalAAShader;
 	GLClasses::Shader ShadowTraceShader;
+	GLClasses::Shader ReflectionTraceShader;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO;
 	GLClasses::Framebuffer DiffuseTraceFBO;
@@ -161,13 +185,19 @@ int main()
 	GLClasses::Framebuffer TAAFBO2;
 	GLClasses::TextureArray BlueNoise;
 	GLClasses::Framebuffer ShadowFBO;
+	GLClasses::Framebuffer ReflectionTraceFBO;
+
 
 	GLClasses::CubeTextureMap Skymap;
 	GLClasses::CubeTextureMap SkymapLOWRES;
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
 	glm::mat4 ShadowProjection, ShadowView;
+	glm::mat4 ReflectionProjection, ReflectionView;
 	glm::vec3 CurrentPosition, PreviousPosition;
+
+	GLClasses::Texture Crosshair;
+	Crosshair.CreateTexture("Res/Misc/crosshair.png", false);
 
 	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
 	InitialTraceShader.CompileShaders();
@@ -189,6 +219,8 @@ int main()
 	TemporalAAShader.CompileShaders();
 	ShadowTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
 	ShadowTraceShader.CompileShaders();
+	ReflectionTraceShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
+	ReflectionTraceShader.CompileShaders();
 
 	Skymap.CreateCubeTextureMap(
 		{
@@ -277,6 +309,24 @@ int main()
 
 	glUseProgram(0);
 
+	ReflectionTraceShader.Use();
+
+	for (int i = 0; i < 128; i++)
+	{
+		// BLOCK_TEXTURE_DATA
+
+		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+		glm::vec3 data;
+
+		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+		ReflectionTraceShader.SetVector3f(name.c_str(), data);
+	}
+
+	glUseProgram(0);
+
 	/////                                     /////
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
@@ -296,13 +346,21 @@ int main()
 		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 		DiffuseTemporalFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		DiffuseTemporalFBO2.SetSize(app.GetWidth(), app.GetHeight());
-		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		DenoisedFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		
+		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
+		
+		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
+		
 		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
+		
+		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+
+
 
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
@@ -322,6 +380,7 @@ int main()
 			PostProcessingShader.Recompile();
 			TemporalAAShader.Recompile();
 			ShadowTraceShader.Recompile();
+			ReflectionTraceShader.Recompile();
 
 			///// Set the block texture data uniforms    /////
 
@@ -357,6 +416,24 @@ int main()
 				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
 
 				DiffuseTraceShader.SetVector3f(name.c_str(), data);
+			}
+
+			glUseProgram(0);
+
+			ReflectionTraceShader.Use();
+
+			for (int i = 0; i < 128; i++)
+			{
+				// BLOCK_TEXTURE_DATA
+
+				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+				glm::vec3 data;
+
+				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+
+				ReflectionTraceShader.SetVector3f(name.c_str(), data);
 			}
 
 			glUseProgram(0);
@@ -436,8 +513,8 @@ int main()
 		DiffuseTraceShader.SetInteger("u_PositionTexture", 1);
 		DiffuseTraceShader.SetInteger("u_NormalTexture", 2);
 		DiffuseTraceShader.SetInteger("u_Skymap", 3);
-		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
 		DiffuseTraceShader.SetInteger("u_DataTexture", 5);
+		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
 		DiffuseTraceShader.SetInteger("u_BlockAlbedoTextures", 6);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTextures", 7);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
@@ -566,6 +643,9 @@ int main()
 
 		// ---- COLOR PASS ----
 
+		ReflectionProjection = PreviousProjection;
+		ReflectionView = PreviousView;
+
 		ColoredFBO.Bind();
 
 		ColorShader.Use();
@@ -579,10 +659,13 @@ int main()
 		ColorShader.SetInteger("u_Skybox", 7);
 		ColorShader.SetInteger("u_ShadowTexture", 8);
 		ColorShader.SetInteger("u_BlueNoiseTextures", 9);
+		ColorShader.SetInteger("u_ReflectionTraceTexture", 10);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 		ColorShader.SetMatrix4("u_ShadowView", ShadowView);
+		ColorShader.SetMatrix4("u_ReflectionProjection", ReflectionProjection);
+		ColorShader.SetMatrix4("u_ReflectionView", ReflectionView);
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
 		ColorShader.SetVector3f("u_SunDirection", SunDirection);
 		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
@@ -618,11 +701,61 @@ int main()
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
 		ColoredFBO.Unbind();
+
+		// ----- REFLECTION TRACE -----
+
+		{
+			ReflectionTraceFBO.Bind();
+			ReflectionTraceShader.Use();
+
+			ReflectionTraceShader.SetInteger("u_PositionTexture", 0);
+			ReflectionTraceShader.SetInteger("u_NormalTexture", 1);
+			ReflectionTraceShader.SetInteger("u_PBRTexture", 2);
+			ReflectionTraceShader.SetInteger("u_VoxelData", 3);
+			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
+			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
+			ReflectionTraceShader.SetInteger("u_Skymap", 6);
+			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 7);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
+
+			glActiveTexture(GL_TEXTURE7);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			ReflectionTraceFBO.Unbind();
+		}
 
 		// ----- TAA ----- //
 
@@ -692,6 +825,8 @@ int main()
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
+
+		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		// Finish Frame
 		app.FinishFrame();
