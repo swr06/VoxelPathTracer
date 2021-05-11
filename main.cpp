@@ -15,6 +15,7 @@
 #include "Core/BlockDatabase.h"
 #include "Core/Player.h"
 #include "Core/GLClasses/FramebufferRed.h"
+#include "Core/ColorPassFBO.h"
 
 using namespace VoxelRT;
 Player MainPlayer;
@@ -154,7 +155,7 @@ int main()
 	GLClasses::Framebuffer DiffuseTemporalFBO1;
 	GLClasses::Framebuffer DiffuseTemporalFBO2;
 	GLClasses::Framebuffer DenoisedFBO;
-	GLClasses::Framebuffer ColoredFBO;
+	ColorPassFBO ColoredFBO;
 	GLClasses::Framebuffer PostProcessingFBO;
 	GLClasses::Framebuffer TAAFBO1;
 	GLClasses::Framebuffer TAAFBO2;
@@ -298,7 +299,7 @@ int main()
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		DenoisedFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-		ColoredFBO.SetSize(app.GetWidth(), app.GetHeight());
+		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
 		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
@@ -636,7 +637,7 @@ int main()
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());

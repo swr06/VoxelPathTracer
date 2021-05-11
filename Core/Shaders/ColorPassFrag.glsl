@@ -5,6 +5,8 @@
 #define PI 3.14159265359
 
 layout (location = 0) out vec3 o_Color;
+layout (location = 1) out vec3 o_Normal;
+layout (location = 2) out vec3 o_PBR;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -249,16 +251,22 @@ void main()
             vec4 data = texture(u_DataTexture, v_TexCoords);
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV, data.x)).rgb;
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
-            vec3 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgb;
+            vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
 
             //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
             vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.0f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
+            float SampledAO = pow(PBRMap.w, 3.0f);
 
-            o_Color = (AlbedoColor * SUN_AMBIENT) + (clamp((sqrt((Diffuse)) * 3.5f), 0.05f, 1.0f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap, RayTracedShadow));
+            o_Color = (AlbedoColor * SUN_AMBIENT) + (clamp((sqrt((Diffuse)) * 3.5f), 0.05f, 1.0f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow));
+            o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.01f));
+
+            o_Normal = NormalMapped;
+            o_PBR = PBRMap.xyz;
+
             return;
         }
     }
@@ -278,7 +286,8 @@ void main()
         }
     }
 
-
+    o_Normal = vec3(-1.0f);
+    o_PBR = vec3(-1.0f);
 }
 
 float DistributionGGX(vec3 N, vec3 H, float roughness)

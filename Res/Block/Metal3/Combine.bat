@@ -1,1 +1,0 @@
-C:\Users\samue\Desktop\ImageMagick\magick.exe convert %CD%/Roughness.png %CD%/Metalness.png %CD%/Displacement.png %CD%/AO.png -channel RGBA -combine PBR.png
