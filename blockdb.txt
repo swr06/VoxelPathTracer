@@ -106,10 +106,31 @@
 }
 
 {
+	Name : Metal2
+	Albedo : Res/Block/Metal2/Albedo.png
+	Normal : Res/Block/Metal2/Normal.png
+	PBR : Res/Block/Metal2/PBR.png
+}
+
+{
+	Name : Metal3
+	Albedo : Res/Block/Metal3/Albedo.png
+	Normal : Res/Block/Metal3/Normal.png
+	PBR : Res/Block/Metal3/PBR.png
+}
+
+{
 	Name : Leather
 	Albedo : Res/Block/Leather/Albedo.png
 	Normal : Res/Block/Leather/Normal.png
 	PBR : Res/Block/Leather/PBR.png
+}
+
+{
+	Name : WhitePorcelain
+	Albedo : Res/Block/WhitePorcelain/Albedo.png
+	Normal : Res/Block/WhitePorcelain/Normal.png
+	PBR : Res/Block/WhitePorcelain/PBR.png
 }
 
 {

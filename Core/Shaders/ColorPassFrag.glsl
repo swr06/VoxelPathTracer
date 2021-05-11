@@ -240,7 +240,10 @@ void main()
             vec2 UV;
             vec3 Tangent, Bitangent;
 
-            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
+            UV = clamp(UV, 0.0f, 1.0f);
+            UV.y = 1.0f - UV.y;
+
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
 
             vec4 data = texture(u_DataTexture, v_TexCoords);
@@ -249,12 +252,13 @@ void main()
             vec3 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgb;
 
             //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
-            vec3 Diffuse = textureBicubic(u_DiffuseTexture, v_TexCoords).rgb;
+            vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.0f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
 
-            o_Color = (AlbedoColor * SUN_AMBIENT) + (sqrt((Diffuse)) * 3.5f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap, RayTracedShadow);
+            o_Color = (AlbedoColor * SUN_AMBIENT) + (clamp((sqrt((Diffuse)) * 3.5f), 0.05f, 1.0f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap, RayTracedShadow));
+            o_Color = max(o_Color, vec3(0.01f));
             return;
         }
     }
@@ -319,8 +323,7 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
-    float ShadowIntensity = 0.98f;
-    float Shadow = min(shadow * ShadowIntensity, 1.0f);
+    float Shadow = min(shadow, 1.0f);
 
 	vec3 V = normalize(u_ViewerPosition - world_pos);
     vec3 L = normalize(light_dir);
@@ -340,11 +343,13 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     vec3 kS = F;
     vec3 kD = vec3(1.0) - kS;
     kD *= 1.0 - Metalness;	
+    kD = clamp(kD, 0.0f, 1.0f);
+    specular = clamp(specular, 0.0f, 1.0f);
 
     float NdotL = max(dot(normal, L), 0.0);
 	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
 
-    return Result * (1.0f - Shadow);
+    return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 vec4 cubic(float v){
