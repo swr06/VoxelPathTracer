@@ -44,7 +44,7 @@ float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
 
-bool FullyDynamicShadows = true;
+bool FullyDynamicShadows = false;
 
 glm::vec3 SunDirection;
 glm::vec3 MoonDirection;

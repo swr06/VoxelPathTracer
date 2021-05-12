@@ -6,11 +6,19 @@
 
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
+//#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 10
+#define MAX_VOXEL_DIST 20 // Increase this when DAGs are implemented 
 #define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define MAX_BOUNCE_LIMIT 4
+#define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer32(a)  (Bayer16( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer64(a)  (Bayer32( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
 layout (location = 0) out vec3 o_Color;
 
@@ -50,10 +58,6 @@ vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
-
-
-
-
 // Globals
 vec3 g_Normal;
 int RNG_SEED = 0;
@@ -63,6 +67,12 @@ struct Ray
 	vec3 Origin;
 	vec3 Direction;
 };
+
+float Bayer2(vec2 a) 
+{
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
 
 vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 
 					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc)
@@ -126,7 +136,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
 	}
 	
-	total_color = pow((total_color), vec3(MAX_BOUNCE_LIMIT)) / float((MAX_BOUNCE_LIMIT - 1.0f));
+	total_color = pow((total_color), vec3(MAX_BOUNCE_LIMIT)) / (MAX_BOUNCE_LIMIT - 2);
 	//total_color = total_color / MAX_BOUNCE_LIMIT;
 
 	return total_color;
@@ -169,8 +179,14 @@ void main()
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
+	#ifdef USE_BAYER_PIXEL_DITHER
+		float u = (Pixel.x + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.x;
+		float v = (Pixel.y + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.y;
+	#else 
 		float u = (Pixel.x + nextFloat(RNG_SEED)) / u_Dimensions.x;
 		float v = (Pixel.y + nextFloat(RNG_SEED)) / u_Dimensions.y;
+	#endif
+
 		vec2 uv = vec2(u, v);
 
 		vec4 Position = texture(u_PositionTexture, uv); // initial intersection point

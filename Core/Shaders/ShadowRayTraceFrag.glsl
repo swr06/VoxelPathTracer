@@ -189,7 +189,7 @@ void main()
 
 	if (T > 0.0f) 
 	{ 
-		o_Shadow = 0.745f; 
+		o_Shadow = 1.0f; 
 	}
 	
 	else 

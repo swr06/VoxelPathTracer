@@ -92,6 +92,13 @@
 }
 
 {
+	Name : Lamp
+	Albedo : Res/Block/Lamp/Albedo.png
+	Normal : Res/Block/Lamp/Normal.png
+	PBR : Res/Block/Lamp/PBR.png
+}
+
+{
 	Name : Metal
 	Albedo : Res/Block/Metal/Albedo.png
 	Normal : Res/Block/Metal/Normal.png

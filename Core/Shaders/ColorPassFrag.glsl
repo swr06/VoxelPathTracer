@@ -269,13 +269,15 @@ void main()
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
 
             //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
-            vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.0f);
+            vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.5f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
-            vec3 Ambient = (AlbedoColor * LightAmbience) * 0.005;
+            vec3 Ambient = (AlbedoColor * LightAmbience) * 0.07;
             float SampledAO = pow(PBRMap.w, 3.0f);
+            vec3 DiffuseAmbient = (Diffuse * 2.0f * (AlbedoColor * 1.2f));
+            DiffuseAmbient = clamp(DiffuseAmbient, Ambient, vec3(100000.0f));
 
-            o_Color = (AlbedoColor * SUN_AMBIENT) + (clamp((sqrt((Diffuse)) * 3.5f), 0.05f, 1.0f) * CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow));
+            o_Color = DiffuseAmbient + CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.01f));
 
@@ -288,7 +290,7 @@ void main()
 
             if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
             {
-                o_Color = mix(o_Color, ReflectionTrace, 0.075f);
+                o_Color = mix(o_Color, ReflectionTrace, 0.12500f);
             }
 
             return;

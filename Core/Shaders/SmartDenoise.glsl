@@ -1,75 +1,53 @@
 #version 330 core
 
+#define INV_SQRT_OF_2PI 0.39894228040143267793994605993439  // 1.0/SQRT_OF_2PI
+#define INV_PI 0.31830988618379067153776752674503
+
 out vec3 o_Color;
 
 in vec2 v_TexCoords;
 
 uniform sampler2D u_Texture;
-uniform sampler2D u_NormalTexture;
-uniform sampler2D u_InitialTracePositionTexture;
 
-
-vec3 BilateralUpsample(sampler2D tex, vec2 txc)
+// https://github.com/BrutPitt/glslSmartDeNoise/ //
+vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
-    vec3 base_normal = texture(u_NormalTexture, txc).rgb;
-    float base_depth = texture(u_InitialTracePositionTexture, txc).z;
+    float radius = round(kSigma*sigma);
+    radius = 4;
+    float radQ = radius * radius;
+    
+    float invSigmaQx2 = .5 / (sigma * sigma);      // 1.0 / (sigma^2 * 2.0)
+    float invSigmaQx2PI = INV_PI * invSigmaQx2;    // 1.0 / (sqrt(PI) * sigma)
+    
+    float invThresholdSqx2 = .5 / (threshold * threshold);     // 1.0 / (sigma^2 * 2.0)
+    float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;   // 1.0 / (sqrt(2*PI) * sigma)
+    
+    vec4 centrPx = texture(tex,uv);
+    
+    float zBuff = 0.0;
+    vec4 aBuff = vec4(0.0);
+    vec2 size = vec2(textureSize(tex, 0));
+    
+    for(float x=-radius; x <= radius; x++) {
+        float pt = sqrt(radQ-x*x);  // pt = yRadius: have circular trend
+        for(float y=-pt; y <= pt; y++) {
+            vec2 d = vec2(x,y);
 
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
+            float blurFactor = exp( -dot(d , d) * invSigmaQx2 ) * invSigmaQx2PI; 
+            
+            vec4 walkPx =  texture(tex,uv+d/size);
 
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec3 color = vec3(0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        float nweight = pow(abs(dot(sampled_normal, base_normal)), 32);
-
-        float sampled_depth = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = nweight * dweight;
-        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += computed_weight;
+            vec4 dC = walkPx-centrPx;
+            float deltaFactor = exp( -dot(dC, dC) * invThresholdSqx2) * invThresholdSqrt2PI * blurFactor;
+                                 
+            zBuff += deltaFactor;
+            aBuff += deltaFactor*walkPx;
+        }
     }
-
-    color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.4f, vec3(1.0f));
-    return color;
-
-}
-
-vec3 blur5vertical(sampler2D image, vec2 uv, vec2 resolution) 
-{
-    vec2 direction = vec2(0.0f, 1.0f);
-    vec3 color = vec3(0.0);
-    vec2 off1 = vec2(1.3333333333333333) * direction;
-    color += texture(image, uv).rgb * 0.29411764705882354;
-    color += texture(image, uv + (off1 / resolution)).rgb * 0.35294117647058826;
-    color += texture(image, uv - (off1 / resolution)).rgb * 0.35294117647058826;
-    return color; 
-}
-  
-vec3 blur5(sampler2D image, vec2 uv) 
-{
-    vec2 resolution = textureSize(u_Texture, 0);
-
-    vec2 direction = vec2(1.0f, 0.0f);
-    vec3 color = vec3(0.0);
-    vec2 off1 = vec2(1.3333333333333333) * direction;
-    color += blur5vertical(image, uv, resolution) * 0.29411764705882354;
-    color += blur5vertical(image, uv + (off1 / resolution), resolution) * 0.35294117647058826;
-    color += blur5vertical(image, uv - (off1 / resolution), resolution) * 0.35294117647058826;
-    return color; 
+    return aBuff/zBuff;
 }
 
 void main()
 {
-    o_Color = blur5(u_Texture, v_TexCoords);
+    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, .100).rgb;
 }
