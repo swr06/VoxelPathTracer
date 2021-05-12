@@ -18,6 +18,8 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Naive world saving and loading
 
 # Features to implement
+- Refractions (Will be done in screen space)
+- Glass rendering 
 - Volumetrics
 - Importance sampling
 - Proper denoising
