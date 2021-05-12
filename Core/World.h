@@ -46,6 +46,8 @@ namespace VoxelRT
 		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_ChunkData;
 		Texture3D m_DataTexture;
 
+		std::string m_Name = "";
+
 	private :
 		bool m_Buffered = false;
 		uint8_t m_CurrentlyHeldBlock = 1;

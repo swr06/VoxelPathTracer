@@ -33,6 +33,7 @@ ScratchAPixel
 #include "Core/ColorPassFBO.h"
 #include "Core/GLClasses/Texture.h"
 #include "Core/Renderer2D.h"
+#include "Core/WorldFileHandler.h"
 
 using namespace VoxelRT;
 Player MainPlayer;
@@ -131,6 +132,13 @@ public:
 			world->ChangeCurrentlyHeldBlock();
 		}
 
+		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)
+		{
+			SaveWorld(world, world->m_Name);
+			delete world;
+			exit(0);
+		}
+
 		if (e.type == EventTypes::WindowResize)
 		{
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
@@ -148,15 +156,29 @@ int main()
 
 	bool gen_type = 0;
 
-	std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, SIMPLEX FRACTAL = 1) : "; 
-	std::cin >> gen_type;
-	std::cout << "\n\n";
+	std::string world_name;
 
-	// --
 	world = new World();
-	GenerateWorld(world, gen_type);
+
+	do {
+		std::cout << "\nEnter the name of your world : ";
+		std::cin >> world_name;
+	} while (!FilenameValid(world_name)); 
+
+	world->m_Name = world_name;
+
+	if (!LoadWorld(world, world_name))
+	{
+		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, SIMPLEX FRACTAL = 1) : ";
+		std::cin >> gen_type;
+		std::cout << "\n\n";
+
+		GenerateWorld(world, gen_type);
+	}
+	
 	world->Buffer();
-	// --
+
+
 
 	VoxelRT::Renderer2D RendererUI;
 
@@ -836,5 +858,6 @@ int main()
 		ModifiedWorld = false;
 	}
 
+	SaveWorld(world, world_name);
 	delete world;
 }

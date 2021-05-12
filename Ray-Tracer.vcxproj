@@ -174,6 +174,7 @@
     <ClCompile Include="Core\OrthographicCamera.cpp" />
     <ClCompile Include="Core\RenderTexture.cpp" />
     <ClCompile Include="Core\Texture3D.cpp" />
+    <ClCompile Include="Core\WorldFileHandler.cpp" />
     <ClCompile Include="Core\WorldGenerator.cpp" />
     <ClCompile Include="Dependencies\fast_noise\FastNoise.cpp" />
     <ClCompile Include="Dependencies\glad\src\glad.c" />
@@ -212,6 +213,7 @@
     <ClInclude Include="Core\OrthographicCamera.h" />
     <ClInclude Include="Core\RenderTexture.h" />
     <ClInclude Include="Core\Texture3D.h" />
+    <ClInclude Include="Core\WorldFileHandler.h" />
     <ClInclude Include="Core\WorldGenerator.h" />
     <ClInclude Include="Dependencies\fast_noise\FastNoise.h" />
     <ClInclude Include="Dependencies\imgui\imconfig.h" />

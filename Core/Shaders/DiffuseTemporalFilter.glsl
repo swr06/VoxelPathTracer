@@ -59,10 +59,10 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float x = (u_CameraMoved ? 0.66213f : 0.8502f);
+		float x = (u_CameraMoved ? 0.85213f : 0.9502f);
 		float BlendFactorModifier = u_WorldModified ? 0.25f : x;
 		BlendFactor *= (exp(-length(velocity)) * 0.62f) + BlendFactorModifier; // 0.35f
-		BlendFactor = clamp(BlendFactor, 0.03f, 0.9f);
+		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 		//o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;
