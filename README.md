@@ -15,16 +15,17 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Tonemapping, Gamma correction
 - Bilateral Upsampling
 - Ray traced reflections 
+- Naive world saving and loading
 
 # Features to implement
 - Volumetrics
 - Importance sampling
 - Proper denoising
-- Water Rendering
+- Water Rendering (Tesselation with FFT? tessendorf waves?)
 - Voxel intersection acceleration structure (DAGs? Octrees?) 
-- POM (Maybe?)
-- Atmosphere
-- Cheap clouds
+- Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
+- Atmosphere 
+- Cheap clouds 
 
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
