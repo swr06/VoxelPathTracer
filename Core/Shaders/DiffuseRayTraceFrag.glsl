@@ -12,6 +12,8 @@
 #define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define MAX_BOUNCE_LIMIT 4
+
+// Bayer matrix, used for testing dithering
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -197,6 +199,7 @@ void main()
 	}
 
 	o_Color = o_Color / SPP;
+	o_Color = clamp(o_Color, 0.02f, 100000.0f);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

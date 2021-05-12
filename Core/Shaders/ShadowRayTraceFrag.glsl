@@ -4,12 +4,16 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
+#define ALPHA_TEST_SHADOWS
+
 layout (location = 0) out float o_Shadow;
 
 in vec2 v_TexCoords;
 
 uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
+uniform sampler2DArray u_AlbedoTextures;
+uniform vec4 BLOCK_TEXTURE_DATA[128];
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
@@ -57,8 +61,55 @@ float ProjectToCube(vec3 ro, vec3 rd)
 	return t;
 }
 
-float voxel_traversal(in vec3 orig, in vec3 direction) 
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
 {
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+    if (normal == NORMAL_TOP)
+    {
+        uv = vec2(fract(world_pos.xz));
+		NormalIndex = 0;
+    }
+
+    else if (normal == NORMAL_BOTTOM)
+    {
+        uv = vec2(fract(world_pos.xz));
+		NormalIndex = 1;
+    }
+
+    else if (normal == NORMAL_RIGHT)
+    {
+        uv = vec2(fract(world_pos.zy));
+		NormalIndex = 2;
+    }
+
+    else if (normal == NORMAL_LEFT)
+    {
+        uv = vec2(fract(world_pos.zy));
+		NormalIndex = 3;
+    }
+    
+    else if (normal == NORMAL_FRONT)
+    {
+        uv = vec2(fract(world_pos.xy));
+		NormalIndex = 4;
+    }
+
+     else if (normal == NORMAL_BACK)
+    {
+        uv = vec2(fract(world_pos.xy));
+		NormalIndex = 5;
+    }
+}
+
+float voxel_traversal(vec3 orig, vec3 direction) 
+{
+	vec3 normal = vec3(0.0f);
 	vec3 origin = orig;
 	const float epsilon = 0.001f;
 	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
@@ -120,7 +171,7 @@ float voxel_traversal(in vec3 orig, in vec3 direction)
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 200; i++) 
+	for (int i = 0; i < 175; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
@@ -155,17 +206,40 @@ float voxel_traversal(in vec3 orig, in vec3 direction)
 			if (side == 0) 
 			{
 				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
+				normal = vec3(1, 0, 0) * -stepX;
 			}
 
 			else if (side == 1) 
 			{
 				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
+				normal = vec3(0, 1, 0) * -stepY;
 			}
 
 			else
 			{
 				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
+				normal = vec3(0, 0, 1) * -stepZ;
 			}
+
+			#ifdef ALPHA_TEST_SHADOWS
+			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
+			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
+
+			if (transparent)
+			{
+				vec3 hit_position = orig + (direction * T);
+				int temp_idx; 
+				vec2 uv;
+
+				CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
+
+				if (textureLod(u_AlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 3).a < 0.1f)
+				{
+					T = -1.0f;
+					continue;
+				}
+			}
+			#endif
 
 			break;
 		}
@@ -173,7 +247,6 @@ float voxel_traversal(in vec3 orig, in vec3 direction)
 
 	return T;
 }
-
 
 void main()
 {

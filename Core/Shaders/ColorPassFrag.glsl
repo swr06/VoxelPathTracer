@@ -297,7 +297,7 @@ void main()
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.07;
             float SampledAO = pow(PBRMap.w, 3.0f);
             vec3 DiffuseAmbient = (Diffuse * 2.0f * (AlbedoColor * 1.2f));
-            DiffuseAmbient = clamp(DiffuseAmbient, Ambient, vec3(100000.0f));
+            DiffuseAmbient = clamp(DiffuseAmbient, Ambient, vec3(1.2f));
 
             o_Color = DiffuseAmbient + CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             o_Color *= SampledAO;

@@ -9,6 +9,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 #define WORLD_SIZE_Z 384
 
 #define MULTIPLE_TEXTURING_GRASS
+#define ALPHA_TESTING
 
 layout (location = 0) out vec4 o_Position;
 layout (location = 1) out vec3 o_Normal;
@@ -21,8 +22,10 @@ in vec3 v_RayOrigin;
 uniform int u_CurrentFrame;
 
 uniform sampler3D u_VoxelDataTexture;
+uniform sampler2DArray u_AlbedoTextures;
+
 uniform vec2 u_Dimensions;
-uniform vec3 BLOCK_TEXTURE_DATA[128];
+uniform vec4 BLOCK_TEXTURE_DATA[128];
 
 // Temporary solution to have multi texturing for grass blocks
 // Data stored : 
@@ -261,6 +264,26 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 				normal = vec3(0, 0, 1) * -stepZ;
 			}
 
+			#ifdef ALPHA_TESTING
+			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
+			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
+
+			if (transparent)
+			{
+				vec3 hit_position = orig + (direction * T);
+				int temp_idx; 
+				vec2 uv;
+
+				CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
+
+				if (textureLod(u_AlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 1).a < 0.1f)
+				{
+					T = -1.0f;
+					continue;
+				}
+			}
+			#endif
+
 			break;
 		}
 	}
@@ -297,7 +320,7 @@ void main()
     r.Direction = normalize(v_RayDirection);
 
 	vec3 normal;
-	float id;
+	float id = 0;
 	float t = voxel_traversal(r.Origin, r.Direction, normal, id);
 	bool intersect = t > 0.0f;
     vec3 world_position = intersect ? r.Origin + (r.Direction * t) : vec3(-1.0f);
@@ -320,8 +343,20 @@ void main()
 
 	o_Position.w = t;
 
-	int reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
-	vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+	int reference_id;
+	vec3 texture_ids;
+	bool transparent;
+
+	if (intersect)
+	{
+		reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
+		texture_ids = BLOCK_TEXTURE_DATA[reference_id].rgb;
+	}
+
+	else 
+	{
+		texture_ids = vec3(-1.0f);
+	}
 
 	#ifdef MULTIPLE_TEXTURING_GRASS
 
