@@ -33,7 +33,6 @@ uniform mat4 u_ReflectionProjection;
 
 uniform vec3 u_ViewerPosition;
 
-
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -223,6 +222,22 @@ bool IsInScreenSpaceBounds(in vec2 tx)
     return false;
 }
 
+bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
+{
+	vec3 inv_dir = 1.0f / rD;
+	vec3 tbot = inv_dir * (boxMin - r0);
+	vec3 ttop = inv_dir * (boxMax - r0);
+	vec3 tmin = min(ttop, tbot);
+	vec3 tmax = max(ttop, tbot);
+	vec2 t = max(tmin.xx, tmin.yz);
+	float t0 = max(t.x, t.y);
+	t = min(tmax.xx, tmax.yz);
+	float t1 = min(t.x, t.y);
+	t_min = t0;
+	t_max = t1;
+	return t1 > max(t0, 0.0);
+}
+
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 0.18f;
@@ -245,6 +260,13 @@ void main()
         {
             RayTracedShadow = ComputeShadow(ReprojectedShadowPos);
         }
+
+        // Player shadow
+        vec3 ShadowDirection = normalize(u_SunDirection);
+        float ShadowTMIN, ShadowTMAX;
+        bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), WorldPosition.xyz, ShadowDirection, ShadowTMIN, ShadowTMAX);
+        RayTracedShadow = PlayerIntersect ? 1.0f : RayTracedShadow;
+
 
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
         float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;

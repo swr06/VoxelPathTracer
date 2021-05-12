@@ -627,6 +627,7 @@ int main()
 			ShadowTraceShader.SetInteger("u_VoxelData", 1);
 			ShadowTraceShader.SetVector3f("u_SunDirection", SunDirection);
 			ShadowTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
+			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
