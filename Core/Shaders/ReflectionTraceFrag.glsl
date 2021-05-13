@@ -5,6 +5,7 @@
 #define WORLD_SIZE_Z 384
 
 #define ALBEDO_TEX_LOD 3 // 512, 256, 128
+#define JITTER_BASED_ON_ROUGHNESS
 
 layout (location = 0) out vec3 o_Color;
 
@@ -19,6 +20,8 @@ uniform sampler3D u_VoxelData;
 uniform samplerCube u_Skymap;
 
 uniform vec3 BLOCK_TEXTURE_DATA[128];
+uniform float u_ReflectionTraceRes;
+
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 
@@ -31,21 +34,96 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 float GetVoxel(ivec3 loc);
 bool IsInVoxelizationVolume(in vec3 pos);
 
+
+int MIN = -2147483648;
+int MAX = 2147483647;
+int RNG_SEED;
+
+int xorshift(in int value) 
+{
+    // Xorshift*32
+    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
+    value ^= value << 13;
+    value ^= value >> 17;
+    value ^= value << 5;
+    return value;
+}
+
+int nextInt(inout int seed) 
+{
+    seed = xorshift(seed);
+    return seed;
+}
+
+float nextFloat(inout int seed) 
+{
+    seed = xorshift(seed);
+    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
+    return abs(fract(float(seed) / 3141.592653));
+}
+
+float nextFloat(inout int seed, in float max) 
+{
+    return nextFloat(seed) * max;
+}
+
+float nextFloat(inout int seed, in float min, in float max) 
+{
+    return min + (max - min) * nextFloat(seed);
+}
+
+bool PointIsInSphere(vec3 point, float radius)
+{
+	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
+}
+
+vec3 RandomPointInUnitSphereRejective()
+{
+	float x, y, z;
+	const int accuracy = 10;
+
+	for (int i = 0 ; i < clamp(accuracy, 2, 40); i++)
+	{
+		x = nextFloat(RNG_SEED, -1.0f, 1.0f);
+		y = nextFloat(RNG_SEED, -1.0f, 1.0f);
+		z = nextFloat(RNG_SEED, -1.0f, 1.0f);
+
+		if (PointIsInSphere(vec3(x, y, z), 1.0f))
+		{
+			return vec3(x, y, z);
+		}
+	}
+
+	return vec3(x, y, z);
+}
+
 void main()
 {
 	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
 	
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * textureSize(u_PositionTexture, 0).x;
+
 	vec3 SampledWorldPosition = texture(u_PositionTexture, v_TexCoords).rgb;
 	vec3 NormalMap = texture(u_NormalTexture, v_TexCoords).rgb;
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, v_TexCoords).rgb;
 
 	vec3 NormalMapped = normalize(InitialTraceNormal + (NormalMap * 0.25f));
-	float MetalnessAt = texture(u_PBRTexture, v_TexCoords).g;
+	vec3 SampledPBR = texture(u_PBRTexture, v_TexCoords).rgb;
+	float MetalnessAt = SampledPBR.g;
+	float RoughnessAt = SampledPBR.r;
 
 	if (MetalnessAt > 0.1f)
 	{
+		vec3 ReflectionNormal = InitialTraceNormal;
+				
+		#ifdef JITTER_BASED_ON_ROUGHNESS
+		vec3 RandomDirection = RandomPointInUnitSphereRejective();
+		float JitterAmount = (u_ReflectionTraceRes) * RoughnessAt * 0.05f;
+		ReflectionNormal += RandomDirection * JitterAmount;
+		#endif
+
 		vec3 I = normalize(SampledWorldPosition - u_ViewerPosition);
-		vec3 R = normalize(reflect(I, NormalMapped));
+		vec3 R = normalize(reflect(I, ReflectionNormal));
 		vec3 Normal;
 		float Blocktype;
 

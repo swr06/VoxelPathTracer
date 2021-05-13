@@ -40,7 +40,7 @@ Player MainPlayer;
 bool VSync = true;
 
 float InitialTraceResolution = 0.75f;
-float DiffuseTraceResolution = 0.25f;
+float DiffuseTraceResolution = 0.5f;
 float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
@@ -200,7 +200,7 @@ int main()
 	GLClasses::Framebuffer DiffuseTraceFBO;
 	GLClasses::Framebuffer DiffuseTemporalFBO1;
 	GLClasses::Framebuffer DiffuseTemporalFBO2;
-	GLClasses::Framebuffer DenoisedFBO;
+	GLClasses::Framebuffer DiffuseDenoiseFBO;
 	ColorPassFBO ColoredFBO;
 	GLClasses::Framebuffer PostProcessingFBO;
 	GLClasses::Framebuffer TAAFBO1;
@@ -385,30 +385,32 @@ int main()
 		glfwSwapInterval((int)VSync);
 
 		// Resize the framebuffers
+
+		// Diffuse FBOS
 		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		DiffuseTemporalFBO1.SetSize(app.GetWidth(), app.GetHeight());
-		DiffuseTemporalFBO2.SetSize(app.GetWidth(), app.GetHeight());
-		DenoisedFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+		DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 		
+		// MISC
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
-		
 		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 		
+		// TAA
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
 		
+		// Reflection and shadow FBOS
 		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
-		
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 
-
-
+		///
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
-
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
 		GLClasses::Framebuffer& PrevDiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO2 : DiffuseTemporalFBO1;
+		/// 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
 		{
@@ -620,31 +622,6 @@ int main()
 
 		DiffuseTraceFBO.Unbind();
 
-
-		// ---- Denoise the diffuse ----
-
-		DenoisedFBO.Bind();
-		DenoiseFilter.Use();
-
-		DenoiseFilter.SetInteger("u_Texture", 0);
-		DenoiseFilter.SetInteger("u_NormalTexture", 1);
-		DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 2);
-
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
-
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
-
-		VAO.Bind();
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		VAO.Unbind();
-
-		DenoisedFBO.Unbind();
-
 		///// Temporal filter the calculated diffuse /////
 
 		DiffuseTemporalFBO.Bind();
@@ -663,7 +640,7 @@ int main()
 		DiffuseTemporalFilter.SetBool("u_CameraMoved", PreviousPosition != MainCamera.GetPosition());
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DenoisedFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
@@ -676,6 +653,33 @@ int main()
 		VAO.Unbind();
 
 		DiffuseTemporalFBO.Unbind();
+
+		//// DENOISE TEMPORALLY FILTERED OUTPUT ////
+
+		// ---- Denoise the diffuse ----
+
+		DiffuseDenoiseFBO.Bind();
+		DenoiseFilter.Use();
+
+		DenoiseFilter.SetInteger("u_Texture", 0);
+		DenoiseFilter.SetInteger("u_NormalTexture", 1);
+		DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 2);
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+
+		DiffuseDenoiseFBO.Unbind();
+
 
 		// ---- SHADOW TRACE ----
 
@@ -743,7 +747,7 @@ int main()
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
@@ -796,6 +800,7 @@ int main()
 			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
 			ReflectionTraceShader.SetInteger("u_Skymap", 6);
 			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 7);
+			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());

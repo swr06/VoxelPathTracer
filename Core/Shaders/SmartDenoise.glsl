@@ -13,7 +13,7 @@ uniform sampler2D u_Texture;
 vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius = round(kSigma*sigma);
-    radius = 6;
+    radius = 4;
     float radQ = radius * radius;
     
     float invSigmaQx2 = .5 / (sigma * sigma);      // 1.0 / (sigma^2 * 2.0)
@@ -49,5 +49,5 @@ vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thres
 
 void main()
 {
-    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, .300).rgb;
+    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, .500).rgb;
 }

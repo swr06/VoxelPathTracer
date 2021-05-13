@@ -8,10 +8,10 @@
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 //#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 20 // Increase this when DAGs are implemented 
+#define MAX_VOXEL_DIST 16 // Increase this when DAGs are implemented 
 #define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
-#define MAX_BOUNCE_LIMIT 4
+#define MAX_BOUNCE_LIMIT 3
 
 // Bayer matrix, used for testing dithering
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -138,7 +138,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
 	}
 	
-	total_color = pow((total_color), vec3(MAX_BOUNCE_LIMIT - 1));
+	total_color = pow((total_color), vec3(3.0f));
 	//total_color = total_color / MAX_BOUNCE_LIMIT;
 
 	return total_color;
@@ -177,19 +177,33 @@ void main()
 	Pixel.x = v_TexCoords.x * u_Dimensions.x;
 	Pixel.y = v_TexCoords.y * u_Dimensions.y;
 
-	const int SPP = 4;
+	const int SPP = 1;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-	#ifdef USE_BAYER_PIXEL_DITHER
-		float u = (Pixel.x + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.x;
-		float v = (Pixel.y + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.y;
-	#else 
-		float u = (Pixel.x + nextFloat(RNG_SEED)) / u_Dimensions.x;
-		float v = (Pixel.y + nextFloat(RNG_SEED)) / u_Dimensions.y;
-	#endif
+		vec2 uv;
 
-		vec2 uv = vec2(u, v);
+		if (s == 0)
+		{
+			float u = (Pixel.x) / u_Dimensions.x;
+			float v = (Pixel.y) / u_Dimensions.y;
+
+			uv = vec2(u, v);
+		}
+
+		else 
+		{
+			#ifdef USE_BAYER_PIXEL_DITHER
+				float u = (Pixel.x + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.x;
+				float v = (Pixel.y + Bayer16(vec2(Pixel.x + s, Pixel.y * s))) / u_Dimensions.y;
+			#else 
+				float u = (Pixel.x + nextFloat(RNG_SEED)) / u_Dimensions.x;
+				float v = (Pixel.y + nextFloat(RNG_SEED)) / u_Dimensions.y;
+			#endif
+
+			uv = vec2(u, v);
+		}
+
 
 		vec4 Position = texture(u_PositionTexture, uv); // initial intersection point
 		vec3 Normal = texture(u_NormalTexture, uv).rgb;
