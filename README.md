@@ -16,11 +16,12 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Bilateral Upsampling
 - Ray traced reflections 
 - Naive world saving and loading
+- Alpha testing (Shadows and tracing)
 
 # Features to implement
 - Refractions (Will be done in screen space)
 - Glass rendering 
-- Volumetrics
+- God Rays (Volumetric & Screen space) 
 - Importance sampling
 - Proper denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
