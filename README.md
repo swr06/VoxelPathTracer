@@ -30,6 +30,10 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Atmosphere 
 - Cheap clouds 
 
+# Performance
+
+- 60 FPS on a Vega 8 iGPU on the default settings
+
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
