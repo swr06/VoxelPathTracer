@@ -1,5 +1,8 @@
 #version 330 core
 
+// A *NON* depth aware spatial filter
+// This will be made depth and normal aware in the near future
+
 #define INV_SQRT_OF_2PI 0.39894228040143267793994605993439  // 1.0/SQRT_OF_2PI
 #define INV_PI 0.31830988618379067153776752674503
 

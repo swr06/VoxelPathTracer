@@ -313,7 +313,7 @@ void main()
 
             if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
             {
-                o_Color = mix(o_Color, ReflectionTrace, 0.12500f);
+                o_Color = mix(o_Color, ReflectionTrace, 0.15250f);
             }
 
             return;

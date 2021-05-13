@@ -5,7 +5,7 @@
 #define WORLD_SIZE_Z 384
 
 #define ALBEDO_TEX_LOD 3 // 512, 256, 128
-#define JITTER_BASED_ON_ROUGHNESS
+//#define JITTER_BASED_ON_ROUGHNESS
 
 layout (location = 0) out vec3 o_Color;
 
