@@ -3,15 +3,18 @@
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
+#define PI 3.14159265359
 
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 //#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 16 // Increase this when DAGs are implemented 
+#define MAX_VOXEL_DIST 20 // Increase this when DAGs are implemented 
+#define MAX_SHADOW_TRACE_DIST 20
 #define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
-#define MAX_BOUNCE_LIMIT 3
+#define MAX_BOUNCE_LIMIT 2
+#define APPLY_PLAYER_SHADOW
 
 // Bayer matrix, used for testing dithering
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -35,14 +38,23 @@ uniform samplerCube u_Skymap;
 
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
+uniform sampler2DArray u_BlockPBRTextures;
 
 uniform sampler2D u_DataTexture;
 
 uniform vec2 u_Dimensions;
 uniform float u_Time;
 
-uniform vec3 BLOCK_TEXTURE_DATA[128];
+uniform vec3 u_ViewerPosition;
 
+uniform vec4 BLOCK_TEXTURE_DATA[128];
+uniform vec3 u_SunDirection;
+
+// Temp
+uniform mat4 u_ShadowView;
+uniform mat4 u_ShadowProjection;
+uniform sampler2D u_ShadowMap;
+// Temp
 
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
@@ -59,6 +71,10 @@ bool IsInVoxelizationVolume(in vec3 pos);
 vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
+float GetShadowAt(in vec3 pos);
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
+vec2 ReprojectShadow(vec3);
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
 
 // Globals
 vec3 g_Normal;
@@ -76,8 +92,23 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
+vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
+{
+	//const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 8.0f;
+	const vec3 SUN_COLOR = vec3(1.0f) * 10.0f;
+
+	vec3 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyz;
+
+	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 2).rgb;
+	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.b), 2).rgb;
+
+	float ShadowAt = GetShadowAt(world_pos);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, u_SunDirection, SUN_COLOR, Albedo, normal, PBR, ShadowAt);
+	return (0.015 * Albedo) + DirectLighting;
+}
+
 vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 
-					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc)
+					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc, out vec3 tangent_normal)
 {
 	float b;
 
@@ -88,12 +119,10 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 	{ 
 		CalculateVectors(r.Origin + (r.Direction * T), out_n, tangent, bitangent, txc);
 
-		#ifdef USE_COLORED_DIFFUSE
-		int albedo_tex_index = int(floor(BLOCK_TEXTURE_DATA[tex_ref].r));
-		return textureLod(u_BlockAlbedoTextures, vec3(txc, albedo_tex_index), ALBEDO_MAP_LOD).rgb * 0.96f;
-		#else 
-		return vec3(0.2f, 0.2f, 0.23f);
-		#endif
+		mat3 tbn =  mat3(normalize(tangent), normalize(bitangent), normalize(out_n));
+		tangent_normal = tbn * (textureLod(u_BlockNormalTextures, vec3(txc, BLOCK_TEXTURE_DATA[tex_ref].g), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+		
+		return GetDirectLighting(r.Origin + (r.Direction * T), tex_ref, tangent_normal, txc);
 	} 
 
 	else 
@@ -130,15 +159,13 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
-		total_color = GetBlockRayColor(new_ray, T, N, intersection, tex_ref, Tangent, Bitangent, TexCoord);
-		tbn =  mat3(normalize(Tangent), normalize(Bitangent), normalize(N));
-
-		vec3 tangent_normal = tbn * (textureLod(u_BlockNormalTextures, vec3(TexCoord, BLOCK_TEXTURE_DATA[tex_ref].g), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+		vec3 tangent_normal;
+		total_color += GetBlockRayColor(new_ray, T, N, intersection, tex_ref, Tangent, Bitangent, TexCoord, tangent_normal);
 		new_ray.Origin = new_ray.Origin + (new_ray.Direction * T);
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
 	}
 	
-	total_color = pow((total_color), vec3(3.0f));
+	total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
 	//total_color = total_color / MAX_BOUNCE_LIMIT;
 
 	return total_color;
@@ -445,6 +472,24 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 				normal = vec3(0, 0, 1) * -stepZ;
 			}
 
+			//int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
+			//bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
+			//
+			//if (transparent)
+			//{
+			//	vec3 hit_position = orig + (direction * T);
+			//	int temp_idx; 
+			//	vec2 uv;
+			//
+			//	CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
+			//
+			//	if (textureLod(u_BlockAlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 3).a < 0.1f)
+			//	{
+			//		T = -1.0f;
+			//		continue;
+			//	}
+			//}
+
 			break;
 		}
 	}
@@ -548,5 +593,188 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[5];
 		bitangent = BiTangents[5];
+    }
+}
+
+/// Direct lighting ///
+
+bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
+{
+	vec3 inv_dir = 1.0f / rD;
+	vec3 tbot = inv_dir * (boxMin - r0);
+	vec3 ttop = inv_dir * (boxMax - r0);
+	vec3 tmin = min(ttop, tbot);
+	vec3 tmax = max(ttop, tbot);
+	vec2 t = max(tmin.xx, tmin.yz);
+	float t0 = max(t.x, t.y);
+	t = min(tmax.xx, tmax.yz);
+	float t1 = min(t.x, t.y);
+	t_min = t0;
+	t_max = t1;
+	return t1 > max(t0, 0.0);
+}
+
+vec2 ReprojectShadow(in vec3 world_pos)
+{
+	vec3 WorldPos = world_pos;
+
+	vec4 ProjectedPosition = u_ShadowProjection * u_ShadowView * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+
+	return ProjectedPosition.xy;
+}
+
+float GetShadowAt(in vec3 pos)
+{
+	//vec2 ReprojectedShadow = ReprojectShadow(pos);
+	//
+	//// Check if in screen space bounds
+	//if (ReprojectedShadow.x > 0.0f && ReprojectedShadow.x < 1.0f && ReprojectedShadow.y > 0.0f && ReprojectedShadow.y < 1.0f)
+	//{
+	//	return texture(u_ShadowMap, ReprojectedShadow).r;
+	//}
+	
+	vec3 RayDirection = normalize(u_SunDirection - (u_SunDirection * 0.1f));
+	
+	float T = -1.0f;
+	 
+	vec3 norm;
+	float block;
+
+	#ifdef APPLY_PLAYER_SHADOW
+		float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
+		bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
+		if (PlayerIntersect) { return 1.0f; }
+	#endif
+
+	T = voxel_traversal(pos.rgb, RayDirection, norm, block, MAX_SHADOW_TRACE_DIST);
+
+	if (T > 0.0f) 
+	{ 
+		return 1.0f; 
+	}
+	
+	else 
+	{ 
+		return 0.0f;
+	}
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / max(denom, 0.001); 
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
+{
+    float Shadow = min(shadow, 1.0f);
+
+	vec3 V = normalize(u_ViewerPosition - world_pos);
+    vec3 L = normalize(light_dir);
+    vec3 H = normalize(V + L);
+
+    float Roughness = pbr.r;
+    float Metalness = pbr.g;
+
+    float NDF = DistributionGGX(normal, H, Roughness);   
+    float G = GeometrySmith(normal, V, L, Roughness);      
+    vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), vec3(0.04));
+       
+    vec3 nominator = NDF * G * F; 
+    float denominator = 4.0f * max(dot(normal, V), 0.0) * max(dot(normal, L), 0.0);
+    vec3 specular = nominator / max(denominator, 0.001f);
+    
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - Metalness;	
+    kD = clamp(kD, 0.0f, 1.0f);
+    specular = clamp(specular, 0.0f, 1.0f);
+
+    float NdotL = max(dot(normal, L), 0.0);
+	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
+
+    return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+}
+
+
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
+{
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+    if (normal == NORMAL_TOP)
+    {
+        uv = vec2(fract(world_pos.xz));
+		NormalIndex = 0;
+    }
+
+    else if (normal == NORMAL_BOTTOM)
+    {
+        uv = vec2(fract(world_pos.xz));
+		NormalIndex = 1;
+    }
+
+    else if (normal == NORMAL_RIGHT)
+    {
+        uv = vec2(fract(world_pos.zy));
+		NormalIndex = 2;
+    }
+
+    else if (normal == NORMAL_LEFT)
+    {
+        uv = vec2(fract(world_pos.zy));
+		NormalIndex = 3;
+    }
+    
+    else if (normal == NORMAL_FRONT)
+    {
+        uv = vec2(fract(world_pos.xy));
+		NormalIndex = 4;
+    }
+
+     else if (normal == NORMAL_BACK)
+    {
+        uv = vec2(fract(world_pos.xy));
+		NormalIndex = 5;
     }
 }

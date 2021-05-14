@@ -1,5 +1,9 @@
 #version 330 core
 
+// TODO : 
+// Handle disocclusion by comparing depths and normals
+// Maybe even voxel IDs? 
+
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
@@ -59,9 +63,9 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float x = (u_CameraMoved ? 0.85213f : 0.9502f);
+		float x = (u_CameraMoved ? 0.89213f : 0.9602f);
 		float BlendFactorModifier = u_WorldModified ? 0.25f : x;
-		BlendFactor *= (exp(-length(velocity)) * 0.62f) + BlendFactorModifier; // 0.35f
+		BlendFactor = BlendFactorModifier; // 0.35f
 		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);

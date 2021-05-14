@@ -40,7 +40,7 @@ Player MainPlayer;
 bool VSync = true;
 
 float InitialTraceResolution = 0.75f;
-float DiffuseTraceResolution = 0.5f;
+float DiffuseTraceResolution = 0.40f;
 float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
@@ -340,13 +340,14 @@ int main()
 		// BLOCK_TEXTURE_DATA
 
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec3 data;
+		glm::vec4 data;
 
 		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
 		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
 		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.w = BlockDatabase::IsBlockTransparent(i);
 
-		DiffuseTraceShader.SetVector3f(name.c_str(), data);
+		DiffuseTraceShader.SetVector4f(name.c_str(), data);
 	}
 
 	glUseProgram(0);
@@ -473,13 +474,14 @@ int main()
 				// BLOCK_TEXTURE_DATA
 
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec3 data;
+				glm::vec4 data;
 
 				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
 				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
 				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.w = BlockDatabase::IsBlockTransparent(i);
 
-				DiffuseTraceShader.SetVector3f(name.c_str(), data);
+				DiffuseTraceShader.SetVector4f(name.c_str(), data);
 			}
 
 			glUseProgram(0);
@@ -585,12 +587,19 @@ int main()
 		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
 		DiffuseTraceShader.SetInteger("u_BlockAlbedoTextures", 6);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTextures", 7);
+		DiffuseTraceShader.SetInteger("u_BlockPBRTextures", 8);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseTraceFBO.GetWidth(), DiffuseTraceFBO.GetHeight()));
 		DiffuseTraceShader.SetFloat("u_Time", glfwGetTime() * 1.2f);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+		DiffuseTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+		DiffuseTraceShader.SetVector3f("u_SunDirection", SunDirection);
+
+		DiffuseTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
+		DiffuseTraceShader.SetMatrix4("u_ShadowView", ShadowView);
+		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -615,6 +624,12 @@ int main()
 
 		glActiveTexture(GL_TEXTURE7);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
+
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -316,6 +316,8 @@ void main()
                 o_Color = mix(o_Color, ReflectionTrace, 0.15250f);
             }
 
+            //o_Color = Diffuse;
+
             return;
         }
 
