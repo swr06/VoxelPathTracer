@@ -373,6 +373,9 @@ int main()
 
 	/////                                     /////
 
+	InitialRTFBO* InitialTraceFBO = &InitialTraceFBO_1;
+	InitialRTFBO* InitialTraceFBOPrev = &InitialTraceFBO_2;
+
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
 		// Tick the sun and moon
@@ -413,9 +416,6 @@ int main()
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
 		GLClasses::Framebuffer& PrevDiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO2 : DiffuseTemporalFBO1;
-		InitialRTFBO& InitialTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? InitialTraceFBO_1 : InitialTraceFBO_2;
-		InitialRTFBO& InitialTraceFBOPrev = (app.GetCurrentFrame() % 2 == 0) ? InitialTraceFBO_2 : InitialTraceFBO_1;
-		
 		/// 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
@@ -534,7 +534,11 @@ int main()
 
 		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld || app.GetCurrentFrame() % 4 == 0)
 		{
-			InitialTraceFBO.Bind();
+			// Swap the initial trace framebuffers
+			InitialTraceFBO = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
+			InitialTraceFBOPrev = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
+
+			InitialTraceFBO->Bind();
 			glDisable(GL_CULL_FACE);
 			glDisable(GL_DEPTH_TEST);
 
@@ -546,7 +550,7 @@ int main()
 			InitialTraceShader.SetInteger("u_AlbedoTextures", 1);
 			InitialTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
-			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO.GetWidth(), InitialTraceFBO.GetHeight()));
+			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
 			/// TEMPORARY ///
@@ -571,7 +575,7 @@ int main()
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
-			InitialTraceFBO.Unbind();
+			InitialTraceFBO->Unbind();
 		}
 
 		// Diffuse tracing
@@ -610,10 +614,10 @@ int main()
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
@@ -622,7 +626,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
 
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetDataTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetDataTexture());
 
 		glActiveTexture(GL_TEXTURE6);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
@@ -667,19 +671,19 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetNormalTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -699,10 +703,10 @@ int main()
 		DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 2);
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
@@ -734,7 +738,7 @@ int main()
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -783,13 +787,13 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetDataTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetDataTexture());
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
@@ -836,7 +840,7 @@ int main()
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
@@ -857,7 +861,7 @@ int main()
 			glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
 
 			glActiveTexture(GL_TEXTURE7);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -882,7 +886,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevTAAFBO.GetTexture());
@@ -905,7 +909,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -929,7 +933,7 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
