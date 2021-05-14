@@ -308,7 +308,7 @@ void main()
 
             //vec2 ReprojectedReflectionCoord = ReprojectReflection(WorldPosition.xyz);
             vec2 ReprojectedReflectionCoord = v_TexCoords;
-           // vec3 ReflectionTrace = BilateralUpsample(u_ReflectionTraceTexture, ReprojectedReflectionCoord, SampledNormals, WorldPosition.z).rgb;
+            //vec3 ReflectionTrace = BilateralUpsample(u_ReflectionTraceTexture, ReprojectedReflectionCoord, SampledNormals, WorldPosition.z).rgb;
             vec3 ReflectionTrace = textureBicubic(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
 
             if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
@@ -316,7 +316,7 @@ void main()
                 o_Color = mix(o_Color, ReflectionTrace, 0.15250f);
             }
 
-            //o_Color = Diffuse;
+            ///o_Color = Diffuse;
 
             return;
         }

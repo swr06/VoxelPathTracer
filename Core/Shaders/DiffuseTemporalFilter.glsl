@@ -1,9 +1,5 @@
 #version 330 core
 
-// TODO : 
-// Handle disocclusion by comparing depths and normals
-// Maybe even voxel IDs? 
-
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
@@ -11,6 +7,10 @@ in vec2 v_TexCoords;
 uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
+uniform sampler2D u_PreviousFramePositionTexture;
+
+uniform sampler2D u_CurrentNormalTexture;
+uniform sampler2D u_PreviousNormalTexture;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -35,6 +35,38 @@ vec2 Reprojection(vec3 pos)
 	return ProjectedPosition.xy;
 }
 
+// Reduce smearing 
+void GetNearestDepth(in float input_depth, out float odepth, out vec2 best_offset, vec2 reprojected) 
+{
+	vec2 neighbourhoodOffsets[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+	odepth = 100000.0f;
+
+	for(int i = 0; i < 8; i++) 
+	{
+		vec2 offset = neighbourhoodOffsets[i] * View;
+
+		float depth_at = texture(u_PreviousFramePositionTexture, reprojected + offset).r;
+		float d = abs(input_depth - depth_at);
+
+		if (d < odepth)
+		{
+			odepth = d;
+			best_offset = neighbourhoodOffsets[i]; 
+		}
+	}
+}
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -49,12 +81,21 @@ void main()
 	{
 		vec2 PreviousCoord = Reprojection(CurrentPosition.xyz); 
 
+		//void GetNearestDepth(in float input_depth, out float odepth, out vec2 best_offset) 
+		vec2 BestOffset = vec2(1.0f);
+		float BestDepth;
+
+		//GetNearestDepth(CurrentPosition.z, BestDepth, BestOffset, PreviousCoord);
+		//PreviousCoord += BestOffset * (1.0f / Dimensions);
+
 		vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
 		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
 
+		vec3 CurrentNormal = texture(u_CurrentNormalTexture, TexCoord).rgb;
+		vec3 PreviousNormal = texture(u_PreviousNormalTexture, PreviousCoord).rgb;
+
 		vec3 AverageColor;
 		float ClosestDepth;
-		vec2 BestOffset;
 
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 
@@ -68,8 +109,15 @@ void main()
 		BlendFactor = BlendFactorModifier; // 0.35f
 		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
 
+		// Handle disocclusion 
+		float CurrentDepth = CurrentPosition.z;
+		float PreviousDepth = texture(u_PreviousFramePositionTexture, PreviousCoord).z;
+        float DepthWeight = 1.0f / (abs(CurrentDepth - PreviousDepth) + 0.001f);
+		DepthWeight *= DepthWeight * 0.0125f;
+		float NormalWeight = pow(abs(dot(CurrentNormal, PreviousNormal)), 12);
+
+		BlendFactor = clamp((BlendFactor * DepthWeight), 0.01f, 0.95f); 
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
-		//o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgb;
 	}
 
 	else 

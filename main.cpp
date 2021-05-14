@@ -196,7 +196,8 @@ int main()
 	GLClasses::Shader ShadowTraceShader;
 	GLClasses::Shader ReflectionTraceShader;
 
-	VoxelRT::InitialRTFBO InitialTraceFBO;
+	VoxelRT::InitialRTFBO InitialTraceFBO_1;
+	VoxelRT::InitialRTFBO InitialTraceFBO_2;
 	GLClasses::Framebuffer DiffuseTraceFBO;
 	GLClasses::Framebuffer DiffuseTemporalFBO1;
 	GLClasses::Framebuffer DiffuseTemporalFBO2;
@@ -396,7 +397,8 @@ int main()
 		// MISC
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
-		InitialTraceFBO.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		InitialTraceFBO_1.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+		InitialTraceFBO_2.SetDimensions(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 		
 		// TAA
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
@@ -411,6 +413,9 @@ int main()
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
 		GLClasses::Framebuffer& PrevDiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO2 : DiffuseTemporalFBO1;
+		InitialRTFBO& InitialTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? InitialTraceFBO_1 : InitialTraceFBO_2;
+		InitialRTFBO& InitialTraceFBOPrev = (app.GetCurrentFrame() % 2 == 0) ? InitialTraceFBO_2 : InitialTraceFBO_1;
+		
 		/// 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
@@ -645,6 +650,10 @@ int main()
 		DiffuseTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
 		DiffuseTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
 		DiffuseTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
+		DiffuseTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+
+		DiffuseTemporalFilter.SetInteger("u_CurrentNormalTexture", 4);
+		DiffuseTemporalFilter.SetInteger("u_PreviousNormalTexture", 5);
 
 		DiffuseTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 		DiffuseTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -662,6 +671,15 @@ int main()
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev.GetPositionTexture());
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO.GetNormalTexture());
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev.GetNormalTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
