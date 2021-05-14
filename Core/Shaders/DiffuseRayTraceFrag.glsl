@@ -95,7 +95,7 @@ float Bayer2(vec2 a)
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
 	//const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 8.0f;
-	const vec3 SUN_COLOR = vec3(1.0f) * 10.0f;
+	const vec3 SUN_COLOR = vec3(1.0f) * 16.0f; // The radiance of the sun
 
 	vec3 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyz;
 
@@ -165,8 +165,8 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
 	}
 	
-	total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
-	//total_color = total_color / MAX_BOUNCE_LIMIT;
+	//total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
+	total_color = total_color / max(MAX_BOUNCE_LIMIT - 1.65f, 0.66f);
 
 	return total_color;
 }

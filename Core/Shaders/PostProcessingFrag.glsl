@@ -157,7 +157,7 @@ void main()
 
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), 4.5f).rgb;
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), 3.5f).rgb;
 		Vignette(InputColor);
 		o_Color = InputColor;
 	}
