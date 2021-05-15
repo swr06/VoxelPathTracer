@@ -770,6 +770,7 @@ int main()
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
 		ColorShader.SetVector3f("u_SunDirection", SunDirection);
 		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
+		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 

@@ -25,6 +25,7 @@ uniform sampler2D u_ReflectionTraceTexture;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
+uniform vec3 u_StrongerLightDirection;
 
 uniform float u_Time;
 
@@ -354,7 +355,7 @@ void main()
         }
 
         // Player shadow
-        vec3 ShadowDirection = normalize(u_SunDirection);
+        vec3 ShadowDirection = normalize(u_StrongerLightDirection);
         float ShadowTMIN, ShadowTMAX;
         bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), WorldPosition.xyz, ShadowDirection, ShadowTMIN, ShadowTMAX);
         RayTracedShadow = PlayerIntersect ? 1.0f : RayTracedShadow;
