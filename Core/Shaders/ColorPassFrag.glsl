@@ -411,7 +411,9 @@ void main()
 
             if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
             {
-                o_Color = mix(o_Color, ReflectionTrace, 0.15250f);
+                float ReflectionRatio = 0.25f;
+                ReflectionRatio *= 1.0f - PBRMap.r;
+                o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
             }
 
             return;

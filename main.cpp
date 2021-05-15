@@ -46,6 +46,9 @@ float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
 
+bool GodRays = true;
+bool LensFlare = true;
+
 bool FullyDynamicShadows = false;
 
 glm::vec3 SunDirection;
@@ -86,6 +89,8 @@ public:
 		ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
+		ImGui::Checkbox("Lens Flare?", &LensFlare);
+		ImGui::Checkbox("God Rays?", &GodRays);
 	}
 
 	void OnEvent(VoxelRT::Event e) override
@@ -902,6 +907,8 @@ int main()
 		PostProcessingShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 		PostProcessingShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
 		PostProcessingShader.SetBool("u_SunIsStronger", StrongerLightDirection == SunDirection);
+		PostProcessingShader.SetBool("u_LensFlare", LensFlare);
+		PostProcessingShader.SetBool("u_GodRays", GodRays);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());

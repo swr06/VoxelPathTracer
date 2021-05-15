@@ -50,6 +50,9 @@ uniform vec2 u_Dimensions;
 
 uniform bool u_SunIsStronger;
 
+uniform bool u_LensFlare = true;
+uniform bool u_GodRays = true;
+
 uniform sampler2D u_FramebufferTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_BlueNoise;
@@ -207,6 +210,64 @@ float GetScreenSpaceGodRays(vec3 position)
     return rays;
 }
 
+float Fnoise(float t)
+{
+	return texture(u_BlueNoise, vec2(t, 0.0f) / vec2(256).xy).x;
+}
+
+float Fnoise(vec2 t)
+{
+	return texture(u_BlueNoise, t / vec2(256).xy).x;
+}
+
+// by mu6k
+vec3 lensflare(vec2 uv, vec2 pos)
+{
+	vec2 main = uv - pos;
+	vec2 uvd = uv * (length(uv));
+	
+	float ang = atan(main.x,main.y);
+	float dist = length(main); 
+	dist = pow(dist, 0.1f);
+
+	float n = Fnoise(vec2(ang * 16.0f, dist * 32.0f));
+	
+	float f0 = 1.0 / (length(uv - pos) * 16.0f + 1.0f);
+	
+	f0 = f0 + f0 * (sin(Fnoise(sin(ang * 2.0f + pos.x) * 4.0f - cos(ang * 3.0f + pos.y)) * 16.0f) * 0.1 + dist * 0.1f + 0.8f);
+	
+	float f1 = max(0.01f - pow(length(uv + 1.2f * pos), 1.9f), 0.0f) * 7.0f;
+	float f2 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.8f * pos), 2.0f)), 0.0f) * 0.25f;
+	float f22 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.85f * pos), 2.0f)), 0.0f) * 0.23f;
+	float f23 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.9f * pos), 2.0f)), 0.0f) * 0.21f;
+	
+	vec2 uvx = mix(uv, uvd, -0.5f);
+	
+	float f4 = max(0.01f - pow(length(uvx + 0.4f * pos), 2.4f), 0.0f) * 6.0f;
+	float f42 = max(0.01f - pow(length(uvx + 0.45f * pos), 2.4f), 0.0f) * 5.0f;
+	float f43 = max(0.01f - pow(length(uvx + 0.5f *pos), 2.4f), 0.0f) * 3.0f;
+	
+	uvx = mix(uv, uvd, -0.4f);
+	
+	float f5 = max(0.01f - pow(length(uvx + 0.2f * pos), 5.5f), 0.0f) * 2.0f;
+	float f52 = max(0.01f - pow(length(uvx + 0.4f * pos), 5.5f), 0.0f) * 2.0f;
+	float f53 = max(0.01f - pow(length(uvx + 0.6f * pos), 5.5f), 0.0f) * 2.0f;
+	
+	uvx = mix(uv, uvd, -0.5f);
+	
+	float f6 = max(0.01f - pow(length(uvx - 0.3f * pos), 1.6f), 0.0f) * 6.0f;
+	float f62 = max(0.01f - pow(length(uvx - 0.325f * pos), 1.6f), 0.0f) * 3.0f;
+	float f63 = max(0.01f - pow(length(uvx - 0.35f * pos), 1.6f), 0.0f) * 5.0f;
+	
+	vec3 c = vec3(0.0f);
+	
+	c.r += f2 + f4 + f5 + f6; 
+	c.g += f22 + f42 + f52 + f62;
+	c.b += f23 + f43 + f53 + f63;
+	c = c * 1.3f - vec3(length(uvd) * 0.05f);
+	
+	return c;
+}
 
 void main()
 {
@@ -215,7 +276,7 @@ void main()
     float PixelDepth2 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
     float PixelDepth3 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
     float PixelDepth4 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-	float exposure = mix(4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
+	float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 
 	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
 
@@ -228,17 +289,31 @@ void main()
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);
 
-		float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
-		vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(142.0f, 200.0f, 255.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
-        InputColor += ss_volumetric_color * god_rays;
+		if (u_GodRays)
+		{
+			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(142.0f, 200.0f, 255.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			InputColor += ss_volumetric_color * god_rays;
+		}
 
 		InputColor = ACESFitted(vec4(InputColor, 1.0f), exposure + 0.01f).rgb;
-		Vignette(InputColor);
 		o_Color = InputColor;
 	}
 
 	else 
 	{
 		o_Color = texture(u_FramebufferTexture, v_TexCoords).rgb;
+	}
+
+	if (u_LensFlare)
+	{
+		vec2 SunScreenSpacePosition = WorldToScreen(u_SunDirection * 10000.0f) - 0.5f; 
+		SunScreenSpacePosition.x *= u_Dimensions.x / u_Dimensions.y;
+		vec2 LensFlareCoord = v_TexCoords - 0.5f;
+		LensFlareCoord.x *= u_Dimensions.x / u_Dimensions.y;
+		
+		vec3 LensFlare = vec3(1.6f, 1.2f, 1.0f) * lensflare(LensFlareCoord, SunScreenSpacePosition);
+		LensFlare = clamp(LensFlare, 0.02f, 0.999f);
+		o_Color += LensFlare;
 	}
 }
