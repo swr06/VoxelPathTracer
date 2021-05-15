@@ -55,10 +55,10 @@ void FXAA311(inout vec3 color) {
 	vec2 view = 1.0 / vec2(textureSize(u_FramebufferTexture, 0));
 	
 	float lumaCenter = GetLuminance(color);
-	float lumaDown  = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2( 0.0, -1.0) * view, 0.0).rgb);
-	float lumaUp    = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2( 0.0,  1.0) * view, 0.0).rgb);
-	float lumaLeft  = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2(-1.0,  0.0) * view, 0.0).rgb);
-	float lumaRight = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2( 1.0,  0.0) * view, 0.0).rgb);
+	float lumaDown  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0, -1.0) * view, 0.0).rgb);
+	float lumaUp    = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0,  1.0) * view, 0.0).rgb);
+	float lumaLeft  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  0.0) * view, 0.0).rgb);
+	float lumaRight = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  0.0) * view, 0.0).rgb);
 	
 	float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
 	float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
@@ -66,10 +66,10 @@ void FXAA311(inout vec3 color) {
 	float lumaRange = lumaMax - lumaMin;
 	
 	if (lumaRange > max(edgeThresholdMin, lumaMax * edgeThresholdMax)) {
-		float lumaDownLeft  = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2(-1.0, -1.0) * view, 0.0).rgb);
-		float lumaUpRight   = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2( 1.0,  1.0) * view, 0.0).rgb);
-		float lumaUpLeft    = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2(-1.0,  1.0) * view, 0.0).rgb);
-		float lumaDownRight = GetLuminance(texture2DLod(u_FramebufferTexture, texCoord + vec2( 1.0, -1.0) * view, 0.0).rgb);
+		float lumaDownLeft  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0, -1.0) * view, 0.0).rgb);
+		float lumaUpRight   = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  1.0) * view, 0.0).rgb);
+		float lumaUpLeft    = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  1.0) * view, 0.0).rgb);
+		float lumaDownRight = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0, -1.0) * view, 0.0).rgb);
 		
 		float lumaDownUp    = lumaDown + lumaUp;
 		float lumaLeftRight = lumaLeft + lumaRight;
@@ -119,8 +119,8 @@ void FXAA311(inout vec3 color) {
 		vec2 uv1 = currentUv - offset;
 		vec2 uv2 = currentUv + offset;
 
-		float lumaEnd1 = GetLuminance(texture2DLod(u_FramebufferTexture, uv1, 0.0).rgb);
-		float lumaEnd2 = GetLuminance(texture2DLod(u_FramebufferTexture, uv2, 0.0).rgb);
+		float lumaEnd1 = GetLuminance(textureLod(u_FramebufferTexture, uv1, 0.0).rgb);
+		float lumaEnd2 = GetLuminance(textureLod(u_FramebufferTexture, uv2, 0.0).rgb);
 		lumaEnd1 -= lumaLocalAverage;
 		lumaEnd2 -= lumaLocalAverage;
 		
@@ -138,11 +138,11 @@ void FXAA311(inout vec3 color) {
 		if (!reachedBoth) {
 			for(int i = 2; i < iterations; i++) {
 				if (!reached1) {
-					lumaEnd1 = GetLuminance(texture2DLod(u_FramebufferTexture, uv1, 0.0).rgb);
+					lumaEnd1 = GetLuminance(textureLod(u_FramebufferTexture, uv1, 0.0).rgb);
 					lumaEnd1 = lumaEnd1 - lumaLocalAverage;
 				}
 				if (!reached2) {
-					lumaEnd2 = GetLuminance(texture2DLod(u_FramebufferTexture, uv2, 0.0).rgb);
+					lumaEnd2 = GetLuminance(textureLod(u_FramebufferTexture, uv2, 0.0).rgb);
 					lumaEnd2 = lumaEnd2 - lumaLocalAverage;
 				}
 				
@@ -193,7 +193,7 @@ void FXAA311(inout vec3 color) {
 			finalUv.x += finalOffset * stepLength;
 		}
 
-		color = texture2DLod(u_FramebufferTexture, finalUv, 0.0).rgb;
+		color = textureLod(u_FramebufferTexture, finalUv, 0.0).rgb;
 	}
 }
 

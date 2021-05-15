@@ -146,6 +146,15 @@
     <ClCompile Include="Core\WorldFileHandler.cpp">
       <Filter>Source Files\GLClasses</Filter>
     </ClCompile>
+    <ClCompile Include="Core\AORenderer.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\AtmosphereRenderCubemap.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\AtmosphereRenderer.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -259,6 +268,15 @@
     <ClInclude Include="Core\WorldFileHandler.h">
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
+    <ClInclude Include="Core\AORenderer.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\AtmosphereRenderCubemap.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\AtmosphereRenderer.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -315,9 +333,33 @@
     <None Include="Core\Shaders\ReflectionTraceFrag.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
+    <None Include="Core\Shaders\2DElementShaderFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\2DElementShaderVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\AtmosphereFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\AtmosphereVertex.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\RayTraceShadows.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\SSAO.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\SSAOBlur.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </Text>
+    <Text Include="Core\Shaders\FXAA_License.txt">
       <Filter>Source Files\Shaders</Filter>
     </Text>
   </ItemGroup>

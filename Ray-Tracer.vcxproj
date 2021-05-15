@@ -149,8 +149,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Core\AORenderer.cpp" />
     <ClCompile Include="Core\Application\Application.cpp" />
     <ClCompile Include="Core\Application\Logger.cpp" />
+    <ClCompile Include="Core\AtmosphereRenderCubemap.cpp" />
+    <ClCompile Include="Core\AtmosphereRenderer.cpp" />
     <ClCompile Include="Core\BlockDatabase.cpp" />
     <ClCompile Include="Core\BlockDatabaseParser.cpp" />
     <ClCompile Include="Core\ColorPassFBO.cpp" />
@@ -187,8 +190,11 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Core\AORenderer.h" />
     <ClInclude Include="Core\Application\Application.h" />
     <ClInclude Include="Core\Application\Logger.h" />
+    <ClInclude Include="Core\AtmosphereRenderCubemap.h" />
+    <ClInclude Include="Core\AtmosphereRenderer.h" />
     <ClInclude Include="Core\Block.h" />
     <ClInclude Include="Core\BlockDatabase.h" />
     <ClInclude Include="Core\BlockDatabaseParser.h" />
@@ -226,6 +232,10 @@
     <ClInclude Include="Dependencies\imgui\imstb_truetype.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Core\Shaders\2DElementShaderFrag.glsl" />
+    <None Include="Core\Shaders\2DElementShaderVert.glsl" />
+    <None Include="Core\Shaders\AtmosphereFrag.glsl" />
+    <None Include="Core\Shaders\AtmosphereVertex.glsl" />
     <None Include="Core\Shaders\ColorPassFrag.glsl" />
     <None Include="Core\Shaders\ColorPassVert.glsl" />
     <None Include="Core\Shaders\FBOFrag.glsl" />
@@ -235,18 +245,22 @@
     <None Include="Core\Shaders\PostProcessingFrag.glsl" />
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
+    <None Include="Core\Shaders\RayTraceShadows.glsl" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\ReflectionTraceFrag.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\DiffuseTemporalFilter.glsl" />
     <None Include="Core\Shaders\ColorTemporalFilter.glsl" />
+    <None Include="Core\Shaders\SSAO.glsl" />
+    <None Include="Core\Shaders\SSAOBlur.glsl" />
     <None Include="Core\Shaders\TemporalAA.glsl" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl" />
+    <Text Include="Core\Shaders\FXAA_License.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

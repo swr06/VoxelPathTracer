@@ -49,6 +49,7 @@ uniform vec3 u_ViewerPosition;
 
 uniform vec4 BLOCK_TEXTURE_DATA[128];
 uniform vec3 u_SunDirection;
+uniform vec3 u_MoonDirection;
 
 // Temp
 uniform mat4 u_ShadowView;
@@ -63,7 +64,7 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n);
 float nextFloat(inout int seed); 
 int nextInt(inout int seed); 
 vec3 GetSkyColorAt(vec3 rd);
-float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int);
+float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int mdist);
 float ProjectToCube(vec3 ro, vec3 rd) ;
 bool VoxelExists(in vec3 loc);
 float GetVoxel(ivec3 loc);
@@ -71,7 +72,7 @@ bool IsInVoxelizationVolume(in vec3 pos);
 vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
-float GetShadowAt(in vec3 pos);
+float GetShadowAt(in vec3 pos, in vec3 ldir);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
@@ -94,16 +95,18 @@ float Bayer2(vec2 a)
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
-	//const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 8.0f;
-	const vec3 SUN_COLOR = vec3(1.0f) * 16.0f; // The radiance of the sun
+	vec3 LIGHT_COLOR; // The radiance of the light source
+	vec3 StrongerLightDirection;
+	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
+	LIGHT_COLOR = SunStronger ? vec3(1.0f) * 18.0f : vec3(1.0f) * 6.0f;
+	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec3 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyz;
-
 	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 2).rgb;
 	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.b), 2).rgb;
 
-	float ShadowAt = GetShadowAt(world_pos);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, u_SunDirection, SUN_COLOR, Albedo, normal, PBR, ShadowAt);
+	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
 	return (0.015 * Albedo) + DirectLighting;
 }
 
@@ -166,7 +169,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 	}
 	
 	//total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
-	total_color = total_color / max(MAX_BOUNCE_LIMIT - 1.65f, 0.66f);
+	total_color = total_color / max(MAX_BOUNCE_LIMIT - 0.25f, 0.66f);
 
 	return total_color;
 }
@@ -625,7 +628,7 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
-float GetShadowAt(in vec3 pos)
+float GetShadowAt(in vec3 pos, in vec3 ldir)
 {
 	//vec2 ReprojectedShadow = ReprojectShadow(pos);
 	//
@@ -635,7 +638,7 @@ float GetShadowAt(in vec3 pos)
 	//	return texture(u_ShadowMap, ReprojectedShadow).r;
 	//}
 	
-	vec3 RayDirection = normalize(u_SunDirection - (u_SunDirection * 0.1f));
+	vec3 RayDirection = normalize(ldir - (ldir * 0.1f));
 	
 	float T = -1.0f;
 	 

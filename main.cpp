@@ -34,13 +34,14 @@ ScratchAPixel
 #include "Core/GLClasses/Texture.h"
 #include "Core/Renderer2D.h"
 #include "Core/WorldFileHandler.h"
+#include "Core/AtmosphereRenderer.h"
+#include "Core/AtmosphereRenderCubemap.h"
 
-using namespace VoxelRT;
-Player MainPlayer;
+VoxelRT::Player MainPlayer;
 bool VSync = true;
 
 float InitialTraceResolution = 0.75f;
-float DiffuseTraceResolution = 0.40f;
+float DiffuseTraceResolution = 0.30f; // Quarter res + 1 SPP + Temporal and spatial filter
 float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
@@ -50,12 +51,12 @@ bool FullyDynamicShadows = false;
 glm::vec3 SunDirection;
 glm::vec3 MoonDirection;
 
-World* world = nullptr;
+VoxelRT::World* world = nullptr;
 bool ModifiedWorld = false;
-FPSCamera& MainCamera = MainPlayer.Camera;
+VoxelRT::FPSCamera& MainCamera = MainPlayer.Camera;
 VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
-class RayTracerApp : public Application
+class RayTracerApp : public VoxelRT::Application
 {
 public:
 
@@ -87,14 +88,14 @@ public:
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 	}
 
-	void OnEvent(Event e) override
+	void OnEvent(VoxelRT::Event e) override
 	{
-		if (e.type == EventTypes::MouseMove && GetCursorLocked())
+		if (e.type == VoxelRT::EventTypes::MouseMove && GetCursorLocked())
 		{
 			MainCamera.UpdateOnMouseMovement(GetCursorX(), GetCursorY());
 		}
 
-		if (e.type == EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_LEFT && this->GetCursorLocked())
+		if (e.type == VoxelRT::EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_LEFT && this->GetCursorLocked())
 		{
 			if (world)
 			{
@@ -103,7 +104,7 @@ public:
 			}
 		}
 
-		if (e.type == EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_RIGHT && this->GetCursorLocked())
+		if (e.type == VoxelRT::EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_RIGHT && this->GetCursorLocked())
 		{
 			if (world)
 			{
@@ -112,34 +113,34 @@ public:
 			}
 		}
 
-		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_F1)
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F1)
 		{
 			this->SetCursorLocked(!this->GetCursorLocked());
 		}
 
-		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_V)
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
 		{
 			VSync = !VSync;
 		}
 
-		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_F)
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F)
 		{
 			MainPlayer.Freefly = !MainPlayer.Freefly;
 		}
 
-		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_Q)
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_Q)
 		{
 			world->ChangeCurrentlyHeldBlock();
 		}
 
-		if (e.type == EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)
 		{
-			SaveWorld(world, world->m_Name);
+			VoxelRT::SaveWorld(world, world->m_Name);
 			delete world;
 			exit(0);
 		}
 
-		if (e.type == EventTypes::WindowResize)
+		if (e.type == VoxelRT::EventTypes::WindowResize)
 		{
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
 			OCamera.SetProjection(0.0f, e.wx, 0.0f, e.wy);
@@ -152,18 +153,18 @@ int main()
 {
 	RayTracerApp app;
 	app.Initialize();
-	BlockDatabase::Initialize();
+	VoxelRT::BlockDatabase::Initialize();
 
 	bool gen_type = 0;
 
 	std::string world_name;
 
-	world = new World();
+	world = new VoxelRT::World();
 
 	do {
 		std::cout << "\nEnter the name of your world : ";
 		std::cin >> world_name;
-	} while (!FilenameValid(world_name)); 
+	} while (!VoxelRT::FilenameValid(world_name));
 
 	world->m_Name = world_name;
 
@@ -202,7 +203,7 @@ int main()
 	GLClasses::Framebuffer DiffuseTemporalFBO1;
 	GLClasses::Framebuffer DiffuseTemporalFBO2;
 	GLClasses::Framebuffer DiffuseDenoiseFBO;
-	ColorPassFBO ColoredFBO;
+	VoxelRT::ColorPassFBO ColoredFBO;
 	GLClasses::Framebuffer PostProcessingFBO;
 	GLClasses::Framebuffer TAAFBO1;
 	GLClasses::Framebuffer TAAFBO2;
@@ -211,16 +212,19 @@ int main()
 	GLClasses::Framebuffer ReflectionTraceFBO;
 
 
-	GLClasses::CubeTextureMap Skymap;
-	GLClasses::CubeTextureMap SkymapLOWRES;
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
 	glm::mat4 ShadowProjection, ShadowView;
 	glm::mat4 ReflectionProjection, ReflectionView;
 	glm::vec3 CurrentPosition, PreviousPosition;
 
+	VoxelRT::AtmosphereRenderMap Skymap(64);
+	VoxelRT::AtmosphereRenderer AtmosphereRenderer;
+
 	GLClasses::Texture Crosshair;
+	GLClasses::Texture BluenoiseTexture;
 	Crosshair.CreateTexture("Res/Misc/crosshair.png", false);
+	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 
 	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
 	InitialTraceShader.CompileShaders();
@@ -244,28 +248,6 @@ int main()
 	ShadowTraceShader.CompileShaders();
 	ReflectionTraceShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
 	ReflectionTraceShader.CompileShaders();
-
-	Skymap.CreateCubeTextureMap(
-		{
-		"Res/right.bmp",
-		"Res/left.bmp",
-		"Res/top.bmp",
-		"Res/bottom.bmp",
-		"Res/front.bmp",
-		"Res/back.bmp"
-		}, true
-	);
-
-	SkymapLOWRES.CreateCubeTextureMap(
-		{
-		"Res/skymap_lowres/right.bmp",
-		"Res/skymap_lowres/left.bmp",
-		"Res/skymap_lowres/top.bmp",
-		"Res/skymap_lowres/bottom.bmp",
-		"Res/skymap_lowres/front.bmp",
-		"Res/skymap_lowres/back.bmp"
-		}, false
-	);
 
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -305,10 +287,10 @@ int main()
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 		glm::vec4 data;
 
-		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.w = BlockDatabase::IsBlockTransparent(i);
+		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 		InitialTraceShader.SetVector4f(name.c_str(), data);
 	}
@@ -324,10 +306,10 @@ int main()
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 		glm::vec4 data;
 
-		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.w = BlockDatabase::IsBlockTransparent(i);
+		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 		ShadowTraceShader.SetVector4f(name.c_str(), data);
 	}
@@ -343,10 +325,10 @@ int main()
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 		glm::vec4 data;
 
-		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.w = BlockDatabase::IsBlockTransparent(i);
+		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 		DiffuseTraceShader.SetVector4f(name.c_str(), data);
 	}
@@ -362,9 +344,9 @@ int main()
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 		glm::vec3 data;
 
-		data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-		data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 
 		ReflectionTraceShader.SetVector3f(name.c_str(), data);
 	}
@@ -373,8 +355,10 @@ int main()
 
 	/////                                     /////
 
-	InitialRTFBO* InitialTraceFBO = &InitialTraceFBO_1;
-	InitialRTFBO* InitialTraceFBOPrev = &InitialTraceFBO_2;
+	VoxelRT::InitialRTFBO* InitialTraceFBO = &InitialTraceFBO_1;
+	VoxelRT::InitialRTFBO* InitialTraceFBOPrev = &InitialTraceFBO_2;
+
+	glm::vec3 StrongerLightDirection;
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -385,7 +369,7 @@ int main()
 		sun_rotation_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(time_angle), glm::vec3(0.0f, 0.0f, 1.0f));
 		SunDirection = glm::vec3(sun_rotation_matrix * glm::vec4(1.0f));
 		MoonDirection = glm::vec3(-SunDirection.x, -SunDirection.y, SunDirection.z);
-
+		StrongerLightDirection = -SunDirection.y < 0.01f ? SunDirection : MoonDirection;
 
 		glfwSwapInterval((int)VSync);
 
@@ -443,10 +427,10 @@ int main()
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 				glm::vec4 data;
 
-				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.w = BlockDatabase::IsBlockTransparent(i);
+				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 				InitialTraceShader.SetVector4f(name.c_str(), data);
 			}
@@ -462,10 +446,10 @@ int main()
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 				glm::vec4 data;
 
-				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.w = BlockDatabase::IsBlockTransparent(i);
+				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 				ShadowTraceShader.SetVector4f(name.c_str(), data);
 			}
@@ -481,10 +465,10 @@ int main()
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 				glm::vec4 data;
 
-				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.w = BlockDatabase::IsBlockTransparent(i);
+				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 				DiffuseTraceShader.SetVector4f(name.c_str(), data);
 			}
@@ -500,9 +484,9 @@ int main()
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
 				glm::vec3 data;
 
-				data.x = BlockDatabase::GetBlockTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.y = BlockDatabase::GetBlockNormalTexture(i, BlockDatabase::BlockFaceType::Top);
-				data.z = BlockDatabase::GetBlockPBRTexture(i, BlockDatabase::BlockFaceType::Top);
+				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 
 				ReflectionTraceShader.SetVector3f(name.c_str(), data);
 			}
@@ -511,7 +495,7 @@ int main()
 
 			/////                                     /////
 
-			Logger::Log("Recompiled!");
+			VoxelRT::Logger::Log("Recompiled!");
 		}
 
 		MainPlayer.OnUpdate(app.GetWindow(), world);
@@ -531,6 +515,11 @@ int main()
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
+
+		if (app.GetCurrentFrame() % 3 == 0)
+		{
+			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
+		}
 
 		if (TempView != MainCamera.GetViewMatrix() || ModifiedWorld || app.GetCurrentFrame() % 4 == 0)
 		{
@@ -554,22 +543,22 @@ int main()
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
 			/// TEMPORARY ///
-			InitialTraceShader.SetInteger("u_GrassBlockProps[0]", BlockDatabase::GetBlockID("Grass"));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[1]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[2]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[3]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[4]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[5]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[6]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[7]", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[8]", BlockDatabase::GetBlockNormalTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[9]", BlockDatabase::GetBlockPBRTexture("Grass", BlockDatabase::BlockFaceType::Bottom));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[3]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[4]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[5]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[6]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			InitialTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -605,6 +594,7 @@ int main()
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		DiffuseTraceShader.SetVector3f("u_SunDirection", SunDirection);
+		DiffuseTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
 
 		DiffuseTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 		DiffuseTraceShader.SetMatrix4("u_ShadowView", ShadowView);
@@ -620,22 +610,22 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
 
 		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetDataTexture());
 
 		glActiveTexture(GL_TEXTURE6);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE7);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE8);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
@@ -733,8 +723,7 @@ int main()
 			ShadowTraceShader.SetInteger("u_PositionTexture", 0);
 			ShadowTraceShader.SetInteger("u_VoxelData", 1);
 			ShadowTraceShader.SetInteger("u_AlbedoTextures", 2);
-			ShadowTraceShader.SetVector3f("u_SunDirection", SunDirection);
-			ShadowTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
+			ShadowTraceShader.SetVector3f("u_LightDirection", StrongerLightDirection);
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 
 			glActiveTexture(GL_TEXTURE0);
@@ -744,7 +733,7 @@ int main()
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -782,6 +771,7 @@ int main()
 		ColorShader.SetVector3f("u_SunDirection", SunDirection);
 		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+		ColorShader.SetFloat("u_Time", glfwGetTime());
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -796,16 +786,16 @@ int main()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetDataTexture());
 
 		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
 
 		glActiveTexture(GL_TEXTURE6);
-		glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 		glActiveTexture(GL_TEXTURE7);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetID());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
 
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
@@ -852,13 +842,13 @@ int main()
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE4);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
 
 			glActiveTexture(GL_TEXTURE5);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
 
 			glActiveTexture(GL_TEXTURE6);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapLOWRES.GetID());
+			glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
 
 			glActiveTexture(GL_TEXTURE7);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
@@ -904,12 +894,22 @@ int main()
 		PostProcessingShader.SetMatrix4("u_InverseProjection", inv_projection);
 		PostProcessingShader.SetInteger("u_FramebufferTexture", 0);
 		PostProcessingShader.SetInteger("u_PositionTexture", 1);
+		PostProcessingShader.SetInteger("u_BlueNoise", 2);
+		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
+		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
+		PostProcessingShader.SetVector2f("u_Dimensions", glm::vec2(PostProcessingFBO.GetWidth(), PostProcessingFBO.GetHeight()));
+		PostProcessingShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
+		PostProcessingShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
+		PostProcessingShader.SetBool("u_SunIsStronger", StrongerLightDirection == SunDirection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

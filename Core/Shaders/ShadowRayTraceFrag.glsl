@@ -15,8 +15,7 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2DArray u_AlbedoTextures;
 uniform vec4 BLOCK_TEXTURE_DATA[128];
 
-uniform vec3 u_SunDirection;
-uniform vec3 u_MoonDirection;
+uniform vec3 u_LightDirection;
 
 const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 
@@ -251,7 +250,7 @@ float voxel_traversal(vec3 orig, vec3 direction)
 void main()
 {
 	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
-	vec3 RayDirection = normalize(u_SunDirection - (u_SunDirection * 0.1f));
+	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
 
 	float T = -1.0f;
 	 

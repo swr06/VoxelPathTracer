@@ -30,13 +30,32 @@
 #define SATURATION 1.0f
 #define VIBRANCE 1.6f
 
+// Bayer matrix, used for testing dithering
+#define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer32(a)  (Bayer16( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer64(a)  (Bayer32( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
+#define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
+
 layout(location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 
+uniform vec3 u_SunDirection;
+uniform vec3 u_StrongerLightDirection;
+uniform vec2 u_Dimensions;
+
+uniform bool u_SunIsStronger;
+
 uniform sampler2D u_FramebufferTexture;
 uniform sampler2D u_PositionTexture;
+uniform sampler2D u_BlueNoise;
+
+uniform mat4 u_ProjectionMatrix;
+uniform mat4 u_ViewMatrix;
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
@@ -141,6 +160,54 @@ void ColorSaturation(inout vec3 color)
 	color = color * SATURATION - graySaturation * (SATURATION - 1.0);
 }
 
+float Bayer2(vec2 a) 
+{
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+
+vec2 WorldToScreen(vec3 pos)
+{
+    vec4 ViewSpace = u_ViewMatrix * vec4(pos, 1.0f);
+    vec4 Projected = u_ProjectionMatrix * ViewSpace;
+    Projected.xyz /= Projected.w;
+    Projected.xyz = Projected.xyz * 0.5f + 0.5f;
+
+    return Projected.xy;
+} 
+
+float GetScreenSpaceGodRays(vec3 position)
+{
+	vec3 view_position = (u_ViewMatrix * vec4(position, 1.0f)).xyz;
+
+    vec2 SunScreenSpacePosition = WorldToScreen(u_StrongerLightDirection * 10000.0f); 
+
+    float ScreenSpaceDistToSun = length(v_TexCoords - SunScreenSpacePosition.xy);
+    float RayIntensity = clamp(1.0f - ScreenSpaceDistToSun, 0.0f, 0.75f);
+    float RayIntensityMultiplier = u_StrongerLightDirection == u_SunDirection ? 0.35224f : 0.15f;
+
+    float rays = 0.0;
+    const int SAMPLES = 8;
+	float dither = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).r;
+
+    for (int i = 0; i < SAMPLES; i++)
+    {
+        float scale = (1.0f - (float(i) / float(SAMPLES))) + dither / float(SAMPLES);
+
+        vec2 coord = (v_TexCoords - SunScreenSpacePosition) * scale + SunScreenSpacePosition;
+        coord = clamp(coord, 0.001f, 0.999f);
+
+        float is_sky_at = texture(u_PositionTexture, coord).w > 0.0f ? 0.0f : 1.0f;
+
+        rays += is_sky_at * RayIntensity * RayIntensityMultiplier;
+    }
+
+	rays /=  float(SAMPLES);
+
+    return rays;
+}
+
+
 void main()
 {
 	vec2 TexSize = textureSize(u_PositionTexture, 0);
@@ -148,8 +215,11 @@ void main()
     float PixelDepth2 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
     float PixelDepth3 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
     float PixelDepth4 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
+	float exposure = mix(4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 
-	if (texture(u_PositionTexture, v_TexCoords).w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
+	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
+
+	if (PositionAt.w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
 	{
 		vec3 InputColor;
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
@@ -157,7 +227,12 @@ void main()
 
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), 3.5f).rgb;
+
+		float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
+		vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(142.0f, 200.0f, 255.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+        InputColor += ss_volumetric_color * god_rays;
+
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), exposure + 0.01f).rgb;
 		Vignette(InputColor);
 		o_Color = InputColor;
 	}

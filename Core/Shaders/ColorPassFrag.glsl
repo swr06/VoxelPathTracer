@@ -26,6 +26,8 @@ uniform sampler2D u_ReflectionTraceTexture;
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 
+uniform float u_Time;
+
 uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
 uniform mat4 u_ReflectionView;
@@ -36,6 +38,95 @@ uniform vec3 u_ViewerPosition;
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
+
+
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
+const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+
+float Noise2d( in vec2 x )
+{
+    float xhash = cos( x.x * 37.0 );
+    float yhash = cos( x.y * 57.0 );
+    return fract( 415.92653 * ( xhash + yhash ) );
+}
+
+float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float StarVal = Noise2d( vSamplePos );
+    if ( StarVal >= fThreshhold )
+        StarVal = pow( (StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
+    else
+        StarVal = 0.0;
+    return StarVal;
+}
+
+// Original star shader by : https://www.shadertoy.com/view/Md2SR3
+float StableStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float fractX = fract( vSamplePos.x );
+    float fractY = fract( vSamplePos.y );
+    vec2 floorSample = floor( vSamplePos );
+    float v1 = NoisyStarField( floorSample, fThreshhold );
+    float v2 = NoisyStarField( floorSample + vec2( 0.0, 1.0 ), fThreshhold );
+    float v3 = NoisyStarField( floorSample + vec2( 1.0, 0.0 ), fThreshhold );
+    float v4 = NoisyStarField( floorSample + vec2( 1.0, 1.0 ), fThreshhold );
+
+    float StarVal =   v1 * ( 1.0 - fractX ) * ( 1.0 - fractY )
+        			+ v2 * ( 1.0 - fractX ) * fractY
+        			+ v3 * fractX * ( 1.0 - fractY )
+        			+ v4 * fractX * fractY;
+	return StarVal;
+}
+
+float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+float stars(vec3 fragpos)
+{
+    if (fragpos.y < 0.24f) { return 0.0f; }
+
+	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	vec2 uv = fragpos.xz / (1.0f + elevation);
+
+    float star = StableStarField(uv * 700.0f, 0.999);
+    
+    // Star shimmer
+    float rand_val = rand(fragpos.xy);
+    star *= (rand_val + sin(u_Time * rand_val) * 1.5f);
+
+	return clamp(star, 0.0f, 100000.0f) * 30.0f;
+}
+
+
+bool GetAtmosphere(inout vec3 atmosphere_color)
+{
+    vec3 sun_dir = normalize(u_SunDirection); 
+    vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
+
+    vec3 ray_dir = normalize(v_RayDirection);
+    vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
+    bool intersect = false;
+
+    if(dot(ray_dir, sun_dir) > 0.9997f)
+    {
+        atmosphere *= ATMOSPHERE_SUN_COLOR * 3.0f; intersect = true;
+    }
+
+    if(dot(ray_dir, moon_dir) > 0.99986f)
+    {
+        atmosphere *= ATMOSPHERE_MOON_COLOR * 50.0f; intersect = true;
+    }
+
+    float star_visibility;
+    star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
+    vec3 stars = vec3(stars(vec3(v_RayDirection)) * star_visibility);
+    atmosphere += stars;
+
+    atmosphere_color = atmosphere;
+
+    return intersect;
+}
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
@@ -241,15 +332,16 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 0.18f;
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.1f; 
 
 void main()
 {
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
     vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
+    vec3 AtmosphereAt = vec3(0.0f);
 
     o_Color = vec3(1.0f);
-    o_Color = texture(u_Skybox, normalize(v_RayDirection)).rgb * 0.5f;
-
+    GetAtmosphere(AtmosphereAt);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -280,8 +372,8 @@ void main()
             vec3 Tangent, Bitangent;
 
             CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
-            UV = clamp(UV, 0.0f, 1.0f);
             UV.y = 1.0f - UV.y;
+            UV = clamp(UV, 0.001f, 0.999f);
 
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
 
@@ -294,12 +386,17 @@ void main()
             vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.5f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
-            vec3 Ambient = (AlbedoColor * LightAmbience) * 0.07;
+            vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 3.0f);
-            vec3 DiffuseAmbient = (Diffuse * (AlbedoColor * 0.75f));
+            vec3 DiffuseAmbient = (Diffuse * (AlbedoColor * 1.2f));
             DiffuseAmbient = clamp(DiffuseAmbient, Ambient, vec3(1.2f));
 
-            o_Color = DiffuseAmbient + CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
+            
+            o_Color = DiffuseAmbient + DirectLighting;
             o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.01f));
 
@@ -316,27 +413,20 @@ void main()
                 o_Color = mix(o_Color, ReflectionTrace, 0.15250f);
             }
 
-            ///o_Color = Diffuse;
-
             return;
         }
 
+        else 
+        {   
+            o_Color = (AtmosphereAt) * 0.76f;
+            o_Normal = vec3(-1.0f);
+            o_PBR = vec3(-1.0f);
+        }
     }
 
     else 
-    {
-        vec3 ray_dir = normalize(v_RayDirection); bool intersect_body = false;
-
-        if(dot(ray_dir, normalize(u_SunDirection)) > 0.9997f)
-        {
-            o_Color = vec3(4.0f) * 3.0f; intersect_body = true;
-        }
-
-        if(dot(ray_dir, normalize(u_MoonDirection)) > 0.99986f)
-        {
-            o_Color = vec3(0.6f, 0.6f, 0.9f) * 50.0f; intersect_body = true;
-        }
-
+    {   
+        o_Color = (AtmosphereAt) * 0.76;
         o_Normal = vec3(-1.0f);
         o_PBR = vec3(-1.0f);
     }
