@@ -345,9 +345,6 @@
     <None Include="Core\Shaders\AtmosphereVertex.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\RayTraceShadows.glsl">
-      <Filter>Source Files\Shaders</Filter>
-    </None>
     <None Include="Core\Shaders\SSAO.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>

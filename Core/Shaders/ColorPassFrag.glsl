@@ -100,12 +100,12 @@ float stars(vec3 fragpos)
 }
 
 
-bool GetAtmosphere(inout vec3 atmosphere_color)
+bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 {
     vec3 sun_dir = normalize(u_SunDirection); 
     vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
 
-    vec3 ray_dir = normalize(v_RayDirection);
+    vec3 ray_dir = normalize(in_ray_dir);
     vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
     bool intersect = false;
 
@@ -121,7 +121,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color)
 
     float star_visibility;
     star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
-    vec3 stars = vec3(stars(vec3(v_RayDirection)) * star_visibility);
+    vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
     atmosphere += stars;
 
     atmosphere_color = atmosphere;
@@ -342,7 +342,7 @@ void main()
     vec3 AtmosphereAt = vec3(0.0f);
 
     o_Color = vec3(1.0f);
-    GetAtmosphere(AtmosphereAt);
+    GetAtmosphere(AtmosphereAt, v_RayDirection);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -359,7 +359,6 @@ void main()
         float ShadowTMIN, ShadowTMAX;
         bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), WorldPosition.xyz, ShadowDirection, ShadowTMIN, ShadowTMAX);
         RayTracedShadow = PlayerIntersect ? 1.0f : RayTracedShadow;
-
 
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
         float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
@@ -404,14 +403,24 @@ void main()
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR = PBRMap.xyz;
 
-            //vec2 ReprojectedReflectionCoord = ReprojectReflection(WorldPosition.xyz);
             vec2 ReprojectedReflectionCoord = v_TexCoords;
-           // vec3 ReflectionTrace = BilateralUpsample(u_ReflectionTraceTexture, ReprojectedReflectionCoord, SampledNormals, WorldPosition.z).rgb;
-            vec3 ReflectionTrace = textureBicubic(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
+            vec3 ReflectionTrace = texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
 
-            if (ReflectionTrace.x > 0.0f && ReflectionTrace.y > 0.0f && ReflectionTrace.z > 0.0f)
+            if (ReflectionTrace.x > -0.9f && ReflectionTrace.y > -0.9 && ReflectionTrace.z > -0.9)
             {
                 float ReflectionRatio = 0.25f;
+
+                if (ReflectionTrace.x < -0.02f && ReflectionTrace.y < -0.02f && ReflectionTrace.z < -0.02f)
+                {
+                    vec3 I = normalize(WorldPosition.xyz - u_ViewerPosition);
+	        	    vec3 R = normalize(reflect(I, NormalMapped));
+                
+                    GetAtmosphere(ReflectionTrace, R);
+                    ReflectionTrace *= 2.0f;
+                    ReflectionTrace = clamp(ReflectionTrace, 0.01f, 1.2);
+                    ReflectionRatio = 0.185f;
+                }
+
                 ReflectionRatio *= 1.0f - PBRMap.r;
                 o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
             }

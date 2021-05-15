@@ -22,6 +22,9 @@ uniform samplerCube u_Skymap;
 uniform vec3 BLOCK_TEXTURE_DATA[128];
 uniform float u_ReflectionTraceRes;
 
+uniform vec3 u_SunDirection;
+uniform float u_Time;
+
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 
@@ -97,6 +100,95 @@ vec3 RandomPointInUnitSphereRejective()
 	return vec3(x, y, z);
 }
 
+
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
+const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+
+float Noise2d( in vec2 x )
+{
+    float xhash = cos( x.x * 37.0 );
+    float yhash = cos( x.y * 57.0 );
+    return fract( 415.92653 * ( xhash + yhash ) );
+}
+
+float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float StarVal = Noise2d( vSamplePos );
+    if ( StarVal >= fThreshhold )
+        StarVal = pow( (StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
+    else
+        StarVal = 0.0;
+    return StarVal;
+}
+
+// Original star shader by : https://www.shadertoy.com/view/Md2SR3
+float StableStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float fractX = fract( vSamplePos.x );
+    float fractY = fract( vSamplePos.y );
+    vec2 floorSample = floor( vSamplePos );
+    float v1 = NoisyStarField( floorSample, fThreshhold );
+    float v2 = NoisyStarField( floorSample + vec2( 0.0, 1.0 ), fThreshhold );
+    float v3 = NoisyStarField( floorSample + vec2( 1.0, 0.0 ), fThreshhold );
+    float v4 = NoisyStarField( floorSample + vec2( 1.0, 1.0 ), fThreshhold );
+
+    float StarVal =   v1 * ( 1.0 - fractX ) * ( 1.0 - fractY )
+        			+ v2 * ( 1.0 - fractX ) * fractY
+        			+ v3 * fractX * ( 1.0 - fractY )
+        			+ v4 * fractX * fractY;
+	return StarVal;
+}
+
+float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+float stars(vec3 fragpos)
+{
+    if (fragpos.y < 0.24f) { return 0.0f; }
+
+	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	vec2 uv = fragpos.xz / (1.0f + elevation);
+
+    float star = StableStarField(uv * 700.0f, 0.999);
+    
+    // Star shimmer
+    float rand_val = rand(fragpos.xy);
+    star *= (rand_val + sin(u_Time * rand_val) * 1.5f);
+
+	return clamp(star, 0.0f, 100000.0f) * 30.0f;
+}
+
+
+bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 R)
+{
+    vec3 sun_dir = normalize(u_SunDirection); 
+    vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
+
+    vec3 ray_dir = normalize(R);
+    vec3 atmosphere = texture(u_Skymap, ray_dir).rgb;
+    bool intersect = false;
+
+    if(dot(ray_dir, sun_dir) > 0.9997f)
+    {
+        atmosphere *= ATMOSPHERE_SUN_COLOR * 3.0f; intersect = true;
+    }
+
+    if(dot(ray_dir, moon_dir) > 0.99986f)
+    {
+        atmosphere *= ATMOSPHERE_MOON_COLOR * 50.0f; intersect = true;
+    }
+
+    float star_visibility;
+    star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
+    vec3 stars = vec3(stars(vec3(R)) * star_visibility);
+    atmosphere += stars;
+
+    atmosphere_color = atmosphere;
+
+    return intersect;
+}
+
 void main()
 {
 	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
@@ -130,20 +222,20 @@ void main()
 		float T = voxel_traversal(SampledWorldPosition, R, Normal, Blocktype, 100);
 		vec3 HitPosition = SampledWorldPosition + (R * T);
 
+		vec2 UV; 
+		CalculateUV(HitPosition, Normal, UV);
+
 		if (T > 0.0f)
 		{
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
-
-			vec2 UV; 
-			CalculateUV(HitPosition, Normal, UV);
 
 			o_Color = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
 		}
 
 		else 
 		{
-			o_Color = texture(u_Skymap, R).rgb;
+			o_Color = vec3(-0.5f);
 		}
 	}
 

@@ -305,7 +305,7 @@ void main()
 		o_Color = texture(u_FramebufferTexture, v_TexCoords).rgb;
 	}
 
-	if (u_LensFlare)
+	if (u_LensFlare && u_SunIsStronger)
 	{
 		vec2 SunScreenSpacePosition = WorldToScreen(u_SunDirection * 10000.0f) - 0.5f; 
 		SunScreenSpacePosition.x *= u_Dimensions.x / u_Dimensions.y;

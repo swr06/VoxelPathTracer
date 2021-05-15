@@ -728,6 +728,7 @@ int main()
 			ShadowTraceShader.SetInteger("u_PositionTexture", 0);
 			ShadowTraceShader.SetInteger("u_VoxelData", 1);
 			ShadowTraceShader.SetInteger("u_AlbedoTextures", 2);
+			ShadowTraceShader.SetInteger("u_NormalTexture", 3);
 			ShadowTraceShader.SetVector3f("u_LightDirection", StrongerLightDirection);
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 
@@ -739,6 +740,9 @@ int main()
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -831,9 +835,11 @@ int main()
 			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
 			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
-			ReflectionTraceShader.SetInteger("u_Skymap", 6);
+			ReflectionTraceShader.SetInteger("u_Skymap", 6);   
 			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 7);
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
+			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
+			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());

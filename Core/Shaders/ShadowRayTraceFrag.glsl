@@ -12,6 +12,7 @@ in vec2 v_TexCoords;
 
 uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
+uniform sampler2D u_NormalTexture;
 uniform sampler2DArray u_AlbedoTextures;
 uniform vec4 BLOCK_TEXTURE_DATA[128];
 
@@ -251,12 +252,13 @@ void main()
 {
 	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
 	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
+	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
 
 	float T = -1.0f;
 	 
 	if (RayOrigin.w > 0.0f) 
 	{
-		T = voxel_traversal(RayOrigin.rgb, RayDirection);
+		T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
 	}
 
 	if (T > 0.0f) 
