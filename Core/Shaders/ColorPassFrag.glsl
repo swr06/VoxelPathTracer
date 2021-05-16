@@ -408,7 +408,7 @@ void main()
 
             if (ReflectionTrace.x > -0.9f && ReflectionTrace.y > -0.9 && ReflectionTrace.z > -0.9)
             {
-                float ReflectionRatio = 0.25f;
+                float ReflectionRatio = PBRMap.g * 0.4f;
 
                 if (ReflectionTrace.x < -0.02f && ReflectionTrace.y < -0.02f && ReflectionTrace.z < -0.02f)
                 {
@@ -418,7 +418,6 @@ void main()
                     GetAtmosphere(ReflectionTrace, R);
                     ReflectionTrace *= 2.0f;
                     ReflectionTrace = clamp(ReflectionTrace, 0.01f, 1.2);
-                    ReflectionRatio = 0.185f;
                 }
 
                 ReflectionRatio *= 1.0f - PBRMap.r;
