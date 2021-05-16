@@ -243,6 +243,8 @@ namespace VoxelRT
 
 		OnUserUpdate(this->GetTime());
 		OnImguiRender(this->GetTime());
+
+		VoxelRT_mouse_enabled = !GetCursorLocked();
 	}
 
 	void Application::FinishFrame()

@@ -294,6 +294,8 @@ void ImGui_ImplGlfw_Shutdown()
     g_ClientApi = GlfwClientApi_Unknown;
 }
 
+extern bool VoxelRT_mouse_enabled;
+
 static void ImGui_ImplGlfw_UpdateMousePosAndButtons()
 {
     // Update buttons
@@ -321,7 +323,7 @@ static void ImGui_ImplGlfw_UpdateMousePosAndButtons()
 #else
         const bool focused = glfwGetWindowAttrib(window, GLFW_FOCUSED) != 0;
 #endif
-        if (focused)
+        if (focused && VoxelRT_mouse_enabled)
         {
             if (io.WantSetMousePos)
             {
