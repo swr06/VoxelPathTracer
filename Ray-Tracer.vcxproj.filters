@@ -155,6 +155,9 @@
     <ClCompile Include="Core\AtmosphereRenderer.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Pipeline.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -275,6 +278,9 @@
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
     <ClInclude Include="Core\AtmosphereRenderer.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Pipeline.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
