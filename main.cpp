@@ -38,16 +38,22 @@ ScratchAPixel
 #include "Core/AtmosphereRenderCubemap.h"
 
 VoxelRT::Player MainPlayer;
-bool VSync = true;
+bool VSync = false;
 
 float InitialTraceResolution = 0.75f;
-float DiffuseTraceResolution = 0.30f; // Quarter res + 1 SPP + Temporal and spatial filter
+
+// 1/8th res + 1 SPP + Temporal and spatial filter
+// Diffuse isnt a very high frequency phenomenon
+// The inputs change slowly over time
+// Can be interpolated well after it is spatially filtered
+float DiffuseTraceResolution = 0.125f; 
+
 float ShadowTraceResolution = 0.40;
 float ReflectionTraceResolution = 0.25;
 float SunTick = 50.0f;
 
-bool GodRays = true;
-bool LensFlare = true;
+bool GodRays = false;
+bool LensFlare = false;
 
 bool FullyDynamicShadows = false;
 
