@@ -336,7 +336,7 @@ void main()
 		if (u_GodRays)
 		{
 			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
-			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(142.0f, 200.0f, 255.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 129.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += ss_volumetric_color * god_rays;
 		}
 

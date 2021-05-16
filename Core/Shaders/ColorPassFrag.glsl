@@ -389,7 +389,7 @@ void main()
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 3.0f);
             vec3 DiffuseAmbient = (Diffuse * (AlbedoColor * 1.2f));
-            DiffuseAmbient = clamp(DiffuseAmbient, Ambient, vec3(1.2f));
+            DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
