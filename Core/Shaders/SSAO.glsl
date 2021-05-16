@@ -11,7 +11,7 @@ uniform vec2 u_Dimensions;
 uniform mat4 u_ViewMatrix;
 uniform mat4 u_ProjectionMatrix;
 
-int SAMPLE_SIZE = 14;
+int SAMPLE_SIZE = 16;
 
 vec3 ToViewSpace(in vec3 WorldPosition)
 {
@@ -20,13 +20,15 @@ vec3 ToViewSpace(in vec3 WorldPosition)
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n);
 
-const float Radius = 0.25f; 
-const float Bias = 0.001f;
+const float Radius = 0.3f; 
+const float Bias = 0.01f;
 
 int RNG_SEED;
 
 void main()
 {
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(50);
+
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 
 	if (InitialTracePosition.a <= 0.0f)
@@ -36,8 +38,6 @@ void main()
 	}
 
 	vec3 Position = ToViewSpace(InitialTracePosition.xyz);
-	RNG_SEED = (int(InitialTracePosition.x) + int(InitialTracePosition.y) * int(InitialTracePosition.z)) * int(10);
-
 	vec3 Normal = normalize(vec3(u_ViewMatrix * vec4(texture(u_NormalTexture, v_TexCoords).xyz, 0.0f)));
 
 	o_AOValue = 0.0f;
