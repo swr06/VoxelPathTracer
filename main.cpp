@@ -836,9 +836,11 @@ int main()
 			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
 			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
 			ReflectionTraceShader.SetInteger("u_Skymap", 6);   
+			ReflectionTraceShader.SetInteger("u_BlockPBRTextures", 8);   
 			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 7);
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
+			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
 
 			glActiveTexture(GL_TEXTURE0);
@@ -864,6 +866,9 @@ int main()
 
 			glActiveTexture(GL_TEXTURE7);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
+
+			glActiveTexture(GL_TEXTURE8);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

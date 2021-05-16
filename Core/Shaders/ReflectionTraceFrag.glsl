@@ -3,6 +3,7 @@
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
+#define PI 3.14159265359
 
 #define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
@@ -23,10 +24,12 @@ uniform vec3 BLOCK_TEXTURE_DATA[128];
 uniform float u_ReflectionTraceRes;
 
 uniform vec3 u_SunDirection;
+uniform vec3 u_StrongerLightDirection;
 uniform float u_Time;
 
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
+uniform sampler2DArray u_BlockPBRTextures;
 
 uniform vec3 u_ViewerPosition;
 		
@@ -100,94 +103,82 @@ vec3 RandomPointInUnitSphereRejective()
 	return vec3(x, y, z);
 }
 
-
-const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
-const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
-
-float Noise2d( in vec2 x )
+float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
-    float xhash = cos( x.x * 37.0 );
-    float yhash = cos( x.y * 57.0 );
-    return fract( 415.92653 * ( xhash + yhash ) );
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float nom   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return nom / max(denom, 0.001); 
 }
 
-float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
+float GeometrySchlickGGX(float NdotV, float roughness)
 {
-    float StarVal = Noise2d( vSamplePos );
-    if ( StarVal >= fThreshhold )
-        StarVal = pow( (StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
-    else
-        StarVal = 0.0;
-    return StarVal;
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float nom   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return nom / denom;
 }
 
-// Original star shader by : https://www.shadertoy.com/view/Md2SR3
-float StableStarField( in vec2 vSamplePos, float fThreshhold )
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
-    float fractX = fract( vSamplePos.x );
-    float fractY = fract( vSamplePos.y );
-    vec2 floorSample = floor( vSamplePos );
-    float v1 = NoisyStarField( floorSample, fThreshhold );
-    float v2 = NoisyStarField( floorSample + vec2( 0.0, 1.0 ), fThreshhold );
-    float v3 = NoisyStarField( floorSample + vec2( 1.0, 0.0 ), fThreshhold );
-    float v4 = NoisyStarField( floorSample + vec2( 1.0, 1.0 ), fThreshhold );
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
 
-    float StarVal =   v1 * ( 1.0 - fractX ) * ( 1.0 - fractY )
-        			+ v2 * ( 1.0 - fractX ) * fractY
-        			+ v3 * fractX * ( 1.0 - fractY )
-        			+ v4 * fractX * fractY;
-	return StarVal;
+    return ggx1 * ggx2;
 }
 
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float stars(vec3 fragpos)
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
-    if (fragpos.y < 0.24f) { return 0.0f; }
+    float Shadow = min(shadow, 1.0f);
 
-	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	vec2 uv = fragpos.xz / (1.0f + elevation);
+	vec3 V = normalize(u_ViewerPosition - world_pos);
+    vec3 L = normalize(light_dir);
+    vec3 H = normalize(V + L);
 
-    float star = StableStarField(uv * 700.0f, 0.999);
+    float Roughness = pbr.r;
+    float Metalness = pbr.g;
+
+    float NDF = DistributionGGX(normal, H, Roughness);   
+    float G = GeometrySmith(normal, V, L, Roughness);      
+    vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), vec3(0.04));
+       
+    vec3 nominator = NDF * G * F; 
+    float denominator = 4.0f * max(dot(normal, V), 0.0) * max(dot(normal, L), 0.0);
+    vec3 specular = nominator / max(denominator, 0.001f);
     
-    // Star shimmer
-    float rand_val = rand(fragpos.xy);
-    star *= (rand_val + sin(u_Time * rand_val) * 1.5f);
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - Metalness;	
+    kD = clamp(kD, 0.0f, 1.0f);
+    specular = clamp(specular, 0.0f, 1.0f);
 
-	return clamp(star, 0.0f, 100000.0f) * 30.0f;
+    float NdotL = max(dot(normal, L), 0.0);
+	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
+
+    return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 7.4f;
+const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
 
-bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 R)
-{
-    vec3 sun_dir = normalize(u_SunDirection); 
-    vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
-
-    vec3 ray_dir = normalize(R);
-    vec3 atmosphere = texture(u_Skymap, ray_dir).rgb;
-    bool intersect = false;
-
-    if(dot(ray_dir, sun_dir) > 0.9997f)
-    {
-        atmosphere *= ATMOSPHERE_SUN_COLOR * 3.0f; intersect = true;
-    }
-
-    if(dot(ray_dir, moon_dir) > 0.99986f)
-    {
-        atmosphere *= ATMOSPHERE_MOON_COLOR * 50.0f; intersect = true;
-    }
-
-    float star_visibility;
-    star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
-    vec3 stars = vec3(stars(vec3(R)) * star_visibility);
-    atmosphere += stars;
-
-    atmosphere_color = atmosphere;
-
-    return intersect;
-}
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.1f; 
+const vec3 NIGHT_AMBIENT  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.76f; 
 
 void main()
 {
@@ -223,14 +214,32 @@ void main()
 		vec3 HitPosition = SampledWorldPosition + (R * T);
 
 		vec2 UV; 
-		CalculateUV(HitPosition, Normal, UV);
+		vec3 Tangent, Bitangent;
+		CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV);
 
 		if (T > 0.0f)
 		{
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
-			o_Color = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
+			mat3 TBN;
+			TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
+
+			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
+			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
+			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR; Radiance *= 3.56f;
+			vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
+			Ambient = (Albedo * Ambient);
+			
+			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
+			float AO = pow(SampledPBR.w, 3.0f);
+
+			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
+			vec3 DirectLighting = (Ambient * 0.5f) + CalculateDirectionalLight(HitPosition, u_StrongerLightDirection, Radiance, Albedo, NormalMapped, SampledPBR.xyz, 0.0f);
+
+			o_Color = DirectLighting;
+			o_Color *= AO;
+            o_Color = max(o_Color, vec3(0.01f));
 		}
 
 		else 
