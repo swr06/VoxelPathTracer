@@ -12,11 +12,14 @@ static float InitialTraceResolution = 0.75f;
 static float DiffuseTraceResolution = 0.125f;
 
 static float ShadowTraceResolution = 0.40;
-static float ReflectionTraceResolution = 0.25;
+static float ReflectionTraceResolution = 0.35;
+static float SSAOResolution = 0.3f;
+
 static float SunTick = 50.0f;
 
 static bool GodRays = false;
 static bool LensFlare = false;
+static bool SSAO = true;
 
 static bool FullyDynamicShadows = false;
 
@@ -56,10 +59,12 @@ public:
 		ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
+		ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("God Rays?", &GodRays);
+		ImGui::Checkbox("Screen Soace Ambient Occlusion?", &SSAO);
 	}
 
 	void OnEvent(VoxelRT::Event e) override
@@ -170,6 +175,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader TemporalAAShader;
 	GLClasses::Shader ShadowTraceShader;
 	GLClasses::Shader ReflectionTraceShader;
+	GLClasses::Shader SSAOShader;
+	GLClasses::Shader SSAO_Blur;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -185,6 +192,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer ShadowFBO;
 	GLClasses::Framebuffer ReflectionTraceFBO;
 
+	GLClasses::FramebufferRed SSAOFBO(16, 16);
+	GLClasses::FramebufferRed SSAOBlurred(16, 16);
 
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
@@ -222,6 +231,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 	ShadowTraceShader.CompileShaders();
 	ReflectionTraceShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
 	ReflectionTraceShader.CompileShaders();
+
+	SSAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
+	SSAOShader.CompileShaders();
+	SSAO_Blur.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAOBlur.glsl");
+	SSAO_Blur.CompileShaders();
 
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -369,6 +383,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 
+		// SSAO
+		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
+		SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
+
 		///
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
@@ -389,6 +407,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TemporalAAShader.Recompile();
 			ShadowTraceShader.Recompile();
 			ReflectionTraceShader.Recompile();
+			SSAOShader.Recompile();
 
 			///// Set the block texture data uniforms    /////
 
@@ -871,6 +890,54 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
+		// ---- SSAO ---- //
+
+		if (SSAO)
+		{
+			glDisable(GL_DEPTH_TEST);
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_BLEND);
+
+			SSAOShader.Use();
+			SSAOFBO.Bind();
+
+			SSAOShader.SetInteger("u_PositionTexture", 0);
+			SSAOShader.SetInteger("u_NormalTexture", 1);
+			SSAOShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+			SSAOShader.SetInteger("SAMPLE_SIZE", 20);
+			SSAOShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
+			SSAOShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
+			SSAOShader.SetVector2f("u_Dimensions", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+			SSAOFBO.Unbind();
+			glUseProgram(0);
+
+			SSAOBlurred.Bind();
+			SSAO_Blur.Use();
+			SSAO_Blur.SetInteger("u_Texture", 0);
+			SSAO_Blur.SetVector2f("u_SketchSize", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, SSAOFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			SSAOBlurred.Unbind();
+
+			glUseProgram(0);
+		}
+
 		// ---- POST PROCESSING ----
 
 		PostProcessingFBO.Bind();
@@ -881,6 +948,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_FramebufferTexture", 0);
 		PostProcessingShader.SetInteger("u_PositionTexture", 1);
 		PostProcessingShader.SetInteger("u_BlueNoise", 2);
+		PostProcessingShader.SetInteger("u_SSAOTexture", 3);
+		PostProcessingShader.SetInteger("u_PositionTexture", 4);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		PostProcessingShader.SetVector2f("u_Dimensions", glm::vec2(PostProcessingFBO.GetWidth(), PostProcessingFBO.GetHeight()));
@@ -889,6 +958,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_SunIsStronger", StrongerLightDirection == SunDirection);
 		PostProcessingShader.SetBool("u_LensFlare", LensFlare);
 		PostProcessingShader.SetBool("u_GodRays", GodRays);
+		PostProcessingShader.SetBool("u_SSAO", SSAO);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -898,6 +968,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, SSAOBlurred.GetTexture());
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

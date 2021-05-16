@@ -128,10 +128,16 @@ void ImGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yo
     io.MouseWheel += (float)yoffset;
 }
 
+extern bool VoxelRT_mouse_enabled;
+
 void ImGui_ImplGlfw_KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (g_PrevUserCallbackKey != NULL && window == g_Window)
+    {
         g_PrevUserCallbackKey(window, key, scancode, action, mods);
+    }
+
+    if (!VoxelRT_mouse_enabled) { return; }
 
     ImGuiIO& io = ImGui::GetIO();
     if (action == GLFW_PRESS)
@@ -294,7 +300,6 @@ void ImGui_ImplGlfw_Shutdown()
     g_ClientApi = GlfwClientApi_Unknown;
 }
 
-extern bool VoxelRT_mouse_enabled;
 
 static void ImGui_ImplGlfw_UpdateMousePosAndButtons()
 {

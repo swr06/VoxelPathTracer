@@ -398,7 +398,7 @@ void main()
             
             o_Color = DiffuseAmbient + DirectLighting;
             o_Color *= SampledAO;
-            o_Color = max(o_Color, vec3(0.01f));
+            o_Color = max(o_Color, vec3(0.0f));
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR = PBRMap.xyz;

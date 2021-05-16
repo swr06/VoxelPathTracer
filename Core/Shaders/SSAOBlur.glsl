@@ -10,7 +10,7 @@ layout (location = 0) out float o_Color;
 uniform sampler2D u_Texture;
 uniform vec2 u_SketchSize;
 
-float u_BSIGMA = 0.2f;
+float u_BSIGMA = 0.4f;
 
 float normpdf(in float x, in float sigma)
 {

@@ -52,10 +52,15 @@ uniform bool u_SunIsStronger;
 
 uniform bool u_LensFlare = true;
 uniform bool u_GodRays = true;
+uniform bool u_SSAO = false;
 
 uniform sampler2D u_FramebufferTexture;
+
 uniform sampler2D u_PositionTexture;
+uniform sampler2D u_NormalTexture;
+
 uniform sampler2D u_BlueNoise;
+uniform sampler2D u_SSAOTexture;
 
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
@@ -269,15 +274,44 @@ vec3 lensflare(vec2 uv, vec2 pos)
 	return c;
 }
 
+vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec3 color = vec3(0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+        float sampled_depth = (texture(u_PositionTexture, txc + Kernel[i] * texel_size).z); 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = dweight;
+        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
+        weight_sum += computed_weight;
+    }
+
+    color /= max(weight_sum, 0.2f);
+    color = clamp(color, texture(tex, txc).rgb * 0.12f, vec3(1.0f));
+    return color;
+}
+
 void main()
 {
 	vec2 TexSize = textureSize(u_PositionTexture, 0);
-    float PixelDepth1 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-    float PixelDepth2 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-    float PixelDepth3 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-    float PixelDepth4 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-	float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 
+    float PixelDepth1 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
+    float PixelDepth2 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
+    float PixelDepth3 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
+    float PixelDepth4 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
+	float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
 
 	if (PositionAt.w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
@@ -285,6 +319,16 @@ void main()
 		vec3 InputColor;
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
+
+		if (u_SSAO)
+		{
+			const float ssao_strength = 4.0f;
+			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
+			float SSAO = pow(SampledSSAO, ssao_strength);
+			SSAO = clamp(SSAO, 0.01, 1.0f);
+			InputColor *= ssao_strength - 1.0f;
+			InputColor *= SSAO;
+		}
 
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);
