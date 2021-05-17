@@ -5,11 +5,11 @@ static bool VSync = false;
 
 static float InitialTraceResolution = 0.75f;
 
-// 1/8th res + 1 SPP + Temporal and spatial filter
+// 1/10th res + 4 SPP + Temporal and spatial filter
 // Diffuse isnt a very high frequency phenomenon
 // The inputs change slowly over time
 // Can be interpolated well after it is spatially filtered
-static float DiffuseTraceResolution = 0.125f;
+static float DiffuseTraceResolution = 0.10f;
 
 static float ShadowTraceResolution = 0.40;
 static float ReflectionTraceResolution = 0.35;
