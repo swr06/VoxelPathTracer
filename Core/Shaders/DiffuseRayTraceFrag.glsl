@@ -39,6 +39,7 @@ uniform samplerCube u_Skymap;
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
+uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform sampler2D u_DataTexture;
 uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
@@ -48,7 +49,8 @@ uniform float u_Time;
 
 uniform vec3 u_ViewerPosition;
 
-uniform vec4 BLOCK_TEXTURE_DATA[128];
+uniform vec4 BLOCK_TEXTURE_DATA[128]; // Albedo tex index, normal tex index, pbr tex index, emissive 
+
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 
@@ -110,9 +112,19 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	LIGHT_COLOR = SunStronger ? vec3(1.0f) * 18.0f : vec3(1.0f) * 6.0f;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
-	vec3 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyz;
+	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;
 	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 2).rgb;
 	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.b), 2).rgb;
+
+	float Emmisivity = 1.0f;
+
+	if (TextureIndexes.w >= 0.0f)
+	{
+		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.w)).r;
+		Emmisivity = SampledEmmisivity * 20.0f;
+
+		return Emmisivity * Albedo;
+	}
 
 	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
 	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);

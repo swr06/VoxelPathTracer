@@ -96,6 +96,7 @@
 	Albedo : Res/Block/Lamp/Albedo.png
 	Normal : Res/Block/Lamp/Normal.png
 	PBR : Res/Block/Lamp/PBR.png
+	Emissive : Res/Block/Lamp/Emissive.png
 }
 
 {

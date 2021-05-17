@@ -30,6 +30,7 @@ namespace VoxelRT
 			BlockTexture NormalMap;
 			BlockTexture PBRMap;
 			BlockTexture AlbedoMap;
+			std::string EmissiveMap = "";
 			std::string BlockName = "";
 			uint8_t ID = 0;
 			bool transparent = false;

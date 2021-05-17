@@ -316,7 +316,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
+		data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 		DiffuseTraceShader.SetVector4f(name.c_str(), data);
 	}
@@ -461,7 +461,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
+				data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 				DiffuseTraceShader.SetVector4f(name.c_str(), data);
 			}
@@ -579,6 +579,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_BlockAlbedoTextures", 6);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTextures", 7);
 		DiffuseTraceShader.SetInteger("u_BlockPBRTextures", 8);
+		DiffuseTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -626,6 +627,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+		glActiveTexture(GL_TEXTURE11);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -296,6 +296,16 @@ namespace VoxelRT
 					{
 						parsed_data.transparent = true;
 					}
+
+					else if (field.find("Emissive") != std::string::npos)
+					{
+						std::string s;
+						size_t loc = field.find(":");
+						s = field.substr(loc + 1, field.size());
+						s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+
+						parsed_data.EmissiveMap = s;
+					}
 				}
 
 				parsed_data.ID = GenerateBlockID();

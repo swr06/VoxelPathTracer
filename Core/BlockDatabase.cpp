@@ -7,6 +7,7 @@ namespace VoxelRT
 	GLClasses::TextureArray BlockTextureArray;
 	GLClasses::TextureArray BlockNormalTextureArray;
 	GLClasses::TextureArray BlockPBRTextureArray;
+	GLClasses::TextureArray BlockEmissiveTextureArray;
 	
 	void BlockDatabase::Initialize()
 	{
@@ -27,6 +28,8 @@ namespace VoxelRT
 		std::vector<std::string> paths;
 		std::vector<std::string> normal_paths;
 		std::vector<std::string> pbr_paths;
+		std::vector<std::string> emissive_paths;
+
 		std::pair<int, int> texture_resolutions = { 512,512 };
 
 		for (auto& e : ParsedBlockDataList)
@@ -51,6 +54,8 @@ namespace VoxelRT
 			pbr_paths.push_back(e.second.PBRMap.bottom);
 			pbr_paths.push_back(e.second.PBRMap.left);
 			pbr_paths.push_back(e.second.PBRMap.right);
+
+			emissive_paths.push_back(e.second.EmissiveMap);
 		}
 
 		std::string res_str = "     |     RES : (" + std::to_string(texture_resolutions.first) + "," + std::to_string(texture_resolutions.second) + ")";
@@ -67,6 +72,10 @@ namespace VoxelRT
 
 		Logger::Log("Creating PBR texture array!" + res_str);
 		BlockPBRTextureArray.CreateArray(pbr_paths, texture_resolutions, false, true, GL_LINEAR, true);
+		Logger::Log("Successfully created PBR texture array!");
+
+		Logger::Log("Creating Emissive texture array!" + res_str);
+		BlockEmissiveTextureArray.CreateArray(emissive_paths, texture_resolutions, false, true, GL_LINEAR, true);
 		Logger::Log("Successfully created PBR texture array!");
 
 		std::cout << ("\n\n\n-- SUCCESSFULLY LOADED TEXTURES --\n\n\n");
@@ -418,6 +427,25 @@ namespace VoxelRT
 		return -1;
 	}
 
+	int BlockDatabase::GetBlockEmissiveTexture(BlockIDType block_id)
+	{
+		std::string pth;
+
+		if (ParsedBlockDataListID.find(block_id) == ParsedBlockDataListID.end())
+		{
+			return 0;
+		}
+
+		pth = ParsedBlockDataListID[block_id].EmissiveMap;
+
+		if (pth.size() > 0)
+		{
+			return BlockEmissiveTextureArray.GetTexture(pth);
+		}
+
+		return -1;
+	}
+
 	bool BlockDatabase::IsBlockTransparent(BlockIDType block_id)
 	{
 		if (block_id == 0) { return true; }
@@ -448,5 +476,10 @@ namespace VoxelRT
 	GLuint BlockDatabase::GetPBRTextureArray()
 	{
 		return BlockPBRTextureArray.GetTextureArray();
+	}
+
+	GLuint BlockDatabase::GetEmissiveTextureArray()
+	{
+		return BlockEmissiveTextureArray.GetTextureArray();
 	}
 }
