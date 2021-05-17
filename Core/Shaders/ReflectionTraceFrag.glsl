@@ -565,11 +565,9 @@ float GetShadowAt(in vec3 pos, in vec3 ldir)
 	vec3 norm;
 	float block;
 
-	#ifdef APPLY_PLAYER_SHADOW
-		float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-		bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
-		if (PlayerIntersect) { return 1.0f; }
-	#endif
+	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
+	bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
+	if (PlayerIntersect) { return 1.0f; }
 
 	T = voxel_traversal(pos.rgb, RayDirection, norm, block, 40);
 
