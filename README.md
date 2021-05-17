@@ -19,10 +19,11 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Alpha testing (Shadows and tracing)
 - Atmosphere 
 - God Rays (Screen space) 
+- Emissive Materials
+- Basic spatial filtering (Not depth or normal aware as of yet.)
 
 # Features to implement
 - Refractions (Will be done in screen space)
-- Emissive materials 
 - Glass rendering 
 - Importance Sampling and GGX model for the diffuse tracing
 - Proper denoising
