@@ -226,7 +226,7 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     }
 
     color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.1f, vec3(1.0f));
+    color = clamp(color, texture(tex, txc).rgb * 0.3f, vec3(1.0f));
     return color;
 }
 
@@ -382,8 +382,8 @@ void main()
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
 
-            //vec3 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb;
-            vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.5f);
+            vec3 Diffuse = clamp(BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb, 0.0f, 1.5f);
+            //vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.5f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
@@ -417,7 +417,7 @@ void main()
                 
                     GetAtmosphere(ReflectionTrace, R);
                     ReflectionTrace *= 2.0f;
-                    ReflectionTrace = clamp(ReflectionTrace, 0.01f, 1.2);
+                    ReflectionTrace = clamp(ReflectionTrace, 0.01f, 1.2f);
                 }
 
                 ReflectionRatio *= 1.0f - PBRMap.r;

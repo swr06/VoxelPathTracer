@@ -64,7 +64,7 @@ public:
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("God Rays?", &GodRays);
-		ImGui::Checkbox("Screen Soace Ambient Occlusion?", &SSAO);
+		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 	}
 
 	void OnEvent(VoxelRT::Event e) override
@@ -908,6 +908,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SSAOShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
 			SSAOShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 			SSAOShader.SetVector2f("u_Dimensions", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
+			SSAOShader.SetFloat("u_Time", glfwGetTime());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());

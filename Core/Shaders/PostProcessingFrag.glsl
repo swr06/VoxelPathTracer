@@ -290,7 +290,14 @@ vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 
     for (int i = 0; i < 4; i++) 
     {
-        float sampled_depth = (texture(u_PositionTexture, txc + Kernel[i] * texel_size).z); 
+		vec4 sampled_pos = texture(u_PositionTexture, txc + Kernel[i] * texel_size);
+
+		if (sampled_pos.w <= 0.0f)
+		{
+			continue;
+		}
+
+        float sampled_depth = (sampled_pos.z); 
         float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
 
         float computed_weight = dweight;
@@ -303,30 +310,65 @@ vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
     return color;
 }
 
+bool DetectAtEdge(in vec2 txc)
+{
+	vec2 TexelSize = 1.0f / textureSize(u_PositionTexture, 0);
+
+	vec2 NeighbourhoodOffsets[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+	for (int i = 0 ; i < 8 ; i++)
+	{
+		float T_at = texture(u_PositionTexture, txc + (NeighbourhoodOffsets[i] * TexelSize)).w;
+
+		if (T_at <= 0.0f) 
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+vec3 ToClipSpace(in vec3 pos)
+{
+	vec4 ViewSpace = u_ViewMatrix * vec4(pos, 1.0f);
+    vec4 Projected = u_ProjectionMatrix * ViewSpace;
+    Projected.xyz /= Projected.w;
+
+    return Projected.xyz;
+}
+
 void main()
 {
-	vec2 TexSize = textureSize(u_PositionTexture, 0);
-
-    float PixelDepth1 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
-    float PixelDepth2 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
-    float PixelDepth3 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
-    float PixelDepth4 = texture(u_PositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.0f, 1.0f)).w;
-	float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
+    float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
+	bool AtEdge = DetectAtEdge(v_TexCoords);
+	vec3 ClipSpaceAt = ToClipSpace(PositionAt.xyz);
 
-	if (PositionAt.w > 0.0f && PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
+	if (PositionAt.w > 0.0f && (!AtEdge))
 	{
 		vec3 InputColor;
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
 
-		if (u_SSAO)
+		if (u_SSAO && ((1.0f - ClipSpaceAt.z) > 0.006f))
 		{
 			const float ssao_strength = 4.0f;
 			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
+			//float SampledSSAO = texture(u_SSAOTexture, v_TexCoords).r;
 			float SSAO = pow(SampledSSAO, ssao_strength);
-			SSAO = clamp(SSAO, 0.01, 1.0f);
-			InputColor *= ssao_strength - 1.0f;
+			SSAO = clamp(SSAO, 0.0001, 1.0f);
+			InputColor *= ssao_strength - 1.1f;
 			InputColor *= SSAO;
 		}
 
@@ -360,4 +402,5 @@ void main()
 		LensFlare = clamp(LensFlare, 0.02f, 0.999f);
 		o_Color += LensFlare;
 	}
+
 }

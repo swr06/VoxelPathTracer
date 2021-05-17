@@ -52,5 +52,5 @@ vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thres
 
 void main()
 {
-    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, .500).rgb;
+    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, .150).rgb;
 }

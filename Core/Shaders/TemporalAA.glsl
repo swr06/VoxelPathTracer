@@ -80,8 +80,9 @@ void main()
 		PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 	);
 
-	BlendFactor *= exp(-length(velocity)) * 0.6f + 0.5f;
+	BlendFactor *= exp(-length(velocity)) * 0.6f + 0.75f;
+	// todo : handle disocclusion
 
-	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.05, 0.93f));
+	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.92f));
 }
 

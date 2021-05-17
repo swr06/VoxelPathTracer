@@ -11,6 +11,8 @@ uniform vec2 u_Dimensions;
 uniform mat4 u_ViewMatrix;
 uniform mat4 u_ProjectionMatrix;
 
+uniform float u_Time;
+
 int SAMPLE_SIZE = 16;
 
 vec3 ToViewSpace(in vec3 WorldPosition)
@@ -27,7 +29,7 @@ int RNG_SEED;
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(50);
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(u_Time * 4.0f);
 
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 
@@ -52,10 +54,15 @@ void main()
 
 		if (ProjectedPosition.x > 0.0f && ProjectedPosition.y > 0.0f && ProjectedPosition.x < 1.0f && ProjectedPosition.y < 1.0f)
 		{
-			float SampleDepth = ToViewSpace(texture(u_PositionTexture, ProjectedPosition.xy).xyz).z;
-			float RangeCheck = smoothstep(0.0, 1.0, Radius / abs(Position.z - SampleDepth));
+			vec4 SampledPosition = texture(u_PositionTexture, ProjectedPosition.xy).xyzw;
+			
+			if (SampledPosition.w > 0.0f)
+			{
+				float SampleDepth = ToViewSpace(SampledPosition.xyz).z;
+				float RangeCheck = smoothstep(0.0, 1.0, Radius / abs(Position.z - SampleDepth));
 
-			o_AOValue += (SampleDepth >= SamplePosition.z + Bias ? 1.0 : 0.0) * RangeCheck; 
+				o_AOValue += (SampleDepth >= SamplePosition.z + Bias ? 1.0 : 0.0) * RangeCheck; 
+			}
 		}
 	}
 
