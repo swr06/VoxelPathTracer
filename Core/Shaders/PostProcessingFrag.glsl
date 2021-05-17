@@ -365,9 +365,8 @@ void main()
 		{
 			const float ssao_strength = 4.0f;
 			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
-			//float SampledSSAO = texture(u_SSAOTexture, v_TexCoords).r;
 			float SSAO = pow(SampledSSAO, ssao_strength);
-			SSAO = clamp(SSAO, 0.0001, 1.0f);
+			SSAO = clamp(SSAO, 0.00001, 1.0f);
 			InputColor *= ssao_strength - 1.1f;
 			InputColor *= SSAO;
 		}
@@ -399,7 +398,7 @@ void main()
 		LensFlareCoord.x *= u_Dimensions.x / u_Dimensions.y;
 		
 		vec3 LensFlare = vec3(1.6f, 1.2f, 1.0f) * lensflare(LensFlareCoord, SunScreenSpacePosition);
-		LensFlare = clamp(LensFlare, 0.02f, 0.999f);
+		LensFlare = clamp(LensFlare, 0.0f, 0.9999f);
 		o_Color += LensFlare;
 	}
 

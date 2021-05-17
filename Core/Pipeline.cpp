@@ -592,6 +592,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 		DiffuseTraceShader.SetMatrix4("u_ShadowView", ShadowView);
 		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
+		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -622,6 +623,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
