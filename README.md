@@ -25,6 +25,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Lens Flare
 
 # Features to implement
+- Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
 - Importance Sampling and GGX model for the diffuse tracing
