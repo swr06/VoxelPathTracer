@@ -204,5 +204,5 @@ void main()
 	o_Color = mix(SampledColor, Sharpened, 0.09999f);
     vec2 FragCoord = v_TexCoords * textureSize(u_FramebufferTexture, 0);
 	FXAA311(o_Color);
-    o_Color = pow(o_Color, vec3(1.0f / 2.2f)); 
+    o_Color = pow(o_Color, vec3(1.0f / 2.2f)); // Gamma correction
 }

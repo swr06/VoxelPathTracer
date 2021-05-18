@@ -230,6 +230,41 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     return color;
 }
 
+vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec3 color = vec3(0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
+
+		if (sampled_pos.w <= 0.0f)
+		{
+			continue;
+		}
+
+        float sampled_depth = (sampled_pos.z); 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = dweight;
+        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
+        weight_sum += computed_weight;
+    }
+
+    color /= max(weight_sum, 0.2f);
+    color = clamp(color, texture(tex, txc).rgb * 0.12f, vec3(1.0f));
+    return color;
+}
 
 const vec2 PoissonDisk[32] = vec2[]
 (
@@ -382,8 +417,7 @@ void main()
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
 
-            //vec3 Diffuse = clamp(BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals, WorldPosition.z).rgb, 0.0f, 1.5f);
-            vec3 Diffuse = clamp(textureBicubic(u_DiffuseTexture, v_TexCoords).rgb, 0.0f, 1.5f);
+            vec3 Diffuse = clamp(DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).rgb, 0.0f, 1.5f);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;

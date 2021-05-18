@@ -116,19 +116,17 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 2).rgb;
 	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.b), 2).rgb;
 
-	float Emmisivity = 1.0f;
+	float Emmisivity = 0.0f;
 
 	if (TextureIndexes.w >= 0.0f)
 	{
 		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.w)).r;
-		Emmisivity = SampledEmmisivity * 50.0f;
-
-		return Emmisivity * Albedo;
+		Emmisivity = SampledEmmisivity * 65.0f;
 	}
 
 	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
 	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
-	return (0.015 * Albedo) + DirectLighting;
+	return (Emmisivity * Albedo) + DirectLighting;
 }
 
 vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 

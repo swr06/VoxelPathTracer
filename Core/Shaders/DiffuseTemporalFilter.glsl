@@ -67,6 +67,32 @@ void GetNearestDepth(in float input_depth, out float odepth, out vec2 best_offse
 	}
 }
 
+
+vec4 GetClampedColor(vec2 reprojected)
+{
+	ivec2 Coord = ivec2(v_TexCoords * Dimensions); 
+
+	vec4 minclr = vec4(10000.0f); 
+	vec4 maxclr = vec4(-10000.0f); 
+
+	for(int x = -2; x <= 2; x++) 
+	{
+		for(int y = -2; y <= 2; y++) 
+		{
+			vec4 Fetch = texelFetch(u_CurrentColorTexture, Coord + ivec2(x,y), 0); 
+
+			minclr = min(minclr, Fetch); 
+			maxclr = max(maxclr, Fetch); 
+		}
+	}
+
+	minclr -= 0.075f; 
+	maxclr += 0.075f; 
+	
+	return clamp(texture(u_PreviousColorTexture, reprojected), minclr, maxclr); 
+
+}
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -81,15 +107,8 @@ void main()
 	{
 		vec2 PreviousCoord = Reprojection(CurrentPosition.xyz); 
 
-		//void GetNearestDepth(in float input_depth, out float odepth, out vec2 best_offset) 
-		vec2 BestOffset = vec2(1.0f);
-		float BestDepth;
-
-		//GetNearestDepth(CurrentPosition.z, BestDepth, BestOffset, PreviousCoord);
-		//PreviousCoord += BestOffset * (1.0f / Dimensions);
-
 		vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
-		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
+		vec3 PrevColor = GetClampedColor(PreviousCoord).rgb;
 
 		vec3 CurrentNormal = texture(u_CurrentNormalTexture, TexCoord).rgb;
 		vec3 PreviousNormal = texture(u_PreviousNormalTexture, PreviousCoord).rgb;
@@ -104,19 +123,13 @@ void main()
 			PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
 		);
 
-		float x = (u_CameraMoved ? 0.89213f : 0.9602f);
-		float BlendFactorModifier = u_WorldModified ? 0.25f : x;
-		BlendFactor = BlendFactorModifier; // 0.35f
-		BlendFactor = clamp(BlendFactor, 0.03f, 0.96f);
+		//float CurrentDepth = CurrentPosition.z;
+		//float PreviousDepth = texture(u_PreviousFramePositionTexture, PreviousCoord).z;
+		//float DepthDifference = abs(CurrentDepth - PreviousDepth);
 
-		// Handle disocclusion 
-		float CurrentDepth = CurrentPosition.z;
-		float PreviousDepth = texture(u_PreviousFramePositionTexture, PreviousCoord).z;
-        float DepthWeight = 1.0f / (abs(CurrentDepth - PreviousDepth) + 0.001f);
-		DepthWeight *= DepthWeight * 0.0125f;
-		float NormalWeight = pow(abs(dot(CurrentNormal, PreviousNormal)), 12);
-
-		BlendFactor = clamp((BlendFactor * DepthWeight), 0.01f, 0.95f); 
+		BlendFactor *= exp(-length(velocity)) * 0.35f;
+		BlendFactor += 0.8f;
+		BlendFactor = clamp(BlendFactor, 0.01f, 0.9790f);
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 	}
 

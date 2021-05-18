@@ -361,13 +361,16 @@ void main()
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
 
-		if (u_SSAO && ((1.0f - ClipSpaceAt.z) > 0.006f))
+		if (u_SSAO)
 		{
-			const float ssao_strength = 4.0f;
+			float ssao_strength = 0.0f;
+			float max_ssao_strength = 2.5f;
+			ssao_strength = ((1.0f - ClipSpaceAt.z) * 100.0f) * max_ssao_strength;
+			ssao_strength = clamp(ssao_strength, 0.0f, max_ssao_strength);
+
 			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
 			float SSAO = pow(SampledSSAO, ssao_strength);
 			SSAO = clamp(SSAO, 0.00001, 1.0f);
-			InputColor *= ssao_strength - 1.1f;
 			InputColor *= SSAO;
 		}
 

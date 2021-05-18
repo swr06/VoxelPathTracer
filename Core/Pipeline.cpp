@@ -4,16 +4,11 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static float InitialTraceResolution = 0.75f;
-
-// 1/10th res + 4 SPP + Temporal and spatial filter
-// Diffuse isnt a very high frequency phenomenon
-// The inputs change slowly over time
-// Can be interpolated well after it is spatially filtered
-static float DiffuseTraceResolution = 0.10f;
+static float DiffuseTraceResolution = 0.125f;
 
 static float ShadowTraceResolution = 0.40;
 static float ReflectionTraceResolution = 0.35;
-static float SSAOResolution = 0.3f;
+static float SSAOResolution = 0.35f;
 
 static float SunTick = 50.0f;
 
@@ -408,6 +403,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.Recompile();
 			ReflectionTraceShader.Recompile();
 			SSAOShader.Recompile();
+			SSAO_Blur.Recompile();
 
 			///// Set the block texture data uniforms    /////
 
