@@ -13,7 +13,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Temporal Anti Aliasing
 - FXAA
 - Tonemapping, Gamma correction
-- Bilateral Upsampling
+- Bilateral Upsampling (For SSAO, Trace)
 - Ray traced reflections 
 - Naive world saving and loading
 - Alpha testing (Shadows and tracing)
@@ -21,6 +21,8 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - God Rays (Screen space) 
 - Emissive Materials
 - Basic spatial filtering (Not depth or normal aware as of yet.)
+- Screen Space Ambient Occlusion
+- Lens Flare
 
 # Features to implement
 - Refractions (Will be done in screen space)
