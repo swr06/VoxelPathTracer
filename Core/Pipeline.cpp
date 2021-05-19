@@ -104,7 +104,12 @@ public:
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_Q)
 		{
-			world->ChangeCurrentlyHeldBlock();
+			world->ChangeCurrentlyHeldBlock(true);
+		}
+
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_E)
+		{
+			world->ChangeCurrentlyHeldBlock(false);
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)

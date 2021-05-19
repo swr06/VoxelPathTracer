@@ -109,7 +109,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	vec3 LIGHT_COLOR; // The radiance of the light source
 	vec3 StrongerLightDirection;
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
-	LIGHT_COLOR = SunStronger ? vec3(1.0f) * 18.0f : vec3(1.0f) * 6.0f;
+	LIGHT_COLOR = SunStronger ? vec3(1.0f) * 20.0f : vec3(1.0f) * 10.0f;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;

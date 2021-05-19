@@ -40,7 +40,7 @@ namespace VoxelRT
 			m_Buffered = true;
 		}
 
-		void ChangeCurrentlyHeldBlock();
+		void ChangeCurrentlyHeldBlock(bool x);
 
 		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
 		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_ChunkData;

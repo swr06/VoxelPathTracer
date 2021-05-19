@@ -2,13 +2,29 @@
 
 #include "BlockDatabase.h"
 
-void VoxelRT::World::ChangeCurrentlyHeldBlock()
+void VoxelRT::World::ChangeCurrentlyHeldBlock(bool x)
 {
-	m_CurrentlyHeldBlock++;
-
-	if (m_CurrentlyHeldBlock >= BlockDatabase::GetNumberOfBlocksInDatabase() || m_CurrentlyHeldBlock >= 127)
+	if (x)
 	{
-		m_CurrentlyHeldBlock = 1;
+		m_CurrentlyHeldBlock++;
+
+		if (m_CurrentlyHeldBlock >= BlockDatabase::GetNumberOfBlocksInDatabase() || m_CurrentlyHeldBlock >= 127)
+		{
+			m_CurrentlyHeldBlock = 1;
+		}
+	}
+
+	else
+	{
+		if (m_CurrentlyHeldBlock > 0)
+		{
+			m_CurrentlyHeldBlock--;
+		}
+
+		if (m_CurrentlyHeldBlock <= 0)
+		{
+			m_CurrentlyHeldBlock = BlockDatabase::GetNumberOfBlocksInDatabase() - 1;
+		}
 	}
 }
 
