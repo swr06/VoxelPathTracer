@@ -9,7 +9,7 @@
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 //#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 16 
+#define MAX_VOXEL_DIST 16
 #define MAX_SHADOW_TRACE_DIST 150 // Needs to be high
 #define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
 #define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2

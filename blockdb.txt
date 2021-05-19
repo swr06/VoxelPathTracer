@@ -45,13 +45,8 @@
 {
 	Name : oak_log
 
-	Albedo_top : Res/Block/Bark/Top/Albedo.png
 	Albedo :  Res/Block/Bark/Side/Albedo.png
-
-	Normal_top :  Res/Block/Bark/Top/Normal.png
 	Normal :  Res/Block/Bark/Side/Normal.png
-
-	PBR_top :  Res/Block/Bark/Top/PBR.png
 	PBR :  Res/Block/Bark/Side/PBR.png
 }
 
@@ -139,6 +134,41 @@
 	Albedo : Res/Block/WhitePorcelain/Albedo.png
 	Normal : Res/Block/WhitePorcelain/Normal.png
 	PBR : Res/Block/WhitePorcelain/PBR.png
+}
+
+{
+	Name : Gravel1
+	Albedo : Res/Block/Gravel1/Albedo.png
+	Normal : Res/Block/Gravel1/Normal.png
+	PBR : Res/Block/Gravel1/PBR.png
+}
+
+{
+	Name : Planks
+	Albedo : Res/Block/Planks/Albedo.png
+	Normal : Res/Block/Planks/Normal.png
+	PBR : Res/Block/Planks/PBR.png
+}
+
+{
+	Name : Planks1
+	Albedo : Res/Block/Planks1/Albedo.png
+	Normal : Res/Block/Planks1/Normal.png
+	PBR : Res/Block/Planks1/PBR.png
+}
+
+{
+	Name : Brick2
+	Albedo : Res/Block/Brick2/Albedo.png
+	Normal : Res/Block/Brick2/Normal.png
+	PBR : Res/Block/Brick2/PBR.png
+}
+
+{
+	Name : WhiteBricks
+	Albedo : Res/Block/WhiteBricks/Albedo.png
+	Normal : Res/Block/WhiteBricks/Normal.png
+	PBR : Res/Block/WhiteBricks/PBR.png
 }
 
 {
