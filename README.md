@@ -10,6 +10,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - PBR Texture support
 - Physically based lighting
 - Fast Shadow Tracing
+- Flexible material system
 - Temporal Anti Aliasing
 - FXAA
 - Tonemapping, Gamma correction
