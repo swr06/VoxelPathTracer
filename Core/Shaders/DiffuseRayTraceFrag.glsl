@@ -111,7 +111,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	vec3 LIGHT_COLOR; // The radiance of the light source
 	vec3 StrongerLightDirection;
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
-	LIGHT_COLOR = SunStronger ? vec3(1.0f) * (20.0f + u_DiffuseLightIntensity) : vec3(1.0f) * (10.0f + (u_DiffuseLightIntensity * 0.5f));
+	LIGHT_COLOR = SunStronger ? (vec3(192.0f, 190.0f, 255.0f) / 255.0f) * (26.0f + u_DiffuseLightIntensity) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * (10.0f);
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;
@@ -751,7 +751,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     float NdotL = max(dot(normal, L), 0.0);
 	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
 
-    return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+    return clamp(Result, 0.0f, 3.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 

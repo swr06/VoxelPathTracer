@@ -41,11 +41,10 @@ vec3 hemispherepoint_uniform(float u, float v) {
 	return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 }
 
-vec3 cosWeightedRandomHemisphereDirection(const vec3 n, int idx);
 float nextFloat(inout int seed, in float min, in float max);
 
-const float Radius = 0.3f; 
-const float Bias = 0.0075f;
+const float Radius = 0.6f; 
+const float Bias = 0.3f;
 
 int RNG_SEED;
 
