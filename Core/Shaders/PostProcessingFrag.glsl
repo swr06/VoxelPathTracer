@@ -386,7 +386,7 @@ void main()
 			InputColor += ss_volumetric_color * god_rays;
 		}
 
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), exposure + 0.01f).rgb;
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), 2.60 + 0.01f).rgb;
 		o_Color = InputColor;
 	}
 

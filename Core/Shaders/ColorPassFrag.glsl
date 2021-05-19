@@ -366,7 +366,7 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.4f;
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 8.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 0.18f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.1f; 
 
@@ -430,7 +430,9 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            o_Color = DiffuseAmbient + DirectLighting;
+            float x = mix(1.0f, 0.3f, SunVisibility);
+
+            o_Color = DiffuseAmbient + (DirectLighting * x);
             o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.0f));
 

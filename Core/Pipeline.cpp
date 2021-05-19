@@ -718,7 +718,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ---- SHADOW TRACE ----
 
-		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 4 == 0);
+		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 2 == 0);
 
 		if (ModifiedWorld || UpdateShadows)
 		{
