@@ -158,6 +158,13 @@
 }
 
 {
+	Name : Planks2
+	Albedo : Res/Block/Planks2/Albedo.png
+	Normal : Res/Block/Planks2/Normal.png
+	PBR : Res/Block/Planks2/PBR.png
+}
+
+{
 	Name : Brick2
 	Albedo : Res/Block/Brick2/Albedo.png
 	Normal : Res/Block/Brick2/Normal.png

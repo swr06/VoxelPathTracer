@@ -11,10 +11,13 @@ static float ReflectionTraceResolution = 0.35;
 static float SSAOResolution = 0.35f;
 
 static float SunTick = 50.0f;
+static float DiffuseLightIntensity = 2.0f;
 
 static bool GodRays = false;
 static bool LensFlare = false;
 static bool SSAO = true;
+
+static int GodRaysStepCount = 12;
 
 static bool FullyDynamicShadows = false;
 
@@ -55,7 +58,9 @@ public:
 		ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
 		ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
 		ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
+		ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, -10.0, 80.0f);
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
+		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("God Rays?", &GodRays);
@@ -586,6 +591,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseTraceFBO.GetWidth(), DiffuseTraceFBO.GetHeight()));
 		DiffuseTraceShader.SetFloat("u_Time", glfwGetTime() * 1.2f);
+		DiffuseTraceShader.SetFloat("u_DiffuseLightIntensity", DiffuseLightIntensity);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		DiffuseTraceShader.SetVector3f("u_SunDirection", SunDirection);
@@ -960,6 +966,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BlueNoise", 2);
 		PostProcessingShader.SetInteger("u_SSAOTexture", 3);
 		PostProcessingShader.SetInteger("u_PositionTexture", 4);
+		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		PostProcessingShader.SetVector2f("u_Dimensions", glm::vec2(PostProcessingFBO.GetWidth(), PostProcessingFBO.GetHeight()));
@@ -1017,7 +1024,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Finish Frame
 		app.FinishFrame();
-		GLClasses::DisplayFrameRate(app.GetWindow(), "Voxel RT");
+
+		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "  ";
+		GLClasses::DisplayFrameRate(app.GetWindow(), title);
 
 		ModifiedWorld = false;
 	}

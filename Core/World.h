@@ -48,6 +48,8 @@ namespace VoxelRT
 
 		std::string m_Name = "";
 
+		uint8_t GetCurrentBlock() const noexcept { return m_CurrentlyHeldBlock; }
+
 	private :
 		bool m_Buffered = false;
 		uint8_t m_CurrentlyHeldBlock = 1;

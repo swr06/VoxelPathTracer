@@ -60,6 +60,8 @@ uniform mat4 u_ShadowProjection;
 uniform sampler2D u_ShadowMap;
 // Temp
 
+uniform float u_DiffuseLightIntensity = 4.0f;
+
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
 float nextFloat(inout int seed, in float max);
@@ -109,7 +111,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	vec3 LIGHT_COLOR; // The radiance of the light source
 	vec3 StrongerLightDirection;
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
-	LIGHT_COLOR = SunStronger ? vec3(1.0f) * 20.0f : vec3(1.0f) * 10.0f;
+	LIGHT_COLOR = SunStronger ? vec3(1.0f) * (20.0f + u_DiffuseLightIntensity) : vec3(1.0f) * (10.0f + (u_DiffuseLightIntensity * 0.5f));
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;

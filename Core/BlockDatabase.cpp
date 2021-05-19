@@ -446,6 +446,18 @@ namespace VoxelRT
 		return -1;
 	}
 
+	std::string BlockDatabase::GetBlockName(BlockIDType block_id)
+	{
+		if (block_id == 0) { return "???"; }
+
+		if (ParsedBlockDataListID.find(block_id) == ParsedBlockDataListID.end())
+		{
+			return "???";
+		}
+
+		return ParsedBlockDataListID.at(block_id).BlockName;
+	}
+
 	bool BlockDatabase::IsBlockTransparent(BlockIDType block_id)
 	{
 		if (block_id == 0) { return true; }

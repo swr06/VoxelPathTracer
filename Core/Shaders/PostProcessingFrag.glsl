@@ -54,6 +54,8 @@ uniform bool u_LensFlare = true;
 uniform bool u_GodRays = true;
 uniform bool u_SSAO = false;
 
+uniform int u_GodRaysStepCount = 12;
+
 uniform sampler2D u_FramebufferTexture;
 
 uniform sampler2D u_PositionTexture;
@@ -195,7 +197,7 @@ float GetScreenSpaceGodRays(vec3 position)
     float RayIntensityMultiplier = u_StrongerLightDirection == u_SunDirection ? 0.35224f : 0.15f;
 
     float rays = 0.0;
-    const int SAMPLES = 8;
+    int SAMPLES = clamp(u_GodRaysStepCount, 8, 65);
 	float dither = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).r;
 
     for (int i = 0; i < SAMPLES; i++)
@@ -380,7 +382,7 @@ void main()
 		if (u_GodRays)
 		{
 			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
-			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 129.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += ss_volumetric_color * god_rays;
 		}
 

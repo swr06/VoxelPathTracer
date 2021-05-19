@@ -23,5 +23,15 @@ namespace GLClasses
 			nbFrames = 0;
 			lastTime = currentTime;
 		}
+
+		else
+		{
+			double fps = double(nbFrames) / delta;
+
+			std::stringstream ss;
+			ss << title << " [" << fps << " FPS]";
+
+			glfwSetWindowTitle(pWindow, ss.str().c_str());
+		}
 	}
 }
