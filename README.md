@@ -24,6 +24,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Basic spatial filtering (Not depth or normal aware as of yet.)
 - Screen Space Ambient Occlusion
 - Lens Flare
+- Bloom (Mip based) 
 
 # Features to implement
 - Better Soft Shadows
