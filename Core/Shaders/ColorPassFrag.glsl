@@ -421,7 +421,7 @@ void main()
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
-            float SampledAO = pow(PBRMap.w, 3.0f);
+            float SampledAO = pow(PBRMap.w, 1.25f);
             vec3 DiffuseAmbient = (Diffuse * (AlbedoColor * 1.2f));
             DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 

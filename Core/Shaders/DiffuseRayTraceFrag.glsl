@@ -73,7 +73,6 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 float ProjectToCube(vec3 ro, vec3 rd) ;
 bool VoxelExists(in vec3 loc);
 float GetVoxel(ivec3 loc);
-bool IsInVoxelizationVolume(in vec3 pos);
 vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -134,7 +133,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 
 					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc, out vec3 tangent_normal)
 {
-	float b;
+	float b = 0;
 
 	T = voxel_traversal(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
 	tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
@@ -326,7 +325,7 @@ vec3 GetSkyColorAt(vec3 rd)
     return texture(u_Skymap, (rd)).rgb;
 }
 
-bool IsInVoxelizationVolume(in vec3 pos)
+bool IsInVoxelVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
         pos.x > float(WORLD_SIZE_X) || pos.y > float(WORLD_SIZE_Y) || pos.z > float(WORLD_SIZE_Z))
@@ -339,7 +338,7 @@ bool IsInVoxelizationVolume(in vec3 pos)
 
 float GetVoxel(ivec3 loc)
 {
-    if (IsInVoxelizationVolume(loc))
+    if (IsInVoxelVolume(loc))
     {
          return texelFetch(u_VoxelData, loc, 0).r;
     }

@@ -91,7 +91,7 @@ void main()
 			if (SampledPosition.w > 0.0f)
 			{
 				float SampleDepth = ToViewSpace(SampledPosition.xyz).z;
-				float RangeFix = 1.0f - clamp(abs(Position.z - SampleDepth) * 0.2f, 0.0f, 1.0f);
+				float RangeFix = 1.0f - clamp(abs(Position.z - SampleDepth) * 0.6f, 0.0f, 1.0f);
 
 				o_AOValue += (SampleDepth >= SamplePosition.z + Bias ? 1.0 : 0.0)  * RangeFix; 
 			}
