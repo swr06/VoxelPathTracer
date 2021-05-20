@@ -11,10 +11,13 @@ static float ReflectionTraceResolution = 0.35;
 static float SSAOResolution = 0.35f;
 
 static float SunTick = 50.0f;
-static float DiffuseLightIntensity = 2.0f;
+static float DiffuseLightIntensity = 40.0f;
+static float LensFlareIntensity = 0.075f;
+
+static bool Bloom = true;
 
 static bool GodRays = false;
-static bool LensFlare = false;
+static bool LensFlare = true;
 static bool SSAO = true;
 
 static int GodRaysStepCount = 12;
@@ -60,11 +63,13 @@ public:
 		ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
 		ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, -10.0, 80.0f);
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
+		ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("God Rays?", &GodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
+		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 	}
 
 	void OnEvent(VoxelRT::Event e) override
@@ -196,6 +201,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::TextureArray BlueNoise;
 	GLClasses::Framebuffer ShadowFBO;
 	GLClasses::Framebuffer ReflectionTraceFBO;
+	VoxelRT::BloomFBO BloomFBO(16, 16);
 
 	GLClasses::FramebufferRed SSAOFBO(16, 16);
 	GLClasses::FramebufferRed SSAOBlurred(16, 16);
@@ -269,6 +275,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X / 2, 70, WORLD_SIZE_Z / 2));
 
+	BloomRenderer::Initialize();
+
 	///// Set the block texture data uniforms    /////
 
 	InitialTraceShader.Use();
@@ -278,14 +286,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// BLOCK_TEXTURE_DATA
 
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+		std::string name2 = "BLOCK_EMISSIVE_TEXTURE_DATA[" + std::to_string(i) + "]";
 		glm::vec4 data;
 
+		float data2 = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 		InitialTraceShader.SetVector4f(name.c_str(), data);
+		InitialTraceShader.SetFloat(name2.c_str(), data2);
 	}
 
 	glUseProgram(0);
@@ -392,6 +403,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
 		SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
 
+		BloomFBO.SetSize(app.GetWidth() * 0.75f, app.GetHeight() * 0.75f);
+
 		///
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
@@ -414,6 +427,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.Recompile();
 			SSAOShader.Recompile();
 			SSAO_Blur.Recompile();
+			BloomRenderer::RecompileShaders();
 
 			///// Set the block texture data uniforms    /////
 
@@ -424,14 +438,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 				// BLOCK_TEXTURE_DATA
 
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
+				std::string name2 = "BLOCK_EMISSIVE_TEXTURE_DATA[" + std::to_string(i) + "]";
 				glm::vec4 data;
 
+				float data2 = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
 				InitialTraceShader.SetVector4f(name.c_str(), data);
+				InitialTraceShader.SetFloat(name2.c_str(), data2);
 			}
 
 			glUseProgram(0);
@@ -773,6 +790,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_ShadowTexture", 8);
 		ColorShader.SetInteger("u_BlueNoiseTextures", 9);
 		ColorShader.SetInteger("u_ReflectionTraceTexture", 10);
+		ColorShader.SetInteger("u_BlockEmissiveTextures", 11);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
@@ -818,6 +836,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE11);
+		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -954,6 +975,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glUseProgram(0);
 		}
 
+		// ---- Bloom ----
+		
+		if (Bloom)
+		{
+			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture());
+		}
+
 		// ---- POST PROCESSING ----
 
 		PostProcessingFBO.Bind();
@@ -976,6 +1004,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_LensFlare", LensFlare);
 		PostProcessingShader.SetBool("u_GodRays", GodRays);
 		PostProcessingShader.SetBool("u_SSAO", SSAO);
+		PostProcessingShader.SetBool("u_Bloom", Bloom);
+		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
+
+		// Set the bloom mips
+		PostProcessingShader.SetInteger("u_BloomMips[0]", 5);
+		PostProcessingShader.SetInteger("u_BloomMips[1]", 6);
+		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
+		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -991,6 +1027,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+		// Bloom mips
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip0);
+
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip1);
+
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip2);
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip3);
+		//
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

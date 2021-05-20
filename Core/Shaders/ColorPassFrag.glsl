@@ -20,6 +20,7 @@ uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlueNoiseTextures;
+uniform sampler2DArray u_BlockEmissiveTextures;
 uniform samplerCube u_Skybox;
 uniform sampler2D u_ReflectionTraceTexture;
 
@@ -122,6 +123,8 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     float star_visibility;
     star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
     vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
+    stars = clamp(stars, 0.0f, 1.3f);
+
     atmosphere += stars;
 
     atmosphere_color = atmosphere;
@@ -416,6 +419,7 @@ void main()
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV, data.x)).rgb;
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
+            float Emissivity = texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r;
 
             vec3 Diffuse = clamp(DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).rgb, 0.0f, 1.5f);
 
@@ -431,8 +435,12 @@ void main()
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
             float x = mix(1.0f, 0.3f, SunVisibility);
+            const float EmissivityMultiplier = 45.0f;
 
-            o_Color = DiffuseAmbient + (DirectLighting * x);
+            Emissivity = (max(Emissivity * EmissivityMultiplier, 1.0f));
+            DirectLighting *= clamp(1.0f - (Emissivity / EmissivityMultiplier), 0.1f, 1.0f);
+
+            o_Color = Emissivity * (DiffuseAmbient + (DirectLighting * x));
             o_Color *= SampledAO;
             o_Color = max(o_Color, vec3(0.0f));
 

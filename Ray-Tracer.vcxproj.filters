@@ -158,6 +158,12 @@
     <ClCompile Include="Core\Pipeline.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\BloomFBO.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\BloomRenderer.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -283,6 +289,12 @@
     <ClInclude Include="Core\Pipeline.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
+    <ClInclude Include="Core\BloomFBO.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BloomRenderer.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -355,6 +367,15 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SSAOBlur.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\BloomMaskFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\Gaussian5TapSinglePass.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\Gaussian9TapSinglePass.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

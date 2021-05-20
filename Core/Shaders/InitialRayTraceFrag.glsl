@@ -26,6 +26,7 @@ uniform sampler2DArray u_AlbedoTextures;
 
 uniform vec2 u_Dimensions;
 uniform vec4 BLOCK_TEXTURE_DATA[128];
+uniform float BLOCK_EMISSIVE_TEXTURE_DATA[128];
 
 // Temporary solution to have multi texturing for grass blocks
 // Data stored : 
@@ -344,18 +345,19 @@ void main()
 	o_Position.w = t;
 
 	int reference_id;
-	vec3 texture_ids;
+	vec4 texture_ids;
 	bool transparent;
 
 	if (intersect)
 	{
 		reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
-		texture_ids = BLOCK_TEXTURE_DATA[reference_id].rgb;
+		texture_ids.xyz = BLOCK_TEXTURE_DATA[reference_id].rgb;
+		texture_ids.w = BLOCK_EMISSIVE_TEXTURE_DATA[reference_id];
 	}
 
 	else 
 	{
-		texture_ids = vec3(-1.0f);
+		texture_ids = vec4(-1.0f);
 	}
 
 	#ifdef MULTIPLE_TEXTURING_GRASS
@@ -387,5 +389,5 @@ void main()
 
 	#endif
 
-	o_Data = vec4(texture_ids.x, texture_ids.y, texture_ids.z, 1.0f);
+	o_Data = vec4(texture_ids);
 }

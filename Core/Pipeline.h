@@ -24,6 +24,8 @@
 #include "WorldFileHandler.h"
 #include "AtmosphereRenderer.h"
 #include "AtmosphereRenderCubemap.h"
+#include "BloomFBO.h"
+#include "BloomRenderer.h"
 
 namespace VoxelRT
 {
