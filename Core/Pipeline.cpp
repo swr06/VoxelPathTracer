@@ -17,12 +17,12 @@ static float LensFlareIntensity = 0.075f;
 static bool Bloom = true;
 
 static bool GodRays = false;
-static bool LensFlare = true;
+static bool LensFlare = false;
 static bool SSAO = true;
 
 static int GodRaysStepCount = 12;
 
-static bool FullyDynamicShadows = false;
+static bool FullyDynamicShadows = true;
 
 static glm::vec3 SunDirection;
 static glm::vec3 MoonDirection;
