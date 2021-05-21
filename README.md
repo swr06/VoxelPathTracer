@@ -4,7 +4,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 # Features Implemented
 - Voxel Ray Casting
 - Procedural Terrain Generation
-- Fast Diffuse Tracing 
+- Diffuse Tracing 
 - Temporal Diffuse Filtering
 - Normal mapping
 - PBR Texture support
