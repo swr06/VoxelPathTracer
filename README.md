@@ -24,6 +24,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Basic spatial filtering (Not depth or normal aware as of yet.)
 - Screen Space Ambient Occlusion
 - Lens Flare
+- Bloom (Mip based) 
 
 # Features to implement
 - Better Soft Shadows
@@ -38,7 +39,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 
 # Performance
 
-- 60 FPS on a Vega 8 iGPU on the default settings
+- 40 FPS on a Vega 8 iGPU on the default settings
 
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
