@@ -71,6 +71,7 @@ uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
 
 uniform float u_LensFlareIntensity;
+uniform float u_Exposure;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -393,7 +394,7 @@ void main()
 			InputColor += ss_volumetric_color * god_rays;
 		}
 
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), 2.60 + 0.01f).rgb;
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), u_Exposure + 0.01f).rgb;
 		o_Color = InputColor;
 	}
 
@@ -410,7 +411,7 @@ void main()
 		Bloom[2] = textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
 		Bloom[3] = textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
 
-		float bloom_multiplier = 0.64f;
+		float bloom_multiplier = 0.45f;
 		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + (Bloom[1] * 0.7f * bloom_multiplier) + (Bloom[2] * 0.5f * bloom_multiplier) + (Bloom[3] * 0.1f * bloom_multiplier);
 		o_Color += TotalBloom;
 	}

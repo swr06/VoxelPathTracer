@@ -11,7 +11,7 @@ static float ReflectionTraceResolution = 0.35;
 static float SSAOResolution = 0.35f;
 
 static float SunTick = 50.0f;
-static float DiffuseLightIntensity = 40.0f;
+static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
 
 static bool Bloom = true;
@@ -23,6 +23,7 @@ static bool SSAO = true;
 static int GodRaysStepCount = 12;
 
 static bool FullyDynamicShadows = true;
+static bool AutoExposure = false;
 
 static glm::vec3 SunDirection;
 static glm::vec3 MoonDirection;
@@ -70,6 +71,7 @@ public:
 		ImGui::Checkbox("God Rays?", &GodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+		ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
 	}
 
 	void OnEvent(VoxelRT::Event e) override
@@ -187,6 +189,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader ReflectionTraceShader;
 	GLClasses::Shader SSAOShader;
 	GLClasses::Shader SSAO_Blur;
+	GLClasses::Shader SimpleDownsample;
+	GLClasses::Shader LumaAverager;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -201,6 +205,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::TextureArray BlueNoise;
 	GLClasses::Framebuffer ShadowFBO;
 	GLClasses::Framebuffer ReflectionTraceFBO;
+	GLClasses::Framebuffer DownsampledFBO;
+	GLClasses::Framebuffer AverageLumaFBO;
+
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 
 	GLClasses::FramebufferRed SSAOFBO(16, 16);
@@ -242,6 +249,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 	ShadowTraceShader.CompileShaders();
 	ReflectionTraceShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
 	ReflectionTraceShader.CompileShaders();
+	SimpleDownsample.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SimpleDownsampleFrag.glsl");
+	SimpleDownsample.CompileShaders();
+	LumaAverager.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
+	LumaAverager.CompileShaders();
 
 	SSAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
 	SSAOShader.CompileShaders();
@@ -276,6 +287,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X / 2, 70, WORLD_SIZE_Z / 2));
 
 	BloomRenderer::Initialize();
+	AverageLumaFBO.SetSize(1, 1);
 
 	///// Set the block texture data uniforms    /////
 
@@ -394,6 +406,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// TAA
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
+
+		// 
+		DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
 
 		// Reflection and shadow FBOS
 		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
@@ -982,6 +997,46 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture());
 		}
 
+		// ---- Auto Exposure ----
+
+		float ComputedExposure = 3.0f;
+
+		if (AutoExposure)
+		{
+			DownsampledFBO.Bind();
+			SimpleDownsample.Use();
+			SimpleDownsample.SetInteger("u_Texture", 0);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			AverageLumaFBO.Bind();
+			LumaAverager.Use();
+
+			LumaAverager.SetInteger("u_Texture", 0);
+			
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, DownsampledFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			AverageLumaFBO.Bind();
+			GLfloat avg_col[3];
+			glReadPixels(0, 0, 1, 1, GL_RGB, GL_FLOAT, &avg_col);
+			GLfloat lum = avg_col[0];
+			ComputedExposure = lum * 10.0f;
+			ComputedExposure = glm::clamp(ComputedExposure, 0.5f, 3.6f);
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		}
+
+
 		// ---- POST PROCESSING ----
 
 		PostProcessingFBO.Bind();
@@ -1006,6 +1061,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_SSAO", SSAO);
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
+		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 
 		// Set the bloom mips
 		PostProcessingShader.SetInteger("u_BloomMips[0]", 5);

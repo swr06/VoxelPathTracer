@@ -435,7 +435,7 @@ void main()
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
             float x = mix(1.0f, 0.3f, SunVisibility);
-            const float EmissivityMultiplier = 64.0f;
+            const float EmissivityMultiplier = 128.0f;
 
             Emissivity = (max(Emissivity * EmissivityMultiplier, 1.0f));
             DirectLighting *= clamp(1.0f - (Emissivity / EmissivityMultiplier), 0.1f, 1.0f);

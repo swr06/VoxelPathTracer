@@ -243,6 +243,7 @@
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />
     <None Include="Core\Shaders\BloomMaskFrag.glsl" />
+    <None Include="Core\Shaders\CalculateAverageLuminance.glsl" />
     <None Include="Core\Shaders\ColorPassFrag.glsl" />
     <None Include="Core\Shaders\ColorPassVert.glsl" />
     <None Include="Core\Shaders\FBOFrag.glsl" />
@@ -257,6 +258,7 @@
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\ReflectionTraceFrag.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
+    <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\DiffuseTemporalFilter.glsl" />
     <None Include="Core\Shaders\ColorTemporalFilter.glsl" />
