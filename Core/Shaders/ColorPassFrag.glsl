@@ -1,7 +1,7 @@
 #version 330 core
 
-#define PCF_COUNT 6
-#define SMOOTH_SHADOW_SAMPLING
+#define PCF_COUNT 14
+//#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
 
 layout (location = 0) out vec3 o_Color;
@@ -44,6 +44,27 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+
+
+vec3 PoissonDisk3D[16] = vec3[](
+    vec3(0.488937, 0.374798, 0.0314035),
+    vec3(0.112522, 0.0911893, 0.932066),
+    vec3(0.345347, 0.857173, 0.622028),
+    vec3(0.724845, 0.0422376, 0.754479),
+    vec3(0.775262, 0.82693, 0.16596),
+    vec3(0.971221, 0.020539, 0.0113529),
+    vec3(0.010834, 0.171209, 0.379254),
+    vec3(0.577593, 0.514908, 0.977874),
+    vec3(0.170507, 0.840266, 0.0510269),
+    vec3(0.939055, 0.566179, 0.568987),
+    vec3(0.015137, 0.606647, 0.998566),
+    vec3(0.687002, 0.465712, 0.479293),
+    vec3(0.170232, 0.25837, 0.602069),
+    vec3(0.83755 , 0.334819, 0.0497452),
+    vec3(0.795679, 0.742149, 0.878201),
+    vec3(0.180761, 0.585253, 0.245888)
+);
+
 
 float Noise2d( in vec2 x )
 {
@@ -269,26 +290,6 @@ vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
     return color;
 }
 
-const vec2 PoissonDisk[32] = vec2[]
-(
-    vec2(-0.613392, 0.617481),  vec2(0.751946, 0.453352),
-    vec2(0.170019, -0.040254),  vec2(0.078707, -0.715323),
-    vec2(-0.299417, 0.791925),  vec2(-0.075838, -0.529344),
-    vec2(0.645680, 0.493210),   vec2(0.724479, -0.580798),
-    vec2(-0.651784, 0.717887),  vec2(0.222999, -0.215125),
-    vec2(0.421003, 0.027070),   vec2(-0.467574, -0.405438),
-    vec2(-0.817194, -0.271096), vec2(-0.248268, -0.814753),
-    vec2(-0.705374, -0.668203), vec2(0.354411, -0.887570),
-    vec2(0.977050, -0.108615),  vec2(0.175817, 0.382366),
-    vec2(0.063326, 0.142369),   vec2(0.487472, -0.063082),
-    vec2(0.203528, 0.214331),   vec2(-0.084078, 0.898312),
-    vec2(-0.667531, 0.326090),  vec2(0.488876, -0.783441),
-    vec2(-0.098422, -0.295755), vec2(0.470016, 0.217933),
-    vec2(-0.885922, 0.215369),  vec2(-0.696890, -0.549791),
-    vec2(0.566637, 0.605213),   vec2(-0.149693, 0.605762),
-    vec2(0.039766, -0.396100),  vec2(0.034211, 0.979980)
-);
-
 vec2 ReprojectShadow(in vec3 world_pos)
 {
 	vec3 WorldPos = world_pos;
@@ -311,45 +312,13 @@ vec2 ReprojectReflection(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
-float ComputeShadow(in vec2 txc)
+int BLUE_NOISE_IDX = 0;
+
+vec3 GetBlueNoise()
 {
-    float shadow;
-
-#ifdef SMOOTH_SHADOW_SAMPLING
-    vec2 TexSize = textureSize(u_ShadowTexture, 0);
-    vec2 TexelSize = 1.0 / TexSize; 
-
-	for(int x = 0; x <= PCF_COUNT; x++)
-	{
-        float noise = texture(u_BlueNoiseTextures, vec3(gl_FragCoord.xy / textureSize(u_BlueNoiseTextures, 0).xy, 0.0f)).r;
-        float theta = noise * 6.28318530718;
-        float cosTheta = cos(theta);
-        float sinTheta = sin(theta);
-        mat2 dither = mat2(vec2(cosTheta, -sinTheta), vec2(sinTheta, cosTheta));
-
-		vec2 jitter_value;
-        jitter_value = PoissonDisk[x] * dither;
-
-        float pcf = texture(u_ShadowTexture, txc + jitter_value * TexelSize).r; 
-		shadow += pcf;        
-	}
-
-	shadow /= float(PCF_COUNT);
-#else 
-    shadow = textureBicubic(u_ShadowTexture, txc).r;
-#endif
-
-    return shadow;
-}
-
-bool IsInScreenSpaceBounds(in vec2 tx)
-{
-    if (tx.x > 0.0f && tx.y > 0.0f && tx.x < 1.0f && tx.y < 1.0f)
-    {
-        return true;
-    }
-
-    return false;
+	BLUE_NOISE_IDX++;
+	vec2 txc =  vec2(BLUE_NOISE_IDX / 256, mod(BLUE_NOISE_IDX, 256));
+	return texelFetch(u_BlueNoiseTextures, ivec3(txc, 0), 0).rgb;
 }
 
 bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
@@ -368,6 +337,73 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+float ComputeShadow(vec3 world_pos)
+{
+    float shadow = 0.0;
+
+    vec2 TexSize = textureSize(u_ShadowTexture, 0);
+    vec2 TexelSize = 1.0 / TexSize; 
+    int AVG = 0;
+    float BlueNoise = GetBlueNoise().r;
+
+    vec3 ShadowDirection = normalize(u_StrongerLightDirection);
+  
+	for(int x = 0; x <= PCF_COUNT; x++)
+	{
+    #ifdef POISSON_DISK_SAMPLING
+        BlueNoise *= (2.0f * PI);
+        float SinTheta = sin(BlueNoise);
+        float CosTheta = cos(BlueNoise);
+        
+        mat3 RotationMatrix = mat3(vec3(CosTheta, -SinTheta, 0.0f), 
+                                   vec3(SinTheta, CosTheta, 0.0f), 
+                                   vec3(0.0f, 0.0f, 1.0f));
+        
+        vec3 RotatedPoissonSample = RotationMatrix * PoissonDisk3D[x];
+        
+        vec3 SampleWorldPosition = world_pos + (RotatedPoissonSample * 0.05f);
+    #else
+        vec3 BlueNoise = GetBlueNoise();
+        vec3 SampleWorldPosition = world_pos + BlueNoise * 0.05f;
+    #endif
+
+        float ShadowTMIN, ShadowTMAX;
+        bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), SampleWorldPosition, ShadowDirection, ShadowTMIN, ShadowTMAX);
+
+        if (PlayerIntersect)
+        {
+            shadow += 1.0f;
+            AVG++;
+        }
+
+        else
+        {
+            vec2 ReprojectShadow = ReprojectShadow(SampleWorldPosition);
+
+            if (ReprojectShadow.x > 0.0f && ReprojectShadow.x < 1.0f && ReprojectShadow.y > 0.0f && ReprojectShadow.y < 1.0f)
+            {
+                float ShadowAt = texture(u_ShadowTexture, ReprojectShadow).r;
+		        shadow += ShadowAt;        
+                AVG++;
+            }
+        }
+	}
+
+	shadow /= float(AVG);
+
+    return shadow;
+}
+
+bool IsInScreenSpaceBounds(in vec2 tx)
+{
+    if (tx.x > 0.0f && tx.y > 0.0f && tx.x < 1.0f && tx.y < 1.0f)
+    {
+        return true;
+    }
+
+    return false;
+}
+
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 8.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 0.18f;
@@ -375,6 +411,17 @@ const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.1f;
 
 void main()
 {
+    int RNG_SEED;
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800 * u_Time);
+
+	RNG_SEED ^= RNG_SEED << 13;
+    RNG_SEED ^= RNG_SEED >> 17;
+    RNG_SEED ^= RNG_SEED << 5;
+
+	BLUE_NOISE_IDX = int(floor(RNG_SEED));
+	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
+
+
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
     vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);
@@ -384,19 +431,9 @@ void main()
 
     if (WorldPosition.w > 0.0f)
     {
-        vec2 ReprojectedShadowPos = ReprojectShadow(WorldPosition.xyz);
         float RayTracedShadow = 0.0f;
         
-        if (IsInScreenSpaceBounds(ReprojectedShadowPos))
-        {
-            RayTracedShadow = ComputeShadow(ReprojectedShadowPos);
-        }
-
-        // Player shadow
-        vec3 ShadowDirection = normalize(u_StrongerLightDirection);
-        float ShadowTMIN, ShadowTMAX;
-        bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), WorldPosition.xyz, ShadowDirection, ShadowTMIN, ShadowTMAX);
-        RayTracedShadow = PlayerIntersect ? 1.0f : RayTracedShadow;
+        RayTracedShadow = ComputeShadow(WorldPosition.xyz);
 
         vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
         float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;

@@ -6,7 +6,7 @@ static bool VSync = false;
 static float InitialTraceResolution = 0.75f;
 static float DiffuseTraceResolution = 0.125f;
 
-static float ShadowTraceResolution = 0.40;
+static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.35;
 static float SSAOResolution = 0.35f;
 
