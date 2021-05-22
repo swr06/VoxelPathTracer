@@ -20,9 +20,10 @@ static bool GodRays = false;
 static bool LensFlare = false;
 static bool SSAO = true;
 
+static bool FullyDynamicShadows = false;
+
 static int GodRaysStepCount = 12;
 
-static bool FullyDynamicShadows = true;
 static bool AutoExposure = false;
 
 static glm::vec3 SunDirection;
@@ -66,8 +67,8 @@ public:
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 		ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
-		ImGui::Checkbox("Fully Dynamic Shadows?", &FullyDynamicShadows);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
+		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 		ImGui::Checkbox("God Rays?", &GodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
@@ -203,7 +204,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer TAAFBO1;
 	GLClasses::Framebuffer TAAFBO2;
 	GLClasses::TextureArray BlueNoise;
-	GLClasses::Framebuffer ShadowFBO;
+	GLClasses::Framebuffer ShadowFBO_1, ShadowFBO_2;
 	GLClasses::Framebuffer ReflectionTraceFBO;
 	GLClasses::Framebuffer DownsampledFBO;
 	GLClasses::Framebuffer AverageLumaFBO;
@@ -410,8 +411,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// 
 		DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
 
+
 		// Reflection and shadow FBOS
-		ShadowFBO.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
+		ShadowFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
+		ShadowFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 
 		// SSAO
@@ -662,7 +665,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 		glActiveTexture(GL_TEXTURE9);
-		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, ShadowFBO_1.GetTexture());
 
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
@@ -749,13 +752,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		// ---- SHADOW TRACE ----
+		GLClasses::Framebuffer& ShadowFBO = app.GetCurrentFrame() % 2 == 0 ? ShadowFBO_1 : ShadowFBO_2;
+		GLClasses::Framebuffer& PrevShadowFBO = app.GetCurrentFrame() % 2 == 0 ? ShadowFBO_2 : ShadowFBO_1;
 
-		bool UpdateShadows = FullyDynamicShadows ? true : (app.GetCurrentFrame() % 2 == 0);
-
-		if (ModifiedWorld || UpdateShadows)
 		{
-			ShadowProjection = CurrentProjection;
-			ShadowView = CurrentView;
+			bool DoFullTrace = FullyDynamicShadows ? true : (((app.GetCurrentFrame() % 5 == 0) || ModifiedWorld) ? true : false);
 
 			ShadowFBO.Bind();
 			ShadowTraceShader.Use();
@@ -764,8 +765,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetInteger("u_VoxelData", 1);
 			ShadowTraceShader.SetInteger("u_AlbedoTextures", 2);
 			ShadowTraceShader.SetInteger("u_NormalTexture", 3);
+			ShadowTraceShader.SetInteger("u_PrevShadowFBO", 4);
 			ShadowTraceShader.SetVector3f("u_LightDirection", StrongerLightDirection);
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
+			ShadowTraceShader.SetBool("u_DoFullTrace", DoFullTrace);
+			ShadowTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
+			ShadowTraceShader.SetMatrix4("u_ShadowView", ShadowView);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
@@ -779,11 +784,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
 
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, PrevShadowFBO.GetTexture());
+
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
 			ShadowFBO.Unbind();
+
+			ShadowProjection = CurrentProjection;
+			ShadowView = CurrentView;
 		}
 
 		// ---- COLOR PASS ----

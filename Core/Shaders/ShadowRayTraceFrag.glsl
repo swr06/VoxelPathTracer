@@ -14,7 +14,12 @@ uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2DArray u_AlbedoTextures;
+uniform sampler2D u_PrevShadowFBO;
+
 uniform vec4 BLOCK_TEXTURE_DATA[128];
+uniform bool u_DoFullTrace;
+uniform mat4 u_ShadowProjection;
+uniform mat4 u_ShadowView;
 
 uniform vec3 u_LightDirection;
 
@@ -248,26 +253,69 @@ float voxel_traversal(vec3 orig, vec3 direction)
 	return T;
 }
 
+vec2 ReprojectShadow (in vec3 pos)
+{
+	vec4 Projected = u_ShadowProjection * u_ShadowView * vec4(pos, 1.0f);
+	Projected.xyz /= Projected.w;
+	Projected.xy = Projected.xy * 0.5f + 0.5f;
+
+	return Projected.xy;
+}
+
 void main()
 {
 	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
 	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
 	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
 
-	float T = -1.0f;
-	 
-	if (RayOrigin.w > 0.0f) 
+	if (u_DoFullTrace)
 	{
-		T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
+		float T = -1.0f;
+		 
+		if (RayOrigin.w > 0.0f) 
+		{
+			T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
+		}
+
+		if (T > 0.0f) 
+		{ 
+			o_Shadow = 1.0f; 
+		}
+		
+		else 
+		{ 
+			o_Shadow = 0.0f; 
+		}
 	}
 
-	if (T > 0.0f) 
-	{ 
-		o_Shadow = 1.0f; 
-	}
-	
 	else 
-	{ 
-		o_Shadow = 0.0f; 
+	{
+		vec2 PreviousFrameReprojected = ReprojectShadow(RayOrigin.xyz);
+
+	    if (PreviousFrameReprojected.x > 0.0f && PreviousFrameReprojected.x < 1.0f && PreviousFrameReprojected.y > 0.0f && PreviousFrameReprojected.y < 1.0f)
+		{
+			o_Shadow = texture(u_PrevShadowFBO, PreviousFrameReprojected).r;
+			return;
+		}
+
+		else 
+		{
+			float T = -1.0f;
+			 
+			if (RayOrigin.w > 0.0f) 
+			{
+				T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
+			}
+
+			if (T > 0.0f) 
+			{ 
+				o_Shadow = 1.0f; 
+			}
+			
+			else 
+			{ 
+				o_Shadow = 0.0f; 
+			}
+		}
 	}
 }
