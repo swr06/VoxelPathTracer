@@ -171,6 +171,14 @@
 	PBR : Res/Block/Brick2/PBR.png
 }
 
+
+{
+	Name : Rock
+	Albedo : Res/Block/Rock/Albedo.png
+	Normal : Res/Block/Rock/Normal.png
+	PBR : Res/Block/Rock/PBR.png
+}
+
 {
 	Name : WhiteBricks
 	Albedo : Res/Block/WhiteBricks/Albedo.png

@@ -43,8 +43,8 @@ vec3 hemispherepoint_uniform(float u, float v) {
 
 float nextFloat(inout int seed, in float min, in float max);
 
-const float Radius = 0.6f; 
-const float Bias = 0.3f;
+const float Radius = 0.125f; 
+const float Bias = 0.01f;
 
 int RNG_SEED;
 

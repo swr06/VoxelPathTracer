@@ -73,8 +73,8 @@ public:
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
-		ImGui::Checkbox("(Volumetric) God Rays? (Slightly inaccurate)", &GodRays);
-		ImGui::Checkbox("(Non-Volumetric) God Rays? (faster, more crisp)", &FakeGodRays);
+		ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
+		ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 		ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
