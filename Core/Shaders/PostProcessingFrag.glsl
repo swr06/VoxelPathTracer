@@ -51,7 +51,8 @@ uniform vec2 u_Dimensions;
 uniform bool u_SunIsStronger;
 
 uniform bool u_LensFlare = true;
-uniform bool u_GodRays = true;
+uniform bool u_GodRays = false;
+uniform bool u_SSGodRays = false;
 uniform bool u_SSAO = false;
 uniform bool u_Bloom = false;
 
@@ -62,10 +63,14 @@ uniform sampler2D u_FramebufferTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 
+uniform sampler2D u_VolumetricTexture;
+
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_SSAOTexture;
 
 uniform sampler2D u_BloomMips[4];
+
+uniform sampler2D u_ShadowTexture;
 
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
@@ -387,11 +392,22 @@ void main()
 		ColorGrading(InputColor);
 		ColorSaturation(InputColor);
 
+		float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
+
 		if (u_GodRays)
 		{
-			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz);
+			float intensity = u_SunIsStronger ? 0.55f : 0.1f;
+			float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity;
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
-			InputColor += ss_volumetric_color * god_rays;
+			InputColor += god_rays * ss_volumetric_color;
+			fake_vol_multiplier = 0.5f;
+		}
+
+		if (u_SSGodRays)
+		{
+			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz) * fake_vol_multiplier;
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			InputColor += god_rays * ss_volumetric_color;
 		}
 
 		InputColor = ACESFitted(vec4(InputColor, 1.0f), u_Exposure + 0.01f).rgb;

@@ -10,7 +10,7 @@ namespace GLClasses
 	class FramebufferRed
 	{
 	public:
-		FramebufferRed(unsigned int w, unsigned int h);
+		FramebufferRed(unsigned int w = 16, unsigned int h = 16);
 		~FramebufferRed();
 
 		FramebufferRed(const FramebufferRed&) = delete;

@@ -10,6 +10,8 @@ static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.35;
 static float SSAOResolution = 0.35f;
 
+static float VolumetricResolution = 0.5f;
+
 static float SunTick = 50.0f;
 static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
@@ -17,6 +19,8 @@ static float LensFlareIntensity = 0.075f;
 static bool Bloom = true;
 
 static bool GodRays = false;
+static bool FakeGodRays = false;
+
 static bool LensFlare = false;
 static bool SSAO = true;
 
@@ -69,7 +73,8 @@ public:
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
-		ImGui::Checkbox("God Rays?", &GodRays);
+		ImGui::Checkbox("(Volumetric) God Rays? (Slightly inaccurate)", &GodRays);
+		ImGui::Checkbox("(Non-Volumetric) God Rays? (faster, more crisp)", &FakeGodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 		ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
@@ -192,6 +197,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader SSAO_Blur;
 	GLClasses::Shader SimpleDownsample;
 	GLClasses::Shader LumaAverager;
+	GLClasses::Shader VolumetricScattering;
+	GLClasses::Shader BilateralBlur;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -208,6 +215,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer ReflectionTraceFBO;
 	GLClasses::Framebuffer DownsampledFBO;
 	GLClasses::Framebuffer AverageLumaFBO;
+	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
 
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 
@@ -254,6 +262,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 	SimpleDownsample.CompileShaders();
 	LumaAverager.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
 	LumaAverager.CompileShaders();
+	VolumetricScattering.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/VolumetricLighting.glsl");
+	VolumetricScattering.CompileShaders();
+	BilateralBlur.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
+	BilateralBlur.CompileShaders();
 
 	SSAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
 	SSAOShader.CompileShaders();
@@ -421,6 +433,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
 		SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
 
+		// Volumetrics
+		VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution , app.GetHeight() * VolumetricResolution);
+		BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution , app.GetHeight() * VolumetricResolution);
+
 		BloomFBO.SetSize(app.GetWidth() * 0.75f, app.GetHeight() * 0.75f);
 
 		///
@@ -445,6 +461,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.Recompile();
 			SSAOShader.Recompile();
 			SSAO_Blur.Recompile();
+			SimpleDownsample.Recompile();
+			LumaAverager.Recompile();
+			VolumetricScattering.Recompile();
+			BilateralBlur.Recompile();
+
 			BloomRenderer::RecompileShaders();
 
 			///// Set the block texture data uniforms    /////
@@ -1047,6 +1068,78 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		}
 
+		// ---- Volumetric Scattering ----
+
+		if (GodRays)
+		{
+			VolumetricFBO.Bind();
+			VolumetricScattering.Use();
+
+			VolumetricScattering.SetInteger("u_PositionTexture", 0);
+			VolumetricScattering.SetInteger("u_BlueNoiseTexture", 1);
+			VolumetricScattering.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
+			VolumetricScattering.SetVector2f("u_Dimensions", glm::vec2(VolumetricFBO.GetWidth(), VolumetricFBO.GetHeight()));
+			VolumetricScattering.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
+			VolumetricScattering.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			VolumetricFBO.Unbind();
+
+			// Horizontal Blur 
+
+			BlurredVolumetricFBO.Bind();
+			BilateralBlur.Use();
+
+			BilateralBlur.SetFloat("u_Sharpness", 0.5f);
+			BilateralBlur.SetVector2f("u_InvResolutionDirection", glm::vec2(1.0f / BlurredVolumetricFBO.GetWidth(), 0.0f));
+			BilateralBlur.SetInteger("u_ColorTexture", 0);
+			BilateralBlur.SetInteger("u_PositionTexture", 1);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, VolumetricFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			BlurredVolumetricFBO.Unbind();
+
+			// Vertical blur
+
+			VolumetricFBO.Bind();
+
+			BilateralBlur.Use();
+
+			BilateralBlur.SetFloat("u_Sharpness", 0.5f);
+			BilateralBlur.SetVector2f("u_InvResolutionDirection", glm::vec2(0.0f, 1.0f / BlurredVolumetricFBO.GetHeight()));
+			BilateralBlur.SetInteger("u_ColorTexture", 0);
+			BilateralBlur.SetInteger("u_PositionTexture", 1);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, BlurredVolumetricFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			VolumetricFBO.Unbind();
+		}
+
 
 		// ---- POST PROCESSING ----
 
@@ -1060,6 +1153,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BlueNoise", 2);
 		PostProcessingShader.SetInteger("u_SSAOTexture", 3);
 		PostProcessingShader.SetInteger("u_PositionTexture", 4);
+		PostProcessingShader.SetInteger("u_VolumetricTexture", 10);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1071,6 +1165,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_GodRays", GodRays);
 		PostProcessingShader.SetBool("u_SSAO", SSAO);
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
+		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 
@@ -1079,6 +1174,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[1]", 6);
 		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
+		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -1108,6 +1204,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip3);
 		//
+
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, ShadowFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_2D, VolumetricFBO.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

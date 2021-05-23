@@ -242,6 +242,8 @@
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />
+    <None Include="Core\Shaders\BilateralBlur.glsl" />
+    <None Include="Core\Shaders\BilateralBlurNonDepthGuided.glsl" />
     <None Include="Core\Shaders\BloomMaskFrag.glsl" />
     <None Include="Core\Shaders\CalculateAverageLuminance.glsl" />
     <None Include="Core\Shaders\ColorPassFrag.glsl" />
@@ -265,6 +267,7 @@
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />
     <None Include="Core\Shaders\TemporalAA.glsl" />
+    <None Include="Core\Shaders\VolumetricLighting.glsl" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>
