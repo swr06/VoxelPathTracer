@@ -7,7 +7,7 @@ static float InitialTraceResolution = 0.75f;
 static float DiffuseTraceResolution = 0.125f;
 
 static float ShadowTraceResolution = 0.50;
-static float ReflectionTraceResolution = 0.35;
+static float ReflectionTraceResolution = 0.65;
 static float SSAOResolution = 0.35f;
 
 static float VolumetricResolution = 0.5f;
@@ -22,7 +22,7 @@ static bool GodRays = false;
 static bool FakeGodRays = false;
 
 static bool LensFlare = false;
-static bool SSAO = true;
+static bool SSAO = false;
 
 static bool FullyDynamicShadows = false;
 
@@ -818,6 +818,75 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowView = CurrentView;
 		}
 
+		// ---- REFLECTION TRACE ----
+
+
+		{
+			ReflectionTraceFBO.Bind();
+			ReflectionTraceShader.Use();
+
+			ReflectionTraceShader.SetInteger("u_PositionTexture", 0);
+			ReflectionTraceShader.SetInteger("u_PBRTexture", 1);
+			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 2);
+			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
+			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
+			ReflectionTraceShader.SetInteger("u_BlockPBRTextures", 6);
+			ReflectionTraceShader.SetInteger("u_Skymap", 7);
+			ReflectionTraceShader.SetInteger("u_VoxelData", 8);
+			ReflectionTraceShader.SetInteger("u_BlueNoiseTexture", 9);
+			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
+			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
+			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
+			ReflectionTraceShader.SetVector2f("u_Dimensions", glm::vec2(ReflectionTraceFBO.GetWidth(), ReflectionTraceFBO.GetHeight()));
+			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
+			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[3]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[4]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[5]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[6]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetDataTexture());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
+
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
+
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
+
+			glActiveTexture(GL_TEXTURE7);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
+
+			glActiveTexture(GL_TEXTURE8);
+			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE9);
+			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			ReflectionTraceFBO.Unbind();
+		}
+
 		// ---- COLOR PASS ----
 
 		ReflectionProjection = PreviousProjection;
@@ -892,61 +961,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		ColoredFBO.Unbind();
-
-		// ----- REFLECTION TRACE -----
-
-		{
-			ReflectionTraceFBO.Bind();
-			ReflectionTraceShader.Use();
-
-			ReflectionTraceShader.SetInteger("u_PositionTexture", 0);
-			ReflectionTraceShader.SetInteger("u_NormalTexture", 1);
-			ReflectionTraceShader.SetInteger("u_PBRTexture", 2);
-			ReflectionTraceShader.SetInteger("u_VoxelData", 3);
-			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
-			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
-			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
-			ReflectionTraceShader.SetInteger("u_Skymap", 6);
-			ReflectionTraceShader.SetInteger("u_BlockPBRTextures", 8);
-			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 7);
-			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
-			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
-			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
-			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
-
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
-
-			glActiveTexture(GL_TEXTURE3);
-			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
-
-			glActiveTexture(GL_TEXTURE4);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
-
-			glActiveTexture(GL_TEXTURE5);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
-
-			glActiveTexture(GL_TEXTURE6);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
-
-			glActiveTexture(GL_TEXTURE7);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
-
-			glActiveTexture(GL_TEXTURE8);
-			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
-
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
-
-			ReflectionTraceFBO.Unbind();
-		}
 
 		// ----- TAA ----- //
 

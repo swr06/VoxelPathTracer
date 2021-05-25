@@ -13,9 +13,9 @@ layout (location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 
 uniform sampler2D u_PositionTexture;
-uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
 uniform sampler2D u_PBRTexture;
+uniform sampler2D u_BlueNoiseTexture;
 
 uniform sampler3D u_VoxelData;
 uniform samplerCube u_Skymap;
@@ -23,9 +23,12 @@ uniform samplerCube u_Skymap;
 uniform vec3 BLOCK_TEXTURE_DATA[128];
 uniform float u_ReflectionTraceRes;
 
+uniform vec2 u_Dimensions;
 uniform vec3 u_SunDirection;
 uniform vec3 u_StrongerLightDirection;
 uniform float u_Time;
+
+uniform int u_GrassBlockProps[10];
 
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
@@ -174,91 +177,156 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
+int BLUE_NOISE_IDX = 0;
+
+float GetBlueNoise()
+{
+	BLUE_NOISE_IDX++;
+	vec2 txc =  vec2(BLUE_NOISE_IDX / 255, mod(BLUE_NOISE_IDX, 255));
+	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
+}
+
+vec3 ImportanceSampleGGX(vec3 N, float roughness)
+{
+	vec2 Xi;
+
+	Xi.x = GetBlueNoise();
+	Xi.y = GetBlueNoise();
+
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
+	
+    float phi = 2.0 * PI * Xi.x;
+    float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (alpha2 - 1.0) * Xi.y));
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+	
+    vec3 H;
+    H.x = cos(phi) * sinTheta;
+    H.y = sin(phi) * sinTheta;
+    H.z = cosTheta;
+	
+    vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tangent = normalize(cross(up, N));
+    vec3 bitangent = cross(N, tangent);
+	
+    vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
+    return normalize(sampleVec);
+} 
+
+
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 7.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
 
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.1f; 
 const vec3 NIGHT_AMBIENT  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.76f; 
 
+const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
 void main()
 {
 	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
 	
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * textureSize(u_PositionTexture, 0).x;
+	RNG_SEED ^= RNG_SEED << 13;
+    RNG_SEED ^= RNG_SEED >> 17;
+    RNG_SEED ^= RNG_SEED << 5;
+	BLUE_NOISE_IDX = int(floor(RNG_SEED));
+	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
 	vec3 SampledWorldPosition = texture(u_PositionTexture, v_TexCoords).rgb;
-	vec3 NormalMap = texture(u_NormalTexture, v_TexCoords).rgb;
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, v_TexCoords).rgb;
 
-	vec3 NormalMapped = normalize(InitialTraceNormal + (NormalMap * 0.25f));
-	vec3 SampledPBR = texture(u_PBRTexture, v_TexCoords).rgb;
-	float MetalnessAt = SampledPBR.g;
-	float RoughnessAt = SampledPBR.r;
+	vec4 data = texture(u_PBRTexture, v_TexCoords);
+	vec2 iUV;
+	CalculateUV(SampledWorldPosition, InitialTraceNormal, iUV);
+	
+    vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
+	float RoughnessAt = PBRMap.r;
+	float MetalnessAt = PBRMap.g;
 
-	if (MetalnessAt > 0.1f)
+	if ((1.0f - RoughnessAt) < 0.064f)
 	{
-		vec3 ReflectionNormal = InitialTraceNormal;
-				
-		#ifdef JITTER_BASED_ON_ROUGHNESS
-		vec3 RandomDirection = RandomPointInUnitSphereRejective();
-		float JitterAmount = (u_ReflectionTraceRes) * RoughnessAt * 0.05f;
-		ReflectionNormal += RandomDirection * JitterAmount;
-		#endif
+		o_Color = vec3(-0.5f);
+	}
 
-		vec3 I = normalize(SampledWorldPosition - u_ViewerPosition);
-		vec3 R = normalize(reflect(I, ReflectionNormal));
-		vec3 Normal;
-		float Blocktype;
+	vec3 ReflectionNormal = ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.3f);
 
-		float T = voxel_traversal(SampledWorldPosition, R, Normal, Blocktype, 100);
-		vec3 HitPosition = SampledWorldPosition + (R * T);
+	vec3 I = normalize(SampledWorldPosition - u_ViewerPosition);
+	vec3 R = normalize(reflect(I, ReflectionNormal));
+	vec3 Normal;
+	float Blocktype;
 
-		vec2 UV; 
-		vec3 Tangent, Bitangent;
-		CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV);
+	float T = voxel_traversal(SampledWorldPosition, R, Normal, Blocktype, 100);
+	vec3 HitPosition = SampledWorldPosition + (R * T);
 
-		if (T > 0.0f)
+	vec2 UV; 
+	vec3 Tangent, Bitangent;
+	CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+
+	if (T > 0.0f)
+	{
+		int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
+		vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+
+		if (reference_id == u_GrassBlockProps[0])
 		{
-			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
-			vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+		    if (Normal == NORMAL_LEFT || Normal == NORMAL_RIGHT || Normal == NORMAL_FRONT || Normal == NORMAL_BACK)
+			{
+				texture_ids.x = u_GrassBlockProps[4];
+				texture_ids.y = u_GrassBlockProps[5];
+				texture_ids.z = u_GrassBlockProps[6];
+			}
 
-			mat3 TBN;
-			TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
+			else if (Normal == NORMAL_TOP)
+			{
+				texture_ids.x = u_GrassBlockProps[1];
+				texture_ids.y = u_GrassBlockProps[2];
+				texture_ids.z = u_GrassBlockProps[3];
+			}
 
-			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
-			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
-			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR; Radiance *= 3.56f;
-			vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
-			Ambient = (Albedo * Ambient);
+			else if (Normal == NORMAL_BOTTOM)
+			{
+				texture_ids.x = u_GrassBlockProps[7];
+				texture_ids.y = u_GrassBlockProps[8];
+				texture_ids.z = u_GrassBlockProps[9];
+			}
+		}
+
+		mat3 TBN;
+		TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
+
+		vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
+		bool SunStronger = u_StrongerLightDirection == u_SunDirection;
+		vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR; Radiance *= 3.56f;
+		vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
+		Ambient = (Albedo * Ambient);
 			
-			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
-			float AO = pow(SampledPBR.w, 2.0f);
+		vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
+		float AO = pow(SampledPBR.w, 2.0f);
 
-			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting = (Ambient * 0.5f) + 
-								   CalculateDirectionalLight(HitPosition, 
-															 u_StrongerLightDirection, 
-															 Radiance, 
-															 Albedo, 
-															 NormalMapped, 
-															 SampledPBR.xyz,
-															 GetShadowAt(HitPosition, u_StrongerLightDirection));
-			o_Color = DirectLighting;
-			o_Color *= AO;
-            o_Color = max(o_Color, vec3(0.01f));
-		}
-
-		else 
-		{
-			o_Color = vec3(-0.5f);
-		}
+		vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
+		vec3 DirectLighting = (Ambient * 0.5f) + 
+								CalculateDirectionalLight(HitPosition, 
+															u_StrongerLightDirection, 
+															Radiance, 
+															Albedo, 
+															NormalMapped, 
+															SampledPBR.xyz,
+															GetShadowAt(HitPosition, u_StrongerLightDirection));
+		o_Color = DirectLighting;
+		o_Color *= AO;
+        o_Color = max(o_Color, vec3(0.01f));
 	}
 
 	else 
 	{
-		o_Color = vec3(-1.0f);
+		o_Color = vec3(-0.5f);
 	}
-
 }
 
 bool IsInVoxelizationVolume(in vec3 pos)

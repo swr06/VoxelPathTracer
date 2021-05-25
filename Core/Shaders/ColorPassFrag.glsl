@@ -489,7 +489,7 @@ void main()
 
             if (ReflectionTrace.x > -0.9f && ReflectionTrace.y > -0.9 && ReflectionTrace.z > -0.9)
             {
-                float ReflectionRatio = PBRMap.g * 0.4f;
+                float ReflectionRatio = PBRMap.g;
 
                 if (ReflectionTrace.x < -0.02f && ReflectionTrace.y < -0.02f && ReflectionTrace.z < -0.02f)
                 {
