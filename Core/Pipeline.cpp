@@ -198,6 +198,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader LumaAverager;
 	GLClasses::Shader VolumetricScattering;
 	GLClasses::Shader BilateralBlur;
+	GLClasses::Shader ReflectionDenoiser;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -264,6 +265,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VolumetricScattering.CompileShaders();
 	BilateralBlur.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
 	BilateralBlur.CompileShaders();
+	ReflectionDenoiser.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/AdaptiveReflectionDenoise.glsl");
+	ReflectionDenoiser.CompileShaders();
 
 	SSAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
 	SSAOShader.CompileShaders();
@@ -468,6 +471,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			LumaAverager.Recompile();
 			VolumetricScattering.Recompile();
 			BilateralBlur.Recompile();
+			ReflectionDenoiser.Recompile();
 
 			BloomRenderer::RecompileShaders();
 
@@ -923,18 +927,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Denoise reflection trace
 		{
 			ReflectionDenoised.Bind();
-			DenoiseFilter.Use();
+			ReflectionDenoiser.Use();
 
-			DenoiseFilter.SetInteger("u_Texture", 0);
-			DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 1);
-			DenoiseFilter.SetInteger("u_Radius", 12);
-			DenoiseFilter.SetFloat("u_EdgeThreshold", 0.150f);
+			ReflectionDenoiser.SetInteger("u_Texture", 0);
+			ReflectionDenoiser.SetInteger("u_PBRTexture", 1);
+			ReflectionDenoiser.SetInteger("u_Radius", 12);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1313,6 +1316,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Finish Frame
 		app.FinishFrame();
+		
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glUseProgram(0);
+		glDisable(GL_BLEND);
+		glDisable(GL_CULL_FACE);
 
 		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "  ";
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);

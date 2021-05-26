@@ -410,7 +410,7 @@ void main()
 			float AO = pow(SampledPBR.w, 2.0f);
 
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting = (Ambient * 0.5f) + 
+			vec3 DirectLighting = (Ambient * 0.6f) + 
 									CalculateDirectionalLight(HitPosition, 
 																u_StrongerLightDirection, 
 																Radiance, 

@@ -240,6 +240,7 @@
   <ItemGroup>
     <None Include="Core\Shaders\2DElementShaderFrag.glsl" />
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
+    <None Include="Core\Shaders\AdaptiveReflectionDenoise.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />
     <None Include="Core\Shaders\BilateralBlur.glsl" />
