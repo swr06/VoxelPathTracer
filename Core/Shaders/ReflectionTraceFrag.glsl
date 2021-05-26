@@ -344,6 +344,12 @@ void main()
 		suv = vec2(u, v);
 
 		vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+
+		if (SampledWorldPosition.w <= 0.0f) 
+		{
+			continue;
+		}
+
 		vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
 		vec4 data = texture(u_PBRTexture, suv);
 
@@ -354,7 +360,7 @@ void main()
 		float RoughnessAt = PBRMap.r;
 		float MetalnessAt = PBRMap.g;
 
-		vec3 ReflectionNormal = ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f);
+		vec3 ReflectionNormal = RoughnessAt > 0.075f ? ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f) : InitialTraceNormal;
 
 		vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
 		vec3 R = normalize(reflect(I, ReflectionNormal));
@@ -442,7 +448,7 @@ void main()
 		total_hits++;
 	}
 
-	o_Color = (TotalColor / float(total_hits));
+	o_Color = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
 }
 
 bool IsInVoxelizationVolume(in vec3 pos)
