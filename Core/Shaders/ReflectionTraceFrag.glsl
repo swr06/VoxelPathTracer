@@ -20,7 +20,7 @@ uniform sampler2D u_BlueNoiseTexture;
 uniform sampler3D u_VoxelData;
 uniform samplerCube u_Skymap;
 
-uniform vec3 BLOCK_TEXTURE_DATA[128];
+uniform vec4 BLOCK_TEXTURE_DATA[128];
 uniform float u_ReflectionTraceRes;
 
 uniform vec2 u_Dimensions;
@@ -174,7 +174,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     float NdotL = max(dot(normal, L), 0.0);
 	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
 
-    return clamp(Result, 0.0f, 2.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+    return clamp(Result, 0.0f, 1000.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 int BLUE_NOISE_IDX = 0;
@@ -213,6 +213,94 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness)
     return normalize(sampleVec);
 } 
 
+float Noise2d( in vec2 x )
+{
+    float xhash = cos( x.x * 37.0 );
+    float yhash = cos( x.y * 57.0 );
+    return fract( 415.92653 * ( xhash + yhash ) );
+}
+
+float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float StarVal = Noise2d( vSamplePos );
+    if ( StarVal >= fThreshhold )
+        StarVal = pow( (StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
+    else
+        StarVal = 0.0;
+    return StarVal;
+}
+
+// Original star shader by : https://www.shadertoy.com/view/Md2SR3
+float StableStarField( in vec2 vSamplePos, float fThreshhold )
+{
+    float fractX = fract( vSamplePos.x );
+    float fractY = fract( vSamplePos.y );
+    vec2 floorSample = floor( vSamplePos );
+    float v1 = NoisyStarField( floorSample, fThreshhold );
+    float v2 = NoisyStarField( floorSample + vec2( 0.0, 1.0 ), fThreshhold );
+    float v3 = NoisyStarField( floorSample + vec2( 1.0, 0.0 ), fThreshhold );
+    float v4 = NoisyStarField( floorSample + vec2( 1.0, 1.0 ), fThreshhold );
+
+    float StarVal =   v1 * ( 1.0 - fractX ) * ( 1.0 - fractY )
+        			+ v2 * ( 1.0 - fractX ) * fractY
+        			+ v3 * fractX * ( 1.0 - fractY )
+        			+ v4 * fractX * fractY;
+	return StarVal;
+}
+
+float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+float stars(vec3 fragpos)
+{
+    if (fragpos.y < 0.24f) { return 0.0f; }
+
+	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	vec2 uv = fragpos.xz / (1.0f + elevation);
+
+    float star = StableStarField(uv * 700.0f, 0.999);
+    
+    // Star shimmer
+    float rand_val = rand(fragpos.xy);
+    star *= (rand_val + sin(u_Time * rand_val) * 1.5f);
+
+	return clamp(star, 0.0f, 100000.0f) * 30.0f;
+}
+
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
+const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+
+bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
+{
+    vec3 sun_dir = normalize(u_SunDirection); 
+    vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
+
+    vec3 ray_dir = normalize(in_ray_dir);
+    vec3 atmosphere = texture(u_Skymap, ray_dir).rgb;
+    bool intersect = false;
+
+    if(dot(ray_dir, sun_dir) > 0.9997f)
+    {
+        atmosphere *= ATMOSPHERE_SUN_COLOR * 3.0f; intersect = true;
+    }
+
+    if(dot(ray_dir, moon_dir) > 0.99986f)
+    {
+        atmosphere *= ATMOSPHERE_MOON_COLOR * 50.0f; intersect = true;
+    }
+
+    float star_visibility;
+    star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
+    vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
+    stars = clamp(stars, 0.0f, 1.3f);
+
+    atmosphere += stars;
+
+    atmosphere_color = atmosphere;
+
+    return intersect;
+}
 
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 7.4f;
 const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
@@ -231,102 +319,130 @@ void main()
 {
 	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
 	
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * textureSize(u_PositionTexture, 0).x;
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	BLUE_NOISE_IDX = int(floor(RNG_SEED));
 	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
-	vec3 SampledWorldPosition = texture(u_PositionTexture, v_TexCoords).rgb;
-	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, v_TexCoords).rgb;
+	vec2 Pixel;
+	Pixel.x = v_TexCoords.x * u_Dimensions.x;
+	Pixel.y = v_TexCoords.y * u_Dimensions.y;
 
-	vec4 data = texture(u_PBRTexture, v_TexCoords);
-	vec2 iUV;
-	CalculateUV(SampledWorldPosition, InitialTraceNormal, iUV);
-	
-    vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
-	float RoughnessAt = PBRMap.r;
-	float MetalnessAt = PBRMap.g;
+	const int SPP = 2;
+	int total_hits = 0;
+	vec3 TotalColor = vec3(0.0f);
 
-	if ((1.0f - RoughnessAt) < 0.064f)
+	for (int s = 0 ; s < SPP ; s++)
 	{
-		o_Color = vec3(-0.5f);
-	}
+		vec2 suv;
 
-	vec3 ReflectionNormal = ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.3f);
+		float u = (Pixel.x + GetBlueNoise()) / u_Dimensions.x;
+		float v = (Pixel.y + GetBlueNoise()) / u_Dimensions.y;
 
-	vec3 I = normalize(SampledWorldPosition - u_ViewerPosition);
-	vec3 R = normalize(reflect(I, ReflectionNormal));
-	vec3 Normal;
-	float Blocktype;
+		suv = vec2(u, v);
 
-	float T = voxel_traversal(SampledWorldPosition, R, Normal, Blocktype, 100);
-	vec3 HitPosition = SampledWorldPosition + (R * T);
+		vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+		vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
+		vec4 data = texture(u_PBRTexture, suv);
 
-	vec2 UV; 
-	vec3 Tangent, Bitangent;
-	CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+		vec2 iUV;
+		CalculateUV(SampledWorldPosition.xyz, InitialTraceNormal, iUV);
+		
+		vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
+		float RoughnessAt = PBRMap.r;
+		float MetalnessAt = PBRMap.g;
 
-	if (T > 0.0f)
-	{
-		int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
-		vec3 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+		vec3 ReflectionNormal = ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f);
 
-		if (reference_id == u_GrassBlockProps[0])
+		vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
+		vec3 R = normalize(reflect(I, ReflectionNormal));
+		vec3 Normal;
+		float Blocktype;
+
+		float T = voxel_traversal(SampledWorldPosition.xyz, R, Normal, Blocktype, 100);
+		vec3 HitPosition = SampledWorldPosition.xyz + (R * T);
+
+		vec2 UV; 
+		vec3 Tangent, Bitangent;
+		CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+
+		if (T > 0.0f)
 		{
-		    if (Normal == NORMAL_LEFT || Normal == NORMAL_RIGHT || Normal == NORMAL_FRONT || Normal == NORMAL_BACK)
+			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
+			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
+
+			if (reference_id == u_GrassBlockProps[0])
 			{
-				texture_ids.x = u_GrassBlockProps[4];
-				texture_ids.y = u_GrassBlockProps[5];
-				texture_ids.z = u_GrassBlockProps[6];
+			    if (Normal == NORMAL_LEFT || Normal == NORMAL_RIGHT || Normal == NORMAL_FRONT || Normal == NORMAL_BACK)
+				{
+					texture_ids.x = u_GrassBlockProps[4];
+					texture_ids.y = u_GrassBlockProps[5];
+					texture_ids.z = u_GrassBlockProps[6];
+				}
+
+				else if (Normal == NORMAL_TOP)
+				{
+					texture_ids.x = u_GrassBlockProps[1];
+					texture_ids.y = u_GrassBlockProps[2];
+					texture_ids.z = u_GrassBlockProps[3];
+				}
+
+				else if (Normal == NORMAL_BOTTOM)
+				{
+					texture_ids.x = u_GrassBlockProps[7];
+					texture_ids.y = u_GrassBlockProps[8];
+					texture_ids.z = u_GrassBlockProps[9];
+				}
 			}
 
-			else if (Normal == NORMAL_TOP)
-			{
-				texture_ids.x = u_GrassBlockProps[1];
-				texture_ids.y = u_GrassBlockProps[2];
-				texture_ids.z = u_GrassBlockProps[3];
-			}
+			mat3 TBN;
+			TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
 
-			else if (Normal == NORMAL_BOTTOM)
-			{
-				texture_ids.x = u_GrassBlockProps[7];
-				texture_ids.y = u_GrassBlockProps[8];
-				texture_ids.z = u_GrassBlockProps[9];
-			}
+			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
+			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
+			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR; Radiance *= 3.56f;
+			vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
+			Ambient = (Albedo * Ambient);
+				
+			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
+			float AO = pow(SampledPBR.w, 2.0f);
+
+			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
+			vec3 DirectLighting = (Ambient * 0.5f) + 
+									CalculateDirectionalLight(HitPosition, 
+																u_StrongerLightDirection, 
+																Radiance, 
+																Albedo, 
+																NormalMapped, 
+																SampledPBR.xyz,
+																GetShadowAt(HitPosition, u_StrongerLightDirection) * 0.9);
+			
+			vec3 Computed;
+			Computed = DirectLighting;
+			Computed *= AO;
+			TotalColor += Computed;
+
 		}
 
-		mat3 TBN;
-		TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
+		else
+		{
+			bool BodyIntersect;
+			vec3 AtmosphereColor;
 
-		vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
-		bool SunStronger = u_StrongerLightDirection == u_SunDirection;
-		vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR; Radiance *= 3.56f;
-		vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
-		Ambient = (Albedo * Ambient);
-			
-		vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
-		float AO = pow(SampledPBR.w, 2.0f);
+			vec3 AtmosphereRayDir = R;
+			AtmosphereRayDir.y = clamp(R.y, 0.1f, 1.5f);
 
-		vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
-		vec3 DirectLighting = (Ambient * 0.5f) + 
-								CalculateDirectionalLight(HitPosition, 
-															u_StrongerLightDirection, 
-															Radiance, 
-															Albedo, 
-															NormalMapped, 
-															SampledPBR.xyz,
-															GetShadowAt(HitPosition, u_StrongerLightDirection));
-		o_Color = DirectLighting;
-		o_Color *= AO;
-        o_Color = max(o_Color, vec3(0.01f));
+			BodyIntersect = GetAtmosphere(AtmosphereColor, AtmosphereRayDir);
+			TotalColor += AtmosphereColor * 1.6f;
+		}
+
+
+		total_hits++;
 	}
 
-	else 
-	{
-		o_Color = vec3(-0.5f);
-	}
+	o_Color = (TotalColor / float(total_hits));
 }
 
 bool IsInVoxelizationVolume(in vec3 pos)
@@ -497,6 +613,23 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 				normal = vec3(0, 0, 1) * -stepZ;
 			}
 
+			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
+			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
+
+			if (transparent)
+			{
+				vec3 hit_position = orig + (direction * T);
+				vec2 uv;
+
+				CalculateUV(hit_position, normal, uv); uv.y = 1.0f - uv.y;
+
+				if (textureLod(u_BlockAlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 1).a < 0.05f)
+				{
+					T = -1.0f;
+					continue;
+				}
+			}
+
 			break;
 		}
 	}
@@ -626,7 +759,7 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 
 float GetShadowAt(in vec3 pos, in vec3 ldir)
 {
-	vec3 RayDirection = normalize(ldir - (ldir * 0.1f));
+	vec3 RayDirection = normalize(ldir);
 	
 	float T = -1.0f;
 	 

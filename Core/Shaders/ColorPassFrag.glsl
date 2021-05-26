@@ -486,24 +486,9 @@ void main()
 
             vec2 ReprojectedReflectionCoord = v_TexCoords;
             vec3 ReflectionTrace = texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
-
-            if (ReflectionTrace.x > -0.9f && ReflectionTrace.y > -0.9 && ReflectionTrace.z > -0.9)
-            {
-                float ReflectionRatio = PBRMap.g;
-
-                if (ReflectionTrace.x < -0.02f && ReflectionTrace.y < -0.02f && ReflectionTrace.z < -0.02f)
-                {
-                    vec3 I = normalize(WorldPosition.xyz - u_ViewerPosition);
-	        	    vec3 R = normalize(reflect(I, NormalMapped));
-                
-                    GetAtmosphere(ReflectionTrace, R);
-                    ReflectionTrace *= 2.0f;
-                    ReflectionTrace = clamp(ReflectionTrace, 0.01f, 1.2f);
-                }
-
-                ReflectionRatio *= 1.0f - PBRMap.r;
-                o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
-            }
+            float ReflectionRatio = PBRMap.g;
+            ReflectionRatio *= 1.0f - PBRMap.r;
+            o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
 
             return;
         }

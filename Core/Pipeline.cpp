@@ -7,7 +7,7 @@ static float InitialTraceResolution = 0.75f;
 static float DiffuseTraceResolution = 0.125f;
 
 static float ShadowTraceResolution = 0.50;
-static float ReflectionTraceResolution = 0.65;
+static float ReflectionTraceResolution = 0.3;
 static float SSAOResolution = 0.35f;
 
 static float VolumetricResolution = 0.5f;
@@ -185,10 +185,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader InitialTraceShader;
 	GLClasses::Shader FinalShader;
 	GLClasses::Shader DiffuseTraceShader;
-	GLClasses::Shader DiffuseTemporalFilter;
+	GLClasses::Shader TemporalFilter;
 	GLClasses::Shader DenoiseFilter;
 	GLClasses::Shader ColorShader;
-	GLClasses::Shader TemporalShader;
 	GLClasses::Shader PostProcessingShader;
 	GLClasses::Shader TemporalAAShader;
 	GLClasses::Shader ShadowTraceShader;
@@ -216,6 +215,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer DownsampledFBO;
 	GLClasses::Framebuffer AverageLumaFBO;
 	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
+	GLClasses::Framebuffer ReflectionTemporalFBO_1, ReflectionTemporalFBO_2, ReflectionDenoised;
 
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 
@@ -242,14 +242,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 	FinalShader.CompileShaders();
 	DiffuseTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
 	DiffuseTraceShader.CompileShaders();
-	DiffuseTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/DiffuseTemporalFilter.glsl");
-	DiffuseTemporalFilter.CompileShaders();
+	TemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalFilter.glsl");
+	TemporalFilter.CompileShaders();
 	DenoiseFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
 	DenoiseFilter.CompileShaders();
 	ColorShader.CreateShaderProgramFromFile("Core/Shaders/ColorPassVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
 	ColorShader.CompileShaders();
-	TemporalShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ColorTemporalFilter.glsl");
-	TemporalShader.CompileShaders();
 	PostProcessingShader.CreateShaderProgramFromFile("Core/Shaders/PostProcessingVert.glsl", "Core/Shaders/PostProcessingFrag.glsl");
 	PostProcessingShader.CompileShaders();
 	TemporalAAShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalAA.glsl");
@@ -371,13 +369,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// BLOCK_TEXTURE_DATA
 
 		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec3 data;
+		glm::vec4 data;
 
 		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
-		ReflectionTraceShader.SetVector3f(name.c_str(), data);
+		ReflectionTraceShader.SetVector4f(name.c_str(), data);
 	}
 
 	glUseProgram(0);
@@ -428,6 +427,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ShadowFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ShadowFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+		ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+		ReflectionDenoised.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 
 		// SSAO
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
@@ -444,6 +446,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
 		GLClasses::Framebuffer& PrevDiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO2 : DiffuseTemporalFBO1;
+		GLClasses::Framebuffer& ReflectionTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTemporalFBO_1 : ReflectionTemporalFBO_2;
+		GLClasses::Framebuffer& PrevReflectionTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTemporalFBO_2 : ReflectionTemporalFBO_1;
 		/// 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
@@ -451,10 +455,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.Recompile();
 			FinalShader.Recompile();
 			DiffuseTraceShader.Recompile();
-			DiffuseTemporalFilter.Recompile();
+			TemporalFilter.Recompile();
 			DenoiseFilter.Recompile();
 			ColorShader.Recompile();
-			TemporalShader.Recompile();
 			PostProcessingShader.Recompile();
 			TemporalAAShader.Recompile();
 			ShadowTraceShader.Recompile();
@@ -537,13 +540,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 				// BLOCK_TEXTURE_DATA
 
 				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec3 data;
+				glm::vec4 data;
 
 				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
+				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
 
-				ReflectionTraceShader.SetVector3f(name.c_str(), data);
+				ReflectionTraceShader.SetVector4f(name.c_str(), data);
 			}
 
 			glUseProgram(0);
@@ -703,23 +707,19 @@ void VoxelRT::MainPipeline::StartPipeline()
 		///// Temporal filter the calculated diffuse /////
 
 		DiffuseTemporalFBO.Bind();
-		DiffuseTemporalFilter.Use();
+		TemporalFilter.Use();
 
-		DiffuseTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
-		DiffuseTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
-		DiffuseTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
-		DiffuseTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+		TemporalFilter.SetInteger("u_CurrentColorTexture", 0);
+		TemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
+		TemporalFilter.SetInteger("u_PreviousColorTexture", 2);
+		TemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 
-		DiffuseTemporalFilter.SetInteger("u_CurrentNormalTexture", 4);
-		DiffuseTemporalFilter.SetInteger("u_PreviousNormalTexture", 5);
+		TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
+		TemporalFilter.SetMatrix4("u_View", CurrentView);
+		TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
+		TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-		DiffuseTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
-		DiffuseTemporalFilter.SetMatrix4("u_View", CurrentView);
-		DiffuseTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
-		DiffuseTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
-
-		DiffuseTemporalFilter.SetBool("u_WorldModified", ModifiedWorld);
-		DiffuseTemporalFilter.SetBool("u_CameraMoved", PreviousPosition != MainCamera.GetPosition());
+		TemporalFilter.SetFloat("u_MixModifier", 0.8f);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -732,12 +732,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetPositionTexture());
-
-		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
-
-		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetNormalTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -755,6 +749,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DenoiseFilter.SetInteger("u_Texture", 0);
 		DenoiseFilter.SetInteger("u_NormalTexture", 1);
 		DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 2);
+		DenoiseFilter.SetInteger("u_Radius", 12);
+		DenoiseFilter.SetFloat("u_EdgeThreshold", 0.5f);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
@@ -887,6 +883,66 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceFBO.Unbind();
 		}
 
+		// Temporally filter it
+		{
+
+			ReflectionTemporalFBO.Bind();
+			TemporalFilter.Use();
+
+			TemporalFilter.SetInteger("u_CurrentColorTexture", 0);
+			TemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
+			TemporalFilter.SetInteger("u_PreviousColorTexture", 2);
+			TemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+
+			TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
+			TemporalFilter.SetMatrix4("u_View", CurrentView);
+			TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
+			TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+
+			TemporalFilter.SetFloat("u_MixModifier", ModifiedWorld ? 0.5f : 0.8f); // Brutal temporal filtering
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, PrevReflectionTemporalFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetPositionTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			ReflectionTemporalFBO.Unbind();
+		}
+
+		// Denoise reflection trace
+		{
+			ReflectionDenoised.Bind();
+			DenoiseFilter.Use();
+
+			DenoiseFilter.SetInteger("u_Texture", 0);
+			DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 1);
+			DenoiseFilter.SetInteger("u_Radius", 12);
+			DenoiseFilter.SetFloat("u_EdgeThreshold", 0.150f);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			ReflectionDenoised.Unbind();
+		}
+
 		// ---- COLOR PASS ----
 
 		ReflectionProjection = PreviousProjection;
@@ -951,7 +1007,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE10);
-		glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, ReflectionDenoised.GetTexture());
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());

@@ -11,12 +11,14 @@ out vec3 o_Color;
 in vec2 v_TexCoords;
 
 uniform sampler2D u_Texture;
+uniform int u_Radius = 12;
+uniform float u_EdgeThreshold = 0.5; 
 
 // https://github.com/BrutPitt/glslSmartDeNoise/ //
 vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius = round(kSigma*sigma);
-    radius = 12;
+    radius = u_Radius;
     float radQ = radius * radius;
     
     float invSigmaQx2 = .5 / (sigma * sigma);      // 1.0 / (sigma^2 * 2.0)
@@ -56,5 +58,5 @@ vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thres
 
 void main()
 {
-    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, 0.420).rgb; // 420, nice 
+    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, u_EdgeThreshold).rgb; 
 }

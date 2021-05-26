@@ -9,16 +9,12 @@ uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
-uniform sampler2D u_CurrentNormalTexture;
-uniform sampler2D u_PreviousNormalTexture;
-
 uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
-uniform bool u_WorldModified;
-uniform bool u_CameraMoved;
+uniform float u_MixModifier = 0.8;
 
 vec2 View;
 vec2 Dimensions;
@@ -102,16 +98,13 @@ void main()
 
 	vec2 CurrentCoord = TexCoord;
 	vec4 CurrentPosition = texture(u_CurrentPositionTexture, v_TexCoords).rgba;
+	vec3 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgb;
 
-	if (CurrentPosition.a > 0.0f)
+	if (CurrentPosition.a > 0.0f && CurrentColor.x > -0.9f && CurrentColor.y > -0.9 && CurrentColor.z > -0.9)
 	{
 		vec2 PreviousCoord = Reprojection(CurrentPosition.xyz); 
 
-		vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
 		vec3 PrevColor = GetClampedColor(PreviousCoord).rgb;
-
-		vec3 CurrentNormal = texture(u_CurrentNormalTexture, TexCoord).rgb;
-		vec3 PreviousNormal = texture(u_PreviousNormalTexture, PreviousCoord).rgb;
 
 		vec3 AverageColor;
 		float ClosestDepth;
@@ -128,7 +121,7 @@ void main()
 		//float DepthDifference = abs(CurrentDepth - PreviousDepth);
 
 		BlendFactor *= exp(-length(velocity)) * 0.35f;
-		BlendFactor += 0.8f;
+		BlendFactor += u_MixModifier;
 		BlendFactor = clamp(BlendFactor, 0.01f, 0.9790f);
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 	}

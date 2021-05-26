@@ -318,7 +318,7 @@
     <None Include="Core\Shaders\RayTraceVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\DiffuseTemporalFilter.glsl">
+    <None Include="Core\Shaders\TemporalFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SmartDenoise.glsl">
