@@ -258,6 +258,7 @@
     <None Include="Core\Shaders\PostProcessingFrag.glsl" />
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
+    <None Include="Core\Shaders\RaytracedAO.glsl" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\ReflectionTraceFrag.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />

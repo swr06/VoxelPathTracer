@@ -55,6 +55,7 @@ uniform bool u_GodRays = false;
 uniform bool u_SSGodRays = false;
 uniform bool u_SSAO = false;
 uniform bool u_Bloom = false;
+uniform bool u_RTAO = false;
 
 uniform int u_GodRaysStepCount = 12;
 
@@ -64,6 +65,7 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 
 uniform sampler2D u_VolumetricTexture;
+uniform sampler2D u_RTAOTexture;
 
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_SSAOTexture;
@@ -376,7 +378,7 @@ void main()
 		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
 
-		if (u_SSAO)
+		if (u_SSAO && (!u_RTAO))
 		{
 			float ssao_strength = 0.0f;
 			float max_ssao_strength = 2.5f;
@@ -387,6 +389,13 @@ void main()
 			float SSAO = pow(SampledSSAO, ssao_strength);
 			SSAO = clamp(SSAO, 0.00001, 1.0f);
 			InputColor *= SSAO;
+		}
+
+		if (u_RTAO)
+		{
+			float RTAO = DepthOnlyBilateralUpsample(u_RTAOTexture, v_TexCoords, PositionAt.z).r;
+			RTAO = max(RTAO, 0.16f);
+			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}
 
 		ColorGrading(InputColor);
