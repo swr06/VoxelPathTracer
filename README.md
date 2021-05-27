@@ -16,6 +16,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Tonemapping, Gamma correction
 - Bilateral Upsampling (For SSAO, Trace)
 - Ray traced reflections 
+- Ray traced rough reflections (Importance Sampled GGX)
 - Naive world saving and loading
 - Alpha testing (Shadows and tracing)
 - Atmosphere 
@@ -23,6 +24,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Emissive Materials
 - Basic spatial filtering (Not depth or normal aware as of yet.)
 - Screen Space Ambient Occlusion
+- Ray Traced Ambient Occlusion
 - Lens Flare
 - Bloom (Mip based) 
 
@@ -30,8 +32,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
-- Importance Sampling and GGX model for the diffuse tracing
-- Proper denoising
+- Better denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 - Voxel intersection acceleration structure (DAGs? Octrees?) 
 - Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
@@ -45,8 +46,10 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - https://github.com/BrutPitt/glslSmartDeNoise/
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
 - ScratchAPixel
+- https://google.github.io/filament/Filament.md
 
 # Thanks
+- Fuzdex 
 - UglySwedishFish
 - Snurf 
 - Telo 
