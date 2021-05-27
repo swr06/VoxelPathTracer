@@ -227,41 +227,24 @@ void main()
     );
 
 	vec2 Pixel;
+
 	Pixel.x = v_TexCoords.x * u_Dimensions.x;
 	Pixel.y = v_TexCoords.y * u_Dimensions.y;
+	vec3 TotalColor = vec3(0.0f);
 
-	const int SPP = 4;
+	vec4 Position = texture(u_PositionTexture, v_TexCoords); // initial intersection point
+	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
+
+	int SPP = int(floor(mix(6, 1, distance(v_TexCoords, vec2(0.5f)) * 1.2)));
+	SPP = clamp(SPP, 1, 6);
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec2 uv;
-
-		if (s == 0)
-		{
-			float u = (Pixel.x) / u_Dimensions.x;
-			float v = (Pixel.y) / u_Dimensions.y;
-
-			uv = vec2(u, v);
-		}
-
-		else 
-		{
-			float u = (Pixel.x + GetBlueNoise()) / u_Dimensions.x;
-			float v = (Pixel.y + GetBlueNoise()) / u_Dimensions.y;
-
-			uv = vec2(u, v);
-		}
-
-
-		vec4 Position = texture(u_PositionTexture, uv); // initial intersection point
-		vec3 Normal = texture(u_NormalTexture, uv).rgb;
-
-		o_Color += CalculateDiffuse(Position.xyz, Normal);
-
+		TotalColor += CalculateDiffuse(Position.xyz, Normal);
 	}
 
-	o_Color = o_Color / SPP;
-	o_Color = clamp(o_Color, 0.02f, 100000.0f);
+	o_Color = TotalColor / SPP;
+	o_Color = max(o_Color, 0.05f);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)
@@ -492,24 +475,6 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
 				normal = vec3(0, 0, 1) * -stepZ;
 			}
-
-			//int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
-			//bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
-			//
-			//if (transparent)
-			//{
-			//	vec3 hit_position = orig + (direction * T);
-			//	int temp_idx; 
-			//	vec2 uv;
-			//
-			//	CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
-			//
-			//	if (textureLod(u_BlockAlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 3).a < 0.1f)
-			//	{
-			//		T = -1.0f;
-			//		continue;
-			//	}
-			//}
 
 			break;
 		}
@@ -750,7 +715,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     float NdotL = max(dot(normal, L), 0.0);
 	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
 
-    return clamp(Result, 0.0f, 4.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+    return clamp(Result, 0.0f, 6.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 

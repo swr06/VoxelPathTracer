@@ -776,7 +776,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-		TemporalFilter.SetFloat("u_MixModifier", 0.78f);
+		TemporalFilter.SetFloat("u_MixModifier", 0.8125f);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
