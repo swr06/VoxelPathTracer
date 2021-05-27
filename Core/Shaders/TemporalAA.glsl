@@ -83,6 +83,6 @@ void main()
 	BlendFactor *= exp(-length(velocity)) * 0.6f + 0.75f;
 	// todo : handle disocclusion
 
-	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.92f));
+	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.94f));
 }
 

@@ -373,6 +373,9 @@ float nextFloat(inout int seed, in float min, in float max)
 }
 
 int RNG_SEED = 0;
+int MAX_RAYS = 12;
+
+int CURRENT_IDX = 0;
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
@@ -409,7 +412,6 @@ void main()
 	if (RayOrigin.w <= 0.0f) { o_AO = vec3(1.0f); return;}
 
 	float Ao;
-	int MAX_RAYS = 12;
 
 	for (int i = 0 ; i < MAX_RAYS ; i++)
 	{
@@ -422,5 +424,4 @@ void main()
 	}
 
 	o_AO = vec3(1.0f - (Ao / float(MAX_RAYS)));
-	o_AO = pow(o_AO, vec3(1.5f));
 }

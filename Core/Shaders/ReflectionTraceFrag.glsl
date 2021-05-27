@@ -360,6 +360,11 @@ void main()
 		float RoughnessAt = PBRMap.r;
 		float MetalnessAt = PBRMap.g;
 
+		if (MetalnessAt < 0.025f) 
+		{
+			continue;
+		}
+
 		vec3 ReflectionNormal = RoughnessAt > 0.075f ? ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f) : InitialTraceNormal;
 
 		vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);

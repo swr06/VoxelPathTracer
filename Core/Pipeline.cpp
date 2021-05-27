@@ -4,7 +4,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static float InitialTraceResolution = 0.75f;
-static float DiffuseTraceResolution = 0.125f;
+static float DiffuseTraceResolution = 0.250f;
 
 static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.3;
@@ -506,6 +506,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BilateralBlur.Recompile();
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
+
 			BloomRenderer::RecompileShaders();
 
 			///// Set the block texture data uniforms    /////
@@ -775,7 +776,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-		TemporalFilter.SetFloat("u_MixModifier", 0.8f);
+		TemporalFilter.SetFloat("u_MixModifier", 0.78f);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -806,7 +807,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DenoiseFilter.SetInteger("u_NormalTexture", 1);
 		DenoiseFilter.SetInteger("u_InitialTracePositionTexture", 2);
 		DenoiseFilter.SetInteger("u_Radius", 12);
-		DenoiseFilter.SetFloat("u_EdgeThreshold", 0.5f);
+		DenoiseFilter.SetFloat("u_EdgeThreshold", 0.65f);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
@@ -822,7 +823,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		DiffuseDenoiseFBO.Unbind();
-
 
 		// ---- SHADOW TRACE ----
 		GLClasses::Framebuffer& ShadowFBO = app.GetCurrentFrame() % 2 == 0 ? ShadowFBO_1 : ShadowFBO_2;
@@ -1051,7 +1051,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 			TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-			TemporalFilter.SetFloat("u_MixModifier", 0.8f); // Brutal temporal filtering
+			TemporalFilter.SetFloat("u_MixModifier", 0.725f); // Brutal temporal filtering
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());
@@ -1371,6 +1371,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_PositionTexture", 4);
 		PostProcessingShader.SetInteger("u_VolumetricTexture", 10);
 		PostProcessingShader.SetInteger("u_RTAOTexture", 11);
+		PostProcessingShader.SetInteger("u_NormalTexture", 12);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1431,6 +1432,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D, RTAO_Denoised.GetTexture());
+
+		glActiveTexture(GL_TEXTURE12);
+		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

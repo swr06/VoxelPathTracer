@@ -365,10 +365,43 @@ vec3 ToClipSpace(in vec3 pos)
     return Projected.xyz;
 }
 
+vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec3 color = vec3(0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
+        float nweight = pow(abs(dot(sampled_normal, base_normal)), 4);
+
+        float sampled_depth = texture(u_PositionTexture, txc + Kernel[i] * texel_size).z; 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = nweight * dweight;
+        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
+        weight_sum += computed_weight;
+    }
+
+    color /= max(weight_sum, 0.2f);
+    return color;
+}
+
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec3 NormalAt = texture(u_NormalTexture, v_TexCoords).rgb;
+
 	bool AtEdge = DetectAtEdge(v_TexCoords);
 	vec3 ClipSpaceAt = ToClipSpace(PositionAt.xyz);
 
@@ -393,8 +426,14 @@ void main()
 
 		if (u_RTAO)
 		{
-			float RTAO = DepthOnlyBilateralUpsample(u_RTAOTexture, v_TexCoords, PositionAt.z).r;
-			RTAO = max(RTAO, 0.16f);
+			float rtao_strength = 0.0f;
+			float max_rtao_strength = 1.2f;
+			rtao_strength = ((1.0f - ClipSpaceAt.z) * 200.0f) * max_rtao_strength;
+			rtao_strength = clamp(rtao_strength, 0.0f, max_rtao_strength);
+
+			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.z).r;
+			RTAO = pow(RTAO, rtao_strength);
+			RTAO = max(RTAO, 0.2f);
 			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}
 

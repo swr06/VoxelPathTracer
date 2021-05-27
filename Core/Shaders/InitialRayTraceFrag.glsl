@@ -277,7 +277,7 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 
 				CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
 
-				if (textureLod(u_AlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 1).a < 0.1f)
+				if (texture(u_AlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x)).a < 0.1f)
 				{
 					T = -1.0f;
 					continue;

@@ -750,7 +750,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     float NdotL = max(dot(normal, L), 0.0);
 	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
 
-    return clamp(Result, 0.0f, 3.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+    return clamp(Result, 0.0f, 4.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 
