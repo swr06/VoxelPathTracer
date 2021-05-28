@@ -171,12 +171,71 @@
 	PBR : Res/Block/Brick2/PBR.png
 }
 
+{
+	Name : Farmland
+	Albedo : Res/Block/Farmland/Albedo.png
+	Normal : Res/Block/Farmland/Normal.png
+	PBR : Res/Block/Farmland/PBR.png
+}
+
+{
+	Name : Glowstone
+	Albedo : Res/Block/Glowstone/Albedo.png
+	Normal : Res/Block/Glowstone/Normal.png
+	PBR : Res/Block/Glowstone/PBR.png
+	Emissive : Res/Block/Glowstone/Emissive.png
+}
+
+{
+	Name : Glowstone_1
+	Albedo : Res/Block/Glowstone_1/Albedo.png
+	Normal : Res/Block/Glowstone_1/Normal.png
+	PBR : Res/Block/Glowstone_1/PBR.png
+	Emissive : Res/Block/Glowstone_1/Emissive.png
+}
+
+{
+	Name : Glowstone_2
+	Albedo : Res/Block/Glowstone_2/Albedo.png
+	Normal : Res/Block/Glowstone_2/Normal.png
+	PBR : Res/Block/Glowstone_2/PBR.png
+	Emissive : Res/Block/Glowstone_2/Emissive.png
+}
+
+{
+	Name : Glowstone_3
+	Albedo : Res/Block/Glowstone_3/Albedo.png
+	Normal : Res/Block/Glowstone_3/Normal.png
+	PBR : Res/Block/Glowstone_3/PBR.png
+	Emissive : Res/Block/Glowstone_3/Emissive.png
+}
+
+{
+	Name : Iron
+	Albedo : Res/Block/Iron/Albedo.png
+	Normal : Res/Block/Iron/Normal.png
+	PBR : Res/Block/Iron/PBR.png
+}
+
+{
+	Name : Gold
+	Albedo : Res/Block/Gold/Albedo.png
+	Normal : Res/Block/Gold/Normal.png
+	PBR : Res/Block/Gold/PBR.png
+}
 
 {
 	Name : Rock
 	Albedo : Res/Block/Rock/Albedo.png
 	Normal : Res/Block/Rock/Normal.png
 	PBR : Res/Block/Rock/PBR.png
+}
+
+{
+	Name : Sandstone
+	Albedo : Res/Block/Sandstone/Albedo.png
+	Normal : Res/Block/Sandstone/Normal.png
+	PBR : Res/Block/Sandstone/PBR.png
 }
 
 {

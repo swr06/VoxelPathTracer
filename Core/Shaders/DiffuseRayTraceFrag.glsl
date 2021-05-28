@@ -127,7 +127,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	if (TextureIndexes.w >= 0.0f)
 	{
 		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.w)).r;
-		Emmisivity = SampledEmmisivity * 55.0f;
+		Emmisivity = SampledEmmisivity * 20.0f;
 	}
 
 	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
