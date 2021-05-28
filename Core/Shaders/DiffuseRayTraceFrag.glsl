@@ -107,10 +107,15 @@ float GetBlueNoise()
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (25.0f);
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
+
 	vec3 LIGHT_COLOR; // The radiance of the light source
 	vec3 StrongerLightDirection;
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
-	LIGHT_COLOR = SunStronger ? (vec3(192.0f, 190.0f, 255.0f) / 255.0f) * (26.0f + u_DiffuseLightIntensity) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * (10.0f);
+
+	LIGHT_COLOR = SunStronger ? SUN_COLOR : NIGHT_COLOR;
+
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;
@@ -127,6 +132,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 
 	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
 	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
+
 	return (Emmisivity * Albedo) + DirectLighting;
 }
 
@@ -189,7 +195,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 	}
 	
 	//total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
-	total_color = total_color / max(MAX_BOUNCE_LIMIT - 0.25f, 0.66f);
+	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
 
 	return total_color;
 }
@@ -244,7 +250,7 @@ void main()
 	}
 
 	o_Color = TotalColor / SPP;
-	o_Color = max(o_Color, 0.05f);
+	o_Color += vec3(0.00525f);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)
@@ -647,77 +653,64 @@ float GetShadowAt(in vec3 pos, in vec3 ldir)
 	}
 }
 
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+float ndfGGX(float cosLh, float roughness)
 {
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH * NdotH;
+	float alpha   = roughness * roughness;
+	float alphaSq = alpha * alpha;
 
-    float nom   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-
-    return nom / max(denom, 0.001); 
+	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
+	return alphaSq / (PI * denom * denom);
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness)
+float gaSchlickG1(float cosTheta, float k)
 {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-
-    float nom   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-
-    return nom / denom;
+	return cosTheta / (cosTheta * (1.0 - k) + k);
 }
 
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+float gaSchlickGGX(float cosLi, float cosLo, float roughness)
 {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
+	float r = roughness + 1.0;
+	float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
+	return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
 }
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
+vec3 fresnelSchlick(vec3 F0, float cosTheta)
 {
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
+    const float Epsilon = 0.00001;
     float Shadow = min(shadow, 1.0f);
 
-	vec3 V = normalize(u_ViewerPosition - world_pos);
-    vec3 L = normalize(light_dir);
-    vec3 H = normalize(V + L);
+    vec3 Lo = normalize(u_ViewerPosition - world_pos);
 
-    float Roughness = pbr.r;
-    float Metalness = pbr.g;
+	vec3 N = normal;
+	float cosLo = max(0.0, dot(N, Lo));
+	vec3 Lr = 2.0 * cosLo * N - Lo;
+	vec3 F0 = mix(vec3(0.04), albedo, pbr.g);
 
-    float NDF = DistributionGGX(normal, H, Roughness);   
-    float G = GeometrySmith(normal, V, L, Roughness);      
-    vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), vec3(0.04));
-       
-    vec3 nominator = NDF * G * F; 
-    float denominator = 4.0f * max(dot(normal, V), 0.0) * max(dot(normal, L), 0.0);
-    vec3 specular = nominator / max(denominator, 0.001f);
-    
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - Metalness;	
-    kD = clamp(kD, 0.0f, 1.0f);
-    specular = clamp(specular, 0.0f, 1.0f);
+    vec3 Li = light_dir;
+	vec3 Lradiance = radiance;
 
-    float NdotL = max(dot(normal, L), 0.0);
-	vec3 Result = (kD * albedo / PI + (specular)) * radiance * NdotL;
+	vec3 Lh = normalize(Li + Lo);
 
-    return clamp(Result, 0.0f, 6.5f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
-}
+	float cosLi = max(0.0, dot(N, Li));
+	float cosLh = max(0.0, dot(N, Lh));
 
+	vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	float D = ndfGGX(cosLh, pbr.r);
+	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
+
+	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
+	vec3 diffuseBRDF = kd * albedo;
+
+	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
+
+	vec3 Result = (diffuseBRDF) * Lradiance * cosLi;
+    return  max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+} 
 
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
 {

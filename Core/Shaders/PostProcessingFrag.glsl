@@ -444,7 +444,7 @@ void main()
 
 		if (u_GodRays)
 		{
-			float intensity = u_SunIsStronger ? 0.55f : 0.1f;
+			float intensity = u_SunIsStronger ? 0.55f : 0.025f;
 			float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity;
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
