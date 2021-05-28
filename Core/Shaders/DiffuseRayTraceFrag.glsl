@@ -217,36 +217,20 @@ void main()
 
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 
-	if (InitialTracePosition.w == -1.0f)
+	if (InitialTracePosition.w <= 0.0f)
 	{
 		o_Color = GetSkyColorAt(normalize(v_RayDirection));
 		return;
 	}
 
-    vec3 Normals[6] = vec3[](
-	                  vec3(0.0f, 1.0f, 0.0f),
-                      vec3(0.0f, -1.0f, 0.0f),
-                      vec3(0.0f, 0.0f, 1.0f),
-                      vec3(0.0f, 0.0f, -1.0f),
-                      vec3(-1.0f, 0.0f, 0.0f),
-                      vec3(1.0f, 0.0f, 0.0f)
-    );
-
-	vec2 Pixel;
-
-	Pixel.x = v_TexCoords.x * u_Dimensions.x;
-	Pixel.y = v_TexCoords.y * u_Dimensions.y;
 	vec3 TotalColor = vec3(0.0f);
-
-	vec4 Position = texture(u_PositionTexture, v_TexCoords); // initial intersection point
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
 
-	int SPP = int(floor(mix(6, 1, distance(v_TexCoords, vec2(0.5f)) * 1.2)));
-	SPP = clamp(SPP, 1, 6);
+	const int SPP = 4;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		TotalColor += CalculateDiffuse(Position.xyz, Normal);
+		TotalColor += CalculateDiffuse(InitialTracePosition.xyz, Normal);
 	}
 
 	o_Color = TotalColor / SPP;

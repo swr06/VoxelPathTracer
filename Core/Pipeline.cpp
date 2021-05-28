@@ -4,7 +4,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static float InitialTraceResolution = 0.75f;
-static float DiffuseTraceResolution = 0.250f;
+static float DiffuseTraceResolution = 0.20f; // 1/5th res + 4 spp = 0.8 spp
 
 static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.3;
@@ -1467,6 +1467,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		// Finish Frame
+		glFinish();
 		app.FinishFrame();
 		
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);

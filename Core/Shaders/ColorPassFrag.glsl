@@ -564,7 +564,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
 
 	vec3 Result = (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
-    return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+    return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
 vec4 cubic(float v){
