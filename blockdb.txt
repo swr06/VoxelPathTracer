@@ -172,10 +172,25 @@
 }
 
 {
+	Name : Marble
+	Albedo : Res/Block/Marble/Albedo.png
+	Normal : Res/Block/Marble/Normal.png
+	PBR : Res/Block/Marble/PBR.png
+}
+
+{
 	Name : Farmland
 	Albedo : Res/Block/Farmland/Albedo.png
 	Normal : Res/Block/Farmland/Normal.png
 	PBR : Res/Block/Farmland/PBR.png
+}
+
+{
+	Name : SeaLantern
+	Albedo : Res/Block/SeaLantern/Albedo.png
+	Normal : Res/Block/SeaLantern/Normal.png
+	PBR : Res/Block/SeaLantern/PBR.png
+	Emissive : Res/Block/SeaLantern/Emissive.png
 }
 
 {

@@ -6,7 +6,7 @@
 
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec3 o_Normal;
-layout (location = 2) out vec3 o_PBR;
+layout (location = 2) out vec4 o_PBR;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -426,7 +426,7 @@ void main()
     vec3 AtmosphereAt = vec3(0.0f);
 
     o_Color = vec3(1.0f);
-    GetAtmosphere(AtmosphereAt, v_RayDirection);
+    bool BodyIntersect = GetAtmosphere(AtmosphereAt, v_RayDirection);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -471,23 +471,20 @@ void main()
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
             float x = mix(1.0f, 0.3f, SunVisibility);
-            const float EmissivityMultiplier = 128.0f;
 
-            Emissivity = (max(Emissivity * EmissivityMultiplier, 1.0f));
-            DirectLighting *= clamp(1.0f - (Emissivity / EmissivityMultiplier), 0.1f, 1.0f);
-
-            o_Color = Emissivity * (DiffuseAmbient + (DirectLighting * x));
+            o_Color = (DiffuseAmbient) + (DirectLighting * x);
             o_Color *= SampledAO;
-            o_Color = max(o_Color, vec3(0.0f));
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
-            o_PBR = PBRMap.xyz;
+            o_PBR.xyz = PBRMap.xyz;
+            o_PBR.w = Emissivity;
 
             vec2 ReprojectedReflectionCoord = v_TexCoords;
             vec3 ReflectionTrace = texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
             float ReflectionRatio = PBRMap.g;
             ReflectionRatio *= 1.0f - PBRMap.r;
             o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
+            o_Color = clamp(o_Color, 0.0f, 2.0f);
 
             return;
         }
@@ -496,15 +493,15 @@ void main()
         {   
             o_Color = (AtmosphereAt) * 0.76f;
             o_Normal = vec3(-1.0f);
-            o_PBR = vec3(-1.0f);
+            o_PBR.xyz = vec3(-1.0f);
         }
     }
 
     else 
     {   
-        o_Color = (AtmosphereAt) * 0.76;
+        o_Color = (AtmosphereAt) * 0.76f;
         o_Normal = vec3(-1.0f);
-        o_PBR = vec3(-1.0f);
+        o_PBR.xyz = vec3(-1.0f);
     }
 }
 

@@ -15,7 +15,7 @@ namespace VoxelRT
 	namespace BloomRenderer
 	{
 		void Initialize();
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex);
+		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex);
 		void RecompileShaders();
 	}
 }

@@ -74,6 +74,8 @@ uniform sampler2D u_BloomMips[4];
 
 uniform sampler2D u_ShadowTexture;
 
+uniform sampler2D u_PBRTexture;
+
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
 
@@ -404,6 +406,7 @@ void main()
 
 	bool AtEdge = DetectAtEdge(v_TexCoords);
 	vec3 ClipSpaceAt = ToClipSpace(PositionAt.xyz);
+    float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
 
 	if (PositionAt.w > 0.0f && (!AtEdge))
 	{
@@ -475,9 +478,16 @@ void main()
 		Bloom[2] = textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
 		Bloom[3] = textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
 
-		float bloom_multiplier = 0.45f;
-		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + (Bloom[1] * 0.7f * bloom_multiplier) + (Bloom[2] * 0.5f * bloom_multiplier) + (Bloom[3] * 0.1f * bloom_multiplier);
+		float bloom_multiplier = 0.75;
+
+		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + (Bloom[1] * 0.7f * bloom_multiplier) + (Bloom[2] * 0.5f * bloom_multiplier) + (Bloom[3] * 0.2f * bloom_multiplier);
 		o_Color += TotalBloom;
+	}
+
+	else 
+	{
+		//float Emissivity = texture(u_PBRTexture, v_TexCoords).w;
+		//o_Color += (Emissivity * 8.0f) * o_Color;
 	}
 
 	if (u_LensFlare && u_SunIsStronger)

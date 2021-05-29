@@ -49,7 +49,7 @@ namespace VoxelRT
 			BloomMaskShader->CompileShaders();
 		}
 
-		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex)
+		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex)
 		{
 			GLenum buffer;
 			int w, h;
@@ -118,9 +118,13 @@ namespace VoxelRT
 			glViewport(0, 0, w, h);
 
 			BloomBrightShader.SetInteger("u_Texture", 0);
+			BloomBrightShader.SetInteger("u_EmissiveTexture", 1);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, source_tex);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, bright_tex);
 
 			BloomFBOVAO->Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -144,18 +148,18 @@ namespace VoxelRT
 			BloomFBOVAO->Unbind();
 		}
 
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex)
+		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex)
 		{
 			// Render the bright parts to a texture
 
 			glDisable(GL_DEPTH_TEST);
 			glDisable(GL_CULL_FACE);
 
-			// Blur the mips
-			BlurBloomMip(bloom_fbo, 0, source_tex);
-			BlurBloomMip(bloom_fbo, 1, source_tex);
-			BlurBloomMip(bloom_fbo, 2, source_tex);
-			BlurBloomMip(bloom_fbo, 3, source_tex);
+			// Blur the mips					
+			BlurBloomMip(bloom_fbo, 0, source_tex, bright_tex);
+			BlurBloomMip(bloom_fbo, 1, source_tex, bright_tex);
+			BlurBloomMip(bloom_fbo, 2, source_tex, bright_tex);
+			BlurBloomMip(bloom_fbo, 3, source_tex, bright_tex);
 
 			return;
 		}

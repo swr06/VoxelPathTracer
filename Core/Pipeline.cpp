@@ -16,6 +16,7 @@ static float VolumetricResolution = 0.5f;
 static float SunTick = 50.0f;
 static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
+static float BloomQuality = 1.0f;
 
 static bool Bloom = true;
 
@@ -73,6 +74,7 @@ public:
 		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 		ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
 		ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
+		ImGui::SliderFloat("Bloom Quality ", &BloomQuality, 0.1f, 1.5f);
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 		ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
@@ -468,7 +470,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution , app.GetHeight() * VolumetricResolution);
 		BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution , app.GetHeight() * VolumetricResolution);
 
-		BloomFBO.SetSize(app.GetWidth() * 0.75f, app.GetHeight() * 0.75f);
+		BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
 
 		RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
 		RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
@@ -1242,7 +1244,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture());
+			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture());
 		}
 
 		// ---- Auto Exposure ----
@@ -1372,6 +1374,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_VolumetricTexture", 10);
 		PostProcessingShader.SetInteger("u_RTAOTexture", 11);
 		PostProcessingShader.SetInteger("u_NormalTexture", 12);
+		PostProcessingShader.SetInteger("u_PBRTexture", 13);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1435,6 +1438,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE12);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+
+		glActiveTexture(GL_TEXTURE13);
+		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
