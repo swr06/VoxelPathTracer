@@ -462,7 +462,7 @@ void main()
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f);
-            vec3 DiffuseAmbient = (Diffuse * (AlbedoColor * 1.0f));
+            vec3 DiffuseAmbient = (Diffuse * AlbedoColor);
             DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
@@ -470,9 +470,7 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            float x = mix(1.0f, 0.3f, SunVisibility);
-
-            o_Color = (DiffuseAmbient) + (DirectLighting * x);
+            o_Color = DiffuseAmbient + DirectLighting;
             o_Color *= SampledAO;
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
