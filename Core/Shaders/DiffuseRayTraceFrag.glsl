@@ -107,7 +107,7 @@ float GetBlueNoise()
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (25.0f);
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source
@@ -156,7 +156,10 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 
 	else 
 	{	
-		return GetSkyColorAt(r.Direction);
+        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+        float SkyMultiplier = mix(2.25f, 1.0f, SunVisibility);
+
+		return GetSkyColorAt(r.Direction) * SkyMultiplier;
 	}
 }
 
@@ -186,18 +189,28 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 	vec2 TexCoord;
 	mat3 tbn;
 
+	float AO = 0;
+
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
 		vec3 tangent_normal;
 		total_color += GetBlockRayColor(new_ray, T, N, intersection, tex_ref, Tangent, Bitangent, TexCoord, tangent_normal);
+
+		if (i == 0 && T > 0.0f)
+		{
+			AO = float((T * T) < 0.4f);
+		}
+
 		new_ray.Origin = new_ray.Origin + (new_ray.Direction * T);
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
+		
 	}
 	
-	//total_color = pow((total_color), vec3(3.0f)) / MAX_BOUNCE_LIMIT;
 	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
-
-	return total_color;
+	AO = 1.0f - (pow(AO, 5.0f));
+	AO = clamp(AO, 0.0f, 1.0f);
+	
+	return total_color; // * AO;
 }
 
 void main()

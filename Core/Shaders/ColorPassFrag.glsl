@@ -42,8 +42,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
 
-const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
-const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f, 1.0f, 0.5f);
+const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
 
 
 vec3 PoissonDisk3D[16] = vec3[](
@@ -128,18 +128,18 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
 
     vec3 ray_dir = normalize(in_ray_dir);
-    vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
-    bool intersect = false;
-
+    
     if(dot(ray_dir, sun_dir) > 0.9997f)
     {
-        atmosphere *= ATMOSPHERE_SUN_COLOR * 3.0f; intersect = true;
+        atmosphere_color = ATMOSPHERE_SUN_COLOR; return true;
     }
 
     if(dot(ray_dir, moon_dir) > 0.99986f)
     {
-        atmosphere *= ATMOSPHERE_MOON_COLOR * 50.0f; intersect = true;
+        atmosphere_color = ATMOSPHERE_MOON_COLOR; return true;
     }
+
+    vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
 
     float star_visibility;
     star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
@@ -150,7 +150,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 
     atmosphere_color = atmosphere;
 
-    return intersect;
+    return false;
 }
 
 float GetLuminance(vec3 color) {
@@ -427,6 +427,7 @@ void main()
 
     o_Color = vec3(1.0f);
     bool BodyIntersect = GetAtmosphere(AtmosphereAt, v_RayDirection);
+    o_PBR.w = float(BodyIntersect);
 
     if (WorldPosition.w > 0.0f)
     {
