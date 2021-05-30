@@ -451,13 +451,14 @@ void main()
 		if (u_RTAO)
 		{
 			float rtao_strength = 0.0f;
-			float max_rtao_strength = 1.2f;
+			float max_rtao_strength = 1.1f;
 			rtao_strength = ((1.0f - ClipSpaceAt.z) * 200.0f) * max_rtao_strength;
 			rtao_strength = clamp(rtao_strength, 0.0f, max_rtao_strength);
 
 			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.z).r;
 			RTAO = pow(RTAO, rtao_strength);
 			RTAO = max(RTAO, 0.2f);
+
 			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}
 

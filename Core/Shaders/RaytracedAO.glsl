@@ -373,7 +373,7 @@ float nextFloat(inout int seed, in float min, in float max)
 }
 
 int RNG_SEED = 0;
-int MAX_RAYS = 12;
+int MAX_RAYS = 6;
 
 int CURRENT_IDX = 0;
 

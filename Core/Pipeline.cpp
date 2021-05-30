@@ -9,7 +9,7 @@ static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.3;
 static float SSAOResolution = 0.35f;
-static float RTAOResolution = 0.2f;
+static float RTAOResolution = 0.125f;
 
 static float VolumetricResolution = 0.5f;
 
@@ -439,10 +439,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Resize the framebuffers
 
 		// Diffuse FBOS
+		float DiffuseTraceResolution2 = DiffuseTraceResolution + 0.125f;
 		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+		DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 
 		// MISC
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
@@ -476,10 +477,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
 
+		//
+
+		float RTAO_Res2 = glm::max(RTAOResolution, 0.5f);
 		RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
-		RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
-		RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
-		RTAO_Denoised.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
+		RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+		RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+		RTAO_Denoised.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
 
 		///
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
@@ -1057,7 +1061,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 			TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-			TemporalFilter.SetFloat("u_MixModifier", 0.725f); // Brutal temporal filtering
+			TemporalFilter.SetFloat("u_MixModifier", 0.8f); // Brutal temporal filtering
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());
