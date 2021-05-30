@@ -18,6 +18,7 @@ static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
+static bool TAA = true;
 static bool Bloom = true;
 
 static bool GodRays = false;
@@ -79,6 +80,7 @@ public:
 		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 		ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
+		ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 		ImGui::Checkbox("Lens Flare?", &LensFlare);
 		ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
 		ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
@@ -1176,6 +1178,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetInteger("u_CurrentColorTexture", 0);
 		TemporalAAShader.SetInteger("u_PositionTexture", 1);
 		TemporalAAShader.SetInteger("u_PreviousColorTexture", 2);
+		TemporalAAShader.SetBool("u_Enabled", TAA);
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);

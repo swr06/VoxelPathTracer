@@ -12,6 +12,8 @@ uniform sampler2D u_PreviousColorTexture;
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
+uniform bool u_Enabled;
+
 vec2 View;
 vec2 Dimensions;
 vec2 TexCoord;
@@ -57,14 +59,20 @@ void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
 	View = 1.0f / Dimensions;
-
 	TexCoord = v_TexCoords;
+
+	vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
+
+	if (!u_Enabled)
+	{
+		o_Color = CurrentColor;
+		return;
+	}
 
 	vec3 WorldPosition = texture(u_PositionTexture, v_TexCoords).rgb;
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition); // Reproject current uv (P) to the previous frame
 
-	vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
 	vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
 
 	vec3 AverageColor;
@@ -83,6 +91,6 @@ void main()
 	BlendFactor *= exp(-length(velocity)) * 0.6f + 0.75f;
 	// todo : handle disocclusion
 
-	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.94f));
+	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.96f));
 }
 
