@@ -3,8 +3,8 @@
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
-static float InitialTraceResolution = 0.75f;
-static float DiffuseTraceResolution = 0.20f; // 1/5th res + 4 spp = 0.8 spp
+static float InitialTraceResolution = 0.500f;
+static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
 static float ShadowTraceResolution = 0.50;
 static float ReflectionTraceResolution = 0.3;
@@ -32,6 +32,7 @@ static bool FullyDynamicShadows = false;
 static int GodRaysStepCount = 12;
 
 static bool AutoExposure = false;
+static bool ExponentialFog = false;
 
 static glm::vec3 SunDirection;
 static glm::vec3 MoonDirection;
@@ -82,6 +83,7 @@ public:
 		ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
 		ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
 		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
+		ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 		ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
 	}
@@ -1378,6 +1380,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
+		PostProcessingShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		PostProcessingShader.SetVector2f("u_Dimensions", glm::vec2(PostProcessingFBO.GetWidth(), PostProcessingFBO.GetHeight()));
 		PostProcessingShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 		PostProcessingShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
@@ -1388,6 +1391,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
+		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 

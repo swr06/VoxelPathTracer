@@ -47,6 +47,7 @@ in vec3 v_RayDirection;
 uniform vec3 u_SunDirection;
 uniform vec3 u_StrongerLightDirection;
 uniform vec2 u_Dimensions;
+uniform vec3 u_ViewerPosition;
 
 uniform bool u_SunIsStronger;
 
@@ -56,6 +57,7 @@ uniform bool u_SSGodRays = false;
 uniform bool u_SSAO = false;
 uniform bool u_Bloom = false;
 uniform bool u_RTAO = false;
+uniform bool u_ExponentialFog = false;
 
 uniform int u_GodRaysStepCount = 12;
 
@@ -398,6 +400,25 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     return color;
 }
 
+// Exponential Distance fog
+vec3 ApplyFog(in vec3 InputColor, in float dist_to_point)
+{
+	float b = 0.00275f;
+    float FogAmount = 1.0 - exp(-dist_to_point * b);
+    vec3 FogColor  = vec3(0.5f, 0.6f, 0.7f);
+    return mix(InputColor, FogColor, FogAmount );
+}
+
+// Exponential height fog
+vec3 ApplyFog(in vec3 InputColor, in float dist_to_point, in vec3 RayDir, in vec3 SunDir)  
+{
+	float b = 0.00575f;
+    float FogAmount = 1.0 - exp(-dist_to_point * b);
+    float SunAmount = max(dot(RayDir, SunDir), 0.0);
+    vec3  FogColor  = mix(vec3(0.5f, 0.6f, 0.7f), vec3(1.0f, 0.9f, 0.7f), pow(SunAmount , 8.0f));
+    return mix(InputColor, FogColor, FogAmount );
+}
+
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
@@ -459,6 +480,12 @@ void main()
 			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz) * fake_vol_multiplier;
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
+		}
+
+		if (u_ExponentialFog)
+		{
+			InputColor = ApplyFog(InputColor, PositionAt.w); 
+			//InputColor = ApplyFog(InputColor, PositionAt.w, v_RayDirection, normalize(u_StrongerLightDirection));
 		}
 
 		InputColor = ACESFitted(vec4(InputColor, 1.0f), u_Exposure + 0.01f).rgb;

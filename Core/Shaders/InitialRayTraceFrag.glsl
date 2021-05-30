@@ -214,7 +214,7 @@ float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float 
 		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
 	}
 
-	for (int i = 0; i < 175; i++) 
+	for (int i = 0; i < 250; i++) 
 	{
 		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
 		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
