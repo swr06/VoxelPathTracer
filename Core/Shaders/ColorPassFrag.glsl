@@ -422,6 +422,7 @@ void main()
 
 
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
+
     vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);
 
