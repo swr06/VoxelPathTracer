@@ -40,7 +40,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 
 # Performance
 
-- 40 FPS on a Vega 8 iGPU on the default settings
+- 30 FPS on a Vega 8 iGPU on the default settings
 
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
@@ -49,9 +49,9 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - https://google.github.io/filament/Filament.md
 
 # Thanks
-- Fuzdex 
+- Fuzdex (ShadaxStack)
 - UglySwedishFish
-- Snurf 
+- Snurf (Founder of ApolloRT)
 - Telo 
 - Moonsheep
 
