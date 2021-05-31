@@ -489,7 +489,9 @@ void main()
 			//InputColor = ApplyFog(InputColor, PositionAt.w, v_RayDirection, normalize(u_StrongerLightDirection));
 		}
 
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), u_Exposure + 0.01f).rgb;
+        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
+		InputColor = ACESFitted(vec4(InputColor, 1.0f), Exposure + 0.01f).rgb;
 		o_Color = InputColor;
 	}
 

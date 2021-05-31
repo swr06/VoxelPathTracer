@@ -65,29 +65,46 @@ public:
 
 	void OnImguiRender(double ts) override
 	{
-		ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
-		ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
-		ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
-		ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
-		ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
-		ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
-		ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
-		ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, -10.0, 80.0f);
-		ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
-		ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
-		ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
-		ImGui::SliderFloat("Bloom Quality ", &BloomQuality, 0.1f, 1.5f);
-		ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
-		ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
-		ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
-		ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
-		ImGui::Checkbox("Lens Flare?", &LensFlare);
-		ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
-		ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
-		ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
-		ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
-		ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
-		ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
+		if (ImGui::Begin("Settings"))
+		{
+			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
+			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
+			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
+			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, -10.0, 80.0f);
+			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
+			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
+			ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
+			ImGui::SliderFloat("Bloom Quality ", &BloomQuality, 0.1f, 1.5f);
+			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
+			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
+			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
+			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("Lens Flare?", &LensFlare);
+			ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
+			ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
+			ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
+			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
+			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+			ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
+		} ImGui::End();
+
+		if (ImGui::Begin("Other Settings"))
+		{
+			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
+			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
+			ImGui::Checkbox("VSync", &VSync);
+
+			if (ImGui::Button("Reset"))
+			{
+				MainPlayer.Sensitivity = 0.25f;
+				MainPlayer.Speed = 0.045f;
+				VSync = false;
+			}
+		} ImGui::End();
 	}
 
 	void OnEvent(VoxelRT::Event e) override

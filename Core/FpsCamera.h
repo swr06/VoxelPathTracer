@@ -239,6 +239,8 @@ namespace VoxelRT
 			_PrevMy = y;
 		}
 
+		float _Sensitivity = 0.2;
+
 	private : 
 
 		void RecalculateViewMatrix();
@@ -263,7 +265,6 @@ namespace VoxelRT
 
 		// The yaw and pitch of the camera : 
 		bool _FirstMove = false;
-		float _Sensitivity = 0.2;
 		float _PrevMx = 0.0f;
 		float _PrevMy = 0.0f;
 		float _Yaw = 0.0f;
