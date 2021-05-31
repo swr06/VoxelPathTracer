@@ -35,6 +35,7 @@ uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 
 uniform vec3 u_ViewerPosition;
+uniform int u_SPP;
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -244,7 +245,7 @@ void main()
 	Pixel.x = v_TexCoords.x * u_Dimensions.x;
 	Pixel.y = v_TexCoords.y * u_Dimensions.y;
 
-	const int SPP = 2;
+	int SPP = clamp(u_SPP, 1, 64);
 	int total_hits = 0;
 	vec3 TotalColor = vec3(0.0f);
 

@@ -47,6 +47,8 @@ uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
 uniform vec2 u_Dimensions;
 uniform float u_Time;
 
+uniform int u_SPP;
+
 uniform vec3 u_ViewerPosition;
 
 uniform vec4 BLOCK_TEXTURE_DATA[128]; // Albedo tex index, normal tex index, pbr tex index, emissive 
@@ -239,7 +241,7 @@ void main()
 	vec3 TotalColor = vec3(0.0f);
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
 
-	const int SPP = 4;
+	int SPP = clamp(u_SPP, 1, 32);
 
 	for (int s = 0 ; s < SPP ; s++)
 	{

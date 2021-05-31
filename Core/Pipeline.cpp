@@ -18,6 +18,9 @@ static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
+static int DiffuseSPP = 4;
+static int ReflectionSPP = 2;
+
 static bool TAA = true;
 static bool Bloom = true;
 
@@ -80,6 +83,8 @@ public:
 			ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
 			ImGui::SliderFloat("Bloom Quality ", &BloomQuality, 0.1f, 1.5f);
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
+			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
+			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
@@ -745,6 +750,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetMatrix4("u_ShadowView", ShadowView);
 		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
+		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -930,7 +936,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
-
+			
+			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
