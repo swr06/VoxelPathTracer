@@ -107,11 +107,6 @@ float GetBlueNoise()
 	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
 }
 
-float floor(in int x)
-{
-	return floor(float(x));
-}
-
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
@@ -232,7 +227,7 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	BLUE_NOISE_IDX += int(floor(RNG_SEED));
+	BLUE_NOISE_IDX += RNG_SEED;
 	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;

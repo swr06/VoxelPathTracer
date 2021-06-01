@@ -87,11 +87,6 @@ bool PointIsInSphere(vec3 point, float radius)
 	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
 }
 
-float floor(in int x)
-{
-	return floor(float(x));
-}
-
 vec3 RandomPointInUnitSphereRejective()
 {
 	float x, y, z;
@@ -243,7 +238,7 @@ void main()
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
-	BLUE_NOISE_IDX = int(floor(RNG_SEED));
+	BLUE_NOISE_IDX = RNG_SEED;
 	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
 	vec2 Pixel;
