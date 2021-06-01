@@ -107,6 +107,11 @@ float GetBlueNoise()
 	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
 }
 
+float floor(in int x)
+{
+	return floor(float(x));
+}
+
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);

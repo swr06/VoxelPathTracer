@@ -87,6 +87,11 @@ bool PointIsInSphere(vec3 point, float radius)
 	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
 }
 
+float floor(in int x)
+{
+	return floor(float(x));
+}
+
 vec3 RandomPointInUnitSphereRejective()
 {
 	float x, y, z;

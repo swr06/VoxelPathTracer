@@ -312,6 +312,11 @@ vec2 ReprojectReflection(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
+float floor(in int x)
+{
+	return floor(float(x));
+}
+
 int BLUE_NOISE_IDX = 0;
 
 vec3 GetBlueNoise()
