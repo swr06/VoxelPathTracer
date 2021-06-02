@@ -14,7 +14,7 @@ uniform mat4 u_ProjectionMatrix;
 
 uniform float u_Time;
 
-uint SAMPLE_SIZE = 16;
+uint SAMPLE_SIZE = 16u;
 
 vec3 ToViewSpace(in vec3 WorldPosition)
 {
@@ -34,7 +34,8 @@ vec2 hammersley2d(uint idx, uint num)
 	return vec2(float(idx) / float(num), radicalInverse_VdC);
 }
 
-vec3 hemispherepoint_uniform(float u, float v) {
+vec3 hemispherepoint_uniform(float u, float v)
+{
 	float phi = v * 2 * PI;
 	float cosTheta = 1 - u;
 	float sinTheta = sqrt(1 - cosTheta * cosTheta);
@@ -73,7 +74,7 @@ void main()
 
 	o_AOValue = 0.0f;
 
-	for (uint i = 0 ; i < clamp(SAMPLE_SIZE, uint(1), uint(64)) ; i++)
+	for (uint i = 0u ; i < clamp(SAMPLE_SIZE, 1u, 64u) ; i++)
 	{
 		vec2 Hammersley = hammersley2d(i, SAMPLE_SIZE);
 		vec3 Hemisphere = hemispherepoint_uniform(Hammersley.x, Hammersley.y);
