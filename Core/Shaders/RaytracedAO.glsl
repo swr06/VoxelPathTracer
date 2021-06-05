@@ -21,6 +21,7 @@ uniform sampler2DArray u_BlockNormalTextures;
 uniform vec4 BLOCK_TEXTURE_DATA[128];
 
 uniform float u_Time;
+uniform int u_CurrentFrame;
 
 const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 
@@ -373,7 +374,7 @@ float nextFloat(inout int seed, in float min, in float max)
 }
 
 int RNG_SEED = 0;
-int MAX_RAYS = 6;
+int MAX_RAYS = 4;
 
 int CURRENT_IDX = 0;
 

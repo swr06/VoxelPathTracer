@@ -31,7 +31,7 @@ static bool LensFlare = false;
 static bool SSAO = false;
 static bool RTAO = false;
 
-static bool FullyDynamicShadows = false;
+static bool FullyDynamicShadows = true;
 
 static int GodRaysStepCount = 12;
 
@@ -808,6 +808,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalFilter.SetMatrix4("u_View", CurrentView);
 		TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+		TemporalFilter.SetBool("u_Checkerboard", false);
+		TemporalFilter.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		TemporalFilter.SetFloat("u_MixModifier", 0.8125f);
 
@@ -936,7 +938,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
-			
+			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 
 			glActiveTexture(GL_TEXTURE0);
@@ -983,6 +985,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
 			TemporalFilter.SetInteger("u_PreviousColorTexture", 2);
 			TemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+			TemporalFilter.SetBool("u_Checkerboard", true);
+			TemporalFilter.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 			TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			TemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -1045,6 +1049,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			RTAOShader.SetInteger("u_BlockAlbedoTextures", 3);
 			RTAOShader.SetInteger("u_BlockNormalTextures", 4);
 			RTAOShader.SetInteger("u_DataTexture", 5);
+			RTAOShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			RTAOShader.SetFloat("u_Time", glfwGetTime());
 
 			glActiveTexture(GL_TEXTURE0);
@@ -1084,6 +1089,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TemporalFilter.SetMatrix4("u_View", CurrentView);
 			TemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 			TemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+			TemporalFilter.SetBool("u_Checkerboard", false);
+			TemporalFilter.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 			TemporalFilter.SetFloat("u_MixModifier", 0.8f); // Brutal temporal filtering
 
@@ -1111,7 +1118,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			DenoiseFilter.SetInteger("u_Texture", 0);
 			DenoiseFilter.SetInteger("u_Radius", 12);
-			DenoiseFilter.SetFloat("u_EdgeThreshold", 0.2f);
+			DenoiseFilter.SetFloat("u_EdgeThreshold", 0.2750f);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAOTemporalFBO.GetTexture());

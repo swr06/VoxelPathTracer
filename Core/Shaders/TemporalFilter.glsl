@@ -15,6 +15,11 @@ uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
 uniform float u_MixModifier = 0.8;
+uniform bool u_Checkerboard = false; 
+
+uniform int u_CurrentFrame;
+
+bool g_CheckerboardStep;
 
 vec2 View;
 vec2 Dimensions;
@@ -63,34 +68,84 @@ void GetNearestDepth(in float input_depth, out float odepth, out vec2 best_offse
 	}
 }
 
-
-vec4 GetClampedColor(vec2 reprojected)
+vec3 GetCurrentColor()
 {
-	ivec2 Coord = ivec2(v_TexCoords * Dimensions); 
-
-	vec4 minclr = vec4(10000.0f); 
-	vec4 maxclr = vec4(-10000.0f); 
-
-	for(int x = -2; x <= 2; x++) 
+	vec3 FinalCol;
+	
+	vec3 CurrentSample = texture(u_CurrentColorTexture, v_TexCoords).rgb;
+	
+	if (g_CheckerboardStep)
 	{
-		for(int y = -2; y <= 2; y++) 
-		{
-			vec4 Fetch = texelFetch(u_CurrentColorTexture, Coord + ivec2(x,y), 0); 
+		vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0).xy;
+		const vec2 Offsets[4] = vec2[](vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(-1.0f, 0.0f), vec2(0.0f, -1.0f));
+		vec3 Averaged = vec3(0.0f);
 
-			minclr = min(minclr, Fetch); 
-			maxclr = max(maxclr, Fetch); 
+		for (int i = 0 ; i < 4 ; i++)
+		{
+			Averaged += texture(u_CurrentColorTexture, v_TexCoords + (Offsets[i] * TexelSize)).rgb;
+		}
+
+		return Averaged / 4.0f;
+	}
+
+	return CurrentSample;
+}
+
+vec3 GetCurrentColorFast(in vec2 txc)
+{
+	vec3 CurrentSample = texture(u_CurrentColorTexture, txc).rgb;
+
+	if (g_CheckerboardStep)
+	{
+		vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0).xy;
+		const vec2 Offsets[2] = vec2[](vec2(1.0f, 0.0f), vec2(0.0f, -1.0f));
+		vec3 Averaged = vec3(0.0f);
+
+		for (int i = 0 ; i < 2 ; i++)
+		{
+			Averaged += texture(u_CurrentColorTexture, txc + (Offsets[i] * TexelSize)).rgb;
+		}
+
+		return Averaged / 2.0f;
+	}
+
+	return CurrentSample;
+}
+
+vec3 GetClampedColor(vec2 reprojected)
+{
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+
+	vec3 minclr = vec3(10000.0f); 
+	vec3 maxclr = vec3(-10000.0f); 
+
+	for(int x = -1; x <= 1; x++) 
+	{
+		for(int y = -1; y <= 1; y++) 
+		{
+			vec3 Sampled = GetCurrentColorFast(v_TexCoords + (vec2(x,y) * TexelSize)); 
+			minclr = min(minclr, Sampled); 
+			maxclr = max(maxclr, Sampled); 
 		}
 	}
 
 	minclr -= 0.075f; 
 	maxclr += 0.075f; 
 	
-	return clamp(texture(u_PreviousColorTexture, reprojected), minclr, maxclr); 
+	return clamp(texture(u_PreviousColorTexture, reprojected).rgb, minclr, maxclr); 
 
 }
 
 void main()
 {
+	g_CheckerboardStep = false;
+
+	if (u_Checkerboard)
+	{
+		int CheckerboardStep = u_CurrentFrame % 2 == 0 ? 1 : 0;
+		g_CheckerboardStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == CheckerboardStep;
+	}
+
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
 	View = 1.0f / Dimensions;
 
@@ -98,7 +153,7 @@ void main()
 
 	vec2 CurrentCoord = TexCoord;
 	vec4 CurrentPosition = texture(u_CurrentPositionTexture, v_TexCoords).rgba;
-	vec3 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgb;
+	vec3 CurrentColor = GetCurrentColor();
 
 	if (CurrentPosition.a > 0.0f && CurrentColor.x > -0.9f && CurrentColor.y > -0.9 && CurrentColor.z > -0.9)
 	{

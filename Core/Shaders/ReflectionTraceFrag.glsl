@@ -36,6 +36,7 @@ uniform sampler2DArray u_BlockPBRTextures;
 
 uniform vec3 u_ViewerPosition;
 uniform int u_SPP;
+uniform int u_CurrentFrame;
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -231,7 +232,14 @@ const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 void main()
-{
+{ 
+	int CheckerboardStep = u_CurrentFrame % 2 == 0 ? 1 : 0;
+	if (int(gl_FragCoord.x + gl_FragCoord.y) % 2 == CheckerboardStep)
+	{
+		o_Color = vec3(0.0f);
+		return;
+	}
+
 	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
 	
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
