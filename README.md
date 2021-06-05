@@ -29,6 +29,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Bloom (Mip based) 
 
 # Features to implement
+- Checkerboarding for the raw diffuse trace
 - Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
