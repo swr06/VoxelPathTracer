@@ -27,6 +27,7 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Ray Traced Ambient Occlusion
 - Lens Flare
 - Bloom (Mip based) 
+- Volumetric clouds
 
 # Features to implement
 - Better Soft Shadows
@@ -36,7 +37,6 @@ A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programma
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 - Voxel intersection acceleration structure (DAGs? Octrees?) 
 - Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
-- Cheap clouds 
 
 # Performance
 
