@@ -20,5 +20,6 @@ namespace Clouds
 					GLClasses::VertexArray& VAO, const glm::vec3& SunDirection, GLuint, int, int, int);
 		void RecompileShaders();
 		void SetChecker(bool v);
+		void SetCoverage(float v);
 	}
 }

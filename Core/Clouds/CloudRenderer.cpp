@@ -190,3 +190,8 @@ void Clouds::CloudRenderer::SetChecker(bool v)
 {
 	Checkerboard = v;
 }
+
+void Clouds::CloudRenderer::SetCoverage(float v)
+{
+	Coverage = v;
+}

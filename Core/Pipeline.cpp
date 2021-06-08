@@ -4,6 +4,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static bool CloudsEnabled = true;
+static float CloudCoverage = 0.2f;
 
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
@@ -93,6 +94,8 @@ public:
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::SliderFloat("Volumetric Cloud Coverage", &CloudCoverage, 0.01f, 0.6f);
+
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
@@ -1142,6 +1145,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame());
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
+			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
 		}
 
 		// ---- COLOR PASS ----

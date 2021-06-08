@@ -256,6 +256,20 @@ float ScatterIntegral(float x, float coeff)
     return exp2(a * x) * b + c;
 }
 
+float henyey_greenstein_phase_func(float mu)
+{
+	// Henyey-Greenstein phase function factor [-1, 1]
+	// represents the average cosine of the scattered directions
+	// 0 is isotropic scattering
+	// > 1 is forward scattering, < 1 is backwards
+	const float g = 0.76;
+
+	return
+	                     (1. - g*g)
+	/ //---------------------------------------------
+	     ((4. + PI) * pow(1. + g*g - 2.*g*mu, 1.5));
+}
+
 float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
 {
 	dir = normalize(dir);
@@ -265,8 +279,9 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	vec3 CurrentPoint = p + (dir * StepSize * 0.5f);
 	float AccumulatedLightEnergy = 0.0f;
 	Transmittance = 1.0f;
-	float CosAngle = max(0.0f, pow(dot(normalize(RayDir), normalize(u_SunDirection)), 1.125f));
-	float Phase = phase2Lobes(CosAngle); // todo : check this ? 
+
+	float CosAngle = dot(normalize(RayDir), normalize(u_SunDirection));
+	float Phase = henyey_greenstein_phase_func(CosAngle) * 1.66f; // todo : check this ? 
 	
 	float Dither;
 
@@ -286,12 +301,12 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	{
 		float DensitySample = SampleDensity(CurrentPoint);
 		float BeersPowder = powder(DensitySample);
-		BeersPowder = pow(BeersPowder, 1.75f);
 
+		//BeersPowder = pow(BeersPowder, 1.75f);
 		//float Integral = ScatterIntegral(Transmittance, 1.11f);
 
 		float LightMarchSample = RaymarchLight(CurrentPoint);
-		AccumulatedLightEnergy += DensitySample * StepSize * LightMarchSample * Transmittance * (Phase * 1.01f) * BeersPowder;
+		AccumulatedLightEnergy += DensitySample * StepSize * LightMarchSample * Transmittance * (Phase * 1.0f) * BeersPowder;
 		Transmittance *= exp(-DensitySample * StepSize * LightCloudAbsorbption);
 		CurrentPoint += dir * (StepSize * (Dither));
 
