@@ -106,7 +106,7 @@ float SampleDensity(in vec3 point)
 	vec4 sampled_noise;
 
 	vec3 time = vec3(u_Time, 0.0f, u_Time * 0.5f);
-	time *= 0.0025f;
+	time *= 0.005f;
 
 	sampled_noise = texture(u_CloudNoise, (point.xzy * 0.01f) + time).rgba;
 
@@ -266,7 +266,7 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	float AccumulatedLightEnergy = 0.0f;
 	Transmittance = 1.0f;
 	float CosAngle = max(0.0f, pow(dot(normalize(RayDir), normalize(u_SunDirection)), 1.125f));
-	float Phase = phase2Lobes(CosAngle) * 1.25f; // todo : check this ? 
+	float Phase = phase2Lobes(CosAngle); // todo : check this ? 
 	
 	float Dither;
 

@@ -78,6 +78,8 @@ uniform sampler2D u_ShadowTexture;
 
 uniform sampler2D u_PBRTexture;
 
+uniform sampler2D u_CloudData;
+
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
 

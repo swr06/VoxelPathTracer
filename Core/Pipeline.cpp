@@ -1434,6 +1434,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_RTAOTexture", 11);
 		PostProcessingShader.SetInteger("u_NormalTexture", 12);
 		PostProcessingShader.SetInteger("u_PBRTexture", 13);
+		PostProcessingShader.SetInteger("u_CloudData", 15);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1502,6 +1503,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE13);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
+
+		glActiveTexture(GL_TEXTURE15);
+		glBindTexture(GL_TEXTURE_2D, CloudData);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
