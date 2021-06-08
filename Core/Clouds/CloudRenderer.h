@@ -21,5 +21,7 @@ namespace Clouds
 		void RecompileShaders();
 		void SetChecker(bool v);
 		void SetCoverage(float v);
+		void SetBayer(bool v);
+		void SetDetailContribution(float v);
 	}
 }

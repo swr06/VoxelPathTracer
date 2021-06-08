@@ -195,3 +195,13 @@ void Clouds::CloudRenderer::SetCoverage(float v)
 {
 	Coverage = v;
 }
+
+void Clouds::CloudRenderer::SetBayer(bool v)
+{
+	Bayer = v;
+}
+
+void Clouds::CloudRenderer::SetDetailContribution(float v)
+{
+	DetailStrength = v;
+}
