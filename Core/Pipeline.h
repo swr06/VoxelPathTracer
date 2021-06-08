@@ -26,6 +26,7 @@
 #include "AtmosphereRenderCubemap.h"
 #include "BloomFBO.h"
 #include "BloomRenderer.h"
+#include "Clouds/CloudRenderer.h"
 
 namespace VoxelRT
 {

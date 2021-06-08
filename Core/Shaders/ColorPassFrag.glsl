@@ -1,6 +1,7 @@
 #version 330 core
 
-#define PCF_COUNT 14
+#define CLOUD_HEIGHT 70
+#define PCF_COUNT 6
 //#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
 
@@ -9,6 +10,7 @@ layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_PBR;
 
 in vec2 v_TexCoords;
+in vec3 v_RayOrigin;
 in vec3 v_RayDirection;
 
 uniform sampler2D u_DiffuseTexture;
@@ -23,6 +25,7 @@ uniform sampler2DArray u_BlueNoiseTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
 uniform samplerCube u_Skybox;
 uniform sampler2D u_ReflectionTraceTexture;
+uniform sampler2D u_CloudData;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
@@ -36,6 +39,8 @@ uniform mat4 u_ReflectionView;
 uniform mat4 u_ReflectionProjection;
 
 uniform vec3 u_ViewerPosition;
+
+uniform bool u_CloudsEnabled;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
@@ -121,6 +126,28 @@ float stars(vec3 fragpos)
 	return clamp(star, 0.0f, 100000.0f) * 30.0f;
 }
 
+vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
+{
+	vec3 t0 = (boundsMin - rayOrigin) * invRaydir;
+	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
+	vec3 tmin = min(t0, t1);
+	vec3 tmax = max(t0, t1);
+	
+	float dstA = max(max(tmin.x, tmin.y), tmin.z);
+	float dstB = min(tmax.x, min(tmax.y, tmax.z));
+	
+	// CASE 1: ray intersects box from outside (0 <= dstA <= dstB)
+	// dstA is dst to nearest intersection, dstB dst to far intersection
+	
+	// CASE 2: ray intersects box from inside (dstA < 0 < dstB) 
+	// dstA is the dst to intersection behind the ray, dstB is dst to forward intersection
+	
+	// CASE 3: ray misses box (dstA > dstB)
+	
+	float dstToBox = max(0, dstA);
+	float dstInsideBox = max(0, dstB - dstToBox);
+	return vec2(dstToBox, dstInsideBox);
+}
 
 bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 {
@@ -151,6 +178,37 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     atmosphere_color = atmosphere;
 
     return false;
+}
+
+vec3 GetAtmosphereAndClouds(vec3 Sky)
+{
+    if (!u_CloudsEnabled)
+    {
+        return Sky;
+    }
+
+    const float BoxSize = 140.0f;
+    vec3 origin = vec3(v_RayOrigin.x, 0.0f, v_RayOrigin.z);
+
+    vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), v_RayOrigin, 1.0f / (v_RayDirection));
+	bool Intersect = !(Dist.y == 0.0f);
+    vec3 TotalColor = Sky;
+
+	if (Intersect)
+	{
+		vec3 SampledCloudData = textureBicubic(u_CloudData, v_TexCoords).rgb;
+		float CloudAt = SampledCloudData.x;
+		float Transmittance = SampledCloudData.y;
+
+        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+		vec3 CloudColor = mix(vec3(3.25f, 3.25f, 3.0f), (vec3(96.0f, 192.0f, 255.0f) / 255.0f), SunVisibility * vec3(1.0f));
+        CloudColor = vec3(pow(CloudAt, 1.0f / 1.0f) * CloudColor);
+
+		TotalColor = vec3(Sky * (clamp(Transmittance, 0.0f, 1.0f)));
+		TotalColor += CloudColor;
+	}
+
+    return TotalColor;
 }
 
 float GetLuminance(vec3 color) {
@@ -498,7 +556,8 @@ void main()
 
     else 
     {   
-        o_Color = (AtmosphereAt) * 0.76f;
+        vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt * 0.76f);
+        o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
     }

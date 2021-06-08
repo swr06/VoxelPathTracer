@@ -158,6 +158,10 @@
     <ClCompile Include="Core\BlockDatabaseParser.cpp" />
     <ClCompile Include="Core\BloomFBO.cpp" />
     <ClCompile Include="Core\BloomRenderer.cpp" />
+    <ClCompile Include="Core\Clouds\CloudFBO.cpp" />
+    <ClCompile Include="Core\Clouds\CloudRenderer.cpp" />
+    <ClCompile Include="Core\Clouds\NoiseRenderer.cpp" />
+    <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp" />
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
     <ClCompile Include="Core\InitialTraceFBO.cpp" />
@@ -203,6 +207,10 @@
     <ClInclude Include="Core\BlockDatabaseParser.h" />
     <ClInclude Include="Core\BloomFBO.h" />
     <ClInclude Include="Core\BloomRenderer.h" />
+    <ClInclude Include="Core\Clouds\CloudFBO.h" />
+    <ClInclude Include="Core\Clouds\CloudRenderer.h" />
+    <ClInclude Include="Core\Clouds\NoiseRenderer.h" />
+    <ClInclude Include="Core\Clouds\NoiseTexture3D.h" />
     <ClInclude Include="Core\ColorPassFBO.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
     <ClInclude Include="Core\InitialTraceFBO.h" />
@@ -247,6 +255,13 @@
     <None Include="Core\Shaders\BilateralBlurNonDepthGuided.glsl" />
     <None Include="Core\Shaders\BloomMaskFrag.glsl" />
     <None Include="Core\Shaders\CalculateAverageLuminance.glsl" />
+    <None Include="Core\Shaders\Clouds\CheckerUpscaler.glsl" />
+    <None Include="Core\Shaders\Clouds\CloudFrag.glsl" />
+    <None Include="Core\Shaders\Clouds\CloudVert.glsl" />
+    <None Include="Core\Shaders\Clouds\FBOVert.glsl" />
+    <None Include="Core\Shaders\Clouds\NoiseDetailFrag.glsl" />
+    <None Include="Core\Shaders\Clouds\NoiseFrag.glsl" />
+    <None Include="Core\Shaders\Clouds\TemporalFilter.glsl" />
     <None Include="Core\Shaders\ColorPassFrag.glsl" />
     <None Include="Core\Shaders\ColorPassVert.glsl" />
     <None Include="Core\Shaders\FBOFrag.glsl" />

@@ -69,28 +69,42 @@ void main()
 		return;
 	}
 
-	vec3 WorldPosition = texture(u_PositionTexture, v_TexCoords).rgb;
+	vec4 WorldPosition = texture(u_PositionTexture, v_TexCoords).rgba;
+
+	if (WorldPosition.w <= 0.0f)
+	{
+		o_Color = CurrentColor;
+		return;
+	}
+
 	vec2 CurrentCoord = v_TexCoords;
-	vec2 PreviousCoord = Reprojection(WorldPosition); // Reproject current uv (P) to the previous frame
+	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
+	
+	if (PreviousCoord.x > 0.05 && PreviousCoord.x < 0.95f &&
+		PreviousCoord.y > 0.05 && PreviousCoord.y < 0.95f && 
+		CurrentCoord.x > 0.05 && CurrentCoord.x < 0.95f &&
+		CurrentCoord.y > 0.05 && CurrentCoord.y < 0.95f)
+	{
 
-	vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
+		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
 
-	vec3 AverageColor;
-	float ClosestDepth;
-	vec2 BestOffset;
+		vec3 AverageColor;
+		float ClosestDepth;
+		vec2 BestOffset;
 
-	PrevColor.rgb = NeighbourhoodClamping(CurrentColor.rgb, PrevColor.rgb);
+		PrevColor.rgb = NeighbourhoodClamping(CurrentColor.rgb, PrevColor.rgb);
 
-	vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
+		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 
-	float BlendFactor = float(
-		PreviousCoord.x > 0.0 && PreviousCoord.x < 1.0 &&
-		PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0
-	);
+		float BlendFactor = 0.0f;
+	
+		BlendFactor = exp(-length(velocity)) * 0.2f + 0.75f;
+		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.0, 0.96f));
+	}
 
-	BlendFactor *= exp(-length(velocity)) * 0.6f + 0.75f;
-	// todo : handle disocclusion
-
-	o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.02, 0.96f));
+	else 
+	{
+		o_Color = CurrentColor;
+	}
 }
 

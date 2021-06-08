@@ -419,6 +419,15 @@ vec3 ApplyFog(in vec3 InputColor, in float dist_to_point, in vec3 RayDir, in vec
     return mix(InputColor, FogColor, FogAmount );
 }
 
+vec3 BasicTonemap(vec3 color)
+{
+    float l = length(color);
+    color = mix(color, color * 0.5f, l / (l + 1.0f));
+    color = (color / sqrt(color * color + 1.0f));
+
+    return color;
+}
+
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
@@ -497,7 +506,7 @@ void main()
 
 	else 
 	{
-		o_Color = texture(u_FramebufferTexture, v_TexCoords).rgb;
+		o_Color = BasicTonemap(texture(u_FramebufferTexture, v_TexCoords).rgb);
 	}
 	
 	if (u_Bloom)

@@ -36,6 +36,12 @@
     <Filter Include="Source Files\fn">
       <UniqueIdentifier>{d0ffc46d-ce8b-4343-8e68-a26f49518a24}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\Clouds">
+      <UniqueIdentifier>{cacde97d-3ad2-478c-9841-a1464e93a379}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\voxel-rt\Clouds">
+      <UniqueIdentifier>{29775bfd-18fb-4880-8941-6f635e269e7e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -163,6 +169,18 @@
     </ClCompile>
     <ClCompile Include="Core\BloomRenderer.cpp">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Clouds\CloudFBO.cpp">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Clouds\CloudRenderer.cpp">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Clouds\NoiseRenderer.cpp">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -295,6 +313,18 @@
     <ClInclude Include="Core\BloomRenderer.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Clouds\CloudFBO.h">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Clouds\CloudRenderer.h">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Clouds\NoiseRenderer.h">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Clouds\NoiseTexture3D.h">
+      <Filter>Source Files\voxel-rt\Clouds</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -398,6 +428,27 @@
     </None>
     <None Include="Core\Shaders\RaytracedAO.glsl">
       <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\CheckerUpscaler.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\CloudFrag.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\CloudVert.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\FBOVert.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\NoiseDetailFrag.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\NoiseFrag.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\TemporalFilter.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

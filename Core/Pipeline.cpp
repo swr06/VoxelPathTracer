@@ -3,6 +3,8 @@
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
+static bool CloudsEnabled = true;
+
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
@@ -30,6 +32,8 @@ static bool FakeGodRays = false;
 static bool LensFlare = false;
 static bool SSAO = false;
 static bool RTAO = false;
+
+static bool CheckerboardClouds = true;
 
 static bool FullyDynamicShadows = false;
 
@@ -88,6 +92,8 @@ public:
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
 			ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
@@ -438,6 +444,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	glUseProgram(0);
 
+	Clouds::CloudRenderer::Initialize();
+
 	/////                                     /////
 
 	VoxelRT::InitialRTFBO* InitialTraceFBO = &InitialTraceFBO_1;
@@ -539,6 +547,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
 
+			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
 
 			///// Set the block texture data uniforms    /////
@@ -1123,6 +1132,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 			RTAO_Denoised.Unbind();
 		}
 
+		// ---- RENDER CLOUDS ----
+		GLuint CloudData = 0;
+		if (CloudsEnabled)
+		{
+			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
+				PreviousView, CurrentPosition,
+				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame());
+
+			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
+		}
+
 		// ---- COLOR PASS ----
 
 		ReflectionProjection = PreviousProjection;
@@ -1143,6 +1164,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_BlueNoiseTextures", 9);
 		ColorShader.SetInteger("u_ReflectionTraceTexture", 10);
 		ColorShader.SetInteger("u_BlockEmissiveTextures", 11);
+		ColorShader.SetInteger("u_CloudData", 12);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
@@ -1155,6 +1177,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
+		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -1191,6 +1214,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
+
+		glActiveTexture(GL_TEXTURE12);
+		glBindTexture(GL_TEXTURE_2D, CloudData);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
