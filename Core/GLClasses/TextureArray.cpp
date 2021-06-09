@@ -46,13 +46,21 @@ namespace GLClasses
 		for (int i = 0; i < layer_count; i++)
 		{
 			int w, h, bpp;
-			unsigned char* image = stbi_load(paths[i].c_str(), &w, &h, &bpp, 4);
+			unsigned char* image = nullptr; image = stbi_load(paths[i].c_str(), &w, &h, &bpp, 4);
 
-			glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, texture_size.first, texture_size.second,
-				1, GL_RGBA, GL_UNSIGNED_BYTE, image);
+			if (image)
+			{
+				glTexSubImage3D(GL_TEXTURE_2D_ARRAY, 0, 0, 0, i, texture_size.first, texture_size.second,
+					1, GL_RGBA, GL_UNSIGNED_BYTE, image);
 
-			m_TextureLocations[paths[i]] = i;
-			stbi_image_free(image);
+				m_TextureLocations[paths[i]] = i;
+				stbi_image_free(image);
+			}
+			
+			else
+			{
+				std::cout << "\nCOULD NOT LOAD   :    " << i << "\n";
+			}
 		}
 
 		if (gen_mips)

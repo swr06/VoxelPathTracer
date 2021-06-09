@@ -54,8 +54,11 @@ namespace VoxelRT
 			pbr_paths.push_back(e.second.PBRMap.bottom);
 			pbr_paths.push_back(e.second.PBRMap.left);
 			pbr_paths.push_back(e.second.PBRMap.right);
-
-			emissive_paths.push_back(e.second.EmissiveMap);
+			
+			if (e.second.EmissiveMap.size() > 0)
+			{
+				emissive_paths.push_back(e.second.EmissiveMap);
+			}
 		}
 
 		std::string res_str = "     |     RES : (" + std::to_string(texture_resolutions.first) + "," + std::to_string(texture_resolutions.second) + ")";
@@ -76,7 +79,7 @@ namespace VoxelRT
 
 		Logger::Log("Creating Emissive texture array!" + res_str);
 		BlockEmissiveTextureArray.CreateArray(emissive_paths, texture_resolutions, false, true, GL_LINEAR, true);
-		Logger::Log("Successfully created PBR texture array!");
+		Logger::Log("Successfully created emissive texture array!");
 
 		std::cout << ("\n\n\n-- SUCCESSFULLY LOADED TEXTURES --\n\n\n");
 	}
