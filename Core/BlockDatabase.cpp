@@ -436,7 +436,7 @@ namespace VoxelRT
 
 		if (ParsedBlockDataListID.find(block_id) == ParsedBlockDataListID.end())
 		{
-			return 0;
+			return -1;
 		}
 
 		pth = ParsedBlockDataListID[block_id].EmissiveMap;
