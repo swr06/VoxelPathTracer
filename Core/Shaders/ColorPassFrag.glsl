@@ -518,7 +518,7 @@ void main()
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV, data.x)).rgb;
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
-            float Emissivity = texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r;
+            float Emissivity = data.w > 0.0f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
             vec3 Diffuse = clamp(DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).rgb, 0.0f, 1.5f);
 
