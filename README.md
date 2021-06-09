@@ -1,5 +1,5 @@
-# Voxel Tracing
-A Voxel Ray Tracing Engine implemented using C++ and the modern opengl programmable pipeline
+# Voxel Path Tracer
+A Voxel Path Tracing Engine implemented using C++ and the modern opengl programmable pipeline
 
 # Features Implemented
 - Voxel Ray Casting
