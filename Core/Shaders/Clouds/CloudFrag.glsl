@@ -42,8 +42,8 @@ uniform bool u_Checker;
 uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
 
-const float SunAbsorbption = 0.4f;
-const float LightCloudAbsorbption = 0.045f;
+const float SunAbsorbption = 0.075f;
+const float LightCloudAbsorbption = 0.250f;
 
 vec3 g_Origin;
 
@@ -229,6 +229,7 @@ float RaymarchLight(vec3 p)
 	float TotalDensity = 0.0f;
 	vec3 CurrentPoint = p + (ldir * StepSize * 0.5f);
 	float Dither = nextFloat(RNG_SEED);
+	//float Dither = 1.0f;
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
@@ -273,7 +274,7 @@ float henyey_greenstein_phase_func(float mu)
 float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
 {
 	dir = normalize(dir);
-	int StepCount = 4;
+	int StepCount = 8;
 	float StepSize = tmax / float(StepCount);
 
 	vec3 CurrentPoint = p + (dir * StepSize * 0.5f);
@@ -281,8 +282,9 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	Transmittance = 1.0f;
 
 	float CosAngle = dot(normalize(RayDir), normalize(u_SunDirection));
-	float Phase = henyey_greenstein_phase_func(CosAngle) * 1.66f; // todo : check this ? 
-	
+	//float Phase = henyey_greenstein_phase_func(CosAngle); // todo : check this ? 
+	float Phase = phase2Lobes(CosAngle);
+
 	float Dither;
 
 	if (u_UseBayer)
@@ -320,8 +322,9 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	return TotalCloudDensity;
 }
 
-void ComputeCloudData(in Ray r)
+vec3 ComputeCloudData(in Ray r)
 {
+	vec3 Output = vec3(0.0f);
 	vec3 origin = vec3(g_Origin.x, 0.0f, g_Origin.z);
 	vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), r.Origin, 1.0f / r.Direction);
 	bool Intersect = !(Dist.y == 0.0f);
@@ -336,8 +339,10 @@ void ComputeCloudData(in Ray r)
 		float CloudAt = RaymarchCloud(IntersectionPosition, r.Direction, Dist.x, Dist.y, Transmittance, r.Direction);
 		CloudAt = max(CloudAt, 0.0f);
 		Transmittance = max(Transmittance, 0.0f);
-		o_Data = vec3(CloudAt, Transmittance, 0.0f);
+		Output = vec3(CloudAt, Transmittance, 0.0f);
 	}
+
+	return Output;
 }
 
 vec3 ComputeRayDirection()
@@ -368,5 +373,14 @@ void main()
     r.Direction = normalize(ComputeRayDirection());
 	g_Origin = r.Origin;
 
-	ComputeCloudData(r);
+	vec3 Accumulated = vec3(0.0f);
+	const int SAMPLE_COUNT = 1;
+
+	for (int i = 0 ; i < SAMPLE_COUNT; i++)
+	{
+		Accumulated += ComputeCloudData(r);
+	}
+
+	Accumulated = Accumulated * (1.0f / SAMPLE_COUNT);
+	o_Data = Accumulated;
 }

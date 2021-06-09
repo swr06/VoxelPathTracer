@@ -156,7 +156,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 
     vec3 ray_dir = normalize(in_ray_dir);
     
-    if(dot(ray_dir, sun_dir) > 0.9997f)
+    if(dot(ray_dir, sun_dir) > 0.999825f)
     {
         atmosphere_color = ATMOSPHERE_SUN_COLOR; return true;
     }
@@ -205,8 +205,8 @@ vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt
 		Transmittance = SampledCloudData.y;
 
         float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-		vec3 CloudColor = mix(vec3(4.0), (vec3(96.0f, 192.0f, 255.0f) / 255.0f), SunVisibility * vec3(1.0f));
-        CloudColor = vec3(pow(CloudAt, 1.0f / 1.0f) * CloudColor);
+		vec3 CloudColor = mix(vec3(1.0), (vec3(96.0f, 192.0f, 255.0f) / 255.0f), SunVisibility * vec3(1.0f));
+        CloudColor = vec3(CloudAt * CloudColor);
 
 		TotalColor = vec3(Sky * (clamp(Transmittance, 0.0f, 1.0f)));
 		TotalColor += CloudColor;
@@ -552,9 +552,12 @@ void main()
 
         else 
         {   
-            o_Color = (AtmosphereAt) * 0.76f;
+            float Transmittance, Cloud;
+            vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt * 0.76f, Transmittance, Cloud);
+            o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
+            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
         }
     }
 
