@@ -55,12 +55,12 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
 
 # Thanks
-- @Shadax-stack
-- @UglySwedishFish
+- [Fuzdex](https://github.com/Shadax-stack)
+- [UglySwedishFish](https://github.com/UglySwedishFish)
 - Snurf (Founder of ApolloRT)
-- Telo 
-- @jlagarespo
-- @Tui-Vao
+- [Telo](https://github.com/StormCreeper)
+- [Moonsheep](https://github.com/jlagarespo)
+- [Tui Vao](https://github.com/Tui-Vao)
 
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
