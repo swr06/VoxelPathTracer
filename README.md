@@ -58,7 +58,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 # Thanks
 - [Fuzdex](https://github.com/Shadax-stack)
 - [UglySwedishFish](https://github.com/UglySwedishFish)
-- Lars
+- [Lars](https://github.com/Ciwiel3/)
 - Snurf (Founder of ApolloRT)
 - [Telo](https://github.com/StormCreeper)
 - [Tui Vao](https://github.com/Tui-Vao)
