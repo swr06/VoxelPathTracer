@@ -146,7 +146,7 @@ void main()
 
     for (int i = 0 ; i < 4 ; i++)
     {
-        float pfbm = mix(1., perlinfbm(vec3(uv * vec2(i * 2.0f, i * 12.0f), floor(0)), 4., 7 + (i*5+1)), .5);
+        float pfbm = mix(1., perlinfbm(vec3(uv * vec2(i * 2.0f, i * 12.0f), 0.0f), 4., 7 + (i*5+1)), .5);
         pfbm = abs(pfbm * 2. - 1.); // billowy perlin noise
 
         float Slice = u_CurrentSlice * (pow(i, 16));

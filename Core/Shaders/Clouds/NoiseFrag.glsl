@@ -132,7 +132,7 @@ void main()
     float slices = 128.; // number of layers of the 3d texture
     float freq = 4.;
     
-    float pfbm= mix(1., perlinfbm(vec3(uv, floor(0)), 4., 7), .5);
+    float pfbm= mix(1., perlinfbm(vec3(uv, 0.0f), 4., 7), .5);
     pfbm = abs(pfbm * 2. - 1.); // billowy perlin noise
     
     col.g += worleyFbm(vec3(uv, u_CurrentSlice), freq);
