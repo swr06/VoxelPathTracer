@@ -42,18 +42,25 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 
 - 30 FPS on a Vega 8 iGPU on the default settings
 
+# Note
+- The path tracer has been tested on AMD Vega iGPUs, Nvidia pascal cards and intel iGPUs and work fine. It however does not work correctly on nvidia ampere GPUs. 
+- It needs OpenGL 4.5, if the window fails to initialize, then your GPU does not support the required OpenGL version (OpenGL 4.5) 
+
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
 - ScratchAPixel
 - https://google.github.io/filament/Filament.md
+- http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
+- http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
 
 # Thanks
-- Fuzdex (ShadaxStack)
-- UglySwedishFish
+- @Shadax-stack
+- @UglySwedishFish
 - Snurf (Founder of ApolloRT)
 - Telo 
-- Moonsheep
+- @jlagarespo
+- @Tui-Vao
 
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
