@@ -41,6 +41,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 # Performance
 
 - 30 FPS on a Vega 8 iGPU on the default settings
+- 180 - 200 FPS on a GTX 1080Ti
 
 # Note
 - The path tracer has been tested on AMD Vega iGPUs, Nvidia pascal cards and intel iGPUs and work fine. It however does not work correctly on nvidia ampere GPUs. 
@@ -57,6 +58,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 # Thanks
 - [Fuzdex](https://github.com/Shadax-stack)
 - [UglySwedishFish](https://github.com/UglySwedishFish)
+- Lars
 - Snurf (Founder of ApolloRT)
 - [Telo](https://github.com/StormCreeper)
 - [Moonsheep](https://github.com/jlagarespo)
