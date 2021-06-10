@@ -205,7 +205,7 @@ vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt
 		Transmittance = SampledCloudData.y;
 
         float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-		vec3 CloudColor = mix(vec3(1.0), (vec3(96.0f, 192.0f, 255.0f) / 255.0f), SunVisibility * vec3(1.0f));
+		vec3 CloudColor = mix(vec3(1.0), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.5f, SunVisibility * vec3(1.0f));
         CloudColor = vec3(CloudAt * CloudColor);
 
 		TotalColor = vec3(Sky * (clamp(Transmittance, 0.0f, 1.0f)));
