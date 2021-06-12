@@ -64,5 +64,8 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - [Tui Vao](https://github.com/Tui-Vao)
 - [Moonsheep](https://github.com/jlagarespo)
 
+# License
+- MIT
+
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
