@@ -35,7 +35,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Glass rendering 
 - Better denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
-- Voxel intersection acceleration structure (DAGs? Octrees?) 
+- Distance Field acceleration (WIP.)
 - Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
 
 # Performance
