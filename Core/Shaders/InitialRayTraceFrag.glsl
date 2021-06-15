@@ -22,6 +22,8 @@ in vec3 v_RayOrigin;
 uniform int u_CurrentFrame;
 
 uniform sampler3D u_VoxelDataTexture;
+uniform sampler3D u_DistanceFieldTexture;
+
 uniform sampler2DArray u_AlbedoTextures;
 
 uniform vec2 u_Dimensions;
@@ -44,34 +46,12 @@ struct Ray
 	vec3 Direction;
 };
 
-
 vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 
-const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-const vec3 NORMALS[6] = vec3[]
-(
-					vec3(1.0, 0.0, 0.0),
-					vec3(-1.0, 0.0, 0.0),
-					vec3(0.0, 1.0, 0.0),
-					vec3(0.0, -1.0, 0.0),
-					vec3(0.0, 0.0, 1.0),
-					vec3(0.0, 0.0, -1.0)
-);
-
-float sum(vec3 v)
-{
-    return v.x + v.y + v.z;
-}
-
-bool InInVoxelVolume(in vec3 pos)
+bool IsInVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
-        pos.x > float(WORLD_SIZE_X) || pos.y > float(WORLD_SIZE_Y) || pos.z > float(WORLD_SIZE_Z))
+        pos.x > float(WORLD_SIZE_X - 1) || pos.y > float(WORLD_SIZE_Y - 1) || pos.z > float(WORLD_SIZE_Z - 1))
     {
         return false;    
     }   
@@ -81,12 +61,27 @@ bool InInVoxelVolume(in vec3 pos)
 
 float GetVoxel(ivec3 loc)
 {
-    if (InInVoxelVolume(loc))
+    if (IsInVolume(loc))
     {
-         return texelFetch(u_VoxelDataTexture, loc, 0).r;
+        return texelFetch(u_VoxelDataTexture, loc, 0).r;
     }
     
     return 0.0f;
+}
+
+float ToConservativeEuclidean(float Manhattan)
+{
+	return Manhattan == 1 ? 1 : Manhattan * 0.57735026918f;
+}
+
+float GetDistance(ivec3 loc)
+{
+    if (IsInVolume(loc))
+    {
+         return (texelFetch(u_DistanceFieldTexture, loc, 0).r);
+    }
+    
+    return -1.0f;
 }
 
 bool VoxelExists(in vec3 loc)
@@ -99,212 +94,76 @@ bool VoxelExists(in vec3 loc)
     return false;
 }
 
-// Calculates uv from world position
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType) 
 {
-    if (normal == NORMAL_TOP)
-    {
-        uv = vec2(fract(world_pos.xz));
-		NormalIndex = 0;
-    }
+	vec3 initial_origin = origin;
+	const float epsilon = 0.01f;
+	bool Intersection = false;
 
-    else if (normal == NORMAL_BOTTOM)
-    {
-        uv = vec2(fract(world_pos.xz));
-		NormalIndex = 1;
-    }
+	int MinIdx = 0;
+	ivec3 RaySign = ivec3(sign(direction));
 
-    else if (normal == NORMAL_RIGHT)
-    {
-        uv = vec2(fract(world_pos.zy));
-		NormalIndex = 2;
-    }
+	int itr = 0;
 
-    else if (normal == NORMAL_LEFT)
-    {
-        uv = vec2(fract(world_pos.zy));
-		NormalIndex = 3;
-    }
-    
-    else if (normal == NORMAL_FRONT)
-    {
-        uv = vec2(fract(world_pos.xy));
-		NormalIndex = 4;
-    }
-
-     else if (normal == NORMAL_BACK)
-    {
-        uv = vec2(fract(world_pos.xy));
-		NormalIndex = 5;
-    }
-}
-
-//float ProjectToCube(vec3 ro, vec3 rd) 
-//{	
-//	float tx1 = (0 - ro.x) / rd.x;
-//	float tx2 = (MapSize.x - ro.x) / rd.x;
-//
-//	float ty1 = (0 - ro.y) / rd.y;
-//	float ty2 = (MapSize.y - ro.y) / rd.y;
-//
-//	float tz1 = (0 - ro.z) / rd.z;
-//	float tz2 = (MapSize.z - ro.z) / rd.z;
-//
-//	float tx = max(min(tx1, tx2), 0);
-//	float ty = max(min(ty1, ty2), 0);
-//	float tz = max(min(tz1, tz2), 0);
-//
-//	float t = max(tx, max(ty, tz));
-//	
-//	return t;
-//}
-
-bool voxel_traversal(Ray r, inout float block, out vec3 normal, out vec3 world_pos)
-{
-	world_pos = r.Origin;
-	vec2 txc;
-
-	vec3 Temp;
-	vec3 VoxelCoord; 
-	vec3 FractPosition;
-
-	Temp.x = r.Direction.x > 0.0 ? 1.0 : 0.0;
-	Temp.y = r.Direction.y > 0.0 ? 1.0 : 0.0;
-	Temp.z = r.Direction.z > 0.0 ? 1.0 : 0.0;
-
-	vec3 plane = floor(world_pos + Temp);
-
-	for (int x = 0; x < 225; x++)
+	for (itr = 0 ; itr < 350 ; itr++)
 	{
-		if (!InInVoxelVolume(world_pos))
+		ivec3 Loc = ivec3(floor(origin));
+		
+		if (!IsInVolume(Loc))
+		{
+			Intersection = false;
+			break;
+		}
+
+		float Dist = GetDistance(Loc) * 255.0f; 
+
+		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+		if (Euclidean == 0)
 		{
 			break;
 		}
 
-		vec3 Next = (plane - world_pos) / r.Direction;
-		int side = 0;
-
-		if(x > 0) 
+		if (Euclidean == 1)
 		{
-			if (Next.x < min(Next.y, Next.z)) 
-			{
-				world_pos += r.Direction * Next.x;
-				world_pos.x = plane.x;
-				plane.x += sign(r.Direction.x);
-				side = 0;
-			}
+			// Do the DDA algorithm for one voxel 
 
-			else if (Next.y < Next.z) 
-			{
-				world_pos += r.Direction * Next.y;
-				world_pos.y = plane.y;
-				plane.y += sign(r.Direction.y);
-				side = 1;
-			}
+			ivec3 GridCoords = ivec3(origin);
+			vec3 WithinVoxelCoords = origin - GridCoords;
+			vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
 
-			else 
-			{
-				world_pos += r.Direction * Next.z;
-				world_pos.z = plane.z;
-				plane.z += sign(r.Direction.z);
-				side = 2;
-			}
-		}
+			MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+				? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+				: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
 
-		VoxelCoord = (plane - Temp);
-		FractPosition = fract(world_pos);
+			GridCoords[MinIdx] += RaySign[MinIdx];
+			WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
 
-		switch (side)
-		{
-			case 0:
-			{
-				txc = FractPosition.zy;
-				break;
-			}
+			origin = GridCoords + WithinVoxelCoords;
+			origin[MinIdx] += RaySign[MinIdx] * 0.01f;
 
-			case 1:
-			{
-				txc = FractPosition.xz;
-				break;
-			}
-
-			default:
-			{
-				txc = FractPosition.xy;
-				break;
-			}
-		}
-
-		txc.y = 1.0f - txc.y;
-
-		int Side = ((side + 1) * 2) - 1;
-
-		if (side == 0) 
-		{
-			if (world_pos.x - VoxelCoord.x > 0.5)
-			{
-				Side = 0;
-			}
-		}
-
-		else if (side == 1)
-		{
-			if (world_pos.y - VoxelCoord.y > 0.5)
-			{
-				Side = 2;
-			}
+			Intersection = true;
 		}
 
 		else 
 		{
-			if (world_pos.z - VoxelCoord.z > 0.5)
-			{
-				Side = 4;
-			}
+			origin += int(Euclidean - 1) * direction;
 		}
-
-		normal = NORMALS[Side];
-		block = GetVoxel(ivec3(VoxelCoord.xyz));
-
-		#ifdef ALPHA_TESTING
-
-		if (block > 0)
-		{
-			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
-			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
-
-			if (transparent)
-			{
-				int temp_idx; 
-
-				if (texture(u_AlbedoTextures, vec3(vec2(txc.x, txc.y), BLOCK_TEXTURE_DATA[reference_id].x)).a < 0.1f)
-				{
-					continue;
-				}
-			}
-
-			return true; 
-		}
-		#endif
 	}
 
-	return false;
+	if (Intersection)
+	{
+		normal = vec3(0.0f);
+		normal[MinIdx] = -RaySign[MinIdx];
+		blockType = GetVoxel(ivec3(origin));
+		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+	}
+
+	return -1.0f;
 }
 
-float raySphereIntersect(vec3 r0, vec3 rd, vec3 s0, float sr) 
-{
-    float a = dot(rd, rd);
-    vec3 s0_r0 = r0 - s0;
-    float b = 2.0 * dot(rd, s0_r0);
-    float c = dot(s0_r0, s0_r0) - (sr * sr);
 
-    if ( b * b - 4.0 * a * c < 0.0) 
-    {
-        return -1.0;
-    }
-
-    return (-b - sqrt((b * b) - 4.0 * a * c)) / (2.0 * a);
-}
 
 void main()
 {
@@ -316,12 +175,10 @@ void main()
 
 	vec3 normal;
 	float id;
-	int face;
-	vec2 UV;
 
-	vec3 world_position;
-	bool intersect = voxel_traversal(r, id, normal, world_position);
-	float t = intersect ? distance(r.Origin, world_position) : -1.0f;
+	float t = VoxelTraversalDF(r.Origin, r.Direction, normal, id);
+	bool intersect = t > 0.0f && id > 0;
+	vec3 world_position = r.Origin + (r.Direction * t);
 
 	if (intersect)
 	{
@@ -352,6 +209,13 @@ void main()
 	{
 		texture_ids = vec4(-1.0f);
 	}
+
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 	#ifdef MULTIPLE_TEXTURING_GRASS
 

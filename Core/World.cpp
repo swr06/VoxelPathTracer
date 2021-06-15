@@ -2,6 +2,73 @@
 
 #include "BlockDatabase.h"
 
+void VoxelRT::World::InitializeDistanceGenerator()
+{
+	int work_grp_cnt[3];
+
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_cnt[0]);
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &work_grp_cnt[1]);
+	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &work_grp_cnt[2]);
+
+	printf("max global (total) work group counts x:%i y:%i z:%i\n",
+		work_grp_cnt[0], work_grp_cnt[1], work_grp_cnt[2]);
+
+	m_DistanceShaderX.CreateComputeShader("Core/Shaders/ManhattanDistanceX.comp");
+	m_DistanceShaderX.Compile();
+	m_DistanceShaderY.CreateComputeShader("Core/Shaders/ManhattanDistanceY.comp");
+	m_DistanceShaderY.Compile();
+	m_DistanceShaderZ.CreateComputeShader("Core/Shaders/ManhattanDistanceZ.comp");
+	m_DistanceShaderZ.Compile();
+
+	m_DistanceFieldTexture.CreateTexture(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, nullptr);
+}
+
+void VoxelRT::World::GenerateDistanceField()
+{
+	std::cout << "\nGenerating Distance Field!\n";
+
+	const int GROUP_SIZE = 32;
+
+	// X PASS
+
+	m_DistanceShaderX.Use();
+	m_DistanceShaderX.SetVector3f("u_Dimensions", glm::vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z));
+	m_DistanceShaderX.SetInteger("u_BlockData", 1);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_3D, m_DataTexture.GetTextureID());
+
+	glBindImageTexture(0, m_DistanceFieldTexture.GetTextureID(), 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
+	glDispatchCompute(1, WORLD_SIZE_Y / GROUP_SIZE, WORLD_SIZE_Z / GROUP_SIZE);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	glUseProgram(0);
+
+
+	// Y PASS
+
+	m_DistanceShaderY.Use();
+
+	glBindImageTexture(0, m_DistanceFieldTexture.GetTextureID(), 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
+	glDispatchCompute(WORLD_SIZE_X / GROUP_SIZE, 1, WORLD_SIZE_Z / GROUP_SIZE);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	glUseProgram(0);
+
+
+	// Z PASS
+
+	m_DistanceShaderZ.Use();
+
+	glBindImageTexture(0, m_DistanceFieldTexture.GetTextureID(), 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
+	glDispatchCompute(WORLD_SIZE_X / GROUP_SIZE, WORLD_SIZE_Y / GROUP_SIZE, 1);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+	glUseProgram(0);
+
+	std::cout << "\nFinished Generating Distance Field!\n";
+}
+
 void VoxelRT::World::ChangeCurrentlyHeldBlock(bool x)
 {
 	if (x)
@@ -122,6 +189,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 					
 						glBindTexture(GL_TEXTURE_3D, m_DataTexture.GetTextureID());
 						glTexSubImage3D(GL_TEXTURE_3D, 0, (int)position.x, (int)position.y, (int)position.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &editblock);
+						GenerateDistanceField();
 					}
 				}
 
@@ -135,6 +203,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 
 						glBindTexture(GL_TEXTURE_3D, m_DataTexture.GetTextureID());
 						glTexSubImage3D(GL_TEXTURE_3D, 0, (int)position.x, (int)position.y, (int)position.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &editblock);
+						GenerateDistanceField();
 					}
 				}
 

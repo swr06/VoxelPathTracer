@@ -270,6 +270,9 @@
     <None Include="Core\Shaders\Gaussian9TapSinglePass.glsl" />
     <None Include="Core\Shaders\InitialRayTraceFrag.glsl" />
     <None Include="Core\Shaders\InitialRayTraceVert.glsl" />
+    <None Include="Core\Shaders\ManhattanDistanceX.comp" />
+    <None Include="Core\Shaders\ManhattanDistanceY.comp" />
+    <None Include="Core\Shaders\ManhattanDistanceZ.comp" />
     <None Include="Core\Shaders\PostProcessingFrag.glsl" />
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />

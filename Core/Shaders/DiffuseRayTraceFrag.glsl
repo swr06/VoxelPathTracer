@@ -9,10 +9,7 @@
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 //#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 16
-#define MAX_SHADOW_TRACE_DIST 150 // Needs to be high
-#define NORMAL_MAP_LOD 3 // 512, 256, 128, 64, 32, 16, 8, 4, 2
-#define ALBEDO_MAP_LOD 4 // 512, 256, 128, 64, 32, 16, 8, 4, 2
+#define MAX_VOXEL_DIST 24
 #define MAX_BOUNCE_LIMIT 2
 #define APPLY_PLAYER_SHADOW
 
@@ -32,6 +29,7 @@ in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 
 uniform sampler3D u_VoxelData;
+uniform sampler3D u_DistanceFieldTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_PositionTexture;
 uniform samplerCube u_Skymap;
@@ -71,17 +69,15 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n);
 float nextFloat(inout int seed); 
 int nextInt(inout int seed); 
 vec3 GetSkyColorAt(vec3 rd);
-float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int mdist);
-float ProjectToCube(vec3 ro, vec3 rd) ;
-bool VoxelExists(in vec3 loc);
-float GetVoxel(ivec3 loc);
 vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
-float GetShadowAt(in vec3 pos, in vec3 ldir);
+float GetShadowAt(vec3 pos, in vec3 ldir);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
+float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int mdist);
 
 // Globals
 vec3 g_Normal;
@@ -107,7 +103,7 @@ float GetBlueNoise()
 	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
 }
 
-vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv)
+vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
@@ -132,8 +128,9 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 		Emmisivity = SampledEmmisivity * 20.0f;
 	}
 
+	vec3 bias = (flatnormal * 0.045);
 	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos + bias, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
 
 	return (Emmisivity * Albedo) + DirectLighting;
 }
@@ -151,9 +148,9 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 		CalculateVectors(r.Origin + (r.Direction * T), out_n, tangent, bitangent, txc);
 
 		mat3 tbn =  mat3(normalize(tangent), normalize(bitangent), normalize(out_n));
-		tangent_normal = tbn * (textureLod(u_BlockNormalTextures, vec3(txc, BLOCK_TEXTURE_DATA[tex_ref].g), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+		tangent_normal = tbn * (texture(u_BlockNormalTextures, vec3(txc, BLOCK_TEXTURE_DATA[tex_ref].g)).rgb * 2.0f - 1.0f);
 		
-		return GetDirectLighting(r.Origin + (r.Direction * T), tex_ref, tangent_normal, txc);
+		return GetDirectLighting(r.Origin + (r.Direction * T), tex_ref, tangent_normal, txc, out_n);
 	} 
 
 	else 
@@ -177,7 +174,7 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 	CalculateVectors(initial_origin, input_normal, initial_tan, initial_bitan, initial_uv);
 	initial_tbn = mat3(normalize(initial_tan), normalize(initial_bitan), normalize(input_normal));
 	initial_idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
-	initial_normal = initial_tbn * (textureLod(u_BlockNormalTextures, vec3(initial_uv, initial_idx), NORMAL_MAP_LOD).rgb * 2.0f - 1.0f);
+	initial_normal = initial_tbn * (texture(u_BlockNormalTextures, vec3(initial_uv, initial_idx)).rgb * 2.0f - 1.0f);
 
 	Ray new_ray = Ray(initial_origin, cosWeightedRandomHemisphereDirection(initial_normal));
 
@@ -313,10 +310,11 @@ vec3 GetSkyColorAt(vec3 rd)
     return texture(u_Skymap, (rd)).rgb;
 }
 
-bool IsInVoxelVolume(in vec3 pos)
+
+bool IsInVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
-        pos.x > float(WORLD_SIZE_X) || pos.y > float(WORLD_SIZE_Y) || pos.z > float(WORLD_SIZE_Z))
+        pos.x > float(WORLD_SIZE_X - 1) || pos.y > float(WORLD_SIZE_Y - 1) || pos.z > float(WORLD_SIZE_Z - 1))
     {
         return false;    
     }   
@@ -326,12 +324,27 @@ bool IsInVoxelVolume(in vec3 pos)
 
 float GetVoxel(ivec3 loc)
 {
-    if (IsInVoxelVolume(loc))
+    if (IsInVolume(loc))
     {
-         return texelFetch(u_VoxelData, loc, 0).r;
+        return texelFetch(u_VoxelData, loc, 0).r;
     }
     
     return 0.0f;
+}
+
+float ToConservativeEuclidean(float Manhattan)
+{
+	return Manhattan == 1 ? 1 : Manhattan * 0.57735026918f;
+}
+
+float GetDistance(ivec3 loc)
+{
+    if (IsInVolume(loc))
+    {
+         return (texelFetch(u_DistanceFieldTexture, loc, 0).r);
+    }
+    
+    return -1.0f;
 }
 
 bool VoxelExists(in vec3 loc)
@@ -342,6 +355,82 @@ bool VoxelExists(in vec3 loc)
     }
 
     return false;
+}
+
+float GetManhattanDist(vec3 p1, vec3 p2)
+{
+	float Manhattan = abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
+	return Manhattan;
+}
+
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist) 
+{
+	vec3 initial_origin = origin;
+	const float epsilon = 0.01f;
+	bool Intersection = false;
+
+	int MinIdx = 0;
+	ivec3 RaySign = ivec3(sign(direction));
+
+	int itr = 0;
+
+	for (itr = 0 ; itr < 350 ; itr++)
+	{
+		ivec3 Loc = ivec3(floor(origin));
+		float BlockAtLoc = GetVoxel(ivec3(floor(origin)));
+		
+		if (!IsInVolume(Loc))
+		{
+			Intersection = false;
+			break;
+		}
+
+		float Dist = GetDistance(Loc) * 255.0f; 
+
+		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+		if (Euclidean == 0 || BlockAtLoc > 0)
+		{
+			break;
+		}
+
+		if (Euclidean == 1)
+		{
+			// Do the DDA algorithm for one voxel 
+
+			ivec3 GridCoords = ivec3(origin);
+			vec3 WithinVoxelCoords = origin - GridCoords;
+			vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+
+			MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+				? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+				: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+
+			GridCoords[MinIdx] += RaySign[MinIdx];
+			WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+
+			origin = GridCoords + WithinVoxelCoords;
+			origin[MinIdx] += RaySign[MinIdx] * 0.001f;
+
+			Intersection = true;
+		}
+
+		else 
+		{
+			origin += int(Euclidean - 1) * direction;
+		}
+	}
+
+	if (Intersection)
+	{
+		normal = vec3(0.0f);
+		normal[MinIdx] = -RaySign[MinIdx];
+		blockType = GetVoxel(ivec3(floor(origin)));
+		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+	}
+
+	return -1.0f;
 }
 
 float ProjectToCube(vec3 ro, vec3 rd) 
@@ -605,6 +694,26 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+float GetShadowAt(vec3 pos, in vec3 ldir)
+{
+	vec3 RayDirection = normalize(ldir);
+	
+	float T = -1.0f;
+	 
+	vec3 norm;
+	float block;
+	float base_block = GetVoxel(ivec3(floor(pos)));
+
+	//#ifdef APPLY_PLAYER_SHADOW
+	//	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
+	//	bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
+	//	if (PlayerIntersect) { return 1.0f; }
+	//#endif
+
+	T = voxel_traversal(pos.rgb, RayDirection, norm, block, 150);
+	return float(T > 0.0f);
+}
+
 vec2 ReprojectShadow(in vec3 world_pos)
 {
 	vec3 WorldPos = world_pos;
@@ -614,42 +723,6 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
 
 	return ProjectedPosition.xy;
-}
-
-float GetShadowAt(in vec3 pos, in vec3 ldir)
-{
-	//vec2 ReprojectedShadow = ReprojectShadow(pos);
-	//
-	//// Check if in screen space bounds
-	//if (ReprojectedShadow.x > 0.0f && ReprojectedShadow.x < 1.0f && ReprojectedShadow.y > 0.0f && ReprojectedShadow.y < 1.0f)
-	//{
-	//	return texture(u_ShadowMap, ReprojectedShadow).r;
-	//}
-	
-	vec3 RayDirection = normalize(ldir - (ldir * 0.1f));
-	
-	float T = -1.0f;
-	 
-	vec3 norm;
-	float block;
-
-	#ifdef APPLY_PLAYER_SHADOW
-		float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-		bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
-		if (PlayerIntersect) { return 1.0f; }
-	#endif
-
-	T = voxel_traversal(pos.rgb, RayDirection, norm, block, MAX_SHADOW_TRACE_DIST);
-
-	if (T > 0.0f) 
-	{ 
-		return 1.0f; 
-	}
-	
-	else 
-	{ 
-		return 0.0f;
-	}
 }
 
 float ndfGGX(float cosLh, float roughness)

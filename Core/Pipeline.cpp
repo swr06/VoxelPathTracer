@@ -221,8 +221,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	}
 
 	world->Buffer();
-
-
+	world->InitializeDistanceGenerator();
+	world->GenerateDistanceField();
 
 	VoxelRT::Renderer2D RendererUI;
 
@@ -702,6 +702,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 			InitialTraceShader.SetInteger("u_VoxelDataTexture", 0);
 			InitialTraceShader.SetInteger("u_AlbedoTextures", 1);
+			InitialTraceShader.SetInteger("u_DistanceFieldTexture", 2);
 			InitialTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
@@ -724,6 +725,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -752,6 +756,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTextures", 7);
 		DiffuseTraceShader.SetInteger("u_BlockPBRTextures", 8);
 		DiffuseTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
+		DiffuseTraceShader.SetInteger("u_DistanceFieldTexture", 13);
+
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -804,6 +810,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
+
+		glActiveTexture(GL_TEXTURE13);
+		glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -889,6 +898,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetInteger("u_AlbedoTextures", 2);
 			ShadowTraceShader.SetInteger("u_NormalTexture", 3);
 			ShadowTraceShader.SetInteger("u_PrevShadowFBO", 4);
+			ShadowTraceShader.SetInteger("u_DistanceFieldTexture", 5);
+
 			ShadowTraceShader.SetVector3f("u_LightDirection", StrongerLightDirection);
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 			ShadowTraceShader.SetBool("u_DoFullTrace", DoFullTrace);
@@ -909,6 +920,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE4);
 			glBindTexture(GL_TEXTURE_2D, PrevShadowFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

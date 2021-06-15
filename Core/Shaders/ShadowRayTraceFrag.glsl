@@ -4,8 +4,6 @@
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 
-#define ALPHA_TEST_SHADOWS
-
 layout (location = 0) out float o_Shadow;
 
 in vec2 v_TexCoords;
@@ -15,6 +13,7 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2DArray u_AlbedoTextures;
 uniform sampler2D u_PrevShadowFBO;
+uniform sampler3D u_DistanceFieldTexture;
 
 uniform vec4 BLOCK_TEXTURE_DATA[128];
 uniform bool u_DoFullTrace;
@@ -23,12 +22,10 @@ uniform mat4 u_ShadowView;
 
 uniform vec3 u_LightDirection;
 
-const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
-
-bool IsInVoxelizationVolume(in vec3 pos)
+bool IsInVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
-        pos.x > float(WORLD_SIZE_X) || pos.y > float(WORLD_SIZE_Y) || pos.z > float(WORLD_SIZE_Z))
+        pos.x > float(WORLD_SIZE_X - 1) || pos.y > float(WORLD_SIZE_Y - 1) || pos.z > float(WORLD_SIZE_Z - 1))
     {
         return false;    
     }   
@@ -38,220 +35,98 @@ bool IsInVoxelizationVolume(in vec3 pos)
 
 float GetVoxel(ivec3 loc)
 {
-    if (IsInVoxelizationVolume(loc))
+    if (IsInVolume(loc))
     {
-         return texelFetch(u_VoxelData, loc, 0).r;
+        return texelFetch(u_VoxelData, loc, 0).r;
     }
     
     return 0.0f;
 }
 
-float ProjectToCube(vec3 ro, vec3 rd) 
-{	
-	float tx1 = (0 - ro.x) / rd.x;
-	float tx2 = (MapSize.x - ro.x) / rd.x;
-
-	float ty1 = (0 - ro.y) / rd.y;
-	float ty2 = (MapSize.y - ro.y) / rd.y;
-
-	float tz1 = (0 - ro.z) / rd.z;
-	float tz2 = (MapSize.z - ro.z) / rd.z;
-
-	float tx = max(min(tx1, tx2), 0);
-	float ty = max(min(ty1, ty2), 0);
-	float tz = max(min(tz1, tz2), 0);
-
-	float t = max(tx, max(ty, tz));
-	
-	return t;
+float ToConservativeEuclidean(float Manhattan)
+{
+	return Manhattan == 1 ? 1 : Manhattan * 0.57735026918f;
 }
 
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
+float GetDistance(ivec3 loc)
 {
-	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
-    if (normal == NORMAL_TOP)
+    if (IsInVolume(loc))
     {
-        uv = vec2(fract(world_pos.xz));
-		NormalIndex = 0;
-    }
-
-    else if (normal == NORMAL_BOTTOM)
-    {
-        uv = vec2(fract(world_pos.xz));
-		NormalIndex = 1;
-    }
-
-    else if (normal == NORMAL_RIGHT)
-    {
-        uv = vec2(fract(world_pos.zy));
-		NormalIndex = 2;
-    }
-
-    else if (normal == NORMAL_LEFT)
-    {
-        uv = vec2(fract(world_pos.zy));
-		NormalIndex = 3;
+         return (texelFetch(u_DistanceFieldTexture, loc, 0).r);
     }
     
-    else if (normal == NORMAL_FRONT)
-    {
-        uv = vec2(fract(world_pos.xy));
-		NormalIndex = 4;
-    }
-
-     else if (normal == NORMAL_BACK)
-    {
-        uv = vec2(fract(world_pos.xy));
-		NormalIndex = 5;
-    }
+    return -1.0f;
 }
 
-float voxel_traversal(vec3 orig, vec3 direction) 
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blockType) 
 {
-	vec3 normal = vec3(0.0f);
-	vec3 origin = orig;
-	const float epsilon = 0.001f;
-	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
-	origin += t1 * direction;
+	vec3 initial_origin = origin;
+	const float epsilon = 0.01f;
+	bool Intersection = false;
 
-	int mapX = int(floor(origin.x));
-	int mapY = int(floor(origin.y));
-	int mapZ = int(floor(origin.z));
+	int MinIdx = 0;
+	ivec3 RaySign = ivec3(sign(direction));
 
-	float sideDistX;
-	float sideDistY;
-	float sideDistZ;
+	int itr = 0;
 
-	float deltaDX = abs(1.0f / direction.x);
-	float deltaDY = abs(1.0f / direction.y);
-	float deltaDZ = abs(1.0f / direction.z);
-	float T = -1.0;
-
-	int stepX;
-	int stepY;
-	int stepZ;
-
-	int hit = 0;
-	int side;
-
-	if (direction.x < 0)
+	for (itr = 0 ; itr < 350 ; itr++)
 	{
-		stepX = -1;
-		sideDistX = (origin.x - mapX) * deltaDX;
-	} 
-	
-	else 
-	{
-		stepX = 1;
-		sideDistX = (mapX + 1.0 - origin.x) * deltaDX;
-	}
-
-	if (direction.y < 0) 
-	{
-		stepY = -1;
-		sideDistY = (origin.y - mapY) * deltaDY;
-	} 
-	
-	else 
-	{
-		stepY = 1;
-		sideDistY = (mapY + 1.0 - origin.y) * deltaDY;
-	}
-
-	if (direction.z < 0) 
-	{
-		stepZ = -1;
-		sideDistZ = (origin.z - mapZ) * deltaDZ;
-	} 
-	
-	else 
-	{
-		stepZ = 1;
-		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
-	}
-
-	for (int i = 0; i < 175; i++) 
-	{
-		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
-		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
-
-		if (sideDistX < sideDistY && sideDistX < sideDistZ) 
-		{
-			sideDistX += deltaDX;
-			mapX += stepX;
-			side = 0;
-		} 
+		ivec3 Loc = ivec3(floor(origin));
 		
-		else if (sideDistY < sideDistX && sideDistY < sideDistZ)
+		if (!IsInVolume(Loc))
 		{
-			sideDistY += deltaDY;
-			mapY += stepY;
-			side = 1;
-		} 
-		
-		else 
-		{
-			sideDistZ += deltaDZ;
-			mapZ += stepZ;
-			side = 2;
-		}
-
-		float block = GetVoxel(ivec3(mapX, mapY, mapZ));
-
-		if (block != 0) 
-		{
-			hit = 1;
-
-			if (side == 0) 
-			{
-				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
-				normal = vec3(1, 0, 0) * -stepX;
-			}
-
-			else if (side == 1) 
-			{
-				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
-				normal = vec3(0, 1, 0) * -stepY;
-			}
-
-			else
-			{
-				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
-				normal = vec3(0, 0, 1) * -stepZ;
-			}
-
-			#ifdef ALPHA_TEST_SHADOWS
-			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
-			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
-
-			if (transparent)
-			{
-				vec3 hit_position = orig + (direction * T);
-				int temp_idx; 
-				vec2 uv;
-
-				CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
-
-				if (textureLod(u_AlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x), 3).a < 0.1f)
-				{
-					T = -1.0f;
-					continue;
-				}
-			}
-			#endif
-
+			Intersection = false;
 			break;
 		}
+
+		float Dist = GetDistance(Loc) * 255.0f; 
+
+		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+		if (Euclidean == 0)
+		{
+			break;
+		}
+
+		if (Euclidean == 1)
+		{
+			// Do the DDA algorithm for one voxel 
+
+			ivec3 GridCoords = ivec3(origin);
+			vec3 WithinVoxelCoords = origin - GridCoords;
+			vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+
+			MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+				? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+				: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+
+			GridCoords[MinIdx] += RaySign[MinIdx];
+			WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+
+			origin = GridCoords + WithinVoxelCoords;
+			origin[MinIdx] += RaySign[MinIdx] * 0.01f;
+
+			Intersection = true;
+		}
+
+		else 
+		{
+			origin += int(Euclidean - 1) * direction;
+		}
 	}
 
-	return T;
+	if (Intersection)
+	{
+		normal = vec3(0.0f);
+		normal[MinIdx] = -RaySign[MinIdx];
+		blockType = GetVoxel(ivec3(origin));
+		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+	}
+
+	return -1.0f;
 }
+
 
 vec2 ReprojectShadow (in vec3 pos)
 {
@@ -267,17 +142,21 @@ void main()
 	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
 	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
 	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
-
+	vec3 Bias = SampledNormal * vec3(0.055f);
+	
 	if (u_DoFullTrace)
 	{
 		float T = -1.0f;
+
+		float block_at = GetVoxel(ivec3(floor(RayOrigin.rgb + Bias)));
 		 
 		if (RayOrigin.w > 0.0f) 
 		{
-			T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
+			float b; vec3 n;
+			T = VoxelTraversalDF(RayOrigin.rgb + Bias, RayDirection, n, b);
 		}
 
-		if (T > 0.0f) 
+		if (T > 0.0f || block_at > 0) 
 		{ 
 			o_Shadow = 1.0f; 
 		}
@@ -304,7 +183,8 @@ void main()
 			 
 			if (RayOrigin.w > 0.0f) 
 			{
-				T = voxel_traversal(RayOrigin.rgb + (SampledNormal * vec3(0.01f)), RayDirection);
+				float b; vec3 n;
+				T = VoxelTraversalDF(RayOrigin.rgb + Bias, RayDirection, n, b);
 			}
 
 			if (T > 0.0f) 

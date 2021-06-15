@@ -1,0 +1,74 @@
+#version 430 core
+#define WORLD_SIZE_X 384
+#define WORLD_SIZE_Y 128
+#define WORLD_SIZE_Z 384
+
+layout(local_size_x = 1, local_size_y = 32, local_size_z = 32) in;
+
+layout(r8, binding = 0) uniform image3D o_DistanceBuffer;
+
+uniform sampler3D u_BlockData;
+
+ivec3 Get3DIdx(int idx)
+{
+		int z = idx / (WORLD_SIZE_X * WORLD_SIZE_Y);
+		idx -= (z * WORLD_SIZE_X * WORLD_SIZE_Y);
+		int y = idx / WORLD_SIZE_X;
+		int x = idx % WORLD_SIZE_X;
+		return ivec3(x, y, z);
+}
+
+void WriteToDistBuffer(ivec3 loc, float val)
+{
+	imageStore(o_DistanceBuffer, loc, vec4(val / 255.0f));
+}
+
+void WriteToDistBuffer(int loc, float val)
+{
+	imageStore(o_DistanceBuffer, Get3DIdx(loc), vec4(val / 255.0f));
+}
+
+float ReadFromDistBuffer(ivec3 loc)
+{
+	return floor(imageLoad(o_DistanceBuffer, loc).r * 255.0f);
+}
+
+float ReadFromDistBuffer(int loc)
+{
+	return floor(imageLoad(o_DistanceBuffer, Get3DIdx(loc)).r * 255.0f);
+}
+
+bool ReadFromBlockBuffer(ivec3 loc)
+{
+	return texelFetch(u_BlockData, loc, 0).r > 0;
+}
+
+bool ReadFromBlockBuffer(int loc)
+{
+	return texelFetch(u_BlockData, Get3DIdx(loc), 0).r > 0;
+}
+
+void main()
+{
+	ivec3 Texel = ivec3(gl_GlobalInvocationID.xyz);
+	int z = Texel.z;
+	int y = Texel.y;
+
+	const int MaxDistance = min(254, WORLD_SIZE_X + WORLD_SIZE_Y + WORLD_SIZE_Z);
+
+    WriteToDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + 0, ReadFromBlockBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + 0) ? 0 : MaxDistance);
+
+    for (int x = 1; x < WORLD_SIZE_X; x++)
+	{
+        WriteToDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + x, ReadFromBlockBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + x) ? 0 : 
+					      min(MaxDistance, 1 + ReadFromDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + (x - 1)))); 
+    }
+
+    for (int x = WORLD_SIZE_X - 2; x >= 0; x--)
+	{
+        if (ReadFromDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + (x + 1)) < ReadFromDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + x))
+		{
+            WriteToDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + x, 1 + ReadFromDistBuffer(z * WORLD_SIZE_X * WORLD_SIZE_Y + y * WORLD_SIZE_X + (x + 1)));
+		}
+	}
+}
