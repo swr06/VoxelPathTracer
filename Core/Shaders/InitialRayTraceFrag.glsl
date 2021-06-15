@@ -141,7 +141,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
 
 			origin = GridCoords + WithinVoxelCoords;
-			origin[MinIdx] += RaySign[MinIdx] * 0.01f;
+			origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
 
 			Intersection = true;
 		}
@@ -156,7 +156,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	{
 		normal = vec3(0.0f);
 		normal[MinIdx] = -RaySign[MinIdx];
-		blockType = GetVoxel(ivec3(origin));
+		blockType = GetVoxel(ivec3(floor(origin)));
 		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
 	}
 
@@ -175,6 +175,7 @@ void main()
 
 	vec3 normal;
 	float id;
+
 
 	float t = VoxelTraversalDF(r.Origin, r.Direction, normal, id);
 	bool intersect = t > 0.0f && id > 0;

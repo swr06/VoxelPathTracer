@@ -129,8 +129,8 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 	}
 
 	vec3 bias = (flatnormal * 0.045);
-	float ShadowAt = GetShadowAt(world_pos, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos + bias, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
+	float ShadowAt = GetShadowAt(world_pos + bias, StrongerLightDirection);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
 
 	return (Emmisivity * Albedo) + DirectLighting;
 }
@@ -377,7 +377,6 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	for (itr = 0 ; itr < 350 ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
-		float BlockAtLoc = GetVoxel(ivec3(floor(origin)));
 		
 		if (!IsInVolume(Loc))
 		{
@@ -389,7 +388,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
 
-		if (Euclidean == 0 || BlockAtLoc > 0)
+		if (Euclidean == 0)
 		{
 			break;
 		}
@@ -411,7 +410,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
 
 			origin = GridCoords + WithinVoxelCoords;
-			origin[MinIdx] += RaySign[MinIdx] * 0.001f;
+			origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
 
 			Intersection = true;
 		}
@@ -702,15 +701,14 @@ float GetShadowAt(vec3 pos, in vec3 ldir)
 	 
 	vec3 norm;
 	float block;
-	float base_block = GetVoxel(ivec3(floor(pos)));
 
-	//#ifdef APPLY_PLAYER_SHADOW
-	//	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-	//	bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
-	//	if (PlayerIntersect) { return 1.0f; }
-	//#endif
+	#ifdef APPLY_PLAYER_SHADOW
+		float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
+		bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
+		if (PlayerIntersect) { return 1.0f; }
+	#endif
 
-	T = voxel_traversal(pos.rgb, RayDirection, norm, block, 150);
+	T = VoxelTraversalDF(pos.rgb, RayDirection, norm, block, 150);
 	return float(T > 0.0f);
 }
 

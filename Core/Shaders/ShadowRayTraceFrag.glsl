@@ -105,7 +105,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blo
 			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
 
 			origin = GridCoords + WithinVoxelCoords;
-			origin[MinIdx] += RaySign[MinIdx] * 0.01f;
+			origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
 
 			Intersection = true;
 		}
