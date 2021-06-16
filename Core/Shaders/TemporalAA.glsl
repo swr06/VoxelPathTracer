@@ -80,10 +80,10 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
 	
-	if (PreviousCoord.x > 0.05 && PreviousCoord.x < 0.95f &&
-		PreviousCoord.y > 0.05 && PreviousCoord.y < 0.95f && 
-		CurrentCoord.x > 0.05 && CurrentCoord.x < 0.95f &&
-		CurrentCoord.y > 0.05 && CurrentCoord.y < 0.95f)
+	if (PreviousCoord.x > 0.025 && PreviousCoord.x < 0.975f &&
+		PreviousCoord.y > 0.025 && PreviousCoord.y < 0.975f && 
+		CurrentCoord.x > 0.025 && CurrentCoord.x < 0.975f &&
+		CurrentCoord.y > 0.025 && CurrentCoord.y < 0.975f)
 	{
 
 		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;

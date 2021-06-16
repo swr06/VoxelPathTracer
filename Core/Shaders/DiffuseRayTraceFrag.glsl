@@ -7,9 +7,8 @@
 
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
-//#define USE_BAYER_PIXEL_DITHER
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 24
+#define MAX_VOXEL_DIST 20
 #define MAX_BOUNCE_LIMIT 2
 #define APPLY_PLAYER_SHADOW
 
@@ -77,7 +76,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
-float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int mdist);
+bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist);
+
 
 // Globals
 vec3 g_Normal;
@@ -103,7 +103,7 @@ float GetBlueNoise()
 	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
 }
 
-vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in vec2 uv, in vec3 flatnormal)
+vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
@@ -130,27 +130,23 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec3 normal, in v
 
 	vec3 bias = (flatnormal * 0.045);
 	float ShadowAt = GetShadowAt(world_pos + bias, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, normal, PBR, ShadowAt);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, flatnormal, PBR, ShadowAt);
 
 	return (Emmisivity * Albedo) + DirectLighting;
 }
 
-vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersection, 
-					  out int tex_ref, out vec3 tangent, out vec3 bitangent, out vec2 txc, out vec3 tangent_normal)
+vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 {
 	float b = 0;
+	int temp;
 
-	T = voxel_traversal(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
-	tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
+	bool Intersect = voxel_traversal(r.Origin, r.Direction, b, out_n, pos, MAX_VOXEL_DIST);
+	int tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
 
-	if (T > 0.0f) 
+	if (Intersect && b > 0) 
 	{ 
-		CalculateVectors(r.Origin + (r.Direction * T), out_n, tangent, bitangent, txc);
-
-		mat3 tbn =  mat3(normalize(tangent), normalize(bitangent), normalize(out_n));
-		tangent_normal = tbn * (texture(u_BlockNormalTextures, vec3(txc, BLOCK_TEXTURE_DATA[tex_ref].g)).rgb * 2.0f - 1.0f);
-		
-		return GetDirectLighting(r.Origin + (r.Direction * T), tex_ref, tangent_normal, txc, out_n);
+		vec2 txc; CalculateUV(pos, out_n, txc, temp);
+		return GetDirectLighting(pos, tex_ref, txc, out_n);
 	} 
 
 	else 
@@ -164,50 +160,23 @@ vec3 GetBlockRayColor(in Ray r, out float T, out vec3 out_n, out bool intersecti
 
 vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 {
-	vec3 initial_normal;
-	vec2 initial_uv;
-	vec3 initial_tan;
-	vec3 initial_bitan;
-	mat3 initial_tbn;
-	int initial_idx;
-
-	CalculateVectors(initial_origin, input_normal, initial_tan, initial_bitan, initial_uv);
-	initial_tbn = mat3(normalize(initial_tan), normalize(initial_bitan), normalize(input_normal));
-	initial_idx = int(floor(texture(u_DataTexture, v_TexCoords).g));
-	initial_normal = initial_tbn * (texture(u_BlockNormalTextures, vec3(initial_uv, initial_idx)).rgb * 2.0f - 1.0f);
-
-	Ray new_ray = Ray(initial_origin, cosWeightedRandomHemisphereDirection(initial_normal));
+	float bias = 0.0f;
+	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
 
 	vec3 total_color = vec3(0.0f);;
 
-	float T;
-	vec3 N;
-	bool intersection;
-	int tex_ref;
-	vec3 Tangent, Bitangent;
-	vec2 TexCoord;
-	mat3 tbn;
-
-	float AO = 0;
+	vec3 Position;
+	vec3 Normal;
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
 		vec3 tangent_normal;
-		total_color += GetBlockRayColor(new_ray, T, N, intersection, tex_ref, Tangent, Bitangent, TexCoord, tangent_normal);
-
-		if (i == 0 && T > 0.0f)
-		{
-			AO = float((T * T) < 0.4f);
-		}
-
-		new_ray.Origin = new_ray.Origin + (new_ray.Direction * T);
-		new_ray.Direction = cosWeightedRandomHemisphereDirection(tangent_normal);
-		
+		total_color += GetBlockRayColor(new_ray, Position, Normal);
+		new_ray.Origin = Position + Normal * bias;
+		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
 	}
 	
 	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
-	AO = 1.0f - (pow(AO, 5.0f));
-	AO = clamp(AO, 0.0f, 1.0f);
 	
 	return total_color; // * AO;
 }
@@ -432,149 +401,104 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
-float ProjectToCube(vec3 ro, vec3 rd) 
-{	
-	const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
-	float tx1 = (0 - ro.x) / rd.x;
-	float tx2 = (MapSize.x - ro.x) / rd.x;
-
-	float ty1 = (0 - ro.y) / rd.y;
-	float ty2 = (MapSize.y - ro.y) / rd.y;
-
-	float tz1 = (0 - ro.z) / rd.z;
-	float tz2 = (MapSize.z - ro.z) / rd.z;
-
-	float tx = max(min(tx1, tx2), 0);
-	float ty = max(min(ty1, ty2), 0);
-	float tz = max(min(tz1, tz2), 0);
-
-	float t = max(tx, max(ty, tz));
-	
-	return t;
-}
-
-float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType, in int mdist) 
+bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist)
 {
-	const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
-
-	vec3 origin = orig;
-	const float epsilon = 0.001f;
-	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
-	origin += t1 * direction;
-
-	int mapX = int(floor(origin.x));
-	int mapY = int(floor(origin.y));
-	int mapZ = int(floor(origin.z));
-
-	float sideDistX;
-	float sideDistY;
-	float sideDistZ;
-
-	float deltaDX = abs(1.0f / direction.x);
-	float deltaDY = abs(1.0f / direction.y);
-	float deltaDZ = abs(1.0f / direction.z);
-	float T = -1.0;
-
-	int stepX;
-	int stepY;
-	int stepZ;
-
-	int hit = 0;
-	int side;
-
-	if (direction.x < 0)
-	{
-		stepX = -1;
-		sideDistX = (origin.x - mapX) * deltaDX;
-	} 
+	const vec3 BLOCK_CALCULATED_NORMALS[6] = vec3[]
+	(
+			vec3(1.0, 0.0, 0.0),
+			vec3(-1.0, 0.0, 0.0),
+			vec3(0.0, 1.0, 0.0),
+			vec3(0.0, -1.0, 0.0),
+			vec3(0.0, 0.0, 1.0),
+			vec3(0.0, 0.0, -1.0)
+	);
 	
-	else 
-	{
-		stepX = 1;
-		sideDistX = (mapX + 1.0 - origin.x) * deltaDX;
-	}
+	world_pos = origin;
 
-	if (direction.y < 0) 
-	{
-		stepY = -1;
-		sideDistY = (origin.y - mapY) * deltaDY;
-	} 
-	
-	else 
-	{
-		stepY = 1;
-		sideDistY = (mapY + 1.0 - origin.y) * deltaDY;
-	}
+	vec3 Temp;
+	vec3 VoxelCoord; 
+	vec3 FractPosition;
 
-	if (direction.z < 0) 
-	{
-		stepZ = -1;
-		sideDistZ = (origin.z - mapZ) * deltaDZ;
-	} 
-	
-	else 
-	{
-		stepZ = 1;
-		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
-	}
+	Temp.x = direction.x > 0.0 ? 1.0 : 0.0;
+	Temp.y = direction.y > 0.0 ? 1.0 : 0.0;
+	Temp.z = direction.z > 0.0 ? 1.0 : 0.0;
 
-	for (int i = 0; i < mdist; i++) 
-	{
-		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
-		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
+	vec3 plane = floor(world_pos + Temp);
 
-		if (sideDistX < sideDistY && sideDistX < sideDistZ) 
+	for (int x = 0; x < dist; x++)
+	{
+		if (!IsInVolume(world_pos))
 		{
-			sideDistX += deltaDX;
-			mapX += stepX;
+			break;
+		}
+
+		vec3 Next = (plane - world_pos) / direction;
+		int side = 0;
+
+		if (Next.x < min(Next.y, Next.z)) 
+		{
+			world_pos += direction * Next.x;
+			world_pos.x = plane.x;
+			plane.x += sign(direction.x);
 			side = 0;
-		} 
-		
-		else if (sideDistY < sideDistX && sideDistY < sideDistZ)
+		}
+
+		else if (Next.y < Next.z) 
 		{
-			sideDistY += deltaDY;
-			mapY += stepY;
+			world_pos += direction * Next.y;
+			world_pos.y = plane.y;
+			plane.y += sign(direction.y);
 			side = 1;
-		} 
-		
+		}
+
 		else 
 		{
-			sideDistZ += deltaDZ;
-			mapZ += stepZ;
+			world_pos += direction * Next.z;
+			world_pos.z = plane.z;
+			plane.z += sign(direction.z);
 			side = 2;
 		}
 
-		float block = GetVoxel(ivec3(mapX, mapY, mapZ));
+		VoxelCoord = (plane - Temp);
 
-		if (block != 0) 
+		int Side = ((side + 1) * 2) - 1;
+
+		if (side == 0) 
 		{
-			hit = 1;
-			blockType = block;
-
-			if (side == 0) 
+			if (world_pos.x - VoxelCoord.x > 0.5)
 			{
-				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
-				normal = vec3(1, 0, 0) * -stepX;
+				Side = 0;
 			}
+		}
 
-			else if (side == 1) 
+		else if (side == 1)
+		{
+			if (world_pos.y - VoxelCoord.y > 0.5)
 			{
-				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
-				normal = vec3(0, 1, 0) * -stepY;
+				Side = 2;
 			}
+		}
 
-			else
+		else 
+		{
+			if (world_pos.z - VoxelCoord.z > 0.5)
 			{
-				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
-				normal = vec3(0, 0, 1) * -stepZ;
+				Side = 4;
 			}
+		}
 
-			break;
+		normal = BLOCK_CALCULATED_NORMALS[Side];
+		block = GetVoxel(ivec3(VoxelCoord.xyz));
+
+		if (block > 0)
+		{
+			return true; 
 		}
 	}
 
-	return T;
+	return false;
 }
+
 
 bool PointIsInSphere(vec3 point, float radius)
 {
