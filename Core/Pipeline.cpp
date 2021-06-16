@@ -1057,7 +1057,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 			ReflectionDenoiser.SetInteger("u_Texture", 0);
 			ReflectionDenoiser.SetInteger("u_PBRTexture", 1);
-			ReflectionDenoiser.SetInteger("u_Radius", 12);
+			ReflectionDenoiser.SetInteger("u_Radius", 5);
 		
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
