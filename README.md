@@ -3,7 +3,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 
 # Features Implemented
 - Voxel Ray Casting
-- Manhatta Distance Field acceleration 
+- Manhattan Distance Field acceleration 
 - Procedural Terrain Generation
 - Diffuse Tracing 
 - Temporal Diffuse Filtering
