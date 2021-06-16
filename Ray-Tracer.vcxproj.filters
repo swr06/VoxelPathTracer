@@ -42,6 +42,9 @@
     <Filter Include="Source Files\voxel-rt\Clouds">
       <UniqueIdentifier>{29775bfd-18fb-4880-8941-6f635e269e7e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\DF">
+      <UniqueIdentifier>{00a692a3-7c9d-4c25-b5c7-0d5ba1fd5db7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -449,6 +452,15 @@
     </None>
     <None Include="Core\Shaders\Clouds\TemporalFilter.glsl">
       <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\ManhattanDistanceX.comp">
+      <Filter>Source Files\Shaders\DF</Filter>
+    </None>
+    <None Include="Core\Shaders\ManhattanDistanceY.comp">
+      <Filter>Source Files\Shaders\DF</Filter>
+    </None>
+    <None Include="Core\Shaders\ManhattanDistanceZ.comp">
+      <Filter>Source Files\Shaders\DF</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

@@ -8,6 +8,8 @@
 #include "Block.h"
 #include "Texture3D.h"
 
+#include "GLClasses/ComputeShader.h"
+
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
@@ -40,6 +42,9 @@ namespace VoxelRT
 			m_Buffered = true;
 		}
 
+		void InitializeDistanceGenerator();
+		void GenerateDistanceField();
+
 		void ChangeCurrentlyHeldBlock(bool x);
 
 		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
@@ -50,8 +55,14 @@ namespace VoxelRT
 
 		uint8_t GetCurrentBlock() const noexcept { return m_CurrentlyHeldBlock; }
 
+		Texture3D m_DistanceFieldTexture;
+
 	private :
 		bool m_Buffered = false;
 		uint8_t m_CurrentlyHeldBlock = 1;
+
+		GLClasses::ComputeShader m_DistanceShaderX;
+		GLClasses::ComputeShader m_DistanceShaderY;
+		GLClasses::ComputeShader m_DistanceShaderZ;
 	};
 }
