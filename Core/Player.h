@@ -1,7 +1,6 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include "FPSCamera.h"
 #include "World.h"
 #include "FpsCamera.h"
 
