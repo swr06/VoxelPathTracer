@@ -20,6 +20,7 @@ uniform sampler2D u_BlueNoiseTexture;
 uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
 
+uniform bool u_RoughReflections;
 
 uniform samplerCube u_Skymap;
 
@@ -251,30 +252,17 @@ void main()
 	int total_hits = 0;
 	vec3 TotalColor = vec3(0.0f);
 
+	vec2 suv = v_TexCoords;
+	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f;
+	vec4 data = texture(u_PBRTexture, suv);
+
+	vec2 iUV;
+	CalculateUV(SampledWorldPosition.xyz, InitialTraceNormal, iUV);
+		
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec2 suv;
-
-		float u = (Pixel.x + GetBlueNoise()) / u_Dimensions.x;
-		float v = (Pixel.y + GetBlueNoise()) / u_Dimensions.y;
-
-		suv = vec2(u, v);
-
-		vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
-
-		if (SampledWorldPosition.w <= 0.0f) 
-		{
-			continue;
-		}
-
-		vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
-		SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f;
-
-		vec4 data = texture(u_PBRTexture, suv);
-
-		vec2 iUV;
-		CalculateUV(SampledWorldPosition.xyz, InitialTraceNormal, iUV);
-		
 		vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
 		float RoughnessAt = PBRMap.r;
 		float MetalnessAt = PBRMap.g;
@@ -284,8 +272,7 @@ void main()
 			continue;
 		}
 
-		vec3 ReflectionNormal = RoughnessAt > 0.075f ? ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f) : InitialTraceNormal;
-
+		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f) : InitialTraceNormal) : InitialTraceNormal;
 		vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
 		vec3 R = normalize(reflect(I, ReflectionNormal));
 		vec3 Normal;

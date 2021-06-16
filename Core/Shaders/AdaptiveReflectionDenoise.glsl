@@ -61,6 +61,6 @@ vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thres
 void main()
 {
     RoughnessAt = texture(u_PBRTexture, v_TexCoords).r;
-    float EdgeThreshold = mix(0.050f, 0.850f, RoughnessAt * 0.95f);
+    float EdgeThreshold = mix(0.050f, 0.550f, RoughnessAt * 0.95f);
     o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, EdgeThreshold).rgb; 
 }

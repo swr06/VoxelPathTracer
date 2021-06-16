@@ -31,6 +31,8 @@ static bool Bloom = true;
 
 static bool GodRays = false;
 static bool FakeGodRays = false;
+static bool RoughReflections = true;
+static bool DenoiseReflections = false;
 
 static bool LensFlare = false;
 static bool SSAO = false;
@@ -92,6 +94,8 @@ public:
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
+			ImGui::Checkbox("Rough reflections?", &RoughReflections);
+			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
 
@@ -263,7 +267,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer DownsampledFBO;
 	GLClasses::Framebuffer AverageLumaFBO;
 	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
-	GLClasses::Framebuffer ReflectionTemporalFBO_1, ReflectionTemporalFBO_2;
+	GLClasses::Framebuffer ReflectionTemporalFBO_1, ReflectionTemporalFBO_2, ReflectionDenoised;
 	GLClasses::Framebuffer RTAO_FBO, RTAO_TemporalFBO_1, RTAO_TemporalFBO_2;
 
 	VoxelRT::BloomFBO BloomFBO(16, 16);
@@ -503,6 +507,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 		ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+		ReflectionDenoised.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 
 		// SSAO
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
@@ -955,7 +960,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetVector2f("u_Dimensions", glm::vec2(ReflectionTraceFBO.GetWidth(), ReflectionTraceFBO.GetHeight()));
 			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
 			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
-
+			ReflectionTraceShader.SetBool("u_RoughReflections", RoughReflections);
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -1007,6 +1012,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		// Temporally filter it
+		if (RoughReflections)
 		{
 
 			ReflectionTemporalFBO.Bind();
@@ -1044,26 +1050,27 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		// Denoise reflection trace
-		//{
-		//	ReflectionDenoised.Bind();
-		//	ReflectionDenoiser.Use();
-		//
-		//	ReflectionDenoiser.SetInteger("u_Texture", 0);
-		//	ReflectionDenoiser.SetInteger("u_PBRTexture", 1);
-		//	ReflectionDenoiser.SetInteger("u_Radius", 12);
-		//
-		//	glActiveTexture(GL_TEXTURE0);
-		//	glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
-		//
-		//	glActiveTexture(GL_TEXTURE1);
-		//	glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
-		//
-		//	VAO.Bind();
-		//	glDrawArrays(GL_TRIANGLES, 0, 6);
-		//	VAO.Unbind();
-		//
-		//	ReflectionDenoised.Unbind();
-		//}
+		if (DenoiseReflections && RoughReflections)
+		{
+			ReflectionDenoised.Bind();
+			ReflectionDenoiser.Use();
+		
+			ReflectionDenoiser.SetInteger("u_Texture", 0);
+			ReflectionDenoiser.SetInteger("u_PBRTexture", 1);
+			ReflectionDenoiser.SetInteger("u_Radius", 12);
+		
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
+		
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
+		
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		
+			ReflectionDenoised.Unbind();
+		}
 
 		// ---- RT AO ----
 
@@ -1220,7 +1227,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE10);
-		glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTraceFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
