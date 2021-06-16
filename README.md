@@ -3,6 +3,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 
 # Features Implemented
 - Voxel Ray Casting
+- Manhatta Distance Field acceleration 
 - Procedural Terrain Generation
 - Diffuse Tracing 
 - Temporal Diffuse Filtering
@@ -18,7 +19,6 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX)
 - Naive world saving and loading
-- Alpha testing (Shadows and tracing)
 - Atmosphere 
 - God Rays (Screen space) 
 - Emissive Materials
@@ -30,12 +30,13 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Volumetric clouds
 
 # Features to implement
+- Alpha testing
+- Foliage
 - Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
 - Better denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
-- Distance Field acceleration (WIP.)
 - Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
 
 # Performance
