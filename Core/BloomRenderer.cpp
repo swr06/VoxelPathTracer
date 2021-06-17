@@ -6,10 +6,7 @@ namespace VoxelRT
 	{
 		static std::unique_ptr<GLClasses::VertexBuffer> BloomFBOVBO;
 		static std::unique_ptr<GLClasses::VertexArray> BloomFBOVAO;
-		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO;
-		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO1;
-		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO2;
-		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO3;
+		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO[4];
 		static std::unique_ptr<GLClasses::Shader> BloomMaskShader;
 		static std::unique_ptr<GLClasses::Shader> BloomBlurShader;
 
@@ -17,14 +14,15 @@ namespace VoxelRT
 		{
 			BloomFBOVBO = std::unique_ptr<GLClasses::VertexBuffer>(new GLClasses::VertexBuffer);
 			BloomFBOVAO = std::unique_ptr<GLClasses::VertexArray>(new GLClasses::VertexArray);
-			BloomAlternateFBO = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
-			BloomAlternateFBO->CreateFramebuffer();
-			BloomAlternateFBO1 = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
-			BloomAlternateFBO1->CreateFramebuffer();
-			BloomAlternateFBO2 = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
-			BloomAlternateFBO2->CreateFramebuffer();
-			BloomAlternateFBO3 = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
-			BloomAlternateFBO3->CreateFramebuffer();
+			BloomAlternateFBO[0] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
+			BloomAlternateFBO[0]->CreateFramebuffer();
+			BloomAlternateFBO[1] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
+			BloomAlternateFBO[1]->CreateFramebuffer();
+			BloomAlternateFBO[2] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
+			BloomAlternateFBO[2]->CreateFramebuffer();
+			BloomAlternateFBO[3] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(64, 64, true));
+			BloomAlternateFBO[3]->CreateFramebuffer();
+
 			BloomBlurShader = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 			BloomMaskShader = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 
@@ -52,70 +50,17 @@ namespace VoxelRT
 		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex)
 		{
 			GLenum buffer;
-			int w, h;
-			float mip = 0.0f;
-			std::unique_ptr<GLClasses::Framebuffer>* fbo;
+			int w = floor(bloomfbo.GetWidth() * bloomfbo.m_MipScales[mip_num]), h = floor(bloomfbo.GetHeight() * bloomfbo.m_MipScales[mip_num]);
+			std::unique_ptr<GLClasses::Framebuffer>* fbo = &BloomAlternateFBO[mip_num];
 
 			GLClasses::Shader& GaussianBlur = *BloomBlurShader;
 			GLClasses::Shader& BloomBrightShader = *BloomMaskShader;
 
-			switch (mip_num)
-			{
-			case 0:
-			{
-				buffer = GL_COLOR_ATTACHMENT0;
-				w = floor(bloomfbo.m_mipscale1 * bloomfbo.GetWidth());
-				h = floor(bloomfbo.m_mipscale1 * bloomfbo.GetHeight());
-				mip = 0.0f;
-				fbo = &BloomAlternateFBO;
-
-				break;
-			}
-
-			case 1:
-			{
-				buffer = GL_COLOR_ATTACHMENT1;
-				w = floor(bloomfbo.m_mipscale2 * bloomfbo.GetWidth());
-				h = floor(bloomfbo.m_mipscale2 * bloomfbo.GetHeight());
-				mip = 0.0f;
-				fbo = &BloomAlternateFBO1;
-
-				break;
-			}
-
-			case 2:
-			{
-				buffer = GL_COLOR_ATTACHMENT2;
-				w = floor(bloomfbo.m_mipscale3 * bloomfbo.GetWidth());
-				h = floor(bloomfbo.m_mipscale3 * bloomfbo.GetHeight());
-				mip = 0.0f;
-				fbo = &BloomAlternateFBO2;
-
-				break;
-			}
-
-			case 3:
-			{
-				buffer = GL_COLOR_ATTACHMENT3;
-				w = floor(bloomfbo.m_mipscale4 * bloomfbo.GetWidth());
-				h = floor(bloomfbo.m_mipscale4 * bloomfbo.GetHeight());
-				mip = 0.0f;
-				fbo = &BloomAlternateFBO3;
-
-				break;
-			}
-
-			default:
-			{
-				throw "INVALID VALUE PASSED TO BLOOM RENDERER!";
-			}
-			}
 
 			fbo->get()->SetSize(w, h);
 
 			BloomBrightShader.Use();
 			fbo->get()->Bind();
-			glViewport(0, 0, w, h);
 
 			BloomBrightShader.SetInteger("u_Texture", 0);
 			BloomBrightShader.SetInteger("u_EmissiveTexture", 1);
@@ -134,9 +79,7 @@ namespace VoxelRT
 
 			GaussianBlur.Use();
 
-			glBindFramebuffer(GL_FRAMEBUFFER, bloomfbo.m_Framebuffer);
-			glDrawBuffer(buffer);
-			glViewport(0, 0, w, h);
+			bloomfbo.BindMip(mip_num);
 
 			GaussianBlur.SetInteger("u_Texture", 0);
 
