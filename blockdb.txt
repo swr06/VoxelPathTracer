@@ -254,10 +254,52 @@
 }
 
 {
+	Name : Marble2
+	Albedo : Res/Block/Marble2/Albedo.png
+	Normal : Res/Block/Marble2/Normal.png
+	PBR : Res/Block/Marble2/PBR.png
+}
+
+{
+	Name : Fabric1
+	Albedo : Res/Block/Fabric1/Albedo.png
+	Normal : Res/Block/Fabric1/Normal.png
+	PBR : Res/Block/Fabric1/PBR.png
+}
+
+{
+	Name : Fabric2
+	Albedo : Res/Block/Fabric2/Albedo.png
+	Normal : Res/Block/Fabric2/Normal.png
+	PBR : Res/Block/Fabric2/PBR.png
+}
+
+{
+	Name : Fabric3
+	Albedo : Res/Block/Fabric3/Albedo.png
+	Normal : Res/Block/Fabric3/Normal.png
+	PBR : Res/Block/Fabric3/PBR.png
+}
+
+{
+	Name : Snow
+	Albedo : Res/Block/Snow/Albedo.png
+	Normal : Res/Block/Snow/Normal.png
+	PBR : Res/Block/Snow/PBR.png
+}
+
+{
 	Name : WhiteBricks
 	Albedo : Res/Block/WhiteBricks/Albedo.png
 	Normal : Res/Block/WhiteBricks/Normal.png
 	PBR : Res/Block/WhiteBricks/PBR.png
+}
+
+{
+	Name : Obsidian
+	Albedo : Res/Block/Obsidian/Albedo.png
+	Normal : Res/Block/Obsidian/Normal.png
+	PBR : Res/Block/Obsidian/PBR.png
 }
 
 {
