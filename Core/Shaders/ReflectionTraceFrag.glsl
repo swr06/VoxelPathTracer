@@ -15,7 +15,7 @@ in vec2 v_TexCoords;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
 uniform sampler2D u_PBRTexture;
-uniform sampler2D u_BlueNoiseTexture;
+//uniform sampler2D u_BlueNoiseTexture;
 
 uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
@@ -169,21 +169,12 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
-int BLUE_NOISE_IDX = 0;
-
-float GetBlueNoise()
-{
-	BLUE_NOISE_IDX++;
-	vec2 txc =  vec2(BLUE_NOISE_IDX / 255, mod(BLUE_NOISE_IDX, 255));
-	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
-}
-
 vec3 ImportanceSampleGGX(vec3 N, float roughness)
 {
 	vec2 Xi;
 
-	Xi.x = GetBlueNoise();
-	Xi.y = GetBlueNoise();
+	Xi.x = nextFloat(RNG_SEED);
+	Xi.y = nextFloat(RNG_SEED);
 
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
@@ -241,8 +232,6 @@ void main()
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
-	BLUE_NOISE_IDX = RNG_SEED;
-	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
 	vec2 Pixel;
 	Pixel.x = v_TexCoords.x * u_Dimensions.x;

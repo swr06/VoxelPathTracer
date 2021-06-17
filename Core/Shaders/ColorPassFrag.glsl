@@ -374,14 +374,42 @@ vec2 ReprojectReflection(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
-int BLUE_NOISE_IDX = 0;
+int MIN = -2147483648;
+int MAX = 2147483647;
 
-vec3 GetBlueNoise()
+int xorshift(in int value) 
 {
-	BLUE_NOISE_IDX++;
-	vec2 txc =  vec2(BLUE_NOISE_IDX / 256, mod(BLUE_NOISE_IDX, 256));
-	return texelFetch(u_BlueNoiseTextures, ivec3(txc, 0), 0).rgb;
+    // Xorshift*32
+    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
+    value ^= value << 13;
+    value ^= value >> 17;
+    value ^= value << 5;
+    return value;
 }
+
+int nextInt(inout int seed) 
+{
+    seed = xorshift(seed);
+    return seed;
+}
+
+float nextFloat(inout int seed) 
+{
+    seed = xorshift(seed);
+    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
+    return abs(fract(float(seed) / 3141.592653));
+}
+
+float nextFloat(inout int seed, in float max) 
+{
+    return nextFloat(seed) * max;
+}
+
+float nextFloat(inout int seed, in float min, in float max) 
+{
+    return min + (max - min) * nextFloat(seed);
+}
+
 
 bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
 {
@@ -399,6 +427,8 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+int RNG_SEED;
+
 float ComputeShadow(vec3 world_pos)
 {
     float shadow = 0.0;
@@ -406,7 +436,7 @@ float ComputeShadow(vec3 world_pos)
     vec2 TexSize = textureSize(u_ShadowTexture, 0);
     vec2 TexelSize = 1.0 / TexSize; 
     int AVG = 0;
-    float BlueNoise = GetBlueNoise().r;
+    float Noise = nextFloat(RNG_SEED);
 
     vec3 ShadowDirection = normalize(u_StrongerLightDirection);
   
@@ -414,8 +444,8 @@ float ComputeShadow(vec3 world_pos)
 	{
     #ifdef POISSON_DISK_SAMPLING
         BlueNoise *= (2.0f * PI);
-        float SinTheta = sin(BlueNoise);
-        float CosTheta = cos(BlueNoise);
+        float SinTheta = sin(Noise);
+        float CosTheta = cos(Noise);
         
         mat3 RotationMatrix = mat3(vec3(CosTheta, -SinTheta, 0.0f), 
                                    vec3(SinTheta, CosTheta, 0.0f), 
@@ -425,8 +455,8 @@ float ComputeShadow(vec3 world_pos)
         
         vec3 SampleWorldPosition = world_pos + (RotatedPoissonSample * 0.05f);
     #else
-        vec3 BlueNoise = GetBlueNoise();
-        vec3 SampleWorldPosition = world_pos + BlueNoise * 0.05f;
+        vec3 WhiteNoise = vec3(nextFloat(RNG_SEED), nextFloat(RNG_SEED), nextFloat(RNG_SEED));
+        vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.05f;
     #endif
 
         float ShadowTMIN, ShadowTMAX;
@@ -472,15 +502,11 @@ const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f;
 
 void main()
 {
-    int RNG_SEED;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800 * u_Time);
 
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
-
-	BLUE_NOISE_IDX = RNG_SEED;
-	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
 
     vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
 

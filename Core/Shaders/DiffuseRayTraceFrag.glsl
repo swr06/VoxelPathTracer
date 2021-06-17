@@ -39,7 +39,7 @@ uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform sampler2D u_DataTexture;
-uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
+//uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
 
 uniform vec2 u_Dimensions;
 uniform float u_Time;
@@ -82,7 +82,6 @@ bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 no
 // Globals
 vec3 g_Normal;
 int RNG_SEED = 0;
-int BLUE_NOISE_IDX = 0;
 
 struct Ray
 {
@@ -94,13 +93,6 @@ float Bayer2(vec2 a)
 {
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
-
-float GetBlueNoise()
-{
-	BLUE_NOISE_IDX++;
-	vec2 txc =  vec2(BLUE_NOISE_IDX / 256, mod(BLUE_NOISE_IDX, 256));
-	return texelFetch(u_BlueNoiseTexture, ivec2(txc), 0).r;
 }
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
@@ -193,9 +185,6 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	BLUE_NOISE_IDX += RNG_SEED;
-	BLUE_NOISE_IDX = BLUE_NOISE_IDX % (255 * 255);
-
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 
 	if (InitialTracePosition.w <= 0.0f)
@@ -261,7 +250,7 @@ float nextFloat(inout int seed, in float min, in float max)
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
-  	vec2 r = vec2(GetBlueNoise(), GetBlueNoise());
+  	vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
     
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
 	vec3  vv = cross(uu, n);
