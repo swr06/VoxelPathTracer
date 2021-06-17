@@ -1494,16 +1494,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Bloom mips
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip0);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);
 
 		glActiveTexture(GL_TEXTURE6);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip1);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[1]);
 
 		glActiveTexture(GL_TEXTURE7);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip2);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[2]);
 
 		glActiveTexture(GL_TEXTURE8);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mip3);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[3]);
 		//
 
 		glActiveTexture(GL_TEXTURE9);

@@ -17,14 +17,18 @@ namespace VoxelRT
 		BloomFBO(BloomFBO&& v)
 		{
 			m_Framebuffer = v.m_Framebuffer;
-			m_Mip0 = v.m_Mip0;
-			m_Mip1 = v.m_Mip1;
+			m_Mips[0] = v.m_Mips[0];
+			m_Mips[1] = v.m_Mips[1];
+			m_Mips[2] = v.m_Mips[2];
+			m_Mips[3] = v.m_Mips[3];
 			m_w = v.m_w;
 			m_h = v.m_h;
 
 			v.m_Framebuffer = 0;
-			v.m_Mip0 = 0;
-			v.m_Mip1 = 0;
+			v.m_Mips[0] = 0;
+			v.m_Mips[1] = 0;
+			v.m_Mips[2] = 0;
+			v.m_Mips[3] = 0;
 			v.m_w = -1;
 			v.m_h = -1;
 		}
@@ -41,18 +45,14 @@ namespace VoxelRT
 		}
 
 		GLuint m_Framebuffer;
-		GLuint m_Mip0;
-		GLuint m_Mip1;
-		GLuint m_Mip2;
-		GLuint m_Mip3;
+		GLuint m_Mips[4];
 
 		inline int GetWidth() const { return m_w; }
 		inline int GetHeight() const { return m_h; }
 
-		const float m_mipscale1 = 0.9f;
-		const float m_mipscale2 = 0.5f;
-		const float m_mipscale3 = 0.3f;
-		const float m_mipscale4 = 0.15f;
+		void BindMip(int v);
+
+		const float m_MipScales[4] = { 0.9f, 0.5f, 0.3f, 0.15f };
 
 	private :
 		void DeleteEverything();
