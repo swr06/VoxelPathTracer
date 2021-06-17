@@ -24,7 +24,7 @@ static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
 static int DiffuseSPP = 4;
-static int ReflectionSPP = 2;
+static int ReflectionSPP = 1;
 
 static bool TAA = true;
 static bool Bloom = true;
@@ -32,7 +32,7 @@ static bool Bloom = true;
 static bool GodRays = false;
 static bool FakeGodRays = false;
 static bool RoughReflections = true;
-static bool DenoiseReflections = false;
+static bool DenoiseReflections = true;
 
 static bool LensFlare = false;
 static bool SSAO = false;

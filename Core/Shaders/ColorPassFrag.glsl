@@ -541,7 +541,7 @@ void main()
             o_PBR.w = Emissivity;
 
             vec2 ReprojectedReflectionCoord = v_TexCoords;
-            vec3 ReflectionTrace = texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
+            vec3 ReflectionTrace = clamp((Diffuse * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
             float ReflectionRatio = PBRMap.g;
             ReflectionRatio *= 1.0f - PBRMap.r;
             o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
