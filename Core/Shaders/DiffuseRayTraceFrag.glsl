@@ -265,6 +265,7 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n)
 
 vec3 GetSkyColorAt(vec3 rd) 
 {
+	rd.y = clamp(rd.y, 0.125f, 1.5f);
     return texture(u_Skymap, (rd)).rgb;
 }
 

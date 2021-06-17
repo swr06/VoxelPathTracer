@@ -1554,6 +1554,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
+		if (app.GetCurrentFrame() % 80 == 0)
+		{
+			world->GenerateDistanceField();
+		}
+
 		// Finish Frame
 		glFinish();
 		app.FinishFrame();
@@ -1567,11 +1572,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);
 
 		ModifiedWorld = false;
-
-		if (app.GetCurrentFrame() % 80 == 0)
-		{
-			world->GenerateDistanceField();
-		}
 	}
 
 	SaveWorld(world, world_name);
