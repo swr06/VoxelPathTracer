@@ -45,7 +45,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - 180 - 200 FPS on a GTX 1080Ti
 
 # Note
-- The path tracer has been tested on AMD Vega iGPUs, Nvidia pascal cards and intel iGPUs and work fine. It however does not work correctly on nvidia ampere GPUs. 
+- The path tracer has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version (OpenGL 4.5) 
 
 # Resources used
