@@ -7,6 +7,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Procedural Terrain Generation
 - Indirect Light Tracing 
 - Temporal Indirect Light Filtering
+- Parallax Occlusion Mapping
 - Normal mapping
 - PBR Texture support
 - Physically based lighting
@@ -37,7 +38,6 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Glass rendering 
 - Better denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
-- Parallax Occlusion Mapping (Try tracing through the volume, Maybe?)
 
 # Performance
 
