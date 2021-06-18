@@ -37,6 +37,8 @@ static bool DenoiseReflections = true;
 static bool LensFlare = false;
 static bool SSAO = false;
 static bool RTAO = false;
+static bool POM = false;
+static bool HighQualityPOM = false;
 
 static bool CheckerboardClouds = true;
 
@@ -98,7 +100,8 @@ public:
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
-
+			ImGui::Checkbox("POM?", &POM);
+			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
@@ -1194,7 +1197,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
+		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
+		ColorShader.SetBool("u_POM", POM);
+		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
+		ColorShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -1360,7 +1367,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ComputedExposure = glm::clamp(ComputedExposure, 0.5f, 3.6f);
 
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		}
+		} 
 
 		// ---- Volumetric Scattering ----
 

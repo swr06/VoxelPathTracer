@@ -32,6 +32,7 @@ uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
 
 uniform float u_Time;
+uniform float u_GrassblockAlbedoID;
 
 uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
@@ -39,8 +40,11 @@ uniform mat4 u_ReflectionView;
 uniform mat4 u_ReflectionProjection;
 
 uniform vec3 u_ViewerPosition;
+uniform vec2 u_Dimensions;
 
 uniform bool u_CloudsEnabled;
+uniform bool u_POM = false;
+uniform bool u_HighQualityPOM = false;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
@@ -496,6 +500,106 @@ bool IsInScreenSpaceBounds(in vec2 tx)
     return false;
 }
 
+float GetDisplacementAt(in vec2 txc, in float pbridx) 
+{
+    return texture(u_BlockPBRTextures, vec3(vec2(txc.x, txc.y), pbridx)).b * 0.35f;
+}
+
+vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float pbridx) // View direction should be in tangent space!
+{ 
+    float NumLayers = u_HighQualityPOM ? 72 : 32; 
+    float LayerDepth = 1.0 / (u_HighQualityPOM ? (NumLayers * 0.725f) : (NumLayers * 0.65));
+    float CurrentLayerDepth = 0.0;
+    vec2 P = ViewDirection.xy * 1.0f; 
+    vec2 DeltaTexCoords = P / NumLayers;
+    vec2 InitialDeltaCoords = DeltaTexCoords;
+
+    vec2  CurrentTexCoords = TextureCoords;
+    float CurrentDepthMapValue = GetDisplacementAt(CurrentTexCoords, pbridx);
+
+    for (int i = 0 ; i < NumLayers ; i++)
+    {
+        if(CurrentLayerDepth < CurrentDepthMapValue)
+        {
+            //CurrentTexCoords -= max(DeltaTexCoords, InitialDeltaCoords * 0.025f);
+            CurrentTexCoords -= DeltaTexCoords;
+            CurrentDepthMapValue = GetDisplacementAt(CurrentTexCoords, pbridx);  
+            CurrentLayerDepth += LayerDepth;
+            DeltaTexCoords *= u_HighQualityPOM ? 0.970f : 0.9f;
+        }
+    }
+
+    vec2 PrevTexCoords = CurrentTexCoords + DeltaTexCoords;
+    float AfterDepth  = CurrentDepthMapValue - CurrentLayerDepth;
+    float BeforeDepth = GetDisplacementAt(PrevTexCoords, pbridx) - CurrentLayerDepth + LayerDepth;
+    float Weight = AfterDepth / (AfterDepth - BeforeDepth);
+    vec2 FinalTexCoords = PrevTexCoords * Weight + CurrentTexCoords * (1.0 - Weight);
+    return FinalTexCoords;
+}   
+
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
+{
+	// Hard coded normals, tangents and bitangents
+
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+	if (normal == Normals[0])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (normal == Normals[1])
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (normal == Normals[2])
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
+    }
+
+    else if (normal == Normals[3])
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
+    }
+	
+    else if (normal == Normals[4])
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
+    }
+    
+
+    else if (normal == Normals[5])
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
+    }
+}
+
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
@@ -535,15 +639,31 @@ void main()
             vec3 Tangent, Bitangent;
 
             CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
-            UV.y = 1.0f - UV.y;
-            UV = clamp(UV, 0.001f, 0.999f);
-
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
-
             vec4 data = texture(u_DataTexture, v_TexCoords);
-            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV, data.x)).rgb;
-            vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+
+            if (u_POM && data.r != u_GrassblockAlbedoID)
+            {
+                vec2 InitialUV = UV;
+
+                if (SampledNormals == vec3(-1.0f, 0.0f, 0.0f)) {  UV.x = 1.0f - UV.x; UV.y = 1.0f - UV.y; }
+                if (SampledNormals == vec3(1.0f, 0.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
+                if (SampledNormals == vec3(0.0f, -1.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
+                //if (SampledNormals == vec3(0.0f, 0.0f, 1.0f)) {  flip = true;}
+                //if (SampledNormals == vec3(0.0f, 0.0f, -1.0f)) {  flip = true; }
+                
+                vec3 TangentViewPosition = tbn * u_ViewerPosition;
+                vec3 TangentFragPosition = tbn * WorldPosition.xyz; 
+                vec3 TangentViewDirection = normalize(TangentFragPosition - TangentViewPosition);
+                
+                UV = ParallaxOcclusionMapping(UV, TangentViewDirection, data.z);
+                //UV.y = flip && data.r == u_GrassblockAlbedoID ? 1.0f - UV.y : UV.y;
+            
+            } else { UV.y = 1.0f - UV.y; }
+
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
+            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
+            vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
             vec3 Diffuse = clamp(DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).rgb, 0.0f, 1.5f);
@@ -701,67 +821,3 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
        mix(sample3, sample2, sx), mix(sample1, sample0, sx)
     , sy);
 }
-
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
-{
-	// Hard coded normals, tangents and bitangents
-
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
-				   );
-
-	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
-					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
-	);
-
-	if (normal == Normals[0])
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[0];
-		bitangent = BiTangents[0];
-    }
-
-    else if (normal == Normals[1])
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[1];
-		bitangent = BiTangents[1];
-    }
-
-    else if (normal == Normals[2])
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[2];
-		bitangent = BiTangents[2];
-    }
-
-    else if (normal == Normals[3])
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[3];
-		bitangent = BiTangents[3];
-    }
-	
-    else if (normal == Normals[4])
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[4];
-		bitangent = BiTangents[4];
-    }
-    
-
-    else if (normal == Normals[5])
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[5];
-		bitangent = BiTangents[5];
-    }
-}
-
