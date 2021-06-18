@@ -5,8 +5,8 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Voxel Ray Casting
 - Manhattan Distance Field acceleration 
 - Procedural Terrain Generation
-- Diffuse Tracing 
-- Temporal Diffuse Filtering
+- Indirect Light Tracing 
+- Temporal Indirect Light Filtering
 - Normal mapping
 - PBR Texture support
 - Physically based lighting
