@@ -10,5 +10,5 @@ uniform sampler2D u_EmissiveTexture;
 void main()
 {
     float Emissivity = texture(u_EmissiveTexture, v_TexCoords).w;
-    o_Color = (Emissivity * 12.0f) * texture(u_Texture, v_TexCoords).rgb;
+    o_Color = (Emissivity * 25.0f) * texture(u_Texture, v_TexCoords).rgb;
 }

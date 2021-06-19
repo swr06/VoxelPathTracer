@@ -42,8 +42,8 @@ uniform bool u_Checker;
 uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
 
-const float SunAbsorbption = 0.075f;
-const float LightCloudAbsorbption = 0.250f;
+const float SunAbsorbption = 0.16f;
+const float LightCloudAbsorbption = 2.1f;
 
 vec3 g_Origin;
 
@@ -271,10 +271,28 @@ float henyey_greenstein_phase_func(float mu)
 	     ((4. + PI) * pow(1. + g*g - 2.*g*mu, 1.5));
 }
 
+float hg2(float a, float g) 
+{
+      float g2 = g*g;
+      return (1-g2) / (4*3.1415*pow(1+g2-2*g*(a), 1.5));
+}
+
+float phase2(float a) 
+{
+	const float x = 0.1;
+	const float y = 0.1;
+	const float z = 1.2;
+	const float w = 0.05;
+
+    float blend = .5;
+    float hgBlend = hg(a,x) * (1-blend) + hg(a,-y) * blend;
+    return z + hgBlend * w;
+}
+
 float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
 {
 	dir = normalize(dir);
-	int StepCount = 8;
+	int StepCount = 10;
 	float StepSize = tmax / float(StepCount);
 
 	vec3 CurrentPoint = p + (dir * StepSize * 0.5f);
@@ -282,8 +300,10 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 	Transmittance = 1.0f;
 
 	float CosAngle = dot(normalize(RayDir), normalize(u_SunDirection));
-	//float Phase = henyey_greenstein_phase_func(CosAngle); // todo : check this ? 
-	float Phase = phase2Lobes(CosAngle);
+	float Phase = phase2(CosAngle);
+	float Phase2 = henyey_greenstein_phase_func(CosAngle); // todo : check this ? 
+	float Phase2Lobes = phase2Lobes(CosAngle);
+	Phase = (Phase * 0.7f) + (Phase2 * 1.0f);
 
 	float Dither;
 
@@ -305,10 +325,9 @@ float RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmit
 		float BeersPowder = powder(DensitySample);
 
 		//BeersPowder = pow(BeersPowder, 1.75f);
-		//float Integral = ScatterIntegral(Transmittance, 1.11f);
-
+		float Integral = ScatterIntegral(Transmittance, 1.11f);
 		float LightMarchSample = RaymarchLight(CurrentPoint);
-		AccumulatedLightEnergy += DensitySample * StepSize * LightMarchSample * Transmittance * (Phase * 1.0f) * BeersPowder;
+		AccumulatedLightEnergy += DensitySample * StepSize * LightMarchSample * Transmittance * (Phase * 1.0f);
 		Transmittance *= exp(-DensitySample * StepSize * LightCloudAbsorbption);
 		CurrentPoint += dir * (StepSize * (Dither));
 

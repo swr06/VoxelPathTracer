@@ -4,9 +4,9 @@ static int NoiseSize = 128;
 static int NoiseSizeDetail = 48;
 static float CloudResolution = 0.5f;
 static bool Checkerboard = true;
-static float Coverage = 0.225f;
+static float Coverage = 0.128f;
 static float BoxSize = 140.0f;
-static float DetailStrength = 0.75f;
+static float DetailStrength = 0.0f;
 static bool Bayer = true;
 
 static std::unique_ptr<GLClasses::Shader> CloudShaderPtr;

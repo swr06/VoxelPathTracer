@@ -47,7 +47,7 @@ uniform bool u_POM = false;
 uniform bool u_HighQualityPOM = false;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
 
@@ -209,7 +209,7 @@ vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt
 		Transmittance = SampledCloudData.y;
 
         float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-		vec3 CloudColor = mix(vec3(1.0), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.5f, SunVisibility * vec3(1.0f));
+		vec3 CloudColor = mix(vec3(1.0), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility * vec3(1.0f));
         CloudColor = vec3(CloudAt * CloudColor);
 
 		TotalColor = vec3(Sky * (clamp(Transmittance, 0.0f, 1.0f)));
@@ -601,7 +601,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
+const vec3 SUN_COLOR = (vec3(65, 90, 122) / 255.0f) * 9.5f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
 
 void main()
@@ -675,8 +675,8 @@ void main()
             DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
-            vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, SUN_COLOR * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
             o_Color = DiffuseAmbient + DirectLighting;
@@ -703,7 +703,16 @@ void main()
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+
+            if (u_CloudsEnabled)
+            {
+                o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+            }
+
+            else 
+            {
+                o_PBR.w = float(BodyIntersect);
+            }
         }
     }
 
@@ -714,7 +723,15 @@ void main()
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+        if (u_CloudsEnabled)
+        {
+            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+        }
+
+        else 
+        {
+            o_PBR.w = float(BodyIntersect);
+        }
     }
 }
 
@@ -744,7 +761,7 @@ vec3 fresnelSchlick(vec3 F0, float cosTheta)
 	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
     const float Epsilon = 0.00001;
     float Shadow = min(shadow, 1.0f);
@@ -773,7 +790,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
 
-	vec3 Result = (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
+	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
     return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
