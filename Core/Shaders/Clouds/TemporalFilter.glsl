@@ -102,7 +102,7 @@ void main()
 			float BlendFactor = 1.0f;
 			BlendFactor = exp(-length(velocity)) * 0.2f;
 			BlendFactor += 0.8f;
-			BlendFactor = clamp(BlendFactor, 0.825f, 0.96f); 
+			BlendFactor = clamp(BlendFactor, 0.925f, 0.98f); 
 			o_Color = mix(CurrentColor.xyz, PrevColor.xyz, BlendFactor);
 		}
 

@@ -4,9 +4,9 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.2f;
+static float CloudCoverage = 0.135f;
 static bool CloudBayer = true;
-static float CloudDetailContribution = 0.8f;
+static float CloudDetailContribution = 0.01f;
 
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
@@ -467,6 +467,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VoxelRT::InitialRTFBO* InitialTraceFBOPrev = &InitialTraceFBO_2;
 
 	glm::vec3 StrongerLightDirection;
+
+
+	GLfloat PreviousLuma = 3.0f;
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -1363,9 +1366,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AverageLumaFBO.Bind();
 			GLfloat avg_col[3];
 			glReadPixels(0, 0, 1, 1, GL_RGB, GL_FLOAT, &avg_col);
+
 			GLfloat lum = avg_col[0];
-			ComputedExposure = lum * 10.0f;
-			ComputedExposure = glm::clamp(ComputedExposure, 0.5f, 3.6f);
+			ComputedExposure = glm::clamp(((PreviousLuma * 10 + lum) / 11) * 4.0f, 1.0f, 10.0f);
+			PreviousLuma = lum;
 
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		} 
@@ -1475,6 +1479,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
+		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 

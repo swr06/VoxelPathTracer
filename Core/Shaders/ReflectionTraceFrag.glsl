@@ -206,7 +206,6 @@ void GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 
     vec3 ray_dir = normalize(in_ray_dir);
     vec3 atmosphere = texture(u_Skymap, ray_dir).rgb;
-    bool intersect = false;
 
     atmosphere_color = atmosphere;
 }
@@ -336,10 +335,9 @@ void main()
 			vec3 AtmosphereColor;
 
 			vec3 AtmosphereRayDir = R;
-			AtmosphereRayDir.y = clamp(R.y, 0.1f, 1.5f);
 
 			GetAtmosphere(AtmosphereColor, AtmosphereRayDir);
-			TotalColor += AtmosphereColor * 1.6f;
+			TotalColor += AtmosphereColor;
 		}
 
 

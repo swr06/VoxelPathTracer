@@ -1,10 +1,5 @@
 #version 330 core
-
 #define R_INNER 0.985f
-
-/*
-https://www.shadertoy.com/view/XtBXDz
-*/
 
 layout (location = 0) out vec4 o_Color;
 
@@ -15,74 +10,66 @@ in vec3 v_RayDirection;
 uniform float u_Time;
 uniform vec3 u_SunDirection;
 
-uniform int u_NumSamples;
-uniform int u_NumLightSamples; 
-
-float phase_mie( float g, float c, float cc ) {
+float phase_mie(float g, float c, float cc) 
+{
 	float gg = g * g;
-	
-	float a = ( 1.0 - gg ) * ( 1.0 + cc );
-
+	float a = (1.0 - gg) * (1.0 + cc);
 	float b = 1.0 + gg - 2.0 * g * c;
 	b *= sqrt( b );
 	b *= 2.0 + gg;	
-	
 	return 1.5 * a / b;
 }
 
-// Reyleigh
-// g : 0
-// F = 3/4 * ( 1 + c^2 )
-float phase_reyleigh( float cc ) 
+float phase_reyleigh(float cc) 
 {
-	return 0.75 * ( 1.0 + cc );
+	return 0.75 * (1.0 + cc);
 }
 
 vec2 RaySphereIntersection( vec3 p, vec3 dir, float r ) 
 {
-	float b = dot( p, dir );
-	float c = dot( p, p ) - r * r;
+	float b = dot(p, dir);
+	float c = dot(p, p) - r * r;
 	
 	float d = b * b - c;
-	if ( d < 0.0 ) 
+	if (d < 0.0) 
 	{
-		return vec2( 10000.0, -10000.0 );
+		return vec2(10000.0, -10000.0);
 	}
 
-	d = sqrt( d );
+	d = sqrt(d);
 	
 	return vec2( -b - d, -b + d );
 }
 
-float density( vec3 p )
+float density(vec3 p)
 {
 	const float R = 1.0;
-	const float SCALE_H = 4.0 / ( R - R_INNER );
-	const float SCALE_L = 1.0 / ( R - R_INNER );
+	const float SCALE_H = 4.0 / (R - R_INNER);
+	const float SCALE_L = 1.0 / (R - R_INNER);
 
-	return exp( -( length( p ) - R_INNER ) * SCALE_H ) * 2.0;
+	return exp(-(length(p) - R_INNER) * SCALE_H) * 2.0;
 }
 
-float optic( vec3 p, vec3 q ) 
+float optic(vec3 p, vec3 q) 
 {
 	const int numOutscatter = 1;
 
 	const float R = 1.0;
 	const float SCALE_L = 1.0 / (R - R_INNER);
 
-	vec3 step = ( q - p ) / float(numOutscatter);
+	vec3 step = (q - p) / float(numOutscatter);
 	step *= 0.3;
+
 	vec3 v = p + step * 0.5;
-	
 	float sum = 0.0;
-	for ( int i = 0; i < numOutscatter; i++ ) 
+
+	for (int i = 0; i < numOutscatter; i++) 
 	{
-		sum += density( v );
+		sum += density(v);
 		v += step;
 	}
-	sum *= length( step ) * SCALE_L;
 
-
+	sum *= length(step) * SCALE_L;
 	return sum;
 }
 
@@ -109,31 +96,23 @@ vec3 in_scatter(vec3 o, vec3 dir, vec2 e, vec3 l, const float mieAmount, const f
 	step *= 2.0;
 	vec3 p = o;
 
-	//float boosty = 1.0 - abs(l.y);
-	
+	vec3 v = p + dir * (len * (0.5 + boosty * 0.0));
+	vec3 sum = vec3(0.0);
 
-	vec3 v = p + dir * ( len * (0.5 + boosty * 0.0) );
-
-
-
-	vec3 sum = vec3( 0.0 );
 	for ( int i = 0; i < numInscatter; i++ ) 
 	{
 		vec2 f = RaySphereIntersection( v, l, R );
 		vec3 u = v + l * f.y;
 		
-		float n = ( optic( p, v ) + optic( v, u ) ) * ( PI * 4.0 );
-		
-		sum += density( v ) * exp( -n * ( K_R * C_R + K_M ) );
-
+		float n = (optic(p, v) + optic(v, u)) * (PI * 4.0);
+		sum += density(v) * exp(-n * (K_R * C_R + K_M));
 		v += step;
 	}
+
 	sum *= len * SCALE_L;
-	
-	float c  = dot( dir, -l );
+	float c  = dot(dir, -l);
 	float cc = c * c;
-	
-	return sum * ( K_R * C_R * phase_reyleigh( cc ) + K_M * phase_mie( G_M, c, cc ) ) * E;
+	return sum * (K_R * C_R * phase_reyleigh(cc) + K_M * phase_mie(G_M, c, cc)) * E;
 }
 
 vec3 in_scatter2(vec3 o, vec3 dir, vec2 e, vec3 l) 
@@ -159,31 +138,23 @@ vec3 in_scatter2(vec3 o, vec3 dir, vec2 e, vec3 l)
 	//float boosty = 1.0 - abs(l.y);
 	float boosty = clamp((l.y + 0.1), 0.0f, 1.0f) * 0.95 + 0.05;
 	boosty = 1.0 / sin(boosty);
+	vec3 v = p + dir * (len * (0.5 + boosty * 0.0));
+	vec3 sum = vec3(0.0);
 
-	vec3 v = p + dir * ( len * (0.5 + boosty * 0.0) );
-
-
-
-	vec3 sum = vec3( 0.0 );
-	for ( int i = 0; i < numInscatter; i++ ) 
+	for (int i = 0; i < numInscatter; i++) 
 	{
-		vec2 f = RaySphereIntersection( v, l, R );
+		vec2 f = RaySphereIntersection(v, l, R);
 		vec3 u = v + l * f.y;
-		
-		float n = ( optic( p, v ) + optic( v, u ) ) * ( PI * 4.0 );
-		
-		sum += density( v ) * exp( -n * ( K_R * C_R + K_M ) );
-
+		float n = (optic(p, v) + optic(v, u)) * (PI * 4.0);
+		sum += density(v) * exp(-n * (K_R * C_R + K_M));
 		v += step;
 	}
-	sum *= len * SCALE_L;
-	
-	float c  = dot( dir, -l );
-	float cc = c * c;
-	
-	return sum * ( K_R * C_R * phase_reyleigh( cc ) + K_M * phase_mie( G_M, c, cc ) ) * E;
-}
 
+	sum *= len * SCALE_L;
+	float c  = dot(dir, -l);
+	float cc = c * c;
+	return sum * (K_R * C_R * phase_reyleigh(cc) + K_M * phase_mie(G_M, c, cc)) * E;
+}
 
 vec3 AtmosphericScattering(vec3 rayDir, vec3 lightVector, const float mieAmount)
 {
@@ -215,7 +186,6 @@ vec3 AtmosphericScattering(vec3 rayDir, vec3 lightVector, const float mieAmount)
 	{
 		rayDir.y = abs(rayDir.y);
 		rayDir.y *= rayDir.y;
-		//rayDir.y = 0.0;
 	}
 
 	vec3 up = vec3(0.0, 1.0, 0.0);
@@ -239,6 +209,5 @@ void main()
 	vec3 col = AtmosphericScattering(normalize(v_RayDirection), normalize(u_SunDirection), 0.12f);
 	vec3 col2 = AtmosphericScattering(normalize(v_RayDirection), normalize(vec3(-u_SunDirection.x, -u_SunDirection.y, u_SunDirection.z)), 0.5f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-	
 	o_Color = vec4(mix(col*0.2523f, col2*((vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.03f), SunVisibility), 1.0f);
 }
