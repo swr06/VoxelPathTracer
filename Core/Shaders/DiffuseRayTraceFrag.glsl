@@ -97,7 +97,7 @@ float Bayer2(vec2 a)
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (8.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source
@@ -143,10 +143,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 
 	else 
 	{	
-        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-        float SkyMultiplier = mix(2.25f, 1.0f, SunVisibility);
-
-		return GetSkyColorAt(r.Direction) * SkyMultiplier;
+		return GetSkyColorAt(r.Direction)*1.3;
 	}
 }
 

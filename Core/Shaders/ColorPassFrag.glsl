@@ -598,7 +598,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(65, 90, 122) / 255.0f) * 9.5f;
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
 
 void main()
