@@ -703,7 +703,16 @@ void main()
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+
+            if (u_CloudsEnabled)
+            {
+                o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+            }
+
+            else 
+            {
+                o_PBR.w = float(BodyIntersect);
+            }
         }
     }
 
@@ -714,7 +723,15 @@ void main()
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+        if (u_CloudsEnabled)
+        {
+            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
+        }
+
+        else 
+        {
+            o_PBR.w = float(BodyIntersect);
+        }
     }
 }
 

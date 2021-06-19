@@ -563,6 +563,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
+			AtmosphereRenderer.Recompile();
 
 			///// Set the block texture data uniforms    /////
 
