@@ -116,17 +116,13 @@ float rand(vec2 co){
 
 float stars(vec3 fragpos)
 {
-    if (fragpos.y < 0.24f) { return 0.0f; }
-
+    fragpos.y = abs(fragpos.y);
 	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	vec2 uv = fragpos.xz / (1.0f + elevation);
 
     float star = StableStarField(uv * 700.0f, 0.999);
-    
-    // Star shimmer
+    star *= 2.0f;
     float rand_val = rand(fragpos.xy);
-    star *= (rand_val + sin(u_Time * rand_val) * 1.5f);
-
 	return clamp(star, 0.0f, 100000.0f) * 30.0f;
 }
 
@@ -173,7 +169,8 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
 
     float star_visibility;
-    star_visibility = clamp(exp(-distance(-u_SunDirection.y, 1.8555f)), 0.0f, 1.0f);
+    star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
+    star_visibility = 1.0f - star_visibility;
     vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
 

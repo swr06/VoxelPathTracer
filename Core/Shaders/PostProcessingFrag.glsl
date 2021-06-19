@@ -514,14 +514,16 @@ void main()
 	if (u_Bloom)
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
-		Bloom[0] = texture(u_BloomMips[0], v_TexCoords).xyz;
+		Bloom[0] = textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
 		Bloom[1] = textureBicubic(u_BloomMips[1], v_TexCoords).xyz;
 		Bloom[2] = textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
 		Bloom[3] = textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
 
-		float bloom_multiplier = 0.75;
-
-		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + (Bloom[1] * 0.7f * bloom_multiplier) + (Bloom[2] * 0.5f * bloom_multiplier) + (Bloom[3] * 0.2f * bloom_multiplier);
+		const float bloom_multiplier = 1.0f;
+		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + 
+						  (Bloom[1] * 0.5f * bloom_multiplier) +
+						  (Bloom[2] * 0.125f * bloom_multiplier) +
+						  (Bloom[3] * 0.095f * bloom_multiplier);
 		o_Color += TotalBloom;
 	}
 
