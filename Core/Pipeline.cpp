@@ -11,7 +11,7 @@ static float CloudDetailContribution = 0.01f;
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
-static float ShadowTraceResolution = 0.50;
+static float ShadowTraceResolution = 0.750;
 static float ReflectionTraceResolution = 0.3;
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
