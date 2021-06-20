@@ -16,7 +16,7 @@ namespace VoxelRT
 		std::string world_file_name = "Saves/" + (world_name);
 		FILE* world_file = NULL;
 
-		world_file = fopen(world_file_name.c_str(), "w+");
+		world_file = fopen(world_file_name.c_str(), "wb+");
 
 		if (world_file)
 		{
@@ -40,7 +40,7 @@ namespace VoxelRT
 		std::string world_file_name = "Saves/" + (world_name);
 		FILE* world_file = NULL;
 
-		world_file = fopen(world_file_name.c_str(), "r");
+		world_file = fopen(world_file_name.c_str(), "rb");
 
 		if (world_file)
 		{
