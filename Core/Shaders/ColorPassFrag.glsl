@@ -676,7 +676,7 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            o_Color = DiffuseAmbient + DirectLighting;
+            o_Color = DiffuseAmbient + (float(!(Emissivity > 0.5f)) * DirectLighting);
             o_Color *= SampledAO;
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
