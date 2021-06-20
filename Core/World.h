@@ -7,12 +7,10 @@
 
 #include "Block.h"
 #include "Texture3D.h"
+#include "Macros.h"
 
 #include "GLClasses/ComputeShader.h"
-
-#define WORLD_SIZE_X 384
-#define WORLD_SIZE_Y 128
-#define WORLD_SIZE_Z 384
+#include "ParticleSystem.h"
 
 namespace VoxelRT
 {
@@ -22,23 +20,23 @@ namespace VoxelRT
 
 		World()
 		{
-			memset(&m_ChunkData, 0, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z); 
+			memset(&m_WorldData, 0, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z);
 			m_Buffered = false;
 		}
 
 		const Block& GetBlock(uint16_t x, uint16_t y, uint16_t z)
 		{
-			return m_ChunkData[x + y * WORLD_SIZE_X + z * WORLD_SIZE_X * WORLD_SIZE_Y];
+			return m_WorldData[x + y * WORLD_SIZE_X + z * WORLD_SIZE_X * WORLD_SIZE_Y];
 		}
 
 		void SetBlock(uint16_t x, uint16_t y, uint16_t z, Block block)
 		{
-			m_ChunkData[x + y * WORLD_SIZE_X + z * WORLD_SIZE_X * WORLD_SIZE_Y] = block;
+			m_WorldData[x + y * WORLD_SIZE_X + z * WORLD_SIZE_X * WORLD_SIZE_Y] = block;
 		}
 
 		void Buffer()
 		{
-			m_DataTexture.CreateTexture(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, m_ChunkData.data());
+			m_DataTexture.CreateTexture(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, m_WorldData.data());
 			m_Buffered = true;
 		}
 
@@ -48,7 +46,9 @@ namespace VoxelRT
 		void ChangeCurrentlyHeldBlock(bool x);
 
 		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
-		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_ChunkData;
+		void Update(FPSCamera* cam);
+
+		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_WorldData;
 		Texture3D m_DataTexture;
 
 		std::string m_Name = "";
@@ -64,5 +64,6 @@ namespace VoxelRT
 		GLClasses::ComputeShader m_DistanceShaderX;
 		GLClasses::ComputeShader m_DistanceShaderY;
 		GLClasses::ComputeShader m_DistanceShaderZ;
+		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 	};
 }

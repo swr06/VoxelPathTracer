@@ -185,6 +185,9 @@
     <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp">
       <Filter>Source Files\voxel-rt\Clouds</Filter>
     </ClCompile>
+    <ClCompile Include="Core\ParticleSystem.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -328,6 +331,15 @@
     <ClInclude Include="Core\Clouds\NoiseTexture3D.h">
       <Filter>Source Files\voxel-rt\Clouds</Filter>
     </ClInclude>
+    <ClInclude Include="Core\Particle.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\ParticleSystem.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Macros.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Dependencies\fast_noise\LICENSE">
@@ -461,6 +473,12 @@
     </None>
     <None Include="Core\Shaders\ManhattanDistanceZ.comp">
       <Filter>Source Files\Shaders\DF</Filter>
+    </None>
+    <None Include="Core\Shaders\ParticleFrag.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ParticleVert.glsl">
+      <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

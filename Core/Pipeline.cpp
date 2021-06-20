@@ -1565,6 +1565,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
+		// Particles
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		world->Update(&MainCamera);
+
+		//
+
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		if (app.GetCurrentFrame() % 80 == 0)
