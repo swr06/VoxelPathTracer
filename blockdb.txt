@@ -303,6 +303,20 @@
 }
 
 {
+	Name : Redstone
+	Albedo : Res/Block/Redstone/Albedo.png
+	Normal : Res/Block/Redstone/Normal.png
+	PBR : Res/Block/Redstone/PBR.png
+}
+
+{
+	Name : Rock2
+	Albedo : Res/Block/Rock2/Albedo.png
+	Normal : Res/Block/Rock2/Normal.png
+	PBR : Res/Block/Rock2/PBR.png
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png
