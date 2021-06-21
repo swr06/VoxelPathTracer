@@ -14,6 +14,8 @@ namespace VoxelRT
 			m_VBO.Bind();
 			m_VBO.VertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, position));
 			m_VBO.VertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, texture_coords));
+			m_VBO.VertexAttribPointer(2, 1, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, alpha));
+			m_VBO.VertexAttribPointer(3, 1, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, idx));
 			m_VAO.Unbind();
 		}
 
@@ -24,6 +26,8 @@ namespace VoxelRT
 
 		void ParticleRenderer::RenderParticle(const Particle& particle, FPSCamera* camera)
 		{
+			if (!particle.IsAlive()) { return; }
+
 			glm::mat4 view_matrix = camera->GetViewMatrix();
 			glm::mat4 model_matrix = glm::translate(glm::mat4(1.0f), glm::vec3(particle.m_Position));
 			ParticleVertex v1, v2, v3, v4;
@@ -52,6 +56,18 @@ namespace VoxelRT
 			v3.texture_coords = glm::vec2(1.0f, 1.0f);
 			v4.texture_coords = glm::vec2(1.0f, 0.0f);
 
+			float a = 1.0f / (particle.GetLifetime() - particle.GetElapsedTime());
+			v1.alpha = a;
+			v2.alpha = a;
+			v3.alpha = a;
+			v4.alpha = a;
+
+			float idx = BlockDatabase::GetBlockTexture(particle.m_BlockType, BlockDatabase::BlockFaceType::Top);
+			v1.idx = idx;
+			v2.idx = idx;
+			v3.idx = idx;
+			v4.idx = idx;
+
 			m_ParticleVertices.push_back(v1);
 			m_ParticleVertices.push_back(v2);
 			m_ParticleVertices.push_back(v3);
@@ -60,12 +76,32 @@ namespace VoxelRT
 			m_ParticleVertices.push_back(v4);
 		}
 
-		void ParticleRenderer::EndParticleRender(FPSCamera* camera)
+		void ParticleRenderer::EndParticleRender(FPSCamera* camera, GLuint posbuffer, GLuint shadow_buff, GLuint diff_buff, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims)
 		{
 			if (m_ParticleVertices.size() > 0)
 			{
 				m_ParticleShader.Use();
 				m_ParticleShader.SetMatrix4("u_ViewProjection", camera->GetViewProjection(), 0);
+				m_ParticleShader.SetMatrix4("u_CameraViewProjection", camera->GetViewProjection(), 0);
+				m_ParticleShader.SetInteger("u_PositionTexture", 0);
+				m_ParticleShader.SetInteger("u_BlockTextures", 1);
+				m_ParticleShader.SetInteger("u_ShadowTexture", 2);
+				m_ParticleShader.SetInteger("u_DiffuseTexture", 3);
+				m_ParticleShader.SetVector2f("u_Dimensions", dims);
+				m_ParticleShader.SetVector3f("u_SunDir", sdir);
+				m_ParticleShader.SetVector3f("u_PlayerPos", player_pos);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, posbuffer);
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetTextureArray());
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, shadow_buff);
+
+				glActiveTexture(GL_TEXTURE3);
+				glBindTexture(GL_TEXTURE_2D, diff_buff);
 				
 				m_VAO.Bind();
 				m_VBO.BufferData(m_ParticleVertices.size() * sizeof(ParticleVertex), &m_ParticleVertices.front(), GL_STATIC_DRAW);
@@ -113,7 +149,7 @@ namespace VoxelRT
 			}
 		}
 
-		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data)
+		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint pos_tex, GLuint shadow_tex, GLuint diff, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims)
 		{
 			m_Renderer.StartParticleRender();
 
@@ -128,7 +164,7 @@ namespace VoxelRT
 				m_Renderer.RenderParticle(m_Particles[i], camera);
 			}
 
-			m_Renderer.EndParticleRender(camera);
+			m_Renderer.EndParticleRender(camera, pos_tex, shadow_tex, diff, sundir, player_pos, dims);
 		}
 
 		void ParticleEmitter::CleanUpList()

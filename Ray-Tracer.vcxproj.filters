@@ -474,10 +474,10 @@
     <None Include="Core\Shaders\ManhattanDistanceZ.comp">
       <Filter>Source Files\Shaders\DF</Filter>
     </None>
-    <None Include="Core\Shaders\ParticleFrag.glsl">
+    <None Include="Core\Shaders\ParticleVert.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\ParticleVert.glsl">
+    <None Include="Core\Shaders\ParticleFrag.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

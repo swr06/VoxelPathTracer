@@ -46,7 +46,8 @@ namespace VoxelRT
 		void ChangeCurrentlyHeldBlock(bool x);
 
 		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
-		void Update(FPSCamera* cam);
+		void Update(FPSCamera* cam) {};
+		void UpdateParticles(FPSCamera* cam, GLuint, GLuint, GLuint, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims);
 
 		std::array<Block, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z> m_WorldData;
 		Texture3D m_DataTexture;
@@ -56,6 +57,7 @@ namespace VoxelRT
 		uint8_t GetCurrentBlock() const noexcept { return m_CurrentlyHeldBlock; }
 
 		Texture3D m_DistanceFieldTexture;
+		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 
 	private :
 		bool m_Buffered = false;
@@ -64,6 +66,5 @@ namespace VoxelRT
 		GLClasses::ComputeShader m_DistanceShaderX;
 		GLClasses::ComputeShader m_DistanceShaderY;
 		GLClasses::ComputeShader m_DistanceShaderZ;
-		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 	};
 }
