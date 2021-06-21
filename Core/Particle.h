@@ -40,19 +40,14 @@ namespace VoxelRT
 			bool TestParticleCollision(const glm::vec3& pos, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data)
 			{
 				glm::ivec3 SamplePos = glm::ivec3(floor(pos.x), floor(pos.y), floor(pos.z));
-				glm::ivec3 SamplePos1 = glm::ivec3(floor(pos.x), ceil(pos.y), floor(pos.z));
 
 				if (SamplePos.x > 0 && SamplePos.x < WORLD_SIZE_X &&
 					SamplePos.y > 0 && SamplePos.y < WORLD_SIZE_Y &&
-					SamplePos.z > 0 && SamplePos.z < WORLD_SIZE_Z &&
-					SamplePos1.x > 0 && SamplePos1.x < WORLD_SIZE_X &&
-					SamplePos1.y > 0 && SamplePos1.y < WORLD_SIZE_Y &&
-					SamplePos1.z > 0 && SamplePos1.z < WORLD_SIZE_Z)
+					SamplePos.z > 0 && SamplePos.z < WORLD_SIZE_Z )
 				{
 					uint8_t block1 = data.at(SamplePos.x + SamplePos.y * WORLD_SIZE_X + SamplePos.z * WORLD_SIZE_X * WORLD_SIZE_Y).block;
-					uint8_t block2 = data.at(SamplePos1.x + SamplePos1.y * WORLD_SIZE_X + SamplePos1.z * WORLD_SIZE_X * WORLD_SIZE_Y).block;
 					
-					if (block1 == 0 && block2 == 0)
+					if (block1 == 0)
 					{
 						return false;
 					}
