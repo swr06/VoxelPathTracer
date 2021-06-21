@@ -33,6 +33,7 @@ static bool GodRays = false;
 static bool FakeGodRays = false;
 static bool RoughReflections = true;
 static bool DenoiseReflections = true;
+static bool RenderParticles = true;
 
 static bool LensFlare = false;
 static bool SSAO = false;
@@ -98,6 +99,7 @@ public:
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
 			ImGui::Checkbox("POM?", &POM);
@@ -563,6 +565,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BilateralBlur.Recompile();
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
+			world->m_ParticleEmitter.Recompile();
 
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
@@ -1565,12 +1568,31 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
+		// Particles
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		if (RenderParticles)
+		{
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			world->UpdateParticles(&MainCamera, InitialTraceFBO->GetPositionTexture(), ShadowFBO.GetTexture(), DiffuseDenoiseFBO.GetTexture(), SunDirection, MainCamera.GetPosition(), glm::vec2(app.GetWidth(), app.GetHeight()));
+			glDisable(GL_BLEND);
+		}
+
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		if (app.GetCurrentFrame() % 80 == 0)
 		{
 			world->GenerateDistanceField();
 		}
+
+		if (app.GetCurrentFrame() % 60 == 0)
+		{
+			world->m_ParticleEmitter.CleanUpList();
+		}
+
+		world->Update(&MainCamera);
 
 		// Finish Frame
 		glFinish();

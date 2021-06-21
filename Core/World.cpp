@@ -195,6 +195,18 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 
 				else
 				{
+					float y1 = rand() % 2 == 0 ? 0.05f : 0.075f;
+					float y2 = y1 == 0.05f ? 0.1f : 0.113f;
+					glm::vec3 x = rand() % 2 == 0 ? glm::vec3(y1, 1, y2) : glm::vec3(y2, 1, y1);
+					glm::vec3 particle_pos;
+					particle_pos.x = floor(position.x);
+					particle_pos.y = position.y + 0.4f;
+					particle_pos.z = floor(position.z);
+					particle_pos.x += 0.5f;
+					particle_pos.z += 0.5f;
+					m_ParticleEmitter.EmitParticlesAt(2.75f, 40,
+					particle_pos, glm::vec3(5, 5, 5), x, GetBlock((int)position.x, (int)position.y, (int)position.z).block);
+
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
 
 					if (m_Buffered)
@@ -213,4 +225,9 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 			}
 		}
 	}
+}
+
+void VoxelRT::World::UpdateParticles(FPSCamera* cam, GLuint pos_texture, GLuint shadow_tex, GLuint diff, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims)
+{
+	m_ParticleEmitter.OnUpdateAndRender(cam, m_WorldData, pos_texture, shadow_tex, diff, sdir, player_pos, dims);
 }

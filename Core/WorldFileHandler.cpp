@@ -21,7 +21,7 @@ namespace VoxelRT
 		if (world_file)
 		{
 			std::cout << "\n\n" << "SUCCESSFULLY SAVED WORLD" << "\n\n";
-			fwrite(world->m_ChunkData.data(), sizeof(Block), WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z, world_file);
+			fwrite(world->m_WorldData.data(), sizeof(Block), WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z, world_file);
 			fclose(world_file);
 
 			return true;
@@ -45,7 +45,7 @@ namespace VoxelRT
 		if (world_file)
 		{
 			std::cout << "\n\n" << "SUCCESSFULLY OPENED WORLD FILE" << "\n\n";
-			fread(world->m_ChunkData.data(), sizeof(Block), WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z, world_file);
+			fread(world->m_WorldData.data(), sizeof(Block), WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z, world_file);
 			fclose(world_file);
 			std::cout << "\n\n" << "SUCCESSFULLY PARSED AND READ WORLD FILE" << "\n\n";
 

@@ -165,6 +165,7 @@
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
     <ClCompile Include="Core\InitialTraceFBO.cpp" />
+    <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
     <ClCompile Include="Core\Renderer2D.cpp" />
@@ -214,6 +215,9 @@
     <ClInclude Include="Core\ColorPassFBO.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
     <ClInclude Include="Core\InitialTraceFBO.h" />
+    <ClInclude Include="Core\Macros.h" />
+    <ClInclude Include="Core\Particle.h" />
+    <ClInclude Include="Core\ParticleSystem.h" />
     <ClInclude Include="Core\Pipeline.h" />
     <ClInclude Include="Core\Player.h" />
     <ClInclude Include="Core\Renderer2D.h" />
@@ -273,6 +277,8 @@
     <None Include="Core\Shaders\ManhattanDistanceX.comp" />
     <None Include="Core\Shaders\ManhattanDistanceY.comp" />
     <None Include="Core\Shaders\ManhattanDistanceZ.comp" />
+    <None Include="Core\Shaders\ParticleFrag.glsl" />
+    <None Include="Core\Shaders\ParticleVert.glsl" />
     <None Include="Core\Shaders\PostProcessingFrag.glsl" />
     <None Include="Core\Shaders\PostProcessingVert.glsl" />
     <None Include="Core\Shaders\RayTraceCompute.comp" />
