@@ -29,6 +29,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Lens Flare
 - Bloom (Mip based) 
 - Volumetric clouds
+- Particle system
 
 # Features to implement
 - Alpha testing
