@@ -16,6 +16,7 @@ namespace VoxelRT
 			m_VBO.VertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, texture_coords));
 			m_VBO.VertexAttribPointer(2, 1, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, alpha));
 			m_VBO.VertexAttribPointer(3, 1, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, idx));
+			m_VBO.VertexAttribPointer(4, 3, GL_FLOAT, false, sizeof(ParticleVertex), (void*)offsetof(ParticleVertex, initial_position));
 			m_VAO.Unbind();
 		}
 
@@ -50,6 +51,11 @@ namespace VoxelRT
 			v2.position = model_matrix * glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
 			v3.position = model_matrix * glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 			v4.position = model_matrix * glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+
+			v1.initial_position = particle.m_InitialPosition;
+			v2.initial_position = particle.m_InitialPosition;
+			v3.initial_position = particle.m_InitialPosition;
+			v4.initial_position = particle.m_InitialPosition;
 
 			v1.texture_coords = glm::vec2(0.0f, 1.0f);
 			v2.texture_coords = glm::vec2(0.0f, 0.0f);
@@ -119,7 +125,7 @@ namespace VoxelRT
 
 		}
 
-		void ParticleEmitter::EmitParticlesAt(float lifetime, int num_particles, const glm::vec3& origin, const glm::vec3& extent,
+		void ParticleEmitter::EmitParticlesAt(const glm::vec3& blockpos, float lifetime, int num_particles, const glm::vec3& origin, const glm::vec3& extent,
 			const glm::vec3& vel, uint8_t block)
 		{
 			Random random;
@@ -143,7 +149,7 @@ namespace VoxelRT
 					dir = ParticleDirection::right;
 				}
 
-				Particle p(glm::vec3(origin.x + ix, origin.y + iy, origin.z + iz), vel, lifetime, 0.1f, dir);
+				Particle p(blockpos, glm::vec3(origin.x + ix, origin.y + iy, origin.z + iz), vel, lifetime, 0.1f, dir);
 				p.m_BlockType = block;
 				m_Particles.push_back(p);
 			}

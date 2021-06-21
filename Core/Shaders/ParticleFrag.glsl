@@ -6,6 +6,8 @@ in float v_Alpha;
 in vec2 v_TexCoords;
 in float v_Z;
 in float v_IDX;
+in vec3 v_BlockPosition;
+in vec3 v_WorldPosition;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_ShadowTexture;
@@ -36,6 +38,13 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+vec2 GetBlockSamplePosition()
+{
+	vec4 ProjectedPosition = u_CameraViewProjection * vec4(v_BlockPosition, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	return ProjectedPosition.xy * 0.5f + 0.5f; // Convert to screen space!
+}
+
 void main()
 {
 	vec2 ScreenSpaceCoordinates = gl_FragCoord.xy / u_Dimensions.xy;
@@ -43,6 +52,7 @@ void main()
 	vec4 ProjectedPosition = u_CameraViewProjection * vec4(WorldPosition, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 
+	// Depth test
 	if (ProjectedPosition.z < v_Z) 
 	{
 		discard;
@@ -51,20 +61,27 @@ void main()
 	vec3 MoonDirection = vec3(-u_SunDir.x, -u_SunDir.y, u_SunDir.z);
 	vec3 StrongerLightDirection = -u_SunDir.y < 0.01f ? u_SunDir : MoonDirection;
 
-	// Approximate lighting and gi using screen space coordinates (This is a huge approximation but looks fine for particles) 
 	float ParticleAlpha = 1.0f - v_Alpha;
-	ParticleAlpha = exp(ParticleAlpha * 0.9f);
+	ParticleAlpha = exp(ParticleAlpha);
 
 	vec3 Color = texture(u_BlockTextures, vec3(v_TexCoords, v_IDX)).rgb; 
-	float t1, t2;
+	float SunVisibility = clamp(dot(u_SunDir, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+	
+	// We need to approximate whether the block is in shadow and the gi from screen space info
+	// So the following code is meant to find the best sample coordinate 
+	float DistanceError = distance(WorldPosition, v_WorldPosition);
+	const float ErrorThresh = floor(1.41421); // sqrt(2)
+	vec2 SamplePosition = DistanceError < ErrorThresh ? ScreenSpaceCoordinates : GetBlockSamplePosition();
+	
+	// Apply the player shadow as well :p
+	float t1 = 0.0f, t2 = 0.0f;
     bool PlayerIntersect = RayBoxIntersect(u_PlayerPos + vec3(0.2f, 0.0f, 0.2f), u_PlayerPos - vec3(0.75f, 1.75f, 0.75f), WorldPosition, StrongerLightDirection, t1, t2);
 
-	float SunVisibility = clamp(dot(u_SunDir, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-	float Shadow = PlayerIntersect ? 1.0f : texture(u_ShadowTexture, ScreenSpaceCoordinates).r;
-	vec3 Diffuse = texture(u_DiffuseTexture, ScreenSpaceCoordinates).rgb * 8.0f;
-	
+	float Shadow = PlayerIntersect ? 1.0f : texture(u_ShadowTexture, SamplePosition).r;
+	vec3 Diffuse = texture(u_DiffuseTexture, SamplePosition).rgb * 8.0f;
 	vec3 SUN_COLOR = Shadow > 0.01f ? Diffuse : SUN_COLOR_C;
 	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;
+
 	Color = mix(Color * SUN_COLOR, Color * NIGHT_COLOR, SunVisibility); 
 	o_Color = vec4(1.0f - exp(-Color), clamp(ParticleAlpha, 0.0f, 1.0f));
 }

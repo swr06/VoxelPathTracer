@@ -23,7 +23,7 @@ namespace VoxelRT
 
 		struct Particle
 		{
-			Particle(const glm::vec3& position, const glm::vec3& velocity, const float lifetime, const float scale, ParticleDirection dir)
+			Particle(const glm::vec3& blockpos, const glm::vec3& position, const glm::vec3& velocity, const float lifetime, const float scale, ParticleDirection dir) : m_InitialPosition(position)
 			{
 				m_ElapsedTime = 0.0f;
 				m_Rotation = 0.0f;
@@ -34,6 +34,7 @@ namespace VoxelRT
 				m_IsAlive = true;
 				m_Dir = dir;
 				m_HasCollided = false;
+				m_InitialPosition = blockpos;
 			}
 
 			bool TestParticleCollision(const glm::vec3& pos, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data)
@@ -113,6 +114,8 @@ namespace VoxelRT
 
 			glm::vec3 m_Position;
 			glm::vec3 m_Velocity;
+			glm::vec3 m_InitialPosition;
+
 			float m_Lifetime;	
 			float m_ElapsedTime;
 			float m_Rotation;

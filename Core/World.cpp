@@ -204,7 +204,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 					particle_pos.z = floor(position.z);
 					particle_pos.x += 0.5f;
 					particle_pos.z += 0.5f;
-					m_ParticleEmitter.EmitParticlesAt(2.75f, 40,
+					m_ParticleEmitter.EmitParticlesAt(glm::vec3(floor(position.x), floor(position.y), floor(position.z)), 2.75f, 40,
 					particle_pos, glm::vec3(5, 5, 5), x, GetBlock((int)position.x, (int)position.y, (int)position.z).block);
 
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
