@@ -45,6 +45,7 @@ uniform vec2 u_Dimensions;
 uniform bool u_CloudsEnabled;
 uniform bool u_POM = false;
 uniform bool u_HighQualityPOM = false;
+uniform bool u_RTAO;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
@@ -283,74 +284,6 @@ vec3 NeighbourhoodClamping(vec3 tempColor, sampler2D tex, vec2 txc)
 	}
 
 	return clamp(tempColor, minclr, maxclr);
-}
-
-vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec3 color = vec3(0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        float nweight = pow(abs(dot(sampled_normal, base_normal)), 32);
-
-        float sampled_depth = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = nweight * dweight;
-        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.3f, vec3(1.0f));
-    return color;
-}
-
-vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec3 color = vec3(0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
-
-		if (sampled_pos.w <= 0.0f)
-		{
-			continue;
-		}
-
-        float sampled_depth = (sampled_pos.z); 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = dweight;
-        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.12f, vec3(1.0f));
-    return color;
 }
 
 vec2 ReprojectShadow(in vec3 world_pos)
@@ -597,6 +530,109 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
 }
 
+
+vec4 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec4 color = vec4(0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
+        float nweight = pow(abs(dot(sampled_normal, base_normal)), 32);
+
+        float sampled_depth = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = nweight * dweight;
+        color += texture(tex, txc + Kernel[i] * texel_size) * computed_weight;
+        weight_sum += computed_weight;
+    }
+
+    color /= max(weight_sum, 0.2f);
+    color = clamp(color, texture(tex, txc) * 0.3f, vec4(1.0f));
+    return color;
+}
+
+vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
+
+		if (sampled_pos.w <= 0.0f)
+		{
+			continue;
+		}
+
+        float sampled_depth = (sampled_pos.z); 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
+
+        float computed_weight = dweight;
+        color.rgba += texture(tex, txc + Kernel[i] * texel_size) * computed_weight;
+        weight_sum += computed_weight;
+    }
+
+    
+    color /= weight_sum + 0.01f;
+    //color = clamp(color, texture(tex, txc) * 0.12f, vec4(1.0f));
+    return color;
+}
+
+
+vec4 PositionOnlyBilateralUpsample(sampler2D tex, vec2 txc, vec3 base_pos)
+{
+    const vec2 Kernel[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
+
+    vec2 texel_size = 1.0f / textureSize(tex, 0);
+
+    vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    float weight_sum;
+
+    for (int i = 0; i < 4; i++) 
+    {
+		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
+
+		if (sampled_pos.w <= 0.0f)
+		{
+			continue;
+		}
+
+        float weight = 1.0f / (abs(distance(base_pos, sampled_pos.xyz) + 0.001f));
+        color.rgba += texture(tex, txc + Kernel[i] * texel_size) * weight;
+        weight_sum += weight;
+    }
+    
+    color /= weight_sum + 0.01f;
+    return color;
+}
+
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
@@ -663,12 +699,14 @@ void main()
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
-            vec3 Diffuse = clamp(DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).rgb, 0.0f, 1.5f);
+            //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);
+            //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz);
+            vec4 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z);
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f);
-            vec3 DiffuseAmbient = (Diffuse * AlbedoColor);
+            vec3 DiffuseAmbient = (Diffuse.xyz * AlbedoColor);
             DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
@@ -684,11 +722,21 @@ void main()
             o_PBR.w = Emissivity;
 
             vec2 ReprojectedReflectionCoord = v_TexCoords;
-            vec3 ReflectionTrace = clamp((Diffuse * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
+            vec3 ReflectionTrace = clamp((Diffuse.xyz * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
             float ReflectionRatio = PBRMap.g;
             ReflectionRatio *= 1.0f - PBRMap.r;
             o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
             o_Color = clamp(o_Color, 0.0f, 2.0f);
+
+            if (!u_RTAO)
+            {
+                float bias = 0.02f;
+                if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
+                    v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
+                {
+                    o_Color *= vec3(clamp(pow(Diffuse.w, 1.0f), 0.0f, 1.0f));
+                }
+            }
 
             return;
         }

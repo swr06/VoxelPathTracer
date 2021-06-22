@@ -6,7 +6,7 @@
 #define INV_SQRT_OF_2PI 0.39894228040143267793994605993439  // 1.0/SQRT_OF_2PI
 #define INV_PI 0.31830988618379067153776752674503
 
-out vec3 o_Color;
+out vec4 o_Color;
 
 in vec2 v_TexCoords;
 
@@ -58,5 +58,5 @@ vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thres
 
 void main()
 {
-    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, u_EdgeThreshold).rgb; 
+    o_Color = smartDeNoise(u_Texture, v_TexCoords, 5.0, 2.0, u_EdgeThreshold); 
 }

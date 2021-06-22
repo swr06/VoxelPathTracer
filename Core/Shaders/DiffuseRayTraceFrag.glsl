@@ -21,7 +21,7 @@
 #define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
-layout (location = 0) out vec3 o_Color;
+layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -72,7 +72,7 @@ vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float GetShadowAt(vec3 pos, in vec3 ldir);
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, float shadow);
 vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
@@ -95,6 +95,12 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
+vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radiance, in vec3 albedo, in vec3 normal, in float shadow)
+{
+	vec3 DiffuseBRDF = albedo * max(dot(normal, normalize(light_dir)), 0.0f) * (radiance * 1.5f);
+    return DiffuseBRDF * (1.0f - shadow);
+} 
+
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (8.0f);
@@ -109,8 +115,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
 	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;
-	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 2).rgb;
-	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.b), 2).rgb;
+	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3).rgb;
 
 	float Emmisivity = 0.0f;
 
@@ -122,8 +127,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 
 	vec3 bias = (flatnormal * 0.045);
 	float ShadowAt = GetShadowAt(world_pos + bias, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, flatnormal, PBR, ShadowAt);
-
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, flatnormal, ShadowAt);
 	return (Emmisivity * Albedo) + DirectLighting;
 }
 
@@ -147,7 +151,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 	}
 }
 
-vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 {
 	float bias = 0.0f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
@@ -156,18 +160,27 @@ vec3 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 
 	vec3 Position;
 	vec3 Normal;
+	float ao;
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
+		
+
 		vec3 tangent_normal;
 		total_color += GetBlockRayColor(new_ray, Position, Normal);
 		new_ray.Origin = Position + Normal * bias;
 		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
+
+		if (i == 0)
+		{
+			// Calculate ao on first bounce
+			float dist = distance(initial_origin, Position);
+			ao = 1.0f - float(dist*dist < 0.4f);
+		}
 	}
 	
 	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
-	
-	return total_color; // * AO;
+	return vec4(total_color, ao); 
 }
 
 void main()
@@ -183,25 +196,30 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 
 	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
+	o_Color.w = 0.0f;
 
 	if (InitialTracePosition.w <= 0.0f)
 	{
-		o_Color = GetSkyColorAt(normalize(v_RayDirection));
+		o_Color.xyz = GetSkyColorAt(normalize(v_RayDirection));
 		return;
 	}
 
 	vec3 TotalColor = vec3(0.0f);
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
+	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		TotalColor += CalculateDiffuse(InitialTracePosition.xyz, Normal);
+		vec4 x = CalculateDiffuse(InitialTracePosition.xyz, Normal);
+		TotalColor += x.xyz;
+		AccumulatedAO += x.w;
 	}
 
-	o_Color = TotalColor / SPP;
-	o_Color += vec3(0.00525f);
+	o_Color.xyz = TotalColor / SPP;
+	o_Color.xyz += vec3(0.00525f);
+	o_Color.w = AccumulatedAO / SPP;
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)
@@ -633,65 +651,6 @@ vec2 ReprojectShadow(in vec3 world_pos)
 
 	return ProjectedPosition.xy;
 }
-
-float ndfGGX(float cosLh, float roughness)
-{
-	float alpha   = roughness * roughness;
-	float alphaSq = alpha * alpha;
-
-	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
-	return alphaSq / (PI * denom * denom);
-}
-
-float gaSchlickG1(float cosTheta, float k)
-{
-	return cosTheta / (cosTheta * (1.0 - k) + k);
-}
-
-float gaSchlickGGX(float cosLi, float cosLo, float roughness)
-{
-	float r = roughness + 1.0;
-	float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
-	return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
-}
-
-vec3 fresnelSchlick(vec3 F0, float cosTheta)
-{
-	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
-}
-
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
-{
-    const float Epsilon = 0.00001;
-    float Shadow = min(shadow, 1.0f);
-
-    vec3 Lo = normalize(u_ViewerPosition - world_pos);
-
-	vec3 N = normal;
-	float cosLo = max(0.0, dot(N, Lo));
-	vec3 Lr = 2.0 * cosLo * N - Lo;
-	vec3 F0 = mix(vec3(0.04), albedo, pbr.g);
-
-    vec3 Li = light_dir;
-	vec3 Lradiance = radiance;
-
-	vec3 Lh = normalize(Li + Lo);
-
-	float cosLi = max(0.0, dot(N, Li));
-	float cosLh = max(0.0, dot(N, Lh));
-
-	vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
-	float D = ndfGGX(cosLh, pbr.r);
-	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
-
-	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
-	vec3 diffuseBRDF = kd * albedo;
-
-	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-
-	vec3 Result = (diffuseBRDF) * Lradiance * cosLi;
-    return  max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
-} 
 
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
 {

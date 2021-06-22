@@ -289,7 +289,6 @@
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
-    <None Include="Core\Shaders\ColorTemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />
     <None Include="Core\Shaders\TemporalAA.glsl" />
