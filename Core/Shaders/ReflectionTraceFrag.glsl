@@ -25,6 +25,7 @@ uniform bool u_RoughReflections;
 uniform samplerCube u_Skymap;
 
 uniform vec4 BLOCK_TEXTURE_DATA[128];
+
 uniform float u_ReflectionTraceRes;
 
 uniform vec2 u_Dimensions;
@@ -37,6 +38,7 @@ uniform int u_GrassBlockProps[10];
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
+uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform vec3 u_ViewerPosition;
 uniform int u_SPP;
@@ -323,9 +325,22 @@ void main()
 																NormalMapped, 
 																SampledPBR.xyz,
 																GetShadowAt(HitPosition + Normal*0.035f, u_StrongerLightDirection));
+			
+			if (texture_ids.w > 0.0f) 
+			{
+				float Emissivity = texture(u_BlockEmissiveTextures, vec3(UV, texture_ids.w)).r;
+				
+				if (Emissivity > 0.2f)
+				{
+					float m = SPP <= 5 ? 12.5f : 7.0f;
+					DirectLighting = Albedo * max(Emissivity * m, 2.0f);
+				}
+			}
+			
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
+			
 			TotalColor += Computed;
 
 		}

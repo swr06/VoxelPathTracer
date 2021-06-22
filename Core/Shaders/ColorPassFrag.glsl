@@ -721,12 +721,15 @@ void main()
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
 
-            vec2 ReprojectedReflectionCoord = v_TexCoords;
-            vec3 ReflectionTrace = clamp((Diffuse.xyz * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
-            float ReflectionRatio = PBRMap.g;
-            ReflectionRatio *= 1.0f - PBRMap.r;
-            o_Color = mix(o_Color, ReflectionTrace, ReflectionRatio);
-            o_Color = clamp(o_Color, 0.0f, 2.0f);
+            if (PBRMap.g > 0.01f)
+            {
+                vec2 ReprojectedReflectionCoord = v_TexCoords;
+                vec3 ReflectionTrace = clamp((Diffuse.xyz * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
+                float ReflectionRatio = PBRMap.g;
+                ReflectionRatio *= 1.0f - PBRMap.r;
+                o_Color = mix(o_Color, ReflectionTrace, clamp(ReflectionRatio+0.05, 0.0f, 0.85f));
+                o_Color = clamp(o_Color, 0.0f, 2.0f);
+            }
 
             if (!u_RTAO)
             {

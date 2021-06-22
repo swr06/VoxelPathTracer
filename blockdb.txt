@@ -317,6 +317,62 @@
 }
 
 {
+	Name : uBricks
+	Albedo : Res/Block/uBricks/Albedo.png
+	Normal : Res/Block/uBricks/Normal.png
+	PBR : Res/Block/uBricks/PBR.png
+}
+
+{
+	Name : uChiseled
+	Albedo : Res/Block/uChiseled/Albedo.png
+	Normal : Res/Block/uChiseled/Normal.png
+	PBR : Res/Block/uChiseled/PBR.png
+}
+
+{
+	Name : uCobblestone
+	Albedo : Res/Block/uCobblestone/Albedo.png
+	Normal : Res/Block/uCobblestone/Normal.png
+	PBR : Res/Block/uCobblestone/PBR.png
+}
+
+{
+	Name : uGold
+	Albedo : Res/Block/uGold/Albedo.png
+	Normal : Res/Block/uGold/Normal.png
+	PBR : Res/Block/uGold/PBR.png
+}
+
+{
+	Name : uGranite
+	Albedo : Res/Block/uGranite/Albedo.png
+	Normal : Res/Block/uGranite/Normal.png
+	PBR : Res/Block/uGranite/PBR.png
+}
+
+{
+	Name : uStoneSmooth
+	Albedo : Res/Block/uStoneSmooth/Albedo.png
+	Normal : Res/Block/uStoneSmooth/Normal.png
+	PBR : Res/Block/uStoneSmooth/PBR.png
+}
+
+{
+	Name : uTerracotta
+	Albedo : Res/Block/uTerracotta/Albedo.png
+	Normal : Res/Block/uTerracotta/Normal.png
+	PBR : Res/Block/uTerracotta/PBR.png
+}
+
+{
+	Name : uPanel
+	Albedo : Res/Block/uPanel/Albedo.png
+	Normal : Res/Block/uPanel/Normal.png
+	PBR : Res/Block/uPanel/PBR.png
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png

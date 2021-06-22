@@ -1,0 +1,2 @@
+The textures with u_ before them are taken from the UMSOEA texture pack!
+This project is educational and is NOT making ANY money.

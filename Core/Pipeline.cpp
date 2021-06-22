@@ -454,7 +454,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
+		data.w = (float)VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 		ReflectionTraceShader.SetVector4f(name.c_str(), data);
 	}
@@ -667,7 +667,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
 				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
+				data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 				ReflectionTraceShader.SetVector4f(name.c_str(), data);
 			}
@@ -969,6 +969,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_VoxelData", 8);
 			ReflectionTraceShader.SetInteger("u_BlueNoiseTexture", 9);
 			ReflectionTraceShader.SetInteger("u_DistanceFieldTexture", 10);
+			ReflectionTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
 			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1018,6 +1019,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE10);
 			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE11);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
