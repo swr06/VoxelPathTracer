@@ -72,7 +72,6 @@ vec3 RandomPointInUnitSphereRejective();
 vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float GetShadowAt(vec3 pos, in vec3 ldir);
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, float shadow);
 vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
@@ -97,6 +96,7 @@ float Bayer2(vec2 a)
 
 vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radiance, in vec3 albedo, in vec3 normal, in float shadow)
 {
+	// Simplified diffuse brdf
 	vec3 DiffuseBRDF = albedo * max(dot(normal, normalize(light_dir)), 0.0f) * (radiance * 1.5f);
     return DiffuseBRDF * (1.0f - shadow);
 } 
@@ -147,7 +147,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 
 	else 
 	{	
-		return GetSkyColorAt(r.Direction)*1.3;
+		return GetSkyColorAt(r.Direction) * 1.35f;
 	}
 }
 
