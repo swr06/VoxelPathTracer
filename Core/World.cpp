@@ -123,7 +123,7 @@ bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_
 
 }
 
-void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir)
+void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& dir)
 {
 	glm::vec3 position = pos;
 	const glm::vec3& direction = dir;
@@ -160,7 +160,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 					}
 				}
 
-				if (place)
+				if (op == 1)
 				{
 					position = position + normal;
 				}
@@ -173,7 +173,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 					return; 
 				}
 
-				if (place)
+				if (op == 1)
 				{
 					if (TestRayPlayerCollision(glm::vec3((position.x), (position.y), (position.z)), pos))
 					{
@@ -193,7 +193,7 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 					}
 				}
 
-				else
+				else if (op == 0)
 				{
 					float y1 = rand() % 2 == 0 ? 0.05f : 0.075f;
 					float y2 = y1 == 0.05f ? 0.1f : 0.113f;
@@ -217,6 +217,18 @@ void VoxelRT::World::Raycast(bool place, const glm::vec3& pos, const glm::vec3& 
 						glTexSubImage3D(GL_TEXTURE_3D, 0, (int)position.x, (int)position.y, (int)position.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &editblock);
 						GenerateDistanceField();
 					}
+				}
+
+				else if (op == 2)
+				{
+					uint8_t block = GetBlock((int)position.x, (int)position.y, (int)position.z).block;
+
+					if (block > 0)
+					{
+						m_CurrentlyHeldBlock = block;
+					}
+
+					return;
 				}
 
 				glBindTexture(GL_TEXTURE_3D, 0);

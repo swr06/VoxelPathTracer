@@ -4,6 +4,7 @@
 #define PCF_COUNT 6
 //#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
+#define THRESH 1.41414
 
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec3 o_Normal;
@@ -192,7 +193,7 @@ vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt
         return Sky;
     }
 
-    const float BoxSize = (140.0f) - 8.0;
+    const float BoxSize = (140.0f) - 12.0;
     vec3 origin = vec3(v_RayOrigin.x, 0.0f, v_RayOrigin.z);
 
     vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), v_RayOrigin, 1.0f / (v_RayDirection));
@@ -256,34 +257,6 @@ vec3 sharpen(in sampler2D tex, in vec2 coords)
 vec4 ClampedTexture(sampler2D tex, vec2 txc)
 {
     return texture(tex, clamp(txc, 0.0f, 1.0f));
-}
-
-vec3 NeighbourhoodClamping(vec3 tempColor, sampler2D tex, vec2 txc) 
-{
-	vec2 neighbourhoodOffsets[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-	vec3 minclr = vec3(0.0f), maxclr = vec3(1.0);
-    vec2 View = 1.0f / textureSize(tex, 0);
-
-	for(int i = 0; i < 8; i++) 
-	{
-		vec2 offset = neighbourhoodOffsets[i] * View;
-		vec3 clr = texture(tex, txc + offset, 0.0).rgb;
-		minclr = min(minclr, clr);
-		maxclr = max(maxclr, clr);
-	}
-
-	return clamp(tempColor, minclr, maxclr);
 }
 
 vec2 ReprojectShadow(in vec3 world_pos)
@@ -530,39 +503,6 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
 }
 
-
-vec4 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec4 color = vec4(0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        float nweight = pow(abs(dot(sampled_normal, base_normal)), 32);
-
-        float sampled_depth = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size).z; 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = nweight * dweight;
-        color += texture(tex, txc + Kernel[i] * texel_size) * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc) * 0.3f, vec4(1.0f));
-    return color;
-}
-
 vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 {
     const vec2 Kernel[4] = vec2[](
@@ -601,36 +541,87 @@ vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 }
 
 
-vec4 PositionOnlyBilateralUpsample(sampler2D tex, vec2 txc, vec3 base_pos)
+bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
 {
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
+	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
+	vec4 PositionAt = texture(u_InitialTracePositionTexture, SampleCoord);
+	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
+	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
+			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
+			&& (abs(PositionAt.y - InputPosition.y) <= THRESH) 
+			&& (InputNormal == NormalAt) 
+			&& (PositionAt.w > 0.0f) && (InScreenSpace);
+}
+
+vec4 BilateralUpsample2(sampler2D tex, vec2 txc, vec3 base_pos, vec3 base_normal)
+{
+    const vec2 Kernel[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+    const float Weights[8] = float[8](
+        1.0f / 16.0f,
+        3.0f / 32.0f,
+        1.0f / 16.0f,
+        3.0f / 32.0f,
+        3.0f / 32.0f,
+        1.0f / 16.0f,
+        3.0f / 32.0f,
+        1.0f / 16.0f
     );
 
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
+    vec2 TexelSize = 1.0f / textureSize(tex, 0);
 
-    vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-    float weight_sum;
+    vec4 Color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
+    float TotalWeights = 0.0f;
 
-    for (int i = 0; i < 4; i++) 
+    for (int i = 0; i < 8; i++) 
     {
-		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
+        float weight = Weights[i];
 
-		if (sampled_pos.w <= 0.0f)
-		{
-			continue;
-		}
-
-        float weight = 1.0f / (abs(distance(base_pos, sampled_pos.xyz) + 0.001f));
-        color.rgba += texture(tex, txc + Kernel[i] * texel_size) * weight;
-        weight_sum += weight;
+        if (SampleValid(txc + Kernel[i] * TexelSize, base_pos, base_normal))
+        {
+            Color.rgba += texture(tex, txc + Kernel[i] * TexelSize) * weight;
+            TotalWeights += weight;
+        }
     }
     
-    color /= weight_sum + 0.01f;
-    return color;
+    return Color / max(TotalWeights, 0.01f);
+}
+
+bool IsAtEdge(in vec2 txc)
+{
+    vec2 TexelSize = 1.0f / textureSize(u_InitialTracePositionTexture, 0);
+
+    const vec2 Kernel[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+    for (int i = 0 ; i < 8 ; i++)
+    {
+        if (texture(u_InitialTracePositionTexture, txc + Kernel[i] * TexelSize).w <= 0.0f)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // COLORS //
@@ -660,13 +651,7 @@ void main()
         
         RayTracedShadow = ComputeShadow(WorldPosition.xyz);
 
-        vec2 TexSize = textureSize(u_InitialTracePositionTexture, 0);
-        float PixelDepth1 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, 1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-        float PixelDepth2 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(0.0f, -1.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-        float PixelDepth3 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-        float PixelDepth4 = texture(u_InitialTracePositionTexture, clamp(v_TexCoords + vec2(-1.0f, 0.0f) * (1.0f / TexSize), 0.001f, 0.999f)).w;
-
-        if (PixelDepth1 > 0.0f && PixelDepth2 > 0.0f && PixelDepth3 > 0.0f && PixelDepth4 > 0.0f)
+        if (!IsAtEdge(v_TexCoords))
         {
             vec2 UV;
             vec3 Tangent, Bitangent;
@@ -701,7 +686,9 @@ void main()
 
             //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);
             //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz);
-            vec4 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z);
+            //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).xyz;
+            vec4 Diffuse = BilateralUpsample2(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
+            float AO = texture(u_DiffuseTexture, v_TexCoords).w;
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
@@ -731,13 +718,13 @@ void main()
                 o_Color = clamp(o_Color, 0.0f, 2.0f);
             }
 
-            if (!u_RTAO)
+            if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.02f;
                 if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
-                    o_Color *= vec3(clamp(pow(Diffuse.w, 1.0f), 0.0f, 1.0f));
+                    o_Color *= vec3(clamp(pow(AO, 1.0f), 0.0f, 1.0f));
                 }
             }
 
