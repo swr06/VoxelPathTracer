@@ -23,7 +23,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Atmosphere 
 - God Rays (Screen space) 
 - Emissive Materials
-- Basic spatial filtering (Not depth or normal aware as of yet.)
+- Spatial filtering
 - Screen Space Ambient Occlusion
 - Ray Traced Ambient Occlusion
 - Lens Flare
@@ -37,7 +37,6 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
-- Better denoising
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 
 # Performance
