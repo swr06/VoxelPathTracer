@@ -200,9 +200,7 @@ void FXAA311(inout vec3 color) {
 void main()
 {
     vec3 SampledColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
-    vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords).rgb;
-	o_Color = mix(SampledColor, Sharpened, 0.09999f);
     vec2 FragCoord = v_TexCoords * textureSize(u_FramebufferTexture, 0);
-	FXAA311(o_Color);
-    o_Color = pow(o_Color, vec3(1.0f / 2.2f)); // Gamma correction
+	FXAA311(SampledColor);
+    o_Color = pow(SampledColor, vec3(1.0f / 2.2f)); // Gamma correction
 }

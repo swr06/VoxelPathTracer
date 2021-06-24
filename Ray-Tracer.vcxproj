@@ -288,7 +288,7 @@
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
-    <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
+    <None Include="Core\Shaders\SpatialFilter.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />

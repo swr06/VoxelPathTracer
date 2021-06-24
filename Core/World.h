@@ -45,7 +45,7 @@ namespace VoxelRT
 
 		void ChangeCurrentlyHeldBlock(bool x);
 
-		void Raycast(bool place, const glm::vec3& pos, const glm::vec3& dir);
+		void Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& dir);
 		void Update(FPSCamera* cam) {};
 		void UpdateParticles(FPSCamera* cam, GLuint, GLuint, GLuint, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims);
 

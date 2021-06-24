@@ -43,7 +43,7 @@ static bool HighQualityPOM = false;
 
 static bool CheckerboardClouds = true;
 
-static bool FullyDynamicShadows = false;
+static bool FullyDynamicShadows = true;
 
 static int GodRaysStepCount = 12;
 
@@ -146,7 +146,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(false, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront());
 				ModifiedWorld = true;
 			}
 		}
@@ -155,8 +155,16 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(true, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront());
 				ModifiedWorld = true;
+			}
+		}
+
+		if (e.type == VoxelRT::EventTypes::MousePress && e.button == GLFW_MOUSE_BUTTON_MIDDLE && this->GetCursorLocked())
+		{
+			if (world)
+			{
+				world->Raycast(2, MainCamera.GetPosition(), MainCamera.GetFront());
 			}
 		}
 
@@ -255,7 +263,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader BilateralBlur;
 	GLClasses::Shader ReflectionDenoiser;
 	GLClasses::Shader RTAOShader;
-	GLClasses::Shader AtrousSpatialFilter;
+	GLClasses::Shader SpatialFilter;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -331,8 +339,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	SSAO_Blur.CompileShaders();
 	RTAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/RaytracedAO.glsl");
 	RTAOShader.CompileShaders();
-	AtrousSpatialFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/AtrousSpatialFilter.glsl");
-	AtrousSpatialFilter.CompileShaders();
+	SpatialFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
+	SpatialFilter.CompileShaders();
 
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -573,6 +581,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
 			world->m_ParticleEmitter.Recompile();
+			SpatialFilter.Recompile();
 
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
@@ -883,14 +892,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		{
 			DiffuseDenoisedFBO2.Bind();
-			AtrousSpatialFilter.Use();
+			SpatialFilter.Use();
 
-			AtrousSpatialFilter.SetInteger("u_InputTexture", 0);
-			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
-			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
-			AtrousSpatialFilter.SetInteger("u_Step", 1);
-			AtrousSpatialFilter.SetBool("u_Dir", true);
-			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+			SpatialFilter.SetInteger("u_InputTexture", 0);
+			SpatialFilter.SetInteger("u_PositionTexture", 1);
+			SpatialFilter.SetInteger("u_NormalTexture", 2);
+			SpatialFilter.SetInteger("u_Step", 1);
+			SpatialFilter.SetBool("u_Dir", true);
+			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
@@ -908,14 +917,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		{
 			DiffuseDenoiseFBO.Bind();
-			AtrousSpatialFilter.Use();
+			SpatialFilter.Use();
 
-			AtrousSpatialFilter.SetInteger("u_InputTexture", 0);
-			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
-			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
-			AtrousSpatialFilter.SetInteger("u_Step", 1);
-			AtrousSpatialFilter.SetBool("u_Dir", false);
-			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+			SpatialFilter.SetInteger("u_InputTexture", 0);
+			SpatialFilter.SetInteger("u_PositionTexture", 1);
+			SpatialFilter.SetInteger("u_NormalTexture", 2);
+			SpatialFilter.SetInteger("u_Step", 1);
+			SpatialFilter.SetBool("u_Dir", false);
+			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());

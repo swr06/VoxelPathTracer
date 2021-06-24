@@ -52,7 +52,7 @@ vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor)
 
 	}
 
-	return clamp(tempColor, minclr, maxclr);
+	return clamp(tempColor, minclr - 0.025f, maxclr + 0.025f);
 }
 
 void main()
@@ -87,19 +87,14 @@ void main()
 	{
 
 		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
-
-		vec3 AverageColor;
-		float ClosestDepth;
-		vec2 BestOffset;
-
 		PrevColor.rgb = NeighbourhoodClamping(CurrentColor.rgb, PrevColor.rgb);
 
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 
 		float BlendFactor = 0.0f;
 	
-		BlendFactor = exp(-length(velocity)) * 0.2f + 0.75f;
-		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.0, 0.96f));
+		BlendFactor = exp(-length(velocity)) * 0.2f + 0.5f;
+		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.0, 0.95f));
 	}
 
 	else 
