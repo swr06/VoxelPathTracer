@@ -715,7 +715,6 @@ void main()
                 float ReflectionRatio = PBRMap.g;
                 ReflectionRatio *= 1.0f - PBRMap.r;
                 o_Color = mix(o_Color, ReflectionTrace, clamp(ReflectionRatio+0.05, 0.0f, 0.85f));
-                o_Color = clamp(o_Color, 0.0f, 2.0f);
             }
 
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
@@ -727,6 +726,8 @@ void main()
                     o_Color *= vec3(clamp(pow(AO, 1.0f), 0.0f, 1.0f));
                 }
             }
+
+            o_Color = clamp(o_Color, 0.0f, 2.0f);
 
             return;
         }
