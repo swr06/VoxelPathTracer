@@ -500,16 +500,16 @@ void main()
 			//InputColor = ApplyFog(InputColor, PositionAt.w, v_RayDirection, normalize(u_StrongerLightDirection));
 		}
 
-        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
-		InputColor = ACESFitted(vec4(InputColor, 1.0f), Exposure + 0.01f).rgb;
 		o_Color = InputColor;
 	}
 
 	else 
 	{
-		o_Color = BasicTonemap(texture(u_FramebufferTexture, v_TexCoords).rgb);
+		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb);
 	}
+
+	float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
+	o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure + 0.01f).rgb;
 	
 	if (u_Bloom)
 	{
