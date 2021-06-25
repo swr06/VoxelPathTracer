@@ -1,5 +1,6 @@
 #version 330 core
 
+
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
@@ -21,6 +22,8 @@
 #define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
+// Outputs diffuse indirect
+// Specular indirect is handled separately and in a higher resolution
 layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
@@ -94,9 +97,9 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
+// Simplified diffuse brdf
 vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radiance, in vec3 albedo, in vec3 normal, in float shadow)
 {
-	// Simplified diffuse brdf
 	vec3 DiffuseBRDF = albedo * max(dot(normal, normalize(light_dir)), 0.0f) * (radiance * 1.5f);
     return DiffuseBRDF * (1.0f - shadow);
 } 
@@ -104,7 +107,7 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radian
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (8.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.5f; 
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.35f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source
 	vec3 StrongerLightDirection;

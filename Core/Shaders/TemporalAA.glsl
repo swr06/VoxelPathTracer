@@ -79,11 +79,12 @@ void main()
 
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
-	
-	if (PreviousCoord.x > 0.025 && PreviousCoord.x < 0.975f &&
-		PreviousCoord.y > 0.025 && PreviousCoord.y < 0.975f && 
-		CurrentCoord.x > 0.025 && CurrentCoord.x < 0.975f &&
-		CurrentCoord.y > 0.025 && CurrentCoord.y < 0.975f)
+	float bias = 0.01f;
+
+	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
+		PreviousCoord.y > bias && PreviousCoord.y < 1.0f-bias && 
+		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
+		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
 
 		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
@@ -93,8 +94,8 @@ void main()
 
 		float BlendFactor = 0.0f;
 	
-		BlendFactor = exp(-length(velocity)) * 0.2f + 0.5f;
-		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.0, 0.95f));
+		BlendFactor = exp(-length(velocity)) * 0.2f + 0.6f;
+		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.025f, 0.9f));
 	}
 
 	else 

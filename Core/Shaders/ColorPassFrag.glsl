@@ -626,7 +626,7 @@ bool IsAtEdge(in vec2 txc)
 
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.3f; 
 
 void main()
 {
@@ -694,7 +694,7 @@ void main()
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f);
             vec3 DiffuseAmbient = (Diffuse.xyz * AlbedoColor);
-            DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
+            DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.8f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, SUN_COLOR * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
