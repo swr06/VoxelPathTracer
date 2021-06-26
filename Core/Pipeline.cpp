@@ -15,7 +15,7 @@ static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
 static float ShadowTraceResolution = 0.750;
-static float ReflectionTraceResolution = 0.3;
+static float ReflectionTraceResolution = 0.500; // Resolution is key for specular indirect.
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 
@@ -108,7 +108,7 @@ public:
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Fully Dynamic Shadows? (Fixes shadow artifacts)", &FullyDynamicShadows);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
-			ImGui::Checkbox("POM?", &POM);
+			ImGui::Checkbox("POM? (WIP)", &POM);
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
@@ -1034,6 +1034,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 

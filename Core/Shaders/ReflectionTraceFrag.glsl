@@ -15,6 +15,8 @@ in vec2 v_TexCoords;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
 uniform sampler2D u_PBRTexture;
+uniform sampler2D u_DataTexture;
+
 //uniform sampler2D u_BlueNoiseTexture;
 
 uniform sampler3D u_VoxelData;
@@ -42,6 +44,10 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform vec3 u_ViewerPosition;
 uniform int u_SPP;
+
+uniform int u_CurrentFrame;
+
+
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -171,13 +177,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
-vec3 ImportanceSampleGGX(vec3 N, float roughness)
+vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 {
-	vec2 Xi;
-
-	Xi.x = nextFloat(RNG_SEED);
-	Xi.y = nextFloat(RNG_SEED);
-
     float alpha = roughness * roughness;
     float alpha2 = alpha * alpha;
 	
@@ -197,6 +198,21 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness)
     vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
     return normalize(sampleVec);
 } 
+
+float RadicalInverse_VdC(uint bits) 
+{
+     bits = (bits << 16u) | (bits >> 16u);
+     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+     bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+     bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+     return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+}
+
+vec2 Hammersley(uint i, uint N)
+{
+	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+}
 
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
@@ -227,8 +243,6 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 void main()
 {
-	// Start ray at sampled position, use normalized normal (already in tangent space) as direction, trace and get the albedo color at.
-	
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
@@ -245,25 +259,33 @@ void main()
 	vec2 suv = v_TexCoords;
 	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f;
 	vec4 data = texture(u_PBRTexture, suv);
 
-	vec2 iUV;
-	CalculateUV(SampledWorldPosition.xyz, InitialTraceNormal, iUV);
-		
+	vec2 iUV; 
+	vec3 iTan, iBitan;
+	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
+	
+	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
+	float RoughnessAt = PBRMap.r;
+	float MetalnessAt = PBRMap.g;
+	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
+
+	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
+	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f; // Apply bias.
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
-		float RoughnessAt = PBRMap.r;
-		float MetalnessAt = PBRMap.g;
-
 		if (MetalnessAt < 0.025f) 
 		{
 			continue;
 		}
 
-		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(InitialTraceNormal, RoughnessAt * 0.75f) : InitialTraceNormal) : InitialTraceNormal;
-		vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
+		vec2 Xi;
+		//Xi = Hammersley(s, SPP);
+		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
+
+		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		vec3 R = normalize(reflect(I, ReflectionNormal));
 		vec3 Normal;
 		float Blocktype;
