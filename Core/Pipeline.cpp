@@ -1,5 +1,8 @@
 #include "Pipeline.h"
 
+
+
+
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
@@ -58,6 +61,9 @@ static bool ModifiedWorld = false;
 static VoxelRT::FPSCamera& MainCamera = MainPlayer.Camera;
 static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
+
+
+
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -84,7 +90,7 @@ public:
 		{
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
-			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
@@ -208,6 +214,8 @@ public:
 	}
 
 };
+
+
 
 void VoxelRT::MainPipeline::StartPipeline()
 {
@@ -1315,6 +1323,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetInteger("u_CurrentColorTexture", 0);
 		TemporalAAShader.SetInteger("u_PositionTexture", 1);
 		TemporalAAShader.SetInteger("u_PreviousColorTexture", 2);
+		TemporalAAShader.SetInteger("u_PreviousPositionTexture", 3);
 		TemporalAAShader.SetBool("u_Enabled", TAA);
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
@@ -1328,6 +1337,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevTAAFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetPositionTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
