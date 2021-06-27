@@ -20,7 +20,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX)
 - Naive world saving and loading
-- Atmosphere 
+- Dynamic Atmosphere 
 - God Rays (Screen space) 
 - Emissive Materials
 - Spatial filtering
