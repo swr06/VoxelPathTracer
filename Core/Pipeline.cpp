@@ -15,7 +15,7 @@ static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
 static float ShadowTraceResolution = 0.750;
-static float ReflectionTraceResolution = 0.500; // Resolution is key for specular indirect.
+static float ReflectionTraceResolution = 0.300; // Resolution is key for specular indirect.
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 
@@ -27,7 +27,7 @@ static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
 static int DiffuseSPP = 4;
-static int ReflectionSPP = 1;
+static int ReflectionSPP = 4;
 
 static bool TAA = true;
 static bool Bloom = true;
@@ -875,6 +875,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetFloat("u_MinimumMix", 0.3f);
 		MainTemporalFilter.SetFloat("u_MaximumMix", 0.975f);
 		MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
+		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -1094,9 +1095,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 			MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
-			MainTemporalFilter.SetFloat("u_MinimumMix", 0.2f); // Brutal temporal filtering
-			MainTemporalFilter.SetFloat("u_MaximumMix", 0.9f);
+			MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f); // Brutal temporal filtering
+			MainTemporalFilter.SetFloat("u_MaximumMix", 0.95f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
+			MainTemporalFilter.SetBool("u_ReflectionTemporal", true);
+
+			MainTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
+			MainTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
@@ -1126,6 +1131,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionDenoiser.SetInteger("u_Texture", 0);
 			ReflectionDenoiser.SetInteger("u_PBRTexture", 1);
 			ReflectionDenoiser.SetInteger("u_Radius", 5);
+			ReflectionDenoiser.SetBool("u_Moved", PreviousPosition != MainCamera.GetPosition());
 		
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
@@ -1196,6 +1202,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetFloat("u_MinimumMix", 0.25f); 
 			MainTemporalFilter.SetFloat("u_MaximumMix", 0.975f); 
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1); 
+			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());

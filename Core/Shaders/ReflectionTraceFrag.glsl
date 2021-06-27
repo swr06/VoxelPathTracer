@@ -284,6 +284,7 @@ void main()
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
+		Xi = Xi * vec2(1.0f, 0.5f); // Reduce the variance.
 
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		vec3 R = normalize(reflect(I, ReflectionNormal));

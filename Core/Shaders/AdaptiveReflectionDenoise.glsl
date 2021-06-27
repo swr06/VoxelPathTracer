@@ -12,7 +12,7 @@ in vec2 v_TexCoords;
 
 uniform sampler2D u_Texture;
 uniform sampler2D u_PBRTexture;
-uniform int u_Radius = 12;
+uniform bool u_Moved;
 
 float RoughnessAt = 0.0f;
 
@@ -20,7 +20,8 @@ float RoughnessAt = 0.0f;
 vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius = round(kSigma*sigma);
-    radius = u_Radius;
+    radius = u_Moved ? 8 : 6;
+    threshold = u_Moved ? threshold + 0.1f : threshold;
     float radQ = radius * radius;
     
     float invSigmaQx2 = .5 / (sigma * sigma);      // 1.0 / (sigma^2 * 2.0)

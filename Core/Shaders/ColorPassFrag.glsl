@@ -27,6 +27,7 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 uniform samplerCube u_Skybox;
 uniform sampler2D u_ReflectionTraceTexture;
 uniform sampler2D u_CloudData;
+uniform sampler2D u_PreviousNormalTexture; 
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
