@@ -11,6 +11,8 @@ static float CloudCoverage = 0.135f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 
+static bool DoSecondSpatialPass = false;
+
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
@@ -103,6 +105,7 @@ public:
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
+			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Particles?", &RenderParticles);
@@ -272,6 +275,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader ReflectionDenoiser;
 	GLClasses::Shader RTAOShader;
 	GLClasses::Shader SpatialFilter;
+	GLClasses::Shader SpatialCleanup;
 
 	VoxelRT::InitialRTFBO InitialTraceFBO_1;
 	VoxelRT::InitialRTFBO InitialTraceFBO_2;
@@ -349,6 +353,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	RTAOShader.CompileShaders();
 	SpatialFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
 	SpatialFilter.CompileShaders();
+	SpatialCleanup.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFinalCleanup.glsl");
+	SpatialCleanup.CompileShaders();
 
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -588,9 +594,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BilateralBlur.Recompile();
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
-			world->m_ParticleEmitter.Recompile();
 			SpatialFilter.Recompile();
+			SpatialCleanup.Recompile();
 
+			world->m_ParticleEmitter.Recompile();
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
 			AtmosphereRenderer.Recompile();
@@ -897,8 +904,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		//// DENOISE TEMPORALLY FILTERED OUTPUT ////
 
-		// ---- Denoise the diffuse ----
-
+		// Spatial pass 1
 		{
 			DiffuseDenoisedFBO2.Bind();
 			SpatialFilter.Use();
@@ -948,6 +954,64 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 		}
+
+		// Spatial pass.. 2 ?
+
+		if (DoSecondSpatialPass)
+		{
+			{
+				DiffuseDenoisedFBO2.Bind();
+				SpatialFilter.Use();
+
+				SpatialFilter.SetInteger("u_InputTexture", 0);
+				SpatialFilter.SetInteger("u_PositionTexture", 1);
+				SpatialFilter.SetInteger("u_NormalTexture", 2);
+				SpatialFilter.SetInteger("u_Step", 1);
+				SpatialFilter.SetBool("u_Dir", true);
+				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoiseFBO.GetWidth(), DiffuseDenoiseFBO.GetHeight()));
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
+
+			{
+				DiffuseDenoiseFBO.Bind();
+				SpatialFilter.Use();
+
+				SpatialFilter.SetInteger("u_InputTexture", 0);
+				SpatialFilter.SetInteger("u_PositionTexture", 1);
+				SpatialFilter.SetInteger("u_NormalTexture", 2);
+				SpatialFilter.SetInteger("u_Step", 1);
+				SpatialFilter.SetBool("u_Dir", false);
+				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetPositionTexture());
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetNormalTexture());
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
+		}
+
+		glUseProgram(0); 
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		// ---- SHADOW TRACE ----
 		GLClasses::Framebuffer& ShadowFBO = app.GetCurrentFrame() % 2 == 0 ? ShadowFBO_1 : ShadowFBO_2;
