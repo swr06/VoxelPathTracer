@@ -50,7 +50,7 @@ namespace VoxelRT
 			ParticleEmitter();
 			void EmitParticlesAt(const glm::vec3& blockpos, float lifetime, int num_particles, const glm::vec3& origin, 
 				const glm::vec3& extent, const glm::vec3& vel, uint8_t block);
-			void OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint, GLuint, GLuint, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims);
+			void OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint, GLuint, GLuint, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims, float);
 			void CleanUpList();
 			void Recompile() { m_Renderer.Recompile(); }
 

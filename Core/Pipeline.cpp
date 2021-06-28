@@ -1,6 +1,8 @@
 #include "Pipeline.h"
 
 
+#include <chrono>
+
 
 
 static VoxelRT::Player MainPlayer;
@@ -63,8 +65,8 @@ static bool ModifiedWorld = false;
 static VoxelRT::FPSCamera& MainCamera = MainPlayer.Camera;
 static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
-
-
+static float Frametime;
+static float DeltaTime;
 
 class RayTracerApp : public VoxelRT::Application
 {
@@ -222,6 +224,11 @@ public:
 
 void VoxelRT::MainPipeline::StartPipeline()
 {
+	using std::chrono::high_resolution_clock;
+	using std::chrono::duration_cast;
+	using std::chrono::duration;
+	using std::chrono::milliseconds;
+
 	RayTracerApp app;
 	app.Initialize();
 	VoxelRT::BlockDatabase::Initialize();
@@ -707,7 +714,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		MainPlayer.OnUpdate(app.GetWindow(), world);
+		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f);
 		app.OnUpdate();
 
 		// ---------------------
@@ -1715,7 +1722,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		{
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			world->UpdateParticles(&MainCamera, InitialTraceFBO->GetPositionTexture(), ShadowFBO.GetTexture(), DiffuseDenoiseFBO.GetTexture(), SunDirection, MainCamera.GetPosition(), glm::vec2(app.GetWidth(), app.GetHeight()));
+			world->UpdateParticles(&MainCamera, InitialTraceFBO->GetPositionTexture(), ShadowFBO.GetTexture(), DiffuseDenoiseFBO.GetTexture(), SunDirection, MainCamera.GetPosition(), glm::vec2(app.GetWidth(), app.GetHeight()), DeltaTime);
 			glDisable(GL_BLEND);
 		}
 
@@ -1744,6 +1751,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "  ";
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);
+
+		float CurrentTime = glfwGetTime();
+		DeltaTime = CurrentTime - Frametime;
+		Frametime = glfwGetTime();
 
 		ModifiedWorld = false;
 	}

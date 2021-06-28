@@ -7,12 +7,12 @@ namespace VoxelRT
 
 	}
 
-	bool Player::OnUpdate(GLFWwindow* window, World* world)
+	bool Player::OnUpdate(GLFWwindow* window, World* world, float dt)
 	{
 		Camera.SetSensitivity(Sensitivity);
 
 		bool moved = false;
-		float camera_speed = Speed;
+		float camera_speed = Speed * dt * 4.0f;
 
 		Camera.ResetAcceleration();
 		FPSCamera cam = Camera;

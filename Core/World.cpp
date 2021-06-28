@@ -239,7 +239,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 	}
 }
 
-void VoxelRT::World::UpdateParticles(FPSCamera* cam, GLuint pos_texture, GLuint shadow_tex, GLuint diff, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims)
+void VoxelRT::World::UpdateParticles(FPSCamera* cam, GLuint pos_texture, GLuint shadow_tex, GLuint diff, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims, float dt)
 {
-	m_ParticleEmitter.OnUpdateAndRender(cam, m_WorldData, pos_texture, shadow_tex, diff, sdir, player_pos, dims);
+	m_ParticleEmitter.OnUpdateAndRender(cam, m_WorldData, pos_texture, shadow_tex, diff, sdir, player_pos, dims, dt);
 }

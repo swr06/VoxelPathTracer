@@ -60,12 +60,12 @@ namespace VoxelRT
 			}
 
 
-			void OnUpdate(std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data)
+			void OnUpdate(std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, float dt)
 			{
 				glm::vec3 pos_before = m_Position;
 
 				// Update delta every frame
-				float delta = 0.1f;
+				float delta = dt * 3.25f;
 
 				// Update the particle
 				m_Velocity.y -= gravity * delta; 

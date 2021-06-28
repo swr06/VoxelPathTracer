@@ -13,7 +13,7 @@ namespace VoxelRT
 	public :
 
 		Player();
-		bool OnUpdate(GLFWwindow* window, World* world);
+		bool OnUpdate(GLFWwindow* window, World* world, float dt);
 
 		FPSCamera Camera;
 		bool TestBlockCollision(const glm::vec3& position, World* world);

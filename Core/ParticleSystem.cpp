@@ -155,7 +155,7 @@ namespace VoxelRT
 			}
 		}
 
-		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint pos_tex, GLuint shadow_tex, GLuint diff, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims)
+		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint pos_tex, GLuint shadow_tex, GLuint diff, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims, float dt)
 		{
 			m_Renderer.StartParticleRender();
 
@@ -166,7 +166,7 @@ namespace VoxelRT
 					continue;
 				}
 
-				m_Particles[i].OnUpdate(data);
+				m_Particles[i].OnUpdate(data, dt);
 				m_Renderer.RenderParticle(m_Particles[i], camera);
 			}
 
