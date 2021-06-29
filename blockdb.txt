@@ -366,6 +366,13 @@
 }
 
 {
+	Name : Iron2
+	Albedo : Res/Block/Iron2/Albedo.png
+	Normal : Res/Block/Iron2/Normal.png
+	PBR : Res/Block/Iron2/PBR.png
+}
+
+{
 	Name : uOakPlanks
 	Albedo : Res/Block/uOakPlanks/Albedo.png
 	Normal : Res/Block/uOakPlanks/Normal.png
