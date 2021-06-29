@@ -1,7 +1,7 @@
 #version 330 core
 
 #define CLOUD_HEIGHT 70
-#define PCF_COUNT 6
+#define PCF_COUNT 6 // we really dont care about the low sample count because we have taa.
 //#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
 #define THRESH 1.41414
@@ -361,10 +361,10 @@ float ComputeShadow(vec3 world_pos)
         
         vec3 RotatedPoissonSample = RotationMatrix * PoissonDisk3D[x];
         
-        vec3 SampleWorldPosition = world_pos + (RotatedPoissonSample * 0.05f);
+        vec3 SampleWorldPosition = world_pos + (RotatedPoissonSample * 0.05f); 
     #else
         vec3 WhiteNoise = vec3(nextFloat(RNG_SEED), nextFloat(RNG_SEED), nextFloat(RNG_SEED));
-        vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.05f;
+        vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.02f;
     #endif
 
         float ShadowTMIN, ShadowTMAX;

@@ -366,10 +366,52 @@
 }
 
 {
+	Name : uOakPlanks
+	Albedo : Res/Block/uOakPlanks/Albedo.png
+	Normal : Res/Block/uOakPlanks/Normal.png
+	PBR : Res/Block/uOakPlanks/PBR.png
+}
+
+{
+	Name : uAcacia
+	Albedo : Res/Block/uAcacia/Albedo.png
+	Normal : Res/Block/uAcacia/Normal.png
+	PBR : Res/Block/uAcacia/PBR.png
+}
+
+{
+	Name : uDarkOak
+	Albedo : Res/Block/uDarkOak/Albedo.png
+	Normal : Res/Block/uDarkOak/Normal.png
+	PBR : Res/Block/uDarkOak/PBR.png
+}
+
+{
+	Name : uPrismarine
+	Albedo : Res/Block/uPrismarine/Albedo.png
+	Normal : Res/Block/uPrismarine/Normal.png
+	PBR : Res/Block/uPrismarine/PBR.png
+}
+
+{
 	Name : uPanel
 	Albedo : Res/Block/uPanel/Albedo.png
 	Normal : Res/Block/uPanel/Normal.png
 	PBR : Res/Block/uPanel/PBR.png
+}
+
+{
+	Name : uSand
+	Albedo : Res/Block/uSand/Albedo.png
+	Normal : Res/Block/uSand/Normal.png
+	PBR : Res/Block/uSand/PBR.png
+}
+
+{
+	Name : uRedSand
+	Albedo : Res/Block/uRedSand/Albedo.png
+	Normal : Res/Block/uRedSand/Normal.png
+	PBR : Res/Block/uRedSand/PBR.png
 }
 
 {
