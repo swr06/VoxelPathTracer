@@ -204,16 +204,11 @@ vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt
 
 	if (Intersect)
 	{
-		vec3 SampledCloudData = textureBicubic(u_CloudData, v_TexCoords).rgb;
-		CloudAt = SampledCloudData.x;
-		Transmittance = SampledCloudData.y;
-
-        float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-		vec3 CloudColor = mix(vec3(1.0), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility * vec3(1.0f));
-        CloudColor = vec3(CloudAt * CloudColor);
-
-		TotalColor = vec3(Sky * (clamp(Transmittance, 0.0f, 1.0f)));
-		TotalColor += CloudColor;
+		vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
+        vec3 Scatter = SampledCloudData.xyz;
+        Scatter = sqrt(Scatter);
+        float Transmittance = SampledCloudData.w;
+        return (Sky * 1.0f) * clamp(Transmittance, 0.0f, 1.0f) + (Scatter * 1.0f);
 	}
 
     return TotalColor;

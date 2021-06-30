@@ -501,15 +501,17 @@ void main()
 		}
 
 		o_Color = InputColor;
+		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
+		o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure + 0.01f).rgb;
 	}
 
 	else 
 	{
 		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb);
+		o_Color = BasicTonemap(o_Color);
 	}
 
-	float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
-	o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure + 0.01f).rgb;
+	
 	
 	if (u_Bloom)
 	{

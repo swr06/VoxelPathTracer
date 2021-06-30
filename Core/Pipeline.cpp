@@ -68,6 +68,9 @@ static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 static float Frametime;
 static float DeltaTime;
 
+static glm::vec4 CloudThing = glm::vec4(1.0f);
+static glm::vec2 AbsorbptionCoeff = glm::vec2(0.0f);
+
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -143,6 +146,12 @@ public:
 				MainPlayer.Speed = 0.045f;
 				VSync = false;
 			}
+		} ImGui::End();
+
+		if (ImGui::Begin("Cloud Playground"))
+		{
+			ImGui::SliderFloat4("Phase Params : ", &CloudThing[0], 0.0f, 20.0f);
+			ImGui::SliderFloat2("Absorb Params : ", &AbsorbptionCoeff[0], 0.0f, 4.0f);
 		} ImGui::End();
 	}
 
@@ -1301,7 +1310,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame());
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), CloudThing, AbsorbptionCoeff, Skymap.GetTexture());
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
