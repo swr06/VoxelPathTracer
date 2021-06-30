@@ -184,34 +184,13 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     return false;
 }
 
-vec3 GetAtmosphereAndClouds(vec3 Sky, out float Transmittance, out float CloudAt)
+vec3 GetAtmosphereAndClouds(vec3 Sky)
 {
-    Transmittance = 1.0f;
-    CloudAt = 1.0f;
-
-    if (!u_CloudsEnabled)
-    {
-        return Sky;
-    }
-
-    const float BoxSize = (140.0f) - 12.0;
-    vec3 origin = vec3(v_RayOrigin.x, 0.0f, v_RayOrigin.z);
-
-    vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), v_RayOrigin, 1.0f / (v_RayDirection));
-    
-    bool Intersect = !(Dist.y == 0.0f);
-    vec3 TotalColor = Sky;
-
-	if (Intersect)
-	{
-		vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
-        vec3 Scatter = SampledCloudData.xyz;
-        Scatter = sqrt(Scatter);
-        float Transmittance = SampledCloudData.w;
-        return (Sky * 1.0f) * clamp(Transmittance, 0.0f, 1.0f) + (Scatter * 1.0f);
-	}
-
-    return TotalColor;
+	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
+    vec3 Scatter = SampledCloudData.xyz;
+    Scatter = sqrt(Scatter);
+    float Transmittance = SampledCloudData.w;
+    return (Sky * 1.0f) * clamp(Transmittance, 0.0f, 1.0f) + (Scatter * 1.0f);
 }
 
 float GetLuminance(vec3 color) {
@@ -730,40 +709,21 @@ void main()
 
         else 
         {   
-            float Transmittance, Cloud;
-            vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt * 0.76f, Transmittance, Cloud);
+            vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt);
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-
-            if (u_CloudsEnabled)
-            {
-                o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
-            }
-
-            else 
-            {
-                o_PBR.w = float(BodyIntersect);
-            }
+            o_PBR.w = float(BodyIntersect);
         }
     }
 
     else 
     {   
-        float Transmittance, Cloud;
-        vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt * 0.76f, Transmittance, Cloud);
+        vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt);
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        if (u_CloudsEnabled)
-        {
-            o_PBR.w *= clamp(1.0f - (Cloud * 3.0f), 0.0f, 1.0f);
-        }
-
-        else 
-        {
-            o_PBR.w = float(BodyIntersect);
-        }
+        o_PBR.w = float(BodyIntersect);
     }
 }
 

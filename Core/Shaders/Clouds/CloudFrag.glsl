@@ -49,8 +49,11 @@ uniform vec4 u_Tweak;
 uniform float SunAbsorbption = 0.16f;
 uniform float LightCloudAbsorbption = 2.1f;
 
-vec3 g_Origin;
-vec3 g_Direction;
+
+const vec3 PlayerOrigin = vec3(0, 6200, 0); 
+const float PlanetRadius = 7773; 
+const float AtmosphereRadius = 19773; 
+const float Size = AtmosphereRadius - PlanetRadius; 
 
 struct Ray
 {
@@ -215,20 +218,20 @@ float RaymarchLight(vec3 p)
 	int StepCount = 8;
 	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
 
-	float tmin, tmax;
-	vec3 origin = vec3(g_Origin.x, 0.0f, g_Origin.z);
-	vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), p, 1.0f / ldir);
-	bool Intersect = !(Dist.y == 0.0f);
-	
-	if (!Intersect)
-	{
-		return 1.0f;
-	}
-	
-	tmin = Dist.x;
-	tmax = Dist.y;
+	//float tmin, tmax;
+	//vec3 origin = vec3(g_Origin.x, 0.0f, g_Origin.z);
+	//vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), p, 1.0f / ldir);
+	//bool Intersect = !(Dist.y == 0.0f);
+	//
+	//if (!Intersect)
+	//{
+	//	return 1.0f;
+	//}
+	//
+	//tmin = Dist.x;
+	//tmax = Dist.y;
 
-	float StepSize = tmax / float(StepCount);
+	float StepSize = 12.5f / float(StepCount);
 
 	float TotalDensity = 0.0f;
 	vec3 CurrentPoint = p + (ldir * StepSize * 0.5f);
@@ -330,7 +333,8 @@ vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmitt
 		Dither = nextFloat(RNG_SEED);
 	}
 
-	vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
+	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
+	vec3 SkyLight = vec3(0.0f);
 	vec3 Scattering = vec3(0.0f);
 	vec3 SunColor = vec3(1.0f);
 
@@ -348,7 +352,7 @@ vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmitt
 vec4 ComputeCloudData(in Ray r)
 {
 	vec3 Output = vec3(0.0f);
-	vec3 origin = vec3(g_Origin.x, 0.0f, g_Origin.z);
+	vec3 origin = vec3(r.Origin.x, 0.0f, r.Origin.z);
 	vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), r.Origin, 1.0f / r.Direction);
 	bool Intersect = !(Dist.y == 0.0f);
 
@@ -393,7 +397,5 @@ void main()
     Ray r;
     r.Origin = u_InverseView[3].xyz;
     r.Direction = normalize(ComputeRayDirection());
-	g_Origin = r.Origin;
-	g_Direction = r.Direction;
 	o_Data = ComputeCloudData(r);
 }
