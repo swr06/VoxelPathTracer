@@ -12,6 +12,7 @@ static bool CloudsEnabled = true;
 static float CloudCoverage = 0.135f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
+static bool CloudHighQuality = false;
 
 static bool DoSecondSpatialPass = false;
 
@@ -53,6 +54,8 @@ static bool CheckerboardClouds = true;
 static bool FullyDynamicShadows = true;
 
 static int GodRaysStepCount = 12;
+
+
 
 static bool AutoExposure = false;
 static bool ExponentialFog = false;
@@ -117,6 +120,7 @@ public:
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::SliderFloat("Volumetric Cloud Coverage", &CloudCoverage, 0.01f, 0.6f);
 			ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
@@ -1307,6 +1311,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
 			Clouds::CloudRenderer::SetBayer(CloudBayer);
 			Clouds::CloudRenderer::SetDetailContribution(CloudDetailContribution);
+			Clouds::CloudRenderer::SetQuality(CloudHighQuality);
 		}
 
 		// ---- COLOR PASS ----

@@ -8,6 +8,7 @@ static float Coverage = 0.128f;
 static float BoxSize = 220.0f;
 static float DetailStrength = 0.0f;
 static bool Bayer = true;
+static bool HighQualityClouds = false;
 
 static std::unique_ptr<GLClasses::Shader> CloudShaderPtr;
 static std::unique_ptr<GLClasses::Shader> CloudTemporalFilterPtr;
@@ -103,6 +104,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetBool("u_Checker", Checkerboard);
 		CloudShader.SetBool("u_UseBayer", Bayer);
+		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
 
 		glActiveTexture(GL_TEXTURE1);
@@ -216,4 +218,9 @@ void Clouds::CloudRenderer::SetDetailContribution(float v)
 float Clouds::CloudRenderer::GetBoxSize()
 {
 	return BoxSize;
+}
+
+void Clouds::CloudRenderer::SetQuality(bool v)
+{
+	HighQualityClouds = v;
 }

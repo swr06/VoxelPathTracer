@@ -45,6 +45,10 @@ uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
 
 
+uniform bool u_HighQualityClouds;
+
+
+
 /// temp ///
 //uniform vec4 u_Tweak;
 //uniform float SunAbsorbption = 0.16f;
@@ -211,7 +215,7 @@ float nextFloat(inout int seed, in float min, in float max)
 
 float RaymarchLight(vec3 p)
 {
-	int StepCount = 6;
+	int StepCount = u_HighQualityClouds ? 8 : 4;
 	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
 
 	//float tmin, tmax;
@@ -307,7 +311,7 @@ vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec
 vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
 {
 	dir = normalize(dir);
-	int StepCount = 16;
+	int StepCount = u_HighQualityClouds ? 32 : 16;
 	float StepSize = tmax / float(StepCount);
 
 	vec3 CurrentPoint = p;

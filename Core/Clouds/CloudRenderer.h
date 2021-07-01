@@ -24,5 +24,6 @@ namespace Clouds
 		void SetBayer(bool v);
 		void SetDetailContribution(float v);
 		float GetBoxSize();
+		void SetQuality(bool v);
 	}
 }
