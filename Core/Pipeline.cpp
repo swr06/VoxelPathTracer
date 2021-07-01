@@ -1301,7 +1301,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame());
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), PreviousPosition);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
@@ -1343,6 +1343,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
+		ColorShader.SetFloat("u_CloudBoxSize", Clouds::CloudRenderer::GetBoxSize());
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);

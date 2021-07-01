@@ -5,7 +5,7 @@ static int NoiseSizeDetail = 48;
 static float CloudResolution = 0.5f;
 static bool Checkerboard = true;
 static float Coverage = 0.128f;
-static float BoxSize = 140.0f;
+static float BoxSize = 220.0f;
 static float DetailStrength = 0.0f;
 static bool Bayer = true;
 
@@ -47,7 +47,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, glm::vec3 PreviousPosition)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -100,6 +100,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
+		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetBool("u_Checker", Checkerboard);
 		CloudShader.SetBool("u_UseBayer", Bayer);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
@@ -112,6 +113,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_3D, CloudNoiseDetail->GetTextureID());
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, atmosphere);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -155,6 +159,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 		TemporalFilter.SetMatrix4("u_PrevProjection", PrevProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PrevView);
+		TemporalFilter.SetFloat("u_Time", glfwGetTime());
+		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
+		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);
@@ -204,4 +211,9 @@ void Clouds::CloudRenderer::SetBayer(bool v)
 void Clouds::CloudRenderer::SetDetailContribution(float v)
 {
 	DetailStrength = v;
+}
+
+float Clouds::CloudRenderer::GetBoxSize()
+{
+	return BoxSize;
 }
