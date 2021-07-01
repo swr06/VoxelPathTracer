@@ -5,7 +5,7 @@ static int NoiseSizeDetail = 48;
 static float CloudResolution = 0.5f;
 static bool Checkerboard = true;
 static float Coverage = 0.128f;
-static float BoxSize = 140.0f;
+static float BoxSize = 220.0f;
 static float DetailStrength = 0.0f;
 static bool Bayer = true;
 
@@ -211,4 +211,9 @@ void Clouds::CloudRenderer::SetBayer(bool v)
 void Clouds::CloudRenderer::SetDetailContribution(float v)
 {
 	DetailStrength = v;
+}
+
+float Clouds::CloudRenderer::GetBoxSize()
+{
+	return BoxSize;
 }

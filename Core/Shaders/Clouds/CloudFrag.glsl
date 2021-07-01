@@ -34,7 +34,7 @@ uniform sampler2D u_BlueNoise;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
-float BoxSize = 220;
+uniform float BoxSize;
 uniform float u_DetailIntensity;
 
 uniform mat4 u_InverseView;
@@ -211,7 +211,7 @@ float nextFloat(inout int seed, in float min, in float max)
 
 float RaymarchLight(vec3 p)
 {
-	int StepCount = 8;
+	int StepCount = 6;
 	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
 
 	//float tmin, tmax;
@@ -314,7 +314,7 @@ vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmitt
 	Transmittance = 1.0f;
 
 	float CosAngle = dot(normalize(u_SunDirection), normalize(RayDir));
-	float Phase2Lobes = phase2Lobes(CosAngle);
+	float Phase2Lobes = phase2Lobes(CosAngle) * 0.7f;
 
 	float Dither;
 
@@ -337,12 +337,13 @@ vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmitt
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		float DensitySample = SampleDensity(CurrentPoint) * 3.5f;
+		float DensitySample = SampleDensity(CurrentPoint) * 3.75f;
 		Scattering += GetScatter(DensitySample, Phase2Lobes, CurrentPoint, SunColor, SkyLight) * Transmittance;
 		Transmittance *= exp2(-DensitySample * StepSize);
 		CurrentPoint += dir * (StepSize * (Dither));
 	}
-
+	
+	Scattering = pow(Scattering, vec3(1.0f / 2.2f)); 
 	return vec4(Scattering, Transmittance);
 }
 

@@ -49,6 +49,8 @@ uniform bool u_POM = false;
 uniform bool u_HighQualityPOM = false;
 uniform bool u_RTAO;
 
+uniform float u_CloudBoxSize;
+
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -186,11 +188,28 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
 
 vec3 GetAtmosphereAndClouds(vec3 Sky)
 {
+    if (!u_CloudsEnabled)
+    {
+        return Sky;
+    }
+
+    float BoxSize = (u_CloudBoxSize - 8.0f); // -8 to reduce artifacts.
+    vec3 origin = vec3(v_RayOrigin.x, 0.0f, v_RayOrigin.z);
+    vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), v_RayOrigin, 1.0f / (v_RayDirection));
+    bool Intersect = !(Dist.y == 0.0f);
+
+    if (!Intersect)
+    {
+        return Sky;
+    }
+
+    float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    vec3 M = mix(vec3(1.05f), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility);
+	vec3 IntersectionPosition = v_RayOrigin + (normalize(v_RayDirection) * Dist.x);
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
     vec3 Scatter = SampledCloudData.xyz;
-    Scatter = sqrt(Scatter);
     float Transmittance = SampledCloudData.w;
-    return (Sky * 1.0f) * clamp(Transmittance, 0.0f, 1.0f) + (Scatter * 1.0f);
+    return (Sky * 1.0f) * clamp(Transmittance, 0.95f, 1.0f) + (Scatter * 1.0f * M);
 }
 
 float GetLuminance(vec3 color) {

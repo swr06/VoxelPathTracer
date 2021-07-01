@@ -1343,6 +1343,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
+		ColorShader.SetFloat("u_CloudBoxSize", Clouds::CloudRenderer::GetBoxSize());
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
