@@ -6,7 +6,7 @@
 #define HALF_PI (3.14159265359 * 0.5f)
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define DETAIL
+//#define DETAIL
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -34,7 +34,7 @@ uniform sampler2D u_BlueNoise;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
-uniform float BoxSize;
+float BoxSize = 220;
 uniform float u_DetailIntensity;
 
 uniform mat4 u_InverseView;
@@ -44,16 +44,12 @@ uniform bool u_Checker;
 uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
 
-uniform vec4 u_Tweak;
 
-uniform float SunAbsorbption = 0.16f;
-uniform float LightCloudAbsorbption = 2.1f;
-
-
-const vec3 PlayerOrigin = vec3(0, 6200, 0); 
-const float PlanetRadius = 7773; 
-const float AtmosphereRadius = 19773; 
-const float Size = AtmosphereRadius - PlanetRadius; 
+/// temp ///
+//uniform vec4 u_Tweak;
+//uniform float SunAbsorbption = 0.16f;
+//uniform float LightCloudAbsorbption = 2.1f;
+/// ///
 
 struct Ray
 {
@@ -235,7 +231,8 @@ float RaymarchLight(vec3 p)
 
 	float TotalDensity = 0.0f;
 	vec3 CurrentPoint = p + (ldir * StepSize * 0.5f);
-	float Dither = Bayer16(gl_FragCoord.xy);
+	float Dither;// = Bayer16(gl_FragCoord.xy);
+	Dither = 1.0f;
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
@@ -284,18 +281,19 @@ float hg2(float a, float g)
       return (1-g2) / (4*3.1415*pow(1+g2-2*g*(a), 1.5));
 }
 
-float phase2(float a) 
-{
-	float x = u_Tweak.x;
-	float y = u_Tweak.y;
-	float z = u_Tweak.z;
-	float w = u_Tweak.w;
+//float phase2(float a) 
+//{
+//	float x = u_Tweak.x;
+//	float y = u_Tweak.y;
+//	float z = u_Tweak.z;
+//	float w = u_Tweak.w;
+//
+//    float blend = .5;
+//    float hgBlend = hg(a,x) * (1-blend) + hg(a,-y) * blend;
+//    return z + hgBlend * w;
+//}
 
-    float blend = .5;
-    float hgBlend = hg(a,x) * (1-blend) + hg(a,-y) * blend;
-    return z + hgBlend * w;
-}
-
+// Credits : Robobo1221
 vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec3 SkyLight)
 {
 	const float SunBrightness = 3.0f;
@@ -303,7 +301,6 @@ vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec
     float BeersPowder = powder(DensitySample * log(2.0));
 	float LightMarchResult = RaymarchLight(Point);
 	vec3 SunLight = (SunColor * LightMarchResult * BeersPowder) * Phase * HALF_PI * SunBrightness;
-    //vec3 SkyLighting = SkyLight * 0.25 * ONE_OVER_PI;
     return (SunLight) * Integral * PI;
 }
 
@@ -361,9 +358,7 @@ vec4 ComputeCloudData(in Ray r)
 		vec3 IntersectionPosition = r.Origin + (r.Direction * Dist.x);
 		o_Position.xyz = IntersectionPosition;
 		o_Position.w = Dist.y;
-
 		float Transmittance = 1.0f;
-		
 		return RaymarchCloud(IntersectionPosition, r.Direction, Dist.x, Dist.y, Transmittance, r.Direction);
 	}
 
@@ -372,13 +367,13 @@ vec4 ComputeCloudData(in Ray r)
 
 vec3 ComputeRayDirection()
 {
+	// Branchless checkerboarding!
 	vec2 ScreenSpace = v_TexCoords;
 	float TexelSizeX = 1.0f / u_Dimensions.x;
 	ScreenSpace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX) * float(u_Checker);
 	vec4 Clip = vec4(ScreenSpace * 2.0f - 1.0f, -1.0, 1.0);
 	vec4 Eye = vec4(vec2(u_InverseProjection * Clip), -1.0, 0.0);
 	vec3 RayDir = vec3(u_InverseView * Eye);
-
 	return RayDir;
 }
 

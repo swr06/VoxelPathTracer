@@ -47,7 +47,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, glm::vec4 t, glm::vec2 t2, GLuint atmosphere)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, glm::vec3 PreviousPosition)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -99,14 +99,11 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
-		CloudShader.SetVector4f("u_Tweak", t);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetBool("u_Checker", Checkerboard);
 		CloudShader.SetBool("u_UseBayer", Bayer);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
-		CloudShader.SetFloat("SunAbsorbption", t2.x);
-		CloudShader.SetFloat("LightCloudAbsorbption", t2.y);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_3D, CloudNoise->GetTextureID());
@@ -163,6 +160,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetMatrix4("u_PrevProjection", PrevProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PrevView);
 		TemporalFilter.SetFloat("u_Time", glfwGetTime());
+		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
+		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);

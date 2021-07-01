@@ -10,7 +10,7 @@ namespace GLClasses
 	class Framebuffer
 	{
 	public :
-		Framebuffer(unsigned int w = 16, unsigned int h = 16, bool hdr = true, bool has_depth_attachment = false);
+		Framebuffer(unsigned int w = 16, unsigned int h = 16, bool hdr = true, bool has_depth_attachment = false, bool linear = true);
 		~Framebuffer();
 
 		Framebuffer(const Framebuffer&) = delete;
@@ -111,5 +111,6 @@ namespace GLClasses
 		const bool m_IsHDR;
 		const bool m_HasDepthMap;
 		float m_Exposure = 0.0f;
+		bool m_Linear;
 	};
 }
