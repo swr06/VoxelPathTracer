@@ -15,7 +15,7 @@ ScratchAPixel
 https://google.github.io/filament/Filament.md
 http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
 http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
-*/
+*/ 
  
 #include "Core/Pipeline.h"
 

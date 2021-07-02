@@ -20,7 +20,7 @@ static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
 
 static float ShadowTraceResolution = 0.750;
-static float ReflectionTraceResolution = 0.300; // Resolution is key for specular indirect.
+static float ReflectionTraceResolution = 0.2500; // Resolution is key for specular indirect.
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 
@@ -31,8 +31,8 @@ static float DiffuseLightIntensity = 80.0f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
-static int DiffuseSPP = 4;
-static int ReflectionSPP = 4;
+static int DiffuseSPP = 2;
+static int ReflectionSPP = 3;
 
 static bool TAA = true;
 static bool Bloom = true;

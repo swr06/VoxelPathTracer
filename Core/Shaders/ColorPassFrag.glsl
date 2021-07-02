@@ -204,12 +204,16 @@ vec3 GetAtmosphereAndClouds(vec3 Sky)
     }
 
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-    vec3 M = mix(vec3(1.05f), (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility);
+    const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
+    vec3 S = vec3(1.45f);
+    float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
+    S = mix(S, D, DuskVisibility);
+    vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
 	vec3 IntersectionPosition = v_RayOrigin + (normalize(v_RayDirection) * Dist.x);
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
     vec3 Scatter = SampledCloudData.xyz;
     float Transmittance = SampledCloudData.w;
-    return (Sky * 1.0f) * clamp(Transmittance, 0.95f, 1.0f) + (Scatter * 1.0f * M);
+    return (Sky * 1.0f) * clamp(Transmittance, 0.95f, 1.0f) + (Scatter * 1.0f * M); // see ya pbr
 }
 
 float GetLuminance(vec3 color) {
@@ -619,8 +623,9 @@ bool IsAtEdge(in vec2 txc)
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.5f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.3f; 
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 4.0f;
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.25f; 
+const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
 void main()
 {
@@ -688,10 +693,12 @@ void main()
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f);
             vec3 DiffuseAmbient = (Diffuse.xyz * AlbedoColor);
-            DiffuseAmbient = clamp(DiffuseAmbient, vec3(0.0f), vec3(1.5f));
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SUN_COLOR, SUN_COLOR * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
+            vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR * 0.5f, DuskVisibility);
+            //vec3 SunColor = SUN_COLOR;
+            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SunColor, SunColor * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
@@ -720,8 +727,6 @@ void main()
                     o_Color *= vec3(clamp(pow(AO, 1.0f), 0.0f, 1.0f));
                 }
             }
-
-            o_Color = clamp(o_Color, 0.0f, 2.0f);
 
             return;
         }

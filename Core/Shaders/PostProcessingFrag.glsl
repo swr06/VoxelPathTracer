@@ -430,6 +430,14 @@ vec3 BasicTonemap(vec3 color)
     return color;
 }
 
+vec3 ColorSaturate(vec3 rgb, float adjustment)
+{
+    // Algorithm from Chapter 16 of OpenGL Shading Language
+    const vec3 W = vec3(0.2125, 0.7154, 0.0721);
+    vec3 intensity = vec3(dot(rgb, W));
+    return mix(intensity, rgb, adjustment);
+}
+
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
@@ -443,7 +451,7 @@ void main()
 	if (PositionAt.w > 0.0f && (!AtEdge))
 	{
 		vec3 InputColor;
-		vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
+		//vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
 
 		if (u_SSAO && (!u_RTAO))
@@ -473,8 +481,8 @@ void main()
 			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}
 
+		InputColor = ColorSaturate(InputColor, 1.1f);
 		ColorGrading(InputColor);
-		ColorSaturation(InputColor);
 
 		float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
 
@@ -521,11 +529,12 @@ void main()
 		Bloom[2] = textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
 		Bloom[3] = textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
 
-		const float bloom_multiplier = 1.0f;
+		const float bloom_multiplier = 2.0f;
 		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + 
 						  (Bloom[1] * 0.5f * bloom_multiplier) +
 						  (Bloom[2] * 0.125f * bloom_multiplier) +
 						  (Bloom[3] * 0.095f * bloom_multiplier);
+
 		o_Color += TotalBloom;
 	}
 

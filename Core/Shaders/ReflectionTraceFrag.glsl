@@ -274,6 +274,8 @@ void main()
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f; // Apply bias.
 
+	float ComputedShadow = -1.0f;
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		if (MetalnessAt < 0.025f) 
@@ -284,9 +286,10 @@ void main()
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.5f); // Reduce the variance.
-
+		Xi = Xi * vec2(1.0f, 0.550f); // Reduce the variance.
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
+		
+		
 		vec3 R = normalize(reflect(I, ReflectionNormal));
 		vec3 Normal;
 		float Blocktype;
@@ -339,6 +342,11 @@ void main()
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
+			if (ComputedShadow == -1.0f || (s <= min(SPP / 4, 1)))
+			{
+				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, u_StrongerLightDirection);
+			}
+
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
 			vec3 DirectLighting = (Ambient * 0.2f) + 
 									CalculateDirectionalLight(HitPosition, 
@@ -347,7 +355,7 @@ void main()
 																Albedo, 
 																NormalMapped, 
 																SampledPBR.xyz,
-																GetShadowAt(HitPosition + Normal*0.035f, u_StrongerLightDirection));
+																ComputedShadow);
 			
 			if (texture_ids.w > 0.0f) 
 			{
