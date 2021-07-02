@@ -5,7 +5,7 @@
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
 
-#define ALBEDO_TEX_LOD 3 // 512, 256, 128
+//#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
 layout (location = 0) out vec3 o_Color;
@@ -52,7 +52,7 @@ uniform int u_CurrentFrame;
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
-float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType);
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
 float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
 
@@ -155,24 +155,18 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	float cosLo = max(0.0, dot(N, Lo));
 	vec3 Lr = 2.0 * cosLo * N - Lo;
 	vec3 F0 = mix(vec3(0.04), albedo, pbr.g);
-
-    vec3 Li = light_dir;
+    vec3 Li = light_dir; // no need to normalize
 	vec3 Lradiance = radiance;
-
 	vec3 Lh = normalize(Li + Lo);
-
 	float cosLi = max(0.0, dot(N, Li));
 	float cosLh = max(0.0, dot(N, Lh));
-
 	vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
 	float D = ndfGGX(cosLh, pbr.r);
 	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
-
 	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
 	vec3 diffuseBRDF = kd * albedo;
-
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-
+	specularBRDF *= 0.2f; // Specular highlight isnt too important
 	vec3 Result = (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
@@ -241,6 +235,8 @@ const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
+bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
@@ -274,7 +270,10 @@ void main()
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f; // Apply bias.
 
-	float ComputedShadow = -1.0f;
+	float ComputedShadow = 0.0f;
+	int ShadowItr = 0;
+
+	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -286,15 +285,14 @@ void main()
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.550f); // Reduce the variance.
+		Xi = Xi * vec2(1.0f, 0.4f); // Reduce the variance and crease clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
-		
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal));
 		vec3 Normal;
 		float Blocktype;
 
-		float T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype);
+		float T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype, false);
 		vec3 HitPosition = SampledWorldPosition.xyz + (R * T);
 
 		vec2 UV; 
@@ -306,6 +304,7 @@ void main()
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
+			// I hate this.
 			if (reference_id == u_GrassBlockProps[0])
 			{
 			    if (Normal == NORMAL_LEFT || Normal == NORMAL_RIGHT || Normal == NORMAL_FRONT || Normal == NORMAL_BACK)
@@ -333,29 +332,38 @@ void main()
 			mat3 TBN;
 			TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
 
-			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), ALBEDO_TEX_LOD).rgb;
+			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
 			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
-			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR * 0.8f; 
+			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR * 0.7500f; 
 			vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
 			Ambient = (Albedo * Ambient);
 				
-			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 2).rgba;
+			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
-			if (ComputedShadow == -1.0f || (s <= min(SPP / 4, 1)))
+			// Compute shadow rays for only 1/3 the reflection samples because performance :p
+			if ((ShadowItr < max(SPP / 3, 1))) 
 			{
-				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, u_StrongerLightDirection);
+				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
+				ShadowItr = ShadowItr + 1;
 			}
 
-			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 2).rgb * 2.0f - 1.0f);
+			else
+			{
+				// basically free so why the fuck not
+				ComputedShadow += GetPlayerIntersect(HitPosition + Normal*0.035f, NormalizedStrongerDir) ? 1.0f : 0.0f;
+				ComputedShadow = clamp(ComputedShadow, 0.0f, 1.0f);
+			}
+
+			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
 			vec3 DirectLighting = (Ambient * 0.2f) + 
-									CalculateDirectionalLight(HitPosition, 
-																u_StrongerLightDirection, 
-																Radiance, 
-																Albedo, 
-																NormalMapped, 
-																SampledPBR.xyz,
-																ComputedShadow);
+								   CalculateDirectionalLight(HitPosition, 
+								    NormalizedStrongerDir, 
+									Radiance, 
+									Albedo, 
+									NormalMapped, 
+									SampledPBR.xyz,
+									ComputedShadow);
 			
 			if (texture_ids.w > 0.0f) 
 			{
@@ -371,7 +379,6 @@ void main()
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
-			
 			TotalColor += Computed;
 
 		}
@@ -440,7 +447,7 @@ bool VoxelExists(in vec3 loc)
     return false;
 }
 
-float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType) 
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow) 
 {
 	vec3 initial_origin = origin;
 	const float epsilon = 0.01f;
@@ -450,8 +457,9 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	ivec3 RaySign = ivec3(sign(direction));
 
 	int itr = 0;
+	int sz = shadow ? 150 : 50;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < sz ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
@@ -462,7 +470,6 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 		}
 
 		float Dist = GetDistance(Loc) * 255.0f; 
-
 		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
 
 		if (Euclidean == 0)
@@ -507,6 +514,35 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	}
 
 	return -1.0f;
+}
+
+bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max);
+
+bool GetPlayerIntersect(in vec3 pos, in vec3 ldir)
+{
+	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
+	return RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, ldir, ShadowTMIN, ShadowTMAX);
+}	
+
+float GetShadowAt(in vec3 pos, in vec3 ldir)
+{
+	float T = -1.0f;
+	 
+	vec3 norm;
+	float block;
+
+	if (GetPlayerIntersect(pos, ldir)) { return 1.0f; }
+	T = VoxelTraversalDF(pos.rgb, ldir, norm, block, true);
+
+	if (T > 0.0f) 
+	{ 
+		return 1.0f; 
+	}
+	
+	else 
+	{ 
+		return 0.0f;
+	}
 }
 
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
@@ -627,30 +663,4 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	t_min = t0;
 	t_max = t1;
 	return t1 > max(t0, 0.0);
-}
-
-float GetShadowAt(in vec3 pos, in vec3 ldir)
-{
-	vec3 RayDirection = normalize(ldir);
-	
-	float T = -1.0f;
-	 
-	vec3 norm;
-	float block;
-
-	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-	bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
-	if (PlayerIntersect) { return 1.0f; }
-
-	T = VoxelTraversalDF(pos.rgb, RayDirection, norm, block);
-
-	if (T > 0.0f) 
-	{ 
-		return 1.0f; 
-	}
-	
-	else 
-	{ 
-		return 0.0f;
-	}
 }
