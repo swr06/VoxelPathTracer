@@ -1305,7 +1305,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), PreviousPosition);
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetPositionTexture(), PreviousPosition);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

@@ -26,11 +26,11 @@ uniform int u_CurrentFrame;
 uniform int u_SliceCount;
 uniform vec2 u_Dimensions;
 
-uniform sampler2D u_WorleyNoise;
 uniform sampler3D u_CloudNoise;
 uniform sampler3D u_CloudDetailedNoise;
 uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
+uniform sampler2D u_PositionTex;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
@@ -382,14 +382,48 @@ vec3 ComputeRayDirection()
 	return RayDir;
 }
 
+bool SampleValid(in vec2 txc)
+{
+    vec2 TexelSize = 1.0f / textureSize(u_PositionTex, 0);
+    //vec2 TexelSize = 1.0f / u_Dimensions;
+
+    const vec2 Kernel[8] = vec2[8]
+	(
+		vec2(-1.0, -1.0),
+		vec2( 0.0, -1.0),
+		vec2( 1.0, -1.0),
+		vec2(-1.0,  0.0),
+		vec2( 1.0,  0.0),
+		vec2(-1.0,  1.0),
+		vec2( 0.0,  1.0),
+		vec2( 1.0,  1.0)
+	);
+
+    for (int i = 0 ; i < 8 ; i++)
+    {
+        if (texture(u_PositionTex, txc + Kernel[i] * TexelSize).w <= 0.0f)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void main()
 {
 	o_Position = vec4(0.0f);
 	o_Data = vec4(0.0f);
+	
+	// We dont need to ray cast the clouds if there is a hit at the current position
+	if (!SampleValid(v_TexCoords))
+	{
+		return;
+	}
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(u_Time * 60.0f);
 
-	// xorshift : 
+	// xorshift once : 
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;

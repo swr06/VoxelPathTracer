@@ -48,7 +48,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, glm::vec3 PreviousPosition)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -102,6 +102,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
+		CloudShader.SetInteger("u_PositionTex", 5);
 		CloudShader.SetBool("u_Checker", Checkerboard);
 		CloudShader.SetBool("u_UseBayer", Bayer);
 		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
@@ -118,6 +119,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, atmosphere);
+
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, pos_tex);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
