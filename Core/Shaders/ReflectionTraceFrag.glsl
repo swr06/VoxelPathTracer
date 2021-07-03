@@ -8,7 +8,7 @@
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
-layout (location = 0) out vec3 o_Color;
+layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
 
@@ -257,7 +257,8 @@ void main()
 
 	if (SampledWorldPosition.w <= 0.0001f)
 	{
-		o_Color = vec3(0.0f);
+		o_Color.xyz = vec3(0.0f);
+		o_Color.w = -1.0f;
 		return;
 	}
 
@@ -282,7 +283,7 @@ void main()
 
 	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
 
-	float HitDistance = -1.0f;
+	float MaxHitDistance = -1.0f;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -310,7 +311,7 @@ void main()
 
 		if (T > 0.0f)
 		{
-			HitDistance = max(HitDistance, T);
+			MaxHitDistance = max(MaxHitDistance, T);
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
@@ -366,7 +367,7 @@ void main()
 			}
 
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting = CalculateDirectionalLight(HitPosition, 
+			vec3 DirectLighting =  (Ambient * 0.0684f) + CalculateDirectionalLight(HitPosition, 
 								   NormalizedStrongerDir, 
 								   Radiance, 
 								   Albedo, 
@@ -406,8 +407,8 @@ void main()
 		total_hits++;
 	}
 
-	o_Color = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
-	o_Color = clamp(o_Color, 0.0f, 1.0f);
+	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
+	o_Color.w = MaxHitDistance / 10.0f; // To try out some sort of specular reprojection? I dont fucking know.
 }
 
 bool IsInVolume(in vec3 pos)

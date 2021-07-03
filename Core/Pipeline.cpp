@@ -300,11 +300,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
 	GLClasses::TextureArray BlueNoise;
 	GLClasses::Framebuffer ShadowFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), ShadowFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
-	GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer AverageLumaFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
+
+	GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), ReflectionDenoised(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
+	
 	GLClasses::Framebuffer RTAO_FBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
 
 	VoxelRT::BloomFBO BloomFBO(16, 16);
