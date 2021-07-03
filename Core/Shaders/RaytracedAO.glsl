@@ -6,7 +6,7 @@
 #define PI 3.14159265359
 #define ALPHA_TEST
 
-layout (location = 0) out vec3 o_AO;
+layout (location = 0) out float o_AO;
 
 in vec2 v_TexCoords;
 
@@ -409,7 +409,7 @@ void main()
 	mat3 TBN = mat3(Tangent, Bitangent, InitialNormal);
 	NormalMap = TBN * NormalMap;
 
-	if (RayOrigin.w <= 0.0f) { o_AO = vec3(1.0f); return;}
+	if (RayOrigin.w <= 0.0f) { o_AO = (1.0f); return;}
 
 	float Ao;
 
@@ -423,5 +423,5 @@ void main()
 		}
 	}
 
-	o_AO = vec3(1.0f - (Ao / float(MAX_RAYS)));
+	o_AO = 1.0f - (Ao / float(MAX_RAYS));
 }

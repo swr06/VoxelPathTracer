@@ -254,6 +254,13 @@ void main()
 
 	vec2 suv = v_TexCoords;
 	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+
+	if (SampledWorldPosition.w <= 0.0001f)
+	{
+		o_Color = vec3(0.0f);
+		return;
+	}
+
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
 	vec4 data = texture(u_PBRTexture, suv);
 
@@ -275,6 +282,8 @@ void main()
 
 	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
 
+	float HitDistance = -1.0f;
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		//if (MetalnessAt < 0.025f) 
@@ -285,7 +294,7 @@ void main()
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 1.0f); // Reduce the variance and crease clarity
+		Xi = Xi * vec2(1.0f, 0.75f); // Reduce the variance and crease clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal));
@@ -301,6 +310,7 @@ void main()
 
 		if (T > 0.0f)
 		{
+			HitDistance = max(HitDistance, T);
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
@@ -341,8 +351,8 @@ void main()
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
-			// Compute shadow rays for only 1/3 the reflection samples because performance :p
-			if ((ShadowItr < max(SPP / 3, 1))) 
+			// Compute shadow rays for only 1/4 the reflection samples because performance :p
+			if ((ShadowItr < max(SPP / 4, 1))) 
 			{
 				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
 				ShadowItr = ShadowItr + 1;
@@ -356,13 +366,13 @@ void main()
 			}
 
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting =  CalculateDirectionalLight(HitPosition, 
-								    NormalizedStrongerDir, 
-									Radiance, 
-									Albedo, 
-									NormalMapped, 
-									SampledPBR.xyz,
-									ComputedShadow);
+			vec3 DirectLighting = CalculateDirectionalLight(HitPosition, 
+								   NormalizedStrongerDir, 
+								   Radiance, 
+								   Albedo, 
+								   NormalMapped, 
+								   SampledPBR.xyz,
+								   ComputedShadow);
 			
 			if (texture_ids.w > 0.0f) 
 			{

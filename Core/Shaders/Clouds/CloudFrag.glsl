@@ -27,7 +27,7 @@ uniform int u_SliceCount;
 uniform vec2 u_Dimensions;
 
 uniform sampler3D u_CloudNoise;
-uniform sampler3D u_CloudDetailedNoise;
+//uniform sampler3D u_CloudDetailedNoise;
 uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;

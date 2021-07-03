@@ -802,7 +802,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	float cosLi = max(0.0, dot(N, Li));
 	float cosLh = max(0.0, dot(N, Lh));
 
-	vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); 
 	float D = ndfGGX(cosLh, pbr.r);
 	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
 

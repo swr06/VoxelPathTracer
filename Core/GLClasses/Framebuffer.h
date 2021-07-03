@@ -7,10 +7,17 @@
 
 namespace GLClasses
 {
+	struct FORMAT
+	{
+		GLenum Format;
+		GLenum InternalFormat;
+		GLenum Type;
+	};
+
 	class Framebuffer
 	{
 	public :
-		Framebuffer(unsigned int w = 16, unsigned int h = 16, bool hdr = true, bool has_depth_attachment = false, bool linear = true);
+		Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool has_depth_attachment = false, bool linear = true);
 		~Framebuffer();
 
 		Framebuffer(const Framebuffer&) = delete;
@@ -22,7 +29,7 @@ namespace GLClasses
 			return *this;
 		}
 
-		Framebuffer(Framebuffer&& v) : m_IsHDR(v.m_IsHDR), m_HasDepthMap(v.m_HasDepthMap)
+		Framebuffer(Framebuffer&& v) : m_HasDepthMap(v.m_HasDepthMap)
 		{
 			m_FBO = v.m_FBO;
 			m_TextureAttachment = v.m_TextureAttachment;
@@ -78,26 +85,6 @@ namespace GLClasses
 		inline unsigned int GetWidth() const noexcept { return m_FBWidth; }
 		inline unsigned int GetHeight() const noexcept { return m_FBHeight; }
 
-		inline bool IsHDR() const
-		{
-			return m_IsHDR;
-		}
-
-		void SetExposure(float exp)
-		{
-			if (!m_IsHDR)
-			{
-				throw "SetExposure(float) called on a Framebuffer that is not HDR!";
-			}
-
-			m_Exposure = exp;
-		}
-
-		float GetExposure() const noexcept
-		{
-			return m_Exposure;
-		}
-
 		// Creates the framebuffer with the appropriate settings
 		void CreateFramebuffer();
 
@@ -108,9 +95,8 @@ namespace GLClasses
 		GLuint m_DepthStencilBuffer;
 		int m_FBWidth;
 		int m_FBHeight;
-		const bool m_IsHDR;
 		const bool m_HasDepthMap;
-		float m_Exposure = 0.0f;
 		bool m_Linear;
+		FORMAT m_Format;
 	};
 }

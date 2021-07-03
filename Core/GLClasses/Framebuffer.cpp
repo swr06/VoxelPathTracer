@@ -6,8 +6,8 @@
 
 namespace GLClasses
 {
-    Framebuffer::Framebuffer(unsigned int w, unsigned int h, bool hdr, bool has_depth_attachment, bool linear) :
-        m_FBO(0), m_FBWidth(w), m_FBHeight(h), m_IsHDR(hdr), m_HasDepthMap(has_depth_attachment), m_Linear(linear)
+    Framebuffer::Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool has_depth_attachment, bool linear) :
+        m_FBO(0), m_FBWidth(w), m_FBHeight(h), m_HasDepthMap(has_depth_attachment), m_Linear(linear), m_Format(format)
     {
        // CreateFramebuffer();
     }
@@ -21,17 +21,16 @@ namespace GLClasses
 	{
         int w = m_FBWidth;
         int h = m_FBHeight;
-        bool hdr = m_IsHDR;
 
-        GLenum format = hdr ? GL_RGBA16F : GL_RGBA;
-        GLenum type = hdr ? GL_FLOAT : GL_UNSIGNED_BYTE;
+        GLenum format = m_Format.Format;
+        GLenum type = m_Format.Type;
 
         glGenFramebuffers(1, &m_FBO);
         glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
 
         glGenTextures(1, &m_TextureAttachment);
         glBindTexture(GL_TEXTURE_2D, m_TextureAttachment);
-        glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, GL_RGBA, type, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, m_Format.InternalFormat, type, NULL);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, m_Linear ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, m_Linear ? GL_LINEAR : GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
