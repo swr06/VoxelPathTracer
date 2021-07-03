@@ -595,6 +595,11 @@ vec4 BilateralUpsample2(sampler2D tex, vec2 txc, vec3 base_pos, vec3 base_normal
     return Color / max(TotalWeights, 0.01f);
 }
 
+vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
+{
+	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
+}
+
 bool IsAtEdge(in vec2 txc)
 {
     vec2 TexelSize = 1.0f / textureSize(u_InitialTracePositionTexture, 0);
@@ -693,7 +698,6 @@ void main()
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f);
-            vec3 DiffuseAmbient = (Diffuse.xyz * AlbedoColor);
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
@@ -703,21 +707,21 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            o_Color = DiffuseAmbient + (float(!(Emissivity > 0.5f)) * DirectLighting);
-            o_Color *= SampledAO;
+            DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
+            float Roughness = PBRMap.r;
+            vec3 SpecularIndirect = texture(u_ReflectionTraceTexture, v_TexCoords).rgb;
+            vec3 DiffuseIndirect = (Diffuse.xyz * AlbedoColor);
+            vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz);
+            vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g);
+
+            vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
+            o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
+                      (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
+                      * clamp(SampledAO, 0.2f, 1.01f);
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
-
-            if (PBRMap.g > 0.01f)
-            {
-                vec2 ReprojectedReflectionCoord = v_TexCoords;
-                vec3 ReflectionTrace = clamp((Diffuse.xyz * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
-                float ReflectionRatio = PBRMap.g;
-                ReflectionRatio *= 1.0f - PBRMap.r;
-                o_Color = mix(o_Color, ReflectionTrace, clamp(ReflectionRatio+0.05, 0.0f, 0.85f));
-            }
 
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {

@@ -277,15 +277,15 @@ void main()
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		if (MetalnessAt < 0.025f) 
-		{
-			continue;
-		}
+		//if (MetalnessAt < 0.025f) 
+		//{
+		//	continue;
+		//}
 
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.4f); // Reduce the variance and crease clarity
+		Xi = Xi * vec2(1.0f, 1.0f); // Reduce the variance and crease clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal));
@@ -356,8 +356,7 @@ void main()
 			}
 
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting = (Ambient * 0.2f) + 
-								   CalculateDirectionalLight(HitPosition, 
+			vec3 DirectLighting =  CalculateDirectionalLight(HitPosition, 
 								    NormalizedStrongerDir, 
 									Radiance, 
 									Albedo, 
