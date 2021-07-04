@@ -284,6 +284,8 @@ void main()
 	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
 
 	float MaxHitDistance = -1.0f;
+	bool Hit = false;
+	SPP = 1;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -311,7 +313,7 @@ void main()
 
 		if (T > 0.0f)
 		{
-			MaxHitDistance = max(MaxHitDistance, T);
+			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
@@ -408,7 +410,7 @@ void main()
 	}
 
 	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
-	o_Color.w = MaxHitDistance / 10.0f; // To try out some sort of specular reprojection? I dont fucking know.
+	o_Color.w = Hit ? MaxHitDistance / 10.0f : -1.0f; // To try out some sort of specular reprojection? I dont fucking know.
 }
 
 bool IsInVolume(in vec3 pos)

@@ -164,7 +164,6 @@
     <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp" />
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
-    <ClCompile Include="Core\InitialTraceFBO.cpp" />
     <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
@@ -214,7 +213,7 @@
     <ClInclude Include="Core\Clouds\NoiseTexture3D.h" />
     <ClInclude Include="Core\ColorPassFBO.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
-    <ClInclude Include="Core\InitialTraceFBO.h" />
+    <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\Macros.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />
@@ -225,7 +224,6 @@
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />
     <ClInclude Include="Core\GLClasses\Fps.h" />
-    <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\GLClasses\FramebufferRed.h" />
     <ClInclude Include="Core\GLClasses\IndexBuffer.h" />
     <ClInclude Include="Core\GLClasses\Shader.h" />
@@ -290,6 +288,7 @@
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\SpatialFilter.glsl" />
     <None Include="Core\Shaders\SpatialFinalCleanup.glsl" />
+    <None Include="Core\Shaders\SpecularTemporalFilter.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />

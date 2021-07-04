@@ -13,7 +13,6 @@
 #include "World.h"
 #include "GLClasses/Framebuffer.h"
 #include "WorldGenerator.h"
-#include "InitialTraceFBO.h"
 #include "GLClasses/CubeTextureMap.h"
 #include "BlockDatabase.h"
 #include "Player.h"

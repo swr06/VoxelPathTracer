@@ -126,18 +126,7 @@ void main()
 	if (CurrentPosition.a > 0.0f)
 	{
 		vec2 Reprojected;
-
-		if (u_ReflectionTemporal)
-		{
-			vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
-			CameraOffset *= 0.5f;
-			Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
-		}
-
-		else 
-		{
-			Reprojected = Reprojection(CurrentPosition.xyz);
-		}
+		Reprojected = Reprojection(CurrentPosition.xyz);
 
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 		vec4 PrevColor = GetClampedColor(Reprojected, CurrentPosition.xyz).rgba;
@@ -149,25 +138,7 @@ void main()
 			float BlendFactor = d;
 			BlendFactor = exp(-BlendFactor);
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.05f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
-			
-			if (u_ReflectionTemporal)
-			{
-				//float WeightedDistance = abs(u_CurrentCameraPos.x - u_PrevCameraPos.x) + 
-				//					     (abs(u_CurrentCameraPos.y - u_PrevCameraPos.y) * 6.0f) + 
-				//						 abs(u_CurrentCameraPos.z - u_PrevCameraPos.z);
-				//float BlendMultiplier = 1.0f - (WeightedDistance * 10.0f);
-				//BlendMultiplier = clamp(BlendMultiplier, 0.1f, 1.0f);
-
-				const float BlendMultiplier = 0.5f;
-				BlendFactor = (u_PrevCameraPos != u_CurrentCameraPos) ? BlendFactor * BlendMultiplier : BlendFactor;
-				BlendFactor = clamp(BlendFactor, 0.01f, 0.925f);
-				o_Color = mix(CurrentColor, PrevColor, clamp(BlendFactor, 0.0f, u_MaximumMix));
-			}
-
-			else 
-			{
-				o_Color = mix(CurrentColor, PrevColor, BlendFactor);
-			}
+			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
 		}
 
 		else 

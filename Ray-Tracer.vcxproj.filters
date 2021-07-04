@@ -131,9 +131,6 @@
     <ClCompile Include="Dependencies\fast_noise\FastNoise.cpp">
       <Filter>Source Files\fn</Filter>
     </ClCompile>
-    <ClCompile Include="Core\InitialTraceFBO.cpp">
-      <Filter>Source Files\voxel-rt</Filter>
-    </ClCompile>
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp">
       <Filter>Source Files\GLClasses</Filter>
     </ClCompile>
@@ -223,9 +220,6 @@
     <ClInclude Include="Core\GLClasses\Fps.h">
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
-    <ClInclude Include="Core\GLClasses\Framebuffer.h">
-      <Filter>Source Files\GLClasses</Filter>
-    </ClInclude>
     <ClInclude Include="Core\GLClasses\FramebufferRed.h">
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
@@ -276,9 +270,6 @@
     </ClInclude>
     <ClInclude Include="Dependencies\fast_noise\FastNoise.h">
       <Filter>Source Files\fn</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\InitialTraceFBO.h">
-      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h">
       <Filter>Source Files\GLClasses</Filter>
@@ -339,6 +330,9 @@
     </ClInclude>
     <ClInclude Include="Core\Macros.h">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Framebuffer.h">
+      <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -481,6 +475,9 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SpatialFinalCleanup.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\SpecularTemporalFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>
