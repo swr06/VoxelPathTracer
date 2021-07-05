@@ -45,7 +45,14 @@ namespace VoxelRT
 					SamplePos.y > 0 && SamplePos.y < WORLD_SIZE_Y &&
 					SamplePos.z > 0 && SamplePos.z < WORLD_SIZE_Z )
 				{
-					uint8_t block1 = data.at(SamplePos.x + SamplePos.y * WORLD_SIZE_X + SamplePos.z * WORLD_SIZE_X * WORLD_SIZE_Y).block;
+					int loc = SamplePos.x + SamplePos.y * WORLD_SIZE_X + SamplePos.z * WORLD_SIZE_X * WORLD_SIZE_Y;
+					
+					if (loc >= WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z)
+					{
+						return false;
+					}
+					
+					uint8_t block1 = data.at(loc).block;
 					
 					if (block1 == 0)
 					{
@@ -57,6 +64,8 @@ namespace VoxelRT
 						return true;
 					}
 				}
+
+				return false;
 			}
 
 

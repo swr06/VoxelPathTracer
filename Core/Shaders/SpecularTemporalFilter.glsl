@@ -9,6 +9,8 @@ uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
+uniform sampler2D u_ReflectionHitData;
+
 uniform sampler2D u_PBRTex;
 
 uniform mat4 u_Projection;
@@ -46,12 +48,23 @@ vec2 Reprojection(vec3 pos)
 	return ProjectPositionPrevious(pos).xy * 0.5f + 0.5f;
 }
 
-vec4 GetClampedColor(vec2 reprojected)
+float GetLuminance(vec3 color) 
+{
+    return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec4 GetClampedColor(vec2 reprojected, vec3 col)
 {
 	ivec2 Coord = ivec2(v_TexCoords * Dimensions); 
+	vec2 TexelSize = textureSize(u_PreviousColorTexture, 0);
 
 	vec4 minclr = vec4(10000.0f); 
 	vec4 maxclr = vec4(-10000.0f); 
+
+	vec2 BestOffset = vec2(0.0f);
+	float BestLumaDiff = 10000.0f;
+
+	float BaseLuma = GetLuminance(col);
 
 	for(int x = -2; x <= 2; x++) 
 	{
@@ -60,13 +73,23 @@ vec4 GetClampedColor(vec2 reprojected)
 			vec4 Fetch = texelFetch(u_CurrentColorTexture, Coord + ivec2(x,y), 0); 
 			minclr = min(minclr, Fetch); 
 			maxclr = max(maxclr, Fetch); 
+
+			float LumaAt = GetLuminance(Fetch.xyz);
+			float LumaDifference = abs(LumaAt - BaseLuma);
+
+			// Find pixel with the nearest luma
+			if (LumaDifference < BestLumaDiff)
+			{
+				BestOffset = vec2(x, y);
+				BestLumaDiff = LumaDifference;
+			}
 		}
 	}
 
-	minclr -= 0.0025f; 
-	maxclr += 0.005f; 
+	minclr -= 0.0015f; 
+	maxclr += 0.0015f; 
 		
-	return clamp(texture(u_PreviousColorTexture, reprojected), minclr, maxclr); 
+	return clamp(texture(u_PreviousColorTexture, reprojected + (BestOffset*TexelSize)), minclr, maxclr); 
 }
 
 void main()
@@ -81,46 +104,20 @@ void main()
 		vec2 Reprojected;
 
 		vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
-		CameraOffset *= 0.0f;
+		CameraOffset *= 0.6f;
 		Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
 
+		float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 		vec3 PrevPosition = texture(u_PreviousFramePositionTexture, Reprojected).xyz;
-		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion
-
-		if (Reprojected.x > 0.0 && Reprojected.x < 1.0 && Reprojected.y > 0.0 && Reprojected.y < 1.0 && 
-		    d <= 1.5f)
+		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
+		
+		if (Reprojected.x > 0.0 && Reprojected.x < 1.0 && Reprojected.y > 0.0 && Reprojected.y < 1.0f && d <= 1.41414f)
 		{
-			float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
-			float BlendFactor = 0.8f;
-			
-			if (RoughnessAt <= 0.2f)
-			{
-				float RayDistanceAt = CurrentColor.w;
-
-				if (RayDistanceAt > 0.0f)
-				{
-					float rD = RayDistanceAt * 10.0f;
-					vec3 P = CurrentPosition.xyz;
-					vec3 V = normalize(u_CurrentCameraPos - P);
-					vec3 PotentialEnd = P + V * rD;
-			
-					vec2 PrevReprojected = Reprojected;
-					Reprojected = Reprojection(PotentialEnd);
-					
-					if (!Valid(Reprojected))
-					{
-						Reprojected = PrevReprojected;
-					}
-			
-					BlendFactor = 0.99f;
-					//o_Color = vec4(1.0f, 0.0f, 0.0f, 1.0f); return;
-					//o_Color = vec4(rD / 30.0f); return;
-				}
-			}
-
-			vec4 PrevColor = GetClampedColor(Reprojected);
-			o_Color = mix(CurrentColor, PrevColor, 0.95f);
+			vec4 PrevColor = GetClampedColor(Reprojected, CurrentColor.xyz);
+			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
+			float BlendFactor = Moved ? 0.8250f : 0.9250f; 
+			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
 		}
 
 		else 

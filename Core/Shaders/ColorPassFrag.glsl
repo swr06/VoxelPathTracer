@@ -600,6 +600,22 @@ vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness)
 	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
 }
 
+vec3 GetNormalMapAt(vec2 txc, vec3 world_pos, vec3 normal)
+{
+    vec3 T, B;
+    vec2 UV;
+    CalculateVectors(world_pos.xyz, normal, T, B, UV); 
+	mat3 tbn = mat3((T), (B), (normal));
+    vec4 data = texture(u_DataTexture, txc);
+    vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+    return NormalMapped;
+} 
+
+float FastDistance(vec3 p1, vec3 p2)
+{
+    return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
+}
+
 bool IsAtEdge(in vec2 txc)
 {
     vec2 TexelSize = 1.0f / textureSize(u_InitialTracePositionTexture, 0);
@@ -634,7 +650,7 @@ const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f;
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800 * u_Time);
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
 
     // Xorshift!
 	RNG_SEED ^= RNG_SEED << 13;
@@ -697,7 +713,7 @@ void main()
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
-            float SampledAO = pow(PBRMap.w, 1.25f);
+            float SampledAO = pow(PBRMap.w, 1.25f); // Ambient occlusion map
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
@@ -711,8 +727,15 @@ void main()
             float Roughness = PBRMap.r;
             vec3 SpecularIndirect = texture(u_ReflectionTraceTexture, v_TexCoords).rgb;
             vec3 DiffuseIndirect = (Diffuse.xyz * AlbedoColor);
-            vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz);
-            vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g);
+
+            // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
+            // That it hurts my soul
+            float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
+            float NDotMapM = clamp(exp(NDotMap) * 0.85f, 0.2f, 1.0f);
+            SpecularIndirect *= NDotMapM; 
+           
+            vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
+            vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 
             vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
@@ -725,7 +748,7 @@ void main()
 
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {
-                float bias = 0.02f;
+                float bias = 0.00125f;
                 if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
@@ -742,7 +765,7 @@ void main()
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-            o_PBR.w = float(BodyIntersect);
+            o_PBR.w = float(BodyIntersect) * 0.35f;
         }
     }
 
@@ -752,7 +775,7 @@ void main()
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        o_PBR.w = float(BodyIntersect);
+        o_PBR.w = float(BodyIntersect) * 0.35f;
     }
 }
 

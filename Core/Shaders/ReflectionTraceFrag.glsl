@@ -8,7 +8,8 @@
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
-layout (location = 0) out vec4 o_Color;
+layout (location = 0) out vec3 o_Color;
+layout (location = 1) out vec4 o_Data;
 
 in vec2 v_TexCoords;
 
@@ -255,10 +256,11 @@ void main()
 	vec2 suv = v_TexCoords;
 	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
 
+	o_Color.xyz = vec3(0.0f);
+	o_Data = vec4(-1.0f);
+
 	if (SampledWorldPosition.w <= 0.0001f)
 	{
-		o_Color.xyz = vec3(0.0f);
-		o_Color.w = -1.0f;
 		return;
 	}
 
@@ -285,7 +287,11 @@ void main()
 
 	float MaxHitDistance = -1.0f;
 	bool Hit = false;
-	SPP = 1;
+	vec3 ReflectionVector;
+
+	//int MaxSPP = SPP;
+	//int MinSPP = clamp(SPP / 2, 2, 32);
+	SPP = 4;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -297,10 +303,10 @@ void main()
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.75f); // Reduce the variance and crease clarity
+		Xi = Xi * vec2(1.0f, 0.6f); // Reduce the variance and crease clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
-		vec3 R = normalize(reflect(I, ReflectionNormal));
+		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;
 
@@ -410,7 +416,8 @@ void main()
 	}
 
 	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
-	o_Color.w = Hit ? MaxHitDistance / 10.0f : -1.0f; // To try out some sort of specular reprojection? I dont fucking know.
+	o_Data.xyz = ReflectionVector;
+	o_Data.w = Hit ? MaxHitDistance / 10.0f : -1.0f; // To try out some sort of specular reprojection? I dont fucking know.
 }
 
 bool IsInVolume(in vec3 pos)

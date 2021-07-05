@@ -429,7 +429,7 @@
     <None Include="Core\Shaders\BilateralBlurNonDepthGuided.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\AdaptiveReflectionDenoise.glsl">
+    <None Include="Core\Shaders\ReflectionDenoiser.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\RaytracedAO.glsl">
