@@ -332,6 +332,42 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+// http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
+float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
+{
+    vec3  ba = pb - pa;
+    vec3  oa = ro - pa;
+
+    float baba = dot(ba,ba);
+    float bard = dot(ba,rd);
+    float baoa = dot(ba,oa);
+    float rdoa = dot(rd,oa);
+    float oaoa = dot(oa,oa);
+
+    float a = baba      - bard*bard;
+    float b = baba*rdoa - baoa*bard;
+    float c = baba*oaoa - baoa*baoa - r*r*baba;
+    float h = b*b - a*c;
+    if( h>=0.0 )
+    {
+        float t = (-b-sqrt(h))/a;
+        float y = baoa + t*bard;
+        if( y>0.0 && y<baba ) return t;
+        vec3 oc = (y<=0.0) ? oa : ro - pb;
+        b = dot(rd,oc);
+        c = dot(oc,oc) - r*r;
+        h = b*b - c;
+        if( h>0.0 ) return -b - sqrt(h);
+    }
+    return -1.0;
+}
+
+bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
+{
+    float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+    return t > 0.0f;
+}
+
 int RNG_SEED;
 
 float ComputeShadow(vec3 world_pos)
@@ -364,8 +400,7 @@ float ComputeShadow(vec3 world_pos)
         vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.02f;
     #endif
 
-        float ShadowTMIN, ShadowTMAX;
-        bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), SampleWorldPosition, ShadowDirection, ShadowTMIN, ShadowTMAX);
+        bool PlayerIntersect = GetPlayerIntersect(SampleWorldPosition.xyz, ShadowDirection.xyz);
 
         if (PlayerIntersect)
         {

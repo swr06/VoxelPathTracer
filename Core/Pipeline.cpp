@@ -889,7 +889,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Basic denoise pass 1
 		// Single pass atrous 2x2 filter
-		{
+		/*{
 			DiffuseDenoiseFBO.Bind();
 			SpatialInitial.Use();
 
@@ -910,9 +910,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
-		}
+		}*/
 
-		///// Temporal filter the single pass filtered diffuse /////
+		// Temporal filter 
 
 		DiffuseTemporalFBO.Bind();
 		MainTemporalFilter.Use();
@@ -933,7 +933,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));

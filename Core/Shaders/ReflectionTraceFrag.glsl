@@ -56,6 +56,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
 float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col);
 
 int MIN = -2147483648;
 int MAX = 2147483647;
@@ -149,9 +150,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 {
     const float Epsilon = 0.00001;
     float Shadow = min(shadow, 1.0f);
-
     vec3 Lo = normalize(u_ViewerPosition - world_pos);
-
 	vec3 N = normal;
 	float cosLo = max(0.0, dot(N, Lo));
 	vec3 Lr = 2.0 * cosLo * N - Lo;
@@ -167,8 +166,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
 	vec3 diffuseBRDF = kd * albedo;
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-	specularBRDF *= 0.2f; // Specular highlight isnt too important
-	vec3 Result = (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
+	vec3 radiance_s = radiance * 0.05f;
+	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
@@ -194,6 +193,7 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
+// used to test a low discrepancy sequence
 float RadicalInverse_VdC(uint bits) 
 {
      bits = (bits << 16u) | (bits >> 16u);
@@ -292,6 +292,8 @@ void main()
 	//int MaxSPP = SPP;
 	//int MinSPP = clamp(SPP / 2, 2, 32);
 	SPP = 4;
+
+	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.325f); 
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -397,17 +399,15 @@ void main()
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
+			ComputePlayerReflection(refpos, R, Computed);
 			TotalColor += Computed;
-
 		}
 
 		else
 		{
 			vec3 AtmosphereColor;
-
-			vec3 AtmosphereRayDir = R;
-
-			GetAtmosphere(AtmosphereColor, AtmosphereRayDir);
+			GetAtmosphere(AtmosphereColor, R);
+			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor);
 			TotalColor += AtmosphereColor;
 		}
 
@@ -535,13 +535,71 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max);
-
-bool GetPlayerIntersect(in vec3 pos, in vec3 ldir)
+// http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
+float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 {
-	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-	return RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, ldir, ShadowTMIN, ShadowTMAX);
-}	
+    vec3  ba = pb - pa;
+    vec3  oa = ro - pa;
+
+    float baba = dot(ba,ba);
+    float bard = dot(ba,rd);
+    float baoa = dot(ba,oa);
+    float rdoa = dot(rd,oa);
+    float oaoa = dot(oa,oa);
+
+    float a = baba      - bard*bard;
+    float b = baba*rdoa - baoa*bard;
+    float c = baba*oaoa - baoa*baoa - r*r*baba;
+    float h = b*b - a*c;
+    if( h>=0.0 )
+    {
+        float t = (-b-sqrt(h))/a;
+        float y = baoa + t*bard;
+        if( y>0.0 && y<baba ) return t;
+        vec3 oc = (y<=0.0) ? oa : ro - pb;
+        b = dot(rd,oc);
+        c = dot(oc,oc) - r*r;
+        h = b*b - c;
+        if( h>0.0 ) return -b - sqrt(h);
+    }
+    return -1.0;
+}
+
+vec3 capNormal(in vec3 pos, in vec3 a, in vec3 b, in float r)
+{
+    vec3  ba = b - a;
+    vec3  pa = pos - a;
+    float h = clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0);
+    return (pa - h*ba)/r;
+}
+
+bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
+{
+     float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+     return t > 0.0f;
+}
+
+vec3 pattern( in vec2 uv )
+{
+    vec3 col = vec3(0.6);
+    col += 0.4*smoothstep(-0.01,0.01,cos(uv.x*0.5)*cos(uv.y*0.5)); 
+    col *= smoothstep(-1.0,-0.98,cos(uv.x))*smoothstep(-1.0,-0.98,cos(uv.y));
+    return col;
+}
+
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col)
+{
+	float t = capIntersect(ro, rd, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
+	
+	if (t > 0.0f)
+	{
+		vec3 p = ro + (t * rd);
+		vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
+		float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
+		col = vec3(diff) * 1.7f;
+		col += vec3(0.2f);
+	}
+}
 
 float GetShadowAt(in vec3 pos, in vec3 ldir)
 {
@@ -666,20 +724,4 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     {
         uv = vec2(fract(world_pos.zy));
     }
-}
-
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
-{
-	vec3 inv_dir = 1.0f / rD;
-	vec3 tbot = inv_dir * (boxMin - r0);
-	vec3 ttop = inv_dir * (boxMax - r0);
-	vec3 tmin = min(ttop, tbot);
-	vec3 tmax = max(ttop, tbot);
-	vec2 t = max(tmin.xx, tmin.yz);
-	float t0 = max(t.x, t.y);
-	t = min(tmax.xx, tmax.yz);
-	float t1 = min(t.x, t.y);
-	t_min = t0;
-	t_max = t1;
-	return t1 > max(t0, 0.0);
 }
