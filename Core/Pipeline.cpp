@@ -125,8 +125,8 @@ public:
 
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
-			ImGui::Checkbox("(Implementation - 1) God Rays? (Slower)", &GodRays);
-			ImGui::Checkbox("(Implementation - 2) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
+			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
+			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
 			ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
