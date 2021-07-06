@@ -329,8 +329,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::Texture Crosshair;
 	GLClasses::Texture BluenoiseTexture;
+	GLClasses::Texture PlayerSprite;
 	Crosshair.CreateTexture("Res/Misc/crosshair.png", false);
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
+	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 
 	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
 	InitialTraceShader.CompileShaders();
@@ -1152,6 +1154,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 
@@ -1187,6 +1190,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE11);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
+
+			glActiveTexture(GL_TEXTURE12);
+			glBindTexture(GL_TEXTURE_2D, PlayerSprite.GetTextureID());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

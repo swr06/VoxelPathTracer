@@ -23,6 +23,8 @@ uniform sampler2D u_DataTexture;
 uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
 
+uniform sampler2D u_PlayerSprite;
+
 uniform bool u_RoughReflections;
 
 uniform samplerCube u_Skymap;
@@ -56,7 +58,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
 float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
-void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col);
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
 
 int MIN = -2147483648;
 int MAX = 2147483647;
@@ -399,7 +401,7 @@ void main()
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
-			ComputePlayerReflection(refpos, R, Computed);
+			ComputePlayerReflection(refpos, R, Computed, T);
 			TotalColor += Computed;
 		}
 
@@ -407,7 +409,7 @@ void main()
 		{
 			vec3 AtmosphereColor;
 			GetAtmosphere(AtmosphereColor, R);
-			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor);
+			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
 			TotalColor += AtmosphereColor;
 		}
 
@@ -579,25 +581,36 @@ bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
      return t > 0.0f;
 }
 
-vec3 pattern( in vec2 uv )
+vec3 TriplanarPlayerSprite(vec3 p, vec3 n)
 {
-    vec3 col = vec3(0.6);
-    col += 0.4*smoothstep(-0.01,0.01,cos(uv.x*0.5)*cos(uv.y*0.5)); 
-    col *= smoothstep(-1.0,-0.98,cos(uv.x))*smoothstep(-1.0,-0.98,cos(uv.y));
-    return col;
+	float TextureScale = 3.0f;
+	vec2 yUV = p.xz / TextureScale;
+	vec2 xUV = p.zy / TextureScale;
+	vec2 zUV = p.xy / TextureScale;
+	vec3 yDiff = texture(u_PlayerSprite, yUV).rgb;
+	vec3 xDiff = texture(u_PlayerSprite, xUV).rgb;
+	vec3 zDiff = texture(u_PlayerSprite, zUV).rgb;
+	vec3 blendWeights = pow(abs(n), vec3(4.0f));
+	blendWeights = blendWeights / (blendWeights.x + blendWeights.y + blendWeights.z);
+	vec3 res = xDiff * blendWeights.x + yDiff * blendWeights.y + zDiff * blendWeights.z;
+	return res;
 }
 
-void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col)
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t)
 {
 	float t = capIntersect(ro, rd, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
 	
 	if (t > 0.0f)
 	{
-		vec3 p = ro + (t * rd);
-		vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
-		float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
-		col = vec3(diff) * 1.7f;
-		col += vec3(0.2f);
+		if (t < block_t + 0.001f)
+		{
+			vec3 p = ro + (t * rd);
+			vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
+			vec3 albedo = vec3(1.0f);
+			float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
+			col = vec3(diff) * albedo;
+			col += vec3(0.150f) * albedo;
+		}
 	}
 }
 
