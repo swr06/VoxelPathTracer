@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 
 #define WORLD_SIZE_X 384
@@ -50,9 +50,6 @@ uniform float u_Time;
 uniform int u_SPP;
 
 uniform vec3 u_ViewerPosition;
-
-uniform vec4 BLOCK_TEXTURE_DATA[128]; // Albedo tex index, normal tex index, pbr tex index, emissive 
-
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 
@@ -63,6 +60,15 @@ uniform sampler2D u_ShadowMap;
 // Temp
 
 uniform float u_DiffuseLightIntensity = 1.0f;
+
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
 
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
@@ -117,14 +123,19 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
     vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
 	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
-	vec4 TextureIndexes = BLOCK_TEXTURE_DATA[tex_index].xyzw;
+
+	vec2 TextureIndexes = vec2(
+		float(BlockAlbedoData[tex_index]),
+		float(BlockEmissiveData[tex_index])
+	);
+
 	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3).rgb;
 
 	float Emmisivity = 0.0f;
 
-	if (TextureIndexes.w >= 0.0f)
+	if (TextureIndexes.y >= 0.0f)
 	{
-		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.w)).r;
+		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.y)).r;
 		Emmisivity = SampledEmmisivity * 20.0f * u_DiffuseLightIntensity;
 	}
 

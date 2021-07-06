@@ -339,7 +339,7 @@ void main()
 				float(BlockAlbedoData[reference_id]),
 				float(BlockNormalData[reference_id]),
 				float(BlockPBRData[reference_id]),
-				float(BlockTransparentData[reference_id])
+				float(BlockEmissiveData[reference_id])
 			);
 			
 			// I hate this.

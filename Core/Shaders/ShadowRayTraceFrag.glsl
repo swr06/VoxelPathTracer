@@ -15,12 +15,20 @@ uniform sampler2DArray u_AlbedoTextures;
 uniform sampler2D u_PrevShadowFBO;
 uniform sampler3D u_DistanceFieldTexture;
 
-uniform vec4 BLOCK_TEXTURE_DATA[128];
 uniform bool u_DoFullTrace;
 uniform mat4 u_ShadowProjection;
 uniform mat4 u_ShadowView;
 
 uniform vec3 u_LightDirection;
+
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
 
 bool IsInVolume(in vec3 pos)
 {

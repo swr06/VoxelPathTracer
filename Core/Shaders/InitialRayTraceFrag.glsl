@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 /*
 Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
@@ -27,8 +27,15 @@ uniform sampler3D u_DistanceFieldTexture;
 uniform sampler2DArray u_AlbedoTextures;
 
 uniform vec2 u_Dimensions;
-uniform vec4 BLOCK_TEXTURE_DATA[128];
-uniform float BLOCK_EMISSIVE_TEXTURE_DATA[128];
+
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
 
 // Temporary solution to have multi texturing for grass blocks
 // Data stored : 
@@ -202,8 +209,12 @@ void main()
 	if (intersect)
 	{
 		reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
-		texture_ids.xyz = BLOCK_TEXTURE_DATA[reference_id].rgb;
-		texture_ids.w = BLOCK_EMISSIVE_TEXTURE_DATA[reference_id];
+		texture_ids.xyz = vec3(
+			float(BlockAlbedoData[reference_id]),
+			float(BlockNormalData[reference_id]),
+			float(BlockPBRData[reference_id])
+		);
+		texture_ids.w = float(BlockEmissiveData[reference_id]);
 	}
 
 	else 

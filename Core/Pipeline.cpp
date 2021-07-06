@@ -1,11 +1,7 @@
 #include "Pipeline.h"
-
-
 #include <chrono>
-
 #include "ShaderManager.h"
-#include "BlockDataUBO.h"
-
+#include "BlockDataSSBO.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -293,6 +289,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularTemporalFilter = ShaderManager::GetShader("SPECULAR_TEMPORAL");
 	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 
+	// Framebuffers 
 	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
 	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
 	GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
@@ -334,9 +331,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 
-	BlockDataUBO BlockDataUniformBuffer;
-
-	BlockDataUniformBuffer.CreateBuffers();
+	BlockDataSSBO BlockDataStorageBuffer;
+	BlockDataStorageBuffer.CreateBuffers();
 	
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -368,96 +364,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 	BloomRenderer::Initialize();
 	AverageLumaFBO.SetSize(1, 1);
 
-	///// Set the block texture data uniforms    /////
-
-	InitialTraceShader.Use();
-
-	for (int i = 0; i < 128; i++)
-	{
-		// BLOCK_TEXTURE_DATA
-
-		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		std::string name2 = "BLOCK_EMISSIVE_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec4 data;
-
-		float data2 = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-		InitialTraceShader.SetVector4f(name.c_str(), data);
-		InitialTraceShader.SetFloat(name2.c_str(), data2);
-	}
-
-	glUseProgram(0);
-
-	ShadowTraceShader.Use();
-
-	for (int i = 0; i < 128; i++)
-	{
-		// BLOCK_TEXTURE_DATA
-
-		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec4 data;
-
-		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-		ShadowTraceShader.SetVector4f(name.c_str(), data);
-	}
-
-	glUseProgram(0);
-
-	RTAOShader.Use();
-
-	for (int i = 0; i < 128; i++)
-	{
-		// BLOCK_TEXTURE_DATA
-
-		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec4 data;
-
-		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-		RTAOShader.SetVector4f(name.c_str(), data);
-	}
-
-	glUseProgram(0);
-
-	DiffuseTraceShader.Use();
-
-	for (int i = 0; i < 128; i++)
-	{
-		// BLOCK_TEXTURE_DATA
-
-		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec4 data;
-
-		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-
-		DiffuseTraceShader.SetVector4f(name.c_str(), data);
-	}
-
-	glUseProgram(0);
-
 	Clouds::CloudRenderer::Initialize();
-
-	/////                                     /////
 
 	auto* InitialTraceFBO = &InitialTraceFBO_1;
 	auto* InitialTraceFBOPrev = &InitialTraceFBO_2;
 
 	glm::vec3 StrongerLightDirection;
-
 
 	GLfloat PreviousLuma = 3.0f;
 
@@ -486,49 +398,34 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 		DiffuseDenoisedFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
-
-		// MISC
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
 		InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 		InitialTraceFBO_2.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-
-		// TAA
 		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
 		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
-
-		// 
 		DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
-
 		ShadowFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ShadowFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
-		
-		// Reflection Framebuffers
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 		ReflectionCheckerReconstructed.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
 		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
 		ReflectionTemporalFBO_2.SetSize(app.GetWidth()* ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 		ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
 		ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
-
-		// SSAO
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
 		SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
-
-		// Volumetrics
 		VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
 		BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
-
 		BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
-
-		//
-
 		float RTAO_Res2 = glm::max(RTAOResolution, 0.5f);
 		RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
 		RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
 		RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
 
-		///
+
+
+
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
@@ -537,109 +434,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLClasses::Framebuffer& PrevReflectionTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTemporalFBO_2 : ReflectionTemporalFBO_1;
 		GLClasses::Framebuffer& RTAOTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? RTAO_TemporalFBO_1 : RTAO_TemporalFBO_2;
 		GLClasses::Framebuffer& PrevRTAOTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? RTAO_TemporalFBO_2 : RTAO_TemporalFBO_1;
-		/// 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
 		{
 			system("@cls");
-
 			ShaderManager::RecompileShaders();
-
 			world->m_ParticleEmitter.Recompile();
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
 			AtmosphereRenderer.Recompile();
-
-			///// Set the block texture data uniforms    /////
-
-			InitialTraceShader.Use();
-
-			for (int i = 0; i < 128; i++)
-			{
-				// BLOCK_TEXTURE_DATA
-
-				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				std::string name2 = "BLOCK_EMISSIVE_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec4 data;
-
-				float data2 = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-				InitialTraceShader.SetVector4f(name.c_str(), data);
-				InitialTraceShader.SetFloat(name2.c_str(), data2);
-			}
-
-			glUseProgram(0);
-
-			ShadowTraceShader.Use();
-
-			for (int i = 0; i < 128; i++)
-			{
-				// BLOCK_TEXTURE_DATA
-
-				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec4 data;
-
-				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-				ShadowTraceShader.SetVector4f(name.c_str(), data);
-			}
-
-			glUseProgram(0);
-
-			RTAOShader.Use();
-
-			for (int i = 0; i < 128; i++)
-			{
-				// BLOCK_TEXTURE_DATA
-
-				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec4 data;
-
-				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::IsBlockTransparent(i);
-
-				RTAOShader.SetVector4f(name.c_str(), data);
-			}
-
-			glUseProgram(0);
-
-			DiffuseTraceShader.Use();
-
-			for (int i = 0; i < 128; i++)
-			{
-				// BLOCK_TEXTURE_DATA
-
-				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec4 data;
-
-				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-
-				DiffuseTraceShader.SetVector4f(name.c_str(), data);
-			}
-
-			glUseProgram(0);
-
-			/////                                     /////
-
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
 		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f);
 		app.OnUpdate();
-
-		// ---------------------
 
 		glm::mat4 TempView = PreviousView;
 
@@ -701,6 +509,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
+
+			BlockDataStorageBuffer.Bind(0);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -787,6 +597,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE13);
 		glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
+		BlockDataStorageBuffer.Bind(0);
+
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
@@ -855,8 +667,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		DiffuseTemporalFBO.Unbind();
-
-		//// DENOISE TEMPORALLY FILTERED OUTPUT ////
 
 		// Spatial pass 1
 		{
@@ -1012,6 +822,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
+			BlockDataStorageBuffer.Bind(0);
+
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
@@ -1063,7 +875,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
-			BlockDataUniformBuffer.Bind(0);
+			BlockDataStorageBuffer.Bind(0);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));

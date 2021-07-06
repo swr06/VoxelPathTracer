@@ -12,7 +12,7 @@
 
 namespace VoxelRT
 {
-	class BlockDataUBO
+	class BlockDataSSBO
 	{
 	public :
 

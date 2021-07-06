@@ -1,8 +1,8 @@
-#include "BlockDataUBO.h"
+#include "BlockDataSSBO.h"
 
 namespace VoxelRT
 {
-	void BlockDataUBO::CreateBuffers()
+	void BlockDataSSBO::CreateBuffers()
 	{
 		m_SSBO = 0;
 
@@ -37,7 +37,7 @@ namespace VoxelRT
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
-	void BlockDataUBO::Bind(int idx)
+	void BlockDataSSBO::Bind(int idx)
 	{
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, idx, m_SSBO);
 	}

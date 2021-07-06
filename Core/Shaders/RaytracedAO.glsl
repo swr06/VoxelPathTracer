@@ -18,8 +18,6 @@ uniform sampler2D u_DataTexture;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
 
-uniform vec4 BLOCK_TEXTURE_DATA[128];
-
 uniform float u_Time;
 
 const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
@@ -225,25 +223,25 @@ float voxel_traversal(vec3 orig, vec3 direction)
 				normal = vec3(0, 0, 1) * -stepZ;
 			}
 
-			#ifdef ALPHA_TEST
-			int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
-			bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
-
-			if (transparent)
-			{
-				vec3 hit_position = orig + (direction * T);
-				int temp_idx; 
-				vec2 uv;
-
-				CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
-
-				if (texture(u_BlockAlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x)).a < 0.1f)
-				{
-					T = -1.0f;
-					continue;
-				}
-			}
-			#endif
+			//#ifdef ALPHA_TEST
+			//int reference_id = clamp(int(floor(block * 255.0f)), 0, 127);
+			//bool transparent = BLOCK_TEXTURE_DATA[reference_id].a > 0.5f;
+			//
+			//if (transparent)
+			//{
+			//	vec3 hit_position = orig + (direction * T);
+			//	int temp_idx; 
+			//	vec2 uv;
+			//
+			//	CalculateUV(hit_position, normal, uv, temp_idx); uv.y = 1.0f - uv.y;
+			//
+			//	if (texture(u_BlockAlbedoTextures, vec3(uv, BLOCK_TEXTURE_DATA[reference_id].x)).a < 0.1f)
+			//	{
+			//		T = -1.0f;
+			//		continue;
+			//	}
+			//}
+			//#endif
 
 			break;
 		}
