@@ -4,13 +4,24 @@
 #include <string>
 #include <glad/glad.h>
 #include "../Application/Logger.h"
+#include <vector>
 
 namespace GLClasses
 {
+	struct FORMAT
+	{
+		GLenum Format;
+		GLenum InternalFormat;
+		GLenum Type;
+		bool MinFilter = true; // false = nearest; true = linear
+		bool MagFilter = true; // false = nearest; true = linear
+	};
+
 	class Framebuffer
 	{
 	public :
-		Framebuffer(unsigned int w = 16, unsigned int h = 16, bool hdr = true, bool has_depth_attachment = false, bool linear = true);
+		Framebuffer(unsigned int w, unsigned int h, std::vector<FORMAT> format, bool has_depth_attachment = false);
+		Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool has_depth_attachment = false);
 		~Framebuffer();
 
 		Framebuffer(const Framebuffer&) = delete;
@@ -22,16 +33,18 @@ namespace GLClasses
 			return *this;
 		}
 
-		Framebuffer(Framebuffer&& v) : m_IsHDR(v.m_IsHDR), m_HasDepthMap(v.m_HasDepthMap)
+		Framebuffer(Framebuffer&& v) : m_HasDepthMap(v.m_HasDepthMap)
 		{
 			m_FBO = v.m_FBO;
-			m_TextureAttachment = v.m_TextureAttachment;
+			m_TextureAttachments = v.m_TextureAttachments;
 			m_DepthStencilBuffer = v.m_DepthStencilBuffer;
 			m_FBWidth = v.m_FBWidth;
 			m_FBHeight = v.m_FBHeight;
+			m_Format = v.m_Format;
 
 			v.m_FBO = 0;
-			v.m_TextureAttachment = 0;
+			v.m_TextureAttachments.clear();
+			v.m_Format.clear();
 			v.m_DepthStencilBuffer = 0;
 		}
 
@@ -52,11 +65,15 @@ namespace GLClasses
 			if (width != m_FBWidth || height != m_FBHeight)
 			{
 				glDeleteFramebuffers(1, &m_FBO);
-				glDeleteTextures(1, &m_TextureAttachment);
+
+				for (int i = 0; i < m_TextureAttachments.size(); i++)
+				{
+					glDeleteTextures(1, &m_TextureAttachments[i]);
+					m_TextureAttachments[i];
+				}
 				glDeleteRenderbuffers(1, &m_DepthStencilBuffer);
 
 				m_FBO = 0;
-				m_TextureAttachment = 0;
 				m_DepthStencilBuffer = 0;
 				m_FBWidth = width;
 				m_FBHeight = height;
@@ -64,9 +81,14 @@ namespace GLClasses
 			}
 		}
 
-		inline GLuint GetTexture() const 
+		inline GLuint GetTexture(int n = 0) const
 		{
-			return m_TextureAttachment;
+			if (n >= m_TextureAttachments.size())
+			{
+				throw "invalid texture attachment queried";
+			}
+
+			return m_TextureAttachments.at(n);
 		}
 
 		inline GLuint GetDepthStencilBuffer() const
@@ -78,39 +100,17 @@ namespace GLClasses
 		inline unsigned int GetWidth() const noexcept { return m_FBWidth; }
 		inline unsigned int GetHeight() const noexcept { return m_FBHeight; }
 
-		inline bool IsHDR() const
-		{
-			return m_IsHDR;
-		}
-
-		void SetExposure(float exp)
-		{
-			if (!m_IsHDR)
-			{
-				throw "SetExposure(float) called on a Framebuffer that is not HDR!";
-			}
-
-			m_Exposure = exp;
-		}
-
-		float GetExposure() const noexcept
-		{
-			return m_Exposure;
-		}
-
 		// Creates the framebuffer with the appropriate settings
 		void CreateFramebuffer();
 
 	private :
 
 		GLuint m_FBO; // The Framebuffer object
-		GLuint m_TextureAttachment; // The actual texture attachment
+		std::vector<GLuint> m_TextureAttachments; // The actual texture attachment
 		GLuint m_DepthStencilBuffer;
 		int m_FBWidth;
 		int m_FBHeight;
-		const bool m_IsHDR;
 		const bool m_HasDepthMap;
-		float m_Exposure = 0.0f;
-		bool m_Linear;
+		std::vector<FORMAT> m_Format;
 	};
 }

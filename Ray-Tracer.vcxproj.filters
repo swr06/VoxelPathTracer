@@ -131,9 +131,6 @@
     <ClCompile Include="Dependencies\fast_noise\FastNoise.cpp">
       <Filter>Source Files\fn</Filter>
     </ClCompile>
-    <ClCompile Include="Core\InitialTraceFBO.cpp">
-      <Filter>Source Files\voxel-rt</Filter>
-    </ClCompile>
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp">
       <Filter>Source Files\GLClasses</Filter>
     </ClCompile>
@@ -188,6 +185,12 @@
     <ClCompile Include="Core\ParticleSystem.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\ShaderManager.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\BlockDataSSBO.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -221,9 +224,6 @@
       <Filter>Source Files\Application</Filter>
     </ClInclude>
     <ClInclude Include="Core\GLClasses\Fps.h">
-      <Filter>Source Files\GLClasses</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\GLClasses\Framebuffer.h">
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
     <ClInclude Include="Core\GLClasses\FramebufferRed.h">
@@ -276,9 +276,6 @@
     </ClInclude>
     <ClInclude Include="Dependencies\fast_noise\FastNoise.h">
       <Filter>Source Files\fn</Filter>
-    </ClInclude>
-    <ClInclude Include="Core\InitialTraceFBO.h">
-      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h">
       <Filter>Source Files\GLClasses</Filter>
@@ -338,6 +335,15 @@
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
     <ClInclude Include="Core\Macros.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GLClasses\Framebuffer.h">
+      <Filter>Source Files\GLClasses</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\ShaderManager.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BlockDataSSBO.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
@@ -435,7 +441,7 @@
     <None Include="Core\Shaders\BilateralBlurNonDepthGuided.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\AdaptiveReflectionDenoise.glsl">
+    <None Include="Core\Shaders\ReflectionDenoiser.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\RaytracedAO.glsl">
@@ -480,7 +486,13 @@
     <None Include="Core\Shaders\SpatialFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\SpatialFinalCleanup.glsl">
+    <None Include="Core\Shaders\Spatial2x2Initial.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\SpecularTemporalFilter.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\CheckerboardReconstruct.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

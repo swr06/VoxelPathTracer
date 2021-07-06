@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
@@ -9,6 +9,7 @@
 //#define JITTER_BASED_ON_ROUGHNESS
 
 layout (location = 0) out vec3 o_Color;
+layout (location = 1) out vec4 o_Data;
 
 in vec2 v_TexCoords;
 
@@ -22,11 +23,11 @@ uniform sampler2D u_DataTexture;
 uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
 
+uniform sampler2D u_PlayerSprite;
+
 uniform bool u_RoughReflections;
 
 uniform samplerCube u_Skymap;
-
-uniform vec4 BLOCK_TEXTURE_DATA[128];
 
 uniform float u_ReflectionTraceRes;
 
@@ -47,7 +48,14 @@ uniform int u_SPP;
 
 uniform int u_CurrentFrame;
 
-
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -55,6 +63,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
 float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
 
 int MIN = -2147483648;
 int MAX = 2147483647;
@@ -148,9 +157,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 {
     const float Epsilon = 0.00001;
     float Shadow = min(shadow, 1.0f);
-
     vec3 Lo = normalize(u_ViewerPosition - world_pos);
-
 	vec3 N = normal;
 	float cosLo = max(0.0, dot(N, Lo));
 	vec3 Lr = 2.0 * cosLo * N - Lo;
@@ -166,8 +173,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
 	vec3 diffuseBRDF = kd * albedo;
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-	specularBRDF *= 0.2f; // Specular highlight isnt too important
-	vec3 Result = (diffuseBRDF + specularBRDF) * Lradiance * cosLi;
+	vec3 radiance_s = radiance * 0.05f;
+	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
@@ -193,6 +200,7 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
+// used to test a low discrepancy sequence
 float RadicalInverse_VdC(uint bits) 
 {
      bits = (bits << 16u) | (bits >> 16u);
@@ -237,6 +245,14 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
+vec2 GetCheckerboardedUV()
+{
+	vec2 Screenspace = v_TexCoords;
+	float TexelSizeX = 1.0f / u_Dimensions.x;
+	Screenspace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX);
+	return Screenspace;
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
@@ -244,16 +260,21 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	vec2 Pixel;
-	Pixel.x = v_TexCoords.x * u_Dimensions.x;
-	Pixel.y = v_TexCoords.y * u_Dimensions.y;
-
 	int SPP = clamp(u_SPP, 1, 64);
 	int total_hits = 0;
 	vec3 TotalColor = vec3(0.0f);
 
-	vec2 suv = v_TexCoords;
+	vec2 suv = GetCheckerboardedUV();
 	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+
+	o_Color.xyz = vec3(0.0f);
+	o_Data = vec4(-1.0f);
+
+	if (SampledWorldPosition.w <= 0.0001f)
+	{
+		return;
+	}
+
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
 	vec4 data = texture(u_PBRTexture, suv);
 
@@ -275,20 +296,30 @@ void main()
 
 	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
 
+	float MaxHitDistance = -1.0f;
+	bool Hit = false;
+	vec3 ReflectionVector;
+
+	//int MaxSPP = SPP;
+	//int MinSPP = clamp(SPP / 2, 2, 32);
+	SPP = 4;
+
+	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.325f); 
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		if (MetalnessAt < 0.025f) 
-		{
-			continue;
-		}
+		//if (MetalnessAt < 0.025f) 
+		//{
+		//	continue;
+		//}
 
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
 		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.4f); // Reduce the variance and crease clarity
+		Xi = Xi * vec2(1.0f, 0.6f); // Reduce the variance and crease clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
-		vec3 R = normalize(reflect(I, ReflectionNormal));
+		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;
 
@@ -301,9 +332,16 @@ void main()
 
 		if (T > 0.0f)
 		{
+			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
-			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
+			vec4 texture_ids = vec4(
+				float(BlockAlbedoData[reference_id]),
+				float(BlockNormalData[reference_id]),
+				float(BlockPBRData[reference_id]),
+				float(BlockEmissiveData[reference_id])
+			);
+			
 			// I hate this.
 			if (reference_id == u_GrassBlockProps[0])
 			{
@@ -341,8 +379,8 @@ void main()
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
-			// Compute shadow rays for only 1/3 the reflection samples because performance :p
-			if ((ShadowItr < max(SPP / 3, 1))) 
+			// Compute shadow rays for only 1/4 the reflection samples because performance :p
+			if ((ShadowItr < max(SPP / 4, 1))) 
 			{
 				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
 				ShadowItr = ShadowItr + 1;
@@ -356,14 +394,13 @@ void main()
 			}
 
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting = (Ambient * 0.2f) + 
-								   CalculateDirectionalLight(HitPosition, 
-								    NormalizedStrongerDir, 
-									Radiance, 
-									Albedo, 
-									NormalMapped, 
-									SampledPBR.xyz,
-									ComputedShadow);
+			vec3 DirectLighting =  (Ambient * 0.0684f) + CalculateDirectionalLight(HitPosition, 
+								   NormalizedStrongerDir, 
+								   Radiance, 
+								   Albedo, 
+								   NormalMapped, 
+								   SampledPBR.xyz,
+								   ComputedShadow);
 			
 			if (texture_ids.w > 0.0f) 
 			{
@@ -379,17 +416,15 @@ void main()
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
+			ComputePlayerReflection(refpos, R, Computed, T);
 			TotalColor += Computed;
-
 		}
 
 		else
 		{
 			vec3 AtmosphereColor;
-
-			vec3 AtmosphereRayDir = R;
-
-			GetAtmosphere(AtmosphereColor, AtmosphereRayDir);
+			GetAtmosphere(AtmosphereColor, R);
+			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
 			TotalColor += AtmosphereColor;
 		}
 
@@ -397,8 +432,9 @@ void main()
 		total_hits++;
 	}
 
-	o_Color = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
-	o_Color = clamp(o_Color, 0.0f, 1.0f);
+	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
+	o_Data.xyz = ReflectionVector;
+	o_Data.w = Hit ? MaxHitDistance / 10.0f : -1.0f; // To try out some sort of specular reprojection? I dont fucking know.
 }
 
 bool IsInVolume(in vec3 pos)
@@ -516,13 +552,82 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max);
-
-bool GetPlayerIntersect(in vec3 pos, in vec3 ldir)
+// http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
+float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 {
-	float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-	return RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, ldir, ShadowTMIN, ShadowTMAX);
-}	
+    vec3  ba = pb - pa;
+    vec3  oa = ro - pa;
+
+    float baba = dot(ba,ba);
+    float bard = dot(ba,rd);
+    float baoa = dot(ba,oa);
+    float rdoa = dot(rd,oa);
+    float oaoa = dot(oa,oa);
+
+    float a = baba      - bard*bard;
+    float b = baba*rdoa - baoa*bard;
+    float c = baba*oaoa - baoa*baoa - r*r*baba;
+    float h = b*b - a*c;
+    if( h>=0.0 )
+    {
+        float t = (-b-sqrt(h))/a;
+        float y = baoa + t*bard;
+        if( y>0.0 && y<baba ) return t;
+        vec3 oc = (y<=0.0) ? oa : ro - pb;
+        b = dot(rd,oc);
+        c = dot(oc,oc) - r*r;
+        h = b*b - c;
+        if( h>0.0 ) return -b - sqrt(h);
+    }
+    return -1.0;
+}
+
+vec3 capNormal(in vec3 pos, in vec3 a, in vec3 b, in float r)
+{
+    vec3  ba = b - a;
+    vec3  pa = pos - a;
+    float h = clamp(dot(pa,ba)/dot(ba,ba),0.0,1.0);
+    return (pa - h*ba)/r;
+}
+
+bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
+{
+     float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+     return t > 0.0f;
+}
+
+vec3 TriplanarPlayerSprite(vec3 p, vec3 n)
+{
+	float TextureScale = 3.0f;
+	vec2 yUV = p.xz / TextureScale;
+	vec2 xUV = p.zy / TextureScale;
+	vec2 zUV = p.xy / TextureScale;
+	vec3 yDiff = texture(u_PlayerSprite, yUV).rgb;
+	vec3 xDiff = texture(u_PlayerSprite, xUV).rgb;
+	vec3 zDiff = texture(u_PlayerSprite, zUV).rgb;
+	vec3 blendWeights = pow(abs(n), vec3(4.0f));
+	blendWeights = blendWeights / (blendWeights.x + blendWeights.y + blendWeights.z);
+	vec3 res = xDiff * blendWeights.x + yDiff * blendWeights.y + zDiff * blendWeights.z;
+	return res;
+}
+
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t)
+{
+	float t = capIntersect(ro, rd, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
+	
+	if (t > 0.0f)
+	{
+		if (t < block_t + 0.001f)
+		{
+			vec3 p = ro + (t * rd);
+			vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
+			vec3 albedo = vec3(1.0f);
+			float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
+			col = vec3(diff) * albedo;
+			col += vec3(0.150f) * albedo;
+		}
+	}
+}
 
 float GetShadowAt(in vec3 pos, in vec3 ldir)
 {
@@ -647,20 +752,4 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     {
         uv = vec2(fract(world_pos.zy));
     }
-}
-
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
-{
-	vec3 inv_dir = 1.0f / rD;
-	vec3 tbot = inv_dir * (boxMin - r0);
-	vec3 ttop = inv_dir * (boxMax - r0);
-	vec3 tmin = min(ttop, tbot);
-	vec3 tmax = max(ttop, tbot);
-	vec2 t = max(tmin.xx, tmin.yz);
-	float t0 = max(t.x, t.y);
-	t = min(tmax.xx, tmax.yz);
-	float t1 = min(t.x, t.y);
-	t_min = t0;
-	t_max = t1;
-	return t1 > max(t0, 0.0);
 }

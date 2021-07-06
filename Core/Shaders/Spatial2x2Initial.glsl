@@ -1,14 +1,13 @@
 #version 330 core
-#define THRESH 1.41421f
+#define THRESH 1.41421f // root 2
 
-layout (location = 0) out vec4 o_SpatialFinal;
+layout (location = 0) out vec4 o_SpatialResult;
 
 in vec2 v_TexCoords;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InputTexture;
-
 uniform vec2 u_Dimensions;
 
 bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
@@ -50,7 +49,7 @@ vec4 BlurVertical(int x, in vec3 BasePosition, in vec3 BaseNormal)
 
 void main()
 {
-	const float Weights[3] = float[3](0.25f, 0.375f, 0.25f);
+	const float[5] Weights = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
 	vec2 TexelSize = 1.0f / u_Dimensions;
 
 	vec4 TotalColor = vec4(0.0f);
@@ -59,12 +58,12 @@ void main()
 	vec3 BasePosition = texture(u_PositionTexture, v_TexCoords).xyz;
 	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
 
-	for (int x = -1 ; x <= 1 ; x++)
+	for (int x = -2 ; x <= 2 ; x++)
 	{
-		float CurrentWeight = Weights[x + 1];
+		float CurrentWeight = Weights[x + 2];
 		TotalColor += BlurVertical(x, BasePosition, BaseNormal) * CurrentWeight;
 		TotalWeight += CurrentWeight;
 	}
 
-	o_SpatialFinal = TotalColor / max(TotalWeight, 0.01f);
+	o_SpatialResult = TotalColor / max(TotalWeight, 0.01f);
 }

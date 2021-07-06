@@ -1,3 +1,4 @@
-All credits go to KIIRA. 
-
+All credits for the skybox go to KIIRA. 
 https://opengameart.org/content/sky-box-sunny-day
+
+The player sprite (as a joke xdd) was taken from hopson's openbuilder project 

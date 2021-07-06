@@ -318,6 +318,13 @@ namespace GLClasses
 		return;
 	}
 
+	void Shader::BindUBOToBindingPoint(const std::string& name, int idx)
+	{
+		GLuint uboloc = glGetUniformBlockIndex(m_Program, name.c_str());
+		glUniformBlockBinding(m_Program, uboloc, idx);
+		return;
+	}
+
 	void Shader::SetVector2f(const std::string& name, GLfloat x, GLfloat y, GLboolean useShader)
 	{
 		if (useShader)

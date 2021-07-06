@@ -332,6 +332,42 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
+// http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
+float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
+{
+    vec3  ba = pb - pa;
+    vec3  oa = ro - pa;
+
+    float baba = dot(ba,ba);
+    float bard = dot(ba,rd);
+    float baoa = dot(ba,oa);
+    float rdoa = dot(rd,oa);
+    float oaoa = dot(oa,oa);
+
+    float a = baba      - bard*bard;
+    float b = baba*rdoa - baoa*bard;
+    float c = baba*oaoa - baoa*baoa - r*r*baba;
+    float h = b*b - a*c;
+    if( h>=0.0 )
+    {
+        float t = (-b-sqrt(h))/a;
+        float y = baoa + t*bard;
+        if( y>0.0 && y<baba ) return t;
+        vec3 oc = (y<=0.0) ? oa : ro - pb;
+        b = dot(rd,oc);
+        c = dot(oc,oc) - r*r;
+        h = b*b - c;
+        if( h>0.0 ) return -b - sqrt(h);
+    }
+    return -1.0;
+}
+
+bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
+{
+    float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+    return t > 0.0f;
+}
+
 int RNG_SEED;
 
 float ComputeShadow(vec3 world_pos)
@@ -364,8 +400,7 @@ float ComputeShadow(vec3 world_pos)
         vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.02f;
     #endif
 
-        float ShadowTMIN, ShadowTMAX;
-        bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), SampleWorldPosition, ShadowDirection, ShadowTMIN, ShadowTMAX);
+        bool PlayerIntersect = GetPlayerIntersect(SampleWorldPosition.xyz, ShadowDirection.xyz);
 
         if (PlayerIntersect)
         {
@@ -595,6 +630,27 @@ vec4 BilateralUpsample2(sampler2D tex, vec2 txc, vec3 base_pos, vec3 base_normal
     return Color / max(TotalWeights, 0.01f);
 }
 
+vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
+{
+	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
+}
+
+vec3 GetNormalMapAt(vec2 txc, vec3 world_pos, vec3 normal)
+{
+    vec3 T, B;
+    vec2 UV;
+    CalculateVectors(world_pos.xyz, normal, T, B, UV); 
+	mat3 tbn = mat3((T), (B), (normal));
+    vec4 data = texture(u_DataTexture, txc);
+    vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+    return NormalMapped;
+} 
+
+float FastDistance(vec3 p1, vec3 p2)
+{
+    return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
+}
+
 bool IsAtEdge(in vec2 txc)
 {
     vec2 TexelSize = 1.0f / textureSize(u_InitialTracePositionTexture, 0);
@@ -629,7 +685,7 @@ const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f;
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800 * u_Time);
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
 
     // Xorshift!
 	RNG_SEED ^= RNG_SEED << 13;
@@ -692,8 +748,7 @@ void main()
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
-            float SampledAO = pow(PBRMap.w, 1.25f);
-            vec3 DiffuseAmbient = (Diffuse.xyz * AlbedoColor);
+            float SampledAO = pow(PBRMap.w, 1.25f); // Ambient occlusion map
 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
@@ -703,25 +758,32 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            o_Color = DiffuseAmbient + (float(!(Emissivity > 0.5f)) * DirectLighting);
-            o_Color *= SampledAO;
+            DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
+            float Roughness = PBRMap.r;
+            vec3 SpecularIndirect = texture(u_ReflectionTraceTexture, v_TexCoords).rgb;
+            vec3 DiffuseIndirect = (Diffuse.xyz * AlbedoColor);
+
+            // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
+            // That it hurts my soul
+            float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
+            float NDotMapM = clamp(exp(NDotMap) * 0.85f, 0.2f, 1.0f);
+            SpecularIndirect *= NDotMapM; 
+           
+            vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
+            vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
+
+            vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
+            o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
+                      (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
+                      * clamp(SampledAO, 0.2f, 1.01f);
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
 
-            if (PBRMap.g > 0.01f)
-            {
-                vec2 ReprojectedReflectionCoord = v_TexCoords;
-                vec3 ReflectionTrace = clamp((Diffuse.xyz * 4.0f), 0.05f, 0.9f) * texture(u_ReflectionTraceTexture, ReprojectedReflectionCoord).rgb;
-                float ReflectionRatio = PBRMap.g;
-                ReflectionRatio *= 1.0f - PBRMap.r;
-                o_Color = mix(o_Color, ReflectionTrace, clamp(ReflectionRatio+0.05, 0.0f, 0.85f));
-            }
-
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {
-                float bias = 0.02f;
+                float bias = 0.00125f;
                 if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
@@ -738,7 +800,7 @@ void main()
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-            o_PBR.w = float(BodyIntersect);
+            o_PBR.w = float(BodyIntersect) * 0.35f;
         }
     }
 
@@ -748,7 +810,7 @@ void main()
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        o_PBR.w = float(BodyIntersect);
+        o_PBR.w = float(BodyIntersect) * 0.35f;
     }
 }
 
@@ -798,7 +860,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	float cosLi = max(0.0, dot(N, Li));
 	float cosLh = max(0.0, dot(N, Lh));
 
-	vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); 
 	float D = ndfGGX(cosLh, pbr.r);
 	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
 

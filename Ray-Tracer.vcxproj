@@ -156,6 +156,7 @@
     <ClCompile Include="Core\AtmosphereRenderer.cpp" />
     <ClCompile Include="Core\BlockDatabase.cpp" />
     <ClCompile Include="Core\BlockDatabaseParser.cpp" />
+    <ClCompile Include="Core\BlockDataSSBO.cpp" />
     <ClCompile Include="Core\BloomFBO.cpp" />
     <ClCompile Include="Core\BloomRenderer.cpp" />
     <ClCompile Include="Core\Clouds\CloudFBO.cpp" />
@@ -164,11 +165,11 @@
     <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp" />
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
-    <ClCompile Include="Core\InitialTraceFBO.cpp" />
     <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
     <ClCompile Include="Core\Renderer2D.cpp" />
+    <ClCompile Include="Core\ShaderManager.cpp" />
     <ClCompile Include="Core\World.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
     <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="Core\Block.h" />
     <ClInclude Include="Core\BlockDatabase.h" />
     <ClInclude Include="Core\BlockDatabaseParser.h" />
+    <ClInclude Include="Core\BlockDataSSBO.h" />
     <ClInclude Include="Core\BloomFBO.h" />
     <ClInclude Include="Core\BloomRenderer.h" />
     <ClInclude Include="Core\Clouds\CloudFBO.h" />
@@ -214,18 +216,18 @@
     <ClInclude Include="Core\Clouds\NoiseTexture3D.h" />
     <ClInclude Include="Core\ColorPassFBO.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
-    <ClInclude Include="Core\InitialTraceFBO.h" />
+    <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\Macros.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />
     <ClInclude Include="Core\Pipeline.h" />
     <ClInclude Include="Core\Player.h" />
     <ClInclude Include="Core\Renderer2D.h" />
+    <ClInclude Include="Core\ShaderManager.h" />
     <ClInclude Include="Core\World.h" />
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />
     <ClInclude Include="Core\GLClasses\Fps.h" />
-    <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\GLClasses\FramebufferRed.h" />
     <ClInclude Include="Core\GLClasses\IndexBuffer.h" />
     <ClInclude Include="Core\GLClasses\Shader.h" />
@@ -252,7 +254,8 @@
   <ItemGroup>
     <None Include="Core\Shaders\2DElementShaderFrag.glsl" />
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
-    <None Include="Core\Shaders\AdaptiveReflectionDenoise.glsl" />
+    <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
+    <None Include="Core\Shaders\ReflectionDenoiser.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />
     <None Include="Core\Shaders\BilateralBlur.glsl" />
@@ -289,7 +292,8 @@
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\SpatialFilter.glsl" />
-    <None Include="Core\Shaders\SpatialFinalCleanup.glsl" />
+    <None Include="Core\Shaders\Spatial2x2Initial.glsl" />
+    <None Include="Core\Shaders\SpecularTemporalFilter.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />
