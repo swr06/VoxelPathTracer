@@ -4,6 +4,7 @@
 #include <chrono>
 
 #include "ShaderManager.h"
+#include "BlockDataUBO.h"
 
 
 static VoxelRT::Player MainPlayer;
@@ -333,7 +334,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 
-	
+	BlockDataUBO BlockDataUniformBuffer;
+
+	BlockDataUniformBuffer.CreateBuffers();
 	
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -442,25 +445,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 		DiffuseTraceShader.SetVector4f(name.c_str(), data);
-	}
-
-	glUseProgram(0);
-
-	ReflectionTraceShader.Use();
-
-	for (int i = 0; i < 128; i++)
-	{
-		// BLOCK_TEXTURE_DATA
-
-		std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-		glm::vec4 data;
-
-		data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-		data.w = (float)VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-
-		ReflectionTraceShader.SetVector4f(name.c_str(), data);
 	}
 
 	glUseProgram(0);
@@ -643,25 +627,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
 
 				DiffuseTraceShader.SetVector4f(name.c_str(), data);
-			}
-
-			glUseProgram(0);
-
-			ReflectionTraceShader.Use();
-
-			for (int i = 0; i < 128; i++)
-			{
-				// BLOCK_TEXTURE_DATA
-
-				std::string name = "BLOCK_TEXTURE_DATA[" + std::to_string(i) + "]";
-				glm::vec4 data;
-
-				data.x = VoxelRT::BlockDatabase::GetBlockTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.y = VoxelRT::BlockDatabase::GetBlockNormalTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.z = VoxelRT::BlockDatabase::GetBlockPBRTexture(i, VoxelRT::BlockDatabase::BlockFaceType::Top);
-				data.w = VoxelRT::BlockDatabase::GetBlockEmissiveTexture(i);
-
-				ReflectionTraceShader.SetVector4f(name.c_str(), data);
 			}
 
 			glUseProgram(0);
@@ -1096,6 +1061,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+
+			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
+			BlockDataUniformBuffer.Bind(0);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));

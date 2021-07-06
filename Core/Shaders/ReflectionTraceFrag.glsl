@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
@@ -29,8 +29,6 @@ uniform bool u_RoughReflections;
 
 uniform samplerCube u_Skymap;
 
-uniform vec4 BLOCK_TEXTURE_DATA[128];
-
 uniform float u_ReflectionTraceRes;
 
 uniform vec2 u_Dimensions;
@@ -50,7 +48,14 @@ uniform int u_SPP;
 
 uniform int u_CurrentFrame;
 
-
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -329,8 +334,14 @@ void main()
 		{
 			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
-			vec4 texture_ids = BLOCK_TEXTURE_DATA[reference_id];
 
+			vec4 texture_ids = vec4(
+				float(BlockAlbedoData[reference_id]),
+				float(BlockNormalData[reference_id]),
+				float(BlockPBRData[reference_id]),
+				float(BlockTransparentData[reference_id])
+			);
+			
 			// I hate this.
 			if (reference_id == u_GrassBlockProps[0])
 			{

@@ -156,6 +156,7 @@
     <ClCompile Include="Core\AtmosphereRenderer.cpp" />
     <ClCompile Include="Core\BlockDatabase.cpp" />
     <ClCompile Include="Core\BlockDatabaseParser.cpp" />
+    <ClCompile Include="Core\BlockDataUBO.cpp" />
     <ClCompile Include="Core\BloomFBO.cpp" />
     <ClCompile Include="Core\BloomRenderer.cpp" />
     <ClCompile Include="Core\Clouds\CloudFBO.cpp" />
@@ -206,6 +207,7 @@
     <ClInclude Include="Core\Block.h" />
     <ClInclude Include="Core\BlockDatabase.h" />
     <ClInclude Include="Core\BlockDatabaseParser.h" />
+    <ClInclude Include="Core\BlockDataUBO.h" />
     <ClInclude Include="Core\BloomFBO.h" />
     <ClInclude Include="Core\BloomRenderer.h" />
     <ClInclude Include="Core\Clouds\CloudFBO.h" />

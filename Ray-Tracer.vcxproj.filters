@@ -188,6 +188,9 @@
     <ClCompile Include="Core\ShaderManager.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
+    <ClCompile Include="Core\BlockDataUBO.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -338,6 +341,9 @@
       <Filter>Source Files\GLClasses</Filter>
     </ClInclude>
     <ClInclude Include="Core\ShaderManager.h">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BlockDataUBO.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>

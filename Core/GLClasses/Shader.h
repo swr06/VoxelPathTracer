@@ -68,6 +68,7 @@ namespace GLClasses
 		void SetMatrix3(const std::string& name, const glm::mat3& matrix, GLboolean useShader = GL_FALSE);
 		void SetIntegerArray(const std::string& name, const GLint* value, GLsizei count, GLboolean useShader = GL_FALSE);
 		void SetTextureArray(const std::string& name, const GLuint first, const GLuint count, GLboolean useShader = GL_FALSE);
+		void BindUBOToBindingPoint(const std::string& name, int idx);
 
 	 private:
 
