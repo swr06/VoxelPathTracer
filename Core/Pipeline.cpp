@@ -288,6 +288,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader SpatialFilter;
 	GLClasses::Shader SpatialInitial;
 	GLClasses::Shader SpecularTemporalFilter;
+	GLClasses::Shader CheckerboardReconstructor;
 
 	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
 	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
@@ -309,6 +310,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
 
 	GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT } });
+	GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
@@ -376,7 +378,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	SpatialInitial.CompileShaders();
 	SpecularTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
 	SpecularTemporalFilter.CompileShaders();
-
+	CheckerboardReconstructor.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/CheckerboardReconstruct.glsl");
+	CheckerboardReconstructor.CompileShaders();
+	
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
 		"Res/Misc/BL_1.png",
@@ -558,15 +562,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// 
 		DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
 
-
-		// Reflection and shadow FBOS
 		ShadowFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
 		ShadowFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
+		
+		// Reflection Framebuffers
 		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-		ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-		ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution*2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
-		ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution*2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
+		ReflectionCheckerReconstructed.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
+		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
+		ReflectionTemporalFBO_2.SetSize(app.GetWidth()* ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+		ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
+		ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
 
 		// SSAO
 		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
@@ -1155,8 +1160,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
-
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
+			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1201,6 +1206,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceFBO.Unbind();
 		}
 
+		{
+			ReflectionCheckerReconstructed.Bind();
+			CheckerboardReconstructor.Use();
+			CheckerboardReconstructor.SetInteger("u_ColorTexture", 0);
+			CheckerboardReconstructor.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
+
 		// Temporally filter it
 		if (RoughReflections)
 		{
@@ -1228,7 +1247,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, ReflectionCheckerReconstructed.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1487,7 +1506,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
 
 		glActiveTexture(GL_TEXTURE10);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTraceFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionCheckerReconstructed.GetTexture());
 
 		glActiveTexture(GL_TEXTURE11);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());

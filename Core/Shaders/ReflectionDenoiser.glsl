@@ -156,7 +156,7 @@ void main()
 	float m = 1.0f;
 
 	// Preserve a few more details in smoother materials
-	if (RoughnessAt <= 0.12f)
+	if (RoughnessAt <= 0.125f)
 	{
 		m = RoughnessAt * 16.0f;
 		m = 1.0f - m;

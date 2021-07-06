@@ -240,6 +240,14 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
+vec2 GetCheckerboardedUV()
+{
+	vec2 Screenspace = v_TexCoords;
+	float TexelSizeX = 1.0f / u_Dimensions.x;
+	Screenspace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX);
+	return Screenspace;
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(u_Time * 100));
@@ -247,15 +255,11 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	vec2 Pixel;
-	Pixel.x = v_TexCoords.x * u_Dimensions.x;
-	Pixel.y = v_TexCoords.y * u_Dimensions.y;
-
 	int SPP = clamp(u_SPP, 1, 64);
 	int total_hits = 0;
 	vec3 TotalColor = vec3(0.0f);
 
-	vec2 suv = v_TexCoords;
+	vec2 suv = GetCheckerboardedUV();
 	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
 
 	o_Color.xyz = vec3(0.0f);
