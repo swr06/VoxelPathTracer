@@ -7,7 +7,7 @@
 
 #include "GLClasses/Shader.h"
 
-namespace Blocks
+namespace VoxelRT
 { 
 	namespace ShaderManager
 	{

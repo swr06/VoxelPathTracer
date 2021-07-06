@@ -168,6 +168,7 @@
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
     <ClCompile Include="Core\Renderer2D.cpp" />
+    <ClCompile Include="Core\ShaderManager.cpp" />
     <ClCompile Include="Core\World.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
     <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
@@ -220,6 +221,7 @@
     <ClInclude Include="Core\Pipeline.h" />
     <ClInclude Include="Core\Player.h" />
     <ClInclude Include="Core\Renderer2D.h" />
+    <ClInclude Include="Core\ShaderManager.h" />
     <ClInclude Include="Core\World.h" />
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />

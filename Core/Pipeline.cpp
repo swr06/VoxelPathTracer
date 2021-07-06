@@ -3,6 +3,7 @@
 
 #include <chrono>
 
+#include "ShaderManager.h"
 
 
 static VoxelRT::Player MainPlayer;
@@ -263,32 +264,33 @@ void VoxelRT::MainPipeline::StartPipeline()
 	world->InitializeDistanceGenerator();
 	world->GenerateDistanceField();
 
-	VoxelRT::Renderer2D RendererUI;
+	ShaderManager::CreateShaders();
 
+	VoxelRT::Renderer2D RendererUI;
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
-	GLClasses::Shader InitialTraceShader;
-	GLClasses::Shader FinalShader;
-	GLClasses::Shader DiffuseTraceShader;
-	GLClasses::Shader MainTemporalFilter;
-	GLClasses::Shader DenoiseFilter;
-	GLClasses::Shader ColorShader;
-	GLClasses::Shader PostProcessingShader;
-	GLClasses::Shader TemporalAAShader;
-	GLClasses::Shader ShadowTraceShader;
-	GLClasses::Shader ReflectionTraceShader;
-	GLClasses::Shader SSAOShader;
-	GLClasses::Shader SSAO_Blur;
-	GLClasses::Shader SimpleDownsample;
-	GLClasses::Shader LumaAverager;
-	GLClasses::Shader VolumetricScattering;
-	GLClasses::Shader BilateralBlur;
-	GLClasses::Shader ReflectionDenoiser;
-	GLClasses::Shader RTAOShader;
-	GLClasses::Shader SpatialFilter;
-	GLClasses::Shader SpatialInitial;
-	GLClasses::Shader SpecularTemporalFilter;
-	GLClasses::Shader CheckerboardReconstructor;
+	GLClasses::Shader& InitialTraceShader = ShaderManager::GetShader("INITIAL_TRACE");
+	GLClasses::Shader& FinalShader = ShaderManager::GetShader("FINAL_SHADER");
+	GLClasses::Shader& DiffuseTraceShader = ShaderManager::GetShader("DIFFUSE_TRACE");
+	GLClasses::Shader& MainTemporalFilter = ShaderManager::GetShader("MAIN_TEMPORAL_FILER");
+	GLClasses::Shader& DenoiseFilter = ShaderManager::GetShader("SMART_DENOISER");
+	GLClasses::Shader& ColorShader = ShaderManager::GetShader("COLOR_SHADER");
+	GLClasses::Shader& PostProcessingShader = ShaderManager::GetShader("POST_PROCESS");
+	GLClasses::Shader& TemporalAAShader = ShaderManager::GetShader("TEMPORAL_AA");
+	GLClasses::Shader& ShadowTraceShader = ShaderManager::GetShader("SHADOW_TRACE");
+	GLClasses::Shader& ReflectionTraceShader = ShaderManager::GetShader("REFLECTION_TRACE");
+	GLClasses::Shader& SSAOShader = ShaderManager::GetShader("SSAO");
+	GLClasses::Shader& SSAO_Blur = ShaderManager::GetShader("SSAO_BLUR");
+	GLClasses::Shader& SimpleDownsample = ShaderManager::GetShader("SIMPLE_DOWNSAMPLE");
+	GLClasses::Shader& LumaAverager = ShaderManager::GetShader("LUMA_AVERAGER");
+	GLClasses::Shader& VolumetricScattering = ShaderManager::GetShader("VOLUMETRIC_SCATTERING");
+	GLClasses::Shader& BilateralBlur = ShaderManager::GetShader("BILATERAL_BLUR");
+	GLClasses::Shader& ReflectionDenoiser = ShaderManager::GetShader("REFLECTION_DENOISER");
+	GLClasses::Shader& RTAOShader = ShaderManager::GetShader("RTAO");
+	GLClasses::Shader& SpatialFilter = ShaderManager::GetShader("SPATIAL_FILTER");
+	GLClasses::Shader& SpatialInitial = ShaderManager::GetShader("SPATIAL_INITIAL");
+	GLClasses::Shader& SpecularTemporalFilter = ShaderManager::GetShader("SPECULAR_TEMPORAL");
+	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 
 	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
 	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
@@ -302,19 +304,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
 	GLClasses::TextureArray BlueNoise;
 	GLClasses::Framebuffer ShadowFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), ShadowFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
-	
-	// Misc
 	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer AverageLumaFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-
 	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
-
 	GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT } });
 	GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-
 	GLClasses::Framebuffer RTAO_FBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 	GLClasses::FramebufferRed SSAOFBO(16, 16);
@@ -336,50 +333,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 
-	InitialTraceShader.CreateShaderProgramFromFile("Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
-	InitialTraceShader.CompileShaders();
-	FinalShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/FBOFrag.glsl");
-	FinalShader.CompileShaders();
-	DiffuseTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
-	DiffuseTraceShader.CompileShaders();
-	MainTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalFilter.glsl");
-	MainTemporalFilter.CompileShaders();
-	DenoiseFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
-	DenoiseFilter.CompileShaders();
-	ColorShader.CreateShaderProgramFromFile("Core/Shaders/ColorPassVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
-	ColorShader.CompileShaders();
-	PostProcessingShader.CreateShaderProgramFromFile("Core/Shaders/PostProcessingVert.glsl", "Core/Shaders/PostProcessingFrag.glsl");
-	PostProcessingShader.CompileShaders();
-	TemporalAAShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalAA.glsl");
-	TemporalAAShader.CompileShaders();
-	ShadowTraceShader.CreateShaderProgramFromFile("Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
-	ShadowTraceShader.CompileShaders();
-	ReflectionTraceShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
-	ReflectionTraceShader.CompileShaders();
-	SimpleDownsample.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SimpleDownsampleFrag.glsl");
-	SimpleDownsample.CompileShaders();
-	LumaAverager.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
-	LumaAverager.CompileShaders();
-	VolumetricScattering.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/VolumetricLighting.glsl");
-	VolumetricScattering.CompileShaders();
-	BilateralBlur.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
-	BilateralBlur.CompileShaders();
-	ReflectionDenoiser.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiser.glsl");
-	ReflectionDenoiser.CompileShaders();
-	SSAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
-	SSAOShader.CompileShaders();
-	SSAO_Blur.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAOBlur.glsl");
-	SSAO_Blur.CompileShaders();
-	RTAOShader.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/RaytracedAO.glsl");
-	RTAOShader.CompileShaders();
-	SpatialFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
-	SpatialFilter.CompileShaders();
-	SpatialInitial.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/Spatial2x2Initial.glsl");
-	SpatialInitial.CompileShaders();
-	SpecularTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
-	SpecularTemporalFilter.CompileShaders();
-	CheckerboardReconstructor.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/CheckerboardReconstruct.glsl");
-	CheckerboardReconstructor.CompileShaders();
+	
 	
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
@@ -605,27 +559,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		{
 			system("@cls");
 
-			InitialTraceShader.Recompile();
-			FinalShader.Recompile();
-			DiffuseTraceShader.Recompile();
-			MainTemporalFilter.Recompile();
-			DenoiseFilter.Recompile();
-			ColorShader.Recompile();
-			PostProcessingShader.Recompile();
-			TemporalAAShader.Recompile();
-			ShadowTraceShader.Recompile();
-			ReflectionTraceShader.Recompile();
-			SSAOShader.Recompile();
-			SSAO_Blur.Recompile();
-			SimpleDownsample.Recompile();
-			LumaAverager.Recompile();
-			VolumetricScattering.Recompile();
-			BilateralBlur.Recompile();
-			ReflectionDenoiser.Recompile();
-			RTAOShader.Recompile();
-			SpatialFilter.Recompile();
-			SpatialInitial.Recompile();
-			SpecularTemporalFilter.Recompile();
+			ShaderManager::RecompileShaders();
 
 			world->m_ParticleEmitter.Recompile();
 			Clouds::CloudRenderer::RecompileShaders();
