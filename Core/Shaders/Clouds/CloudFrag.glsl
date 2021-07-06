@@ -116,22 +116,21 @@ float SampleDensity(in vec3 point)
 	vec3 time = vec3(u_Time, 0.0f, u_Time * 0.5f);
 	time *= 0.00250f; // 0.005f
 
-	sampled_noise = texture(u_CloudNoise, (point.xzy * 0.01f) + time).rgba;
+	sampled_noise = texture(u_CloudNoise, (point.xzy * 0.015750f) + time).rgba;
 
-	float perlinWorley = sampled_noise.x;
+	float perlinWorley = sampled_noise.x * 1.0f;
 	vec3 worley = sampled_noise.yzw;
 	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 
-	
 	float cloud = remap(perlinWorley, wfbm - 1.0f, 1.0f, 0.0f, 1.0f);
 	
-	#ifdef DETAIL
-	vec4 detail = texture(u_CloudDetailedNoise, (point.xzy * 0.01f) + (time * 2.0f)).rgba;
-	float detail_strength = u_DetailIntensity;
-	cloud += remap(detail.x, 1.0f - (u_Coverage * 0.6524f), 1.0f, 0.0f, 1.0f) * (0.0354f * detail_strength);
-	cloud += remap(detail.y, 1.0f - (u_Coverage * 0.666f), 1.0f, 0.0f, 1.0f) * (0.055f * detail_strength);
-	cloud -= remap(detail.z, 1.0f - (u_Coverage * 0.672f), 1.0f, 0.0f, 1.0f) * (0.075f * detail_strength);
-	cloud += remap(detail.w, 1.0f - (u_Coverage * 0.684f), 1.0f, 0.0f, 1.0f) * (0.085f * detail_strength);
-	#endif
+	//#ifdef DETAIL
+	//vec4 detail = texture(u_CloudDetailedNoise, (point.xzy * 0.01f) + (time * 2.0f)).rgba;
+	//float detail_strength = u_DetailIntensity;
+	//cloud += remap(detail.x, 1.0f - (u_Coverage * 0.6524f), 1.0f, 0.0f, 1.0f) * (0.0354f * detail_strength);
+	//cloud += remap(detail.y, 1.0f - (u_Coverage * 0.666f), 1.0f, 0.0f, 1.0f) * (0.055f * detail_strength);
+	//cloud -= remap(detail.z, 1.0f - (u_Coverage * 0.672f), 1.0f, 0.0f, 1.0f) * (0.075f * detail_strength);
+	//cloud += remap(detail.w, 1.0f - (u_Coverage * 0.684f), 1.0f, 0.0f, 1.0f) * (0.085f * detail_strength);
+	//#endif
 
 	cloud = remap(cloud, 1.0f - u_Coverage, 1.0f, 0.0f, 1.0f); 
 	return clamp(cloud, 0.0f, 100.0f);
@@ -215,7 +214,7 @@ float nextFloat(inout int seed, in float min, in float max)
 
 float RaymarchLight(vec3 p)
 {
-	int StepCount = u_HighQualityClouds ? 8 : 4;
+	int StepCount = u_HighQualityClouds ? 8 : 3;
 	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
 
 	//float tmin, tmax;
@@ -311,7 +310,7 @@ vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec
 vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
 {
 	dir = normalize(dir);
-	int StepCount = u_HighQualityClouds ? 32 : 16;
+	int StepCount = u_HighQualityClouds ? 32 : 10;
 	float StepSize = tmax / float(StepCount);
 
 	vec3 CurrentPoint = p;

@@ -62,7 +62,7 @@ uniform mat4 u_ShadowProjection;
 uniform sampler2D u_ShadowMap;
 // Temp
 
-uniform float u_DiffuseLightIntensity = 4.0f;
+uniform float u_DiffuseLightIntensity = 1.0f;
 
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
@@ -125,7 +125,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 	if (TextureIndexes.w >= 0.0f)
 	{
 		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.w)).r;
-		Emmisivity = SampledEmmisivity * 20.0f;
+		Emmisivity = SampledEmmisivity * 20.0f * u_DiffuseLightIntensity;
 	}
 
 	vec3 bias = (flatnormal * 0.045);

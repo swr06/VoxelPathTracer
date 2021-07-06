@@ -14,7 +14,7 @@ static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
 
-static bool DoSecondSpatialPass = false;
+static bool DoSecondSpatialPass = true;
 
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
@@ -27,7 +27,7 @@ static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
 
 static float SunTick = 50.0f;
-static float DiffuseLightIntensity = 80.0f;
+static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
@@ -102,12 +102,12 @@ public:
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
 			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
-			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, -10.0, 80.0f);
 			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
 			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.25f);
 			ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
 			ImGui::SliderFloat("Bloom Quality ", &BloomQuality, 0.1f, 1.5f);
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
+			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
 			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
@@ -286,7 +286,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader ReflectionDenoiser;
 	GLClasses::Shader RTAOShader;
 	GLClasses::Shader SpatialFilter;
-	GLClasses::Shader SpatialCleanup;
+	GLClasses::Shader SpatialInitial;
 	GLClasses::Shader SpecularTemporalFilter;
 
 	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
@@ -370,8 +370,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	RTAOShader.CompileShaders();
 	SpatialFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
 	SpatialFilter.CompileShaders();
-	SpatialCleanup.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFinalCleanup.glsl");
-	SpatialCleanup.CompileShaders();
+	SpatialInitial.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/Spatial2x2Initial.glsl");
+	SpatialInitial.CompileShaders();
 	SpecularTemporalFilter.CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
 	SpecularTemporalFilter.CompileShaders();
 
@@ -617,7 +617,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionDenoiser.Recompile();
 			RTAOShader.Recompile();
 			SpatialFilter.Recompile();
-			SpatialCleanup.Recompile();
+			SpatialInitial.Recompile();
 			SpecularTemporalFilter.Recompile();
 
 			world->m_ParticleEmitter.Recompile();
@@ -887,7 +887,32 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTraceFBO.Unbind();
 
-		///// Temporal filter the calculated diffuse /////
+		// Basic denoise pass 1
+		// Single pass atrous 2x2 filter
+		{
+			DiffuseDenoiseFBO.Bind();
+			SpatialInitial.Use();
+
+			SpatialInitial.SetInteger("u_InputTexture", 0);
+			SpatialInitial.SetInteger("u_PositionTexture", 1);
+			SpatialInitial.SetInteger("u_NormalTexture", 2);
+			SpatialInitial.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
+
+		///// Temporal filter the single pass filtered diffuse /////
 
 		DiffuseTemporalFBO.Bind();
 		MainTemporalFilter.Use();
@@ -908,7 +933,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -937,6 +962,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetInteger("u_NormalTexture", 2);
 			SpatialFilter.SetInteger("u_Step", 1);
 			SpatialFilter.SetBool("u_Dir", true);
+			SpatialFilter.SetBool("u_LargeKernel", true);
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 
 			glActiveTexture(GL_TEXTURE0);
@@ -962,6 +988,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetInteger("u_NormalTexture", 2);
 			SpatialFilter.SetInteger("u_Step", 1);
 			SpatialFilter.SetBool("u_Dir", false);
+			SpatialFilter.SetBool("u_LargeKernel", true);
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 
 			glActiveTexture(GL_TEXTURE0);
@@ -991,6 +1018,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetInteger("u_NormalTexture", 2);
 				SpatialFilter.SetInteger("u_Step", 1);
 				SpatialFilter.SetBool("u_Dir", true);
+				SpatialFilter.SetBool("u_LargeKernel", false);
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoiseFBO.GetWidth(), DiffuseDenoiseFBO.GetHeight()));
 
 				glActiveTexture(GL_TEXTURE0);
@@ -1016,6 +1044,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetInteger("u_NormalTexture", 2);
 				SpatialFilter.SetInteger("u_Step", 1);
 				SpatialFilter.SetBool("u_Dir", false);
+				SpatialFilter.SetBool("u_LargeKernel", false);
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 
 				glActiveTexture(GL_TEXTURE0);

@@ -13,6 +13,7 @@ uniform sampler2D u_NormalTexture;
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform vec2 u_Dimensions;
 uniform int u_Step;
+uniform bool u_LargeKernel = false;
 
 const int GAUSS_KERNEL = 33;
 const float GaussianWeightsNormalized[GAUSS_KERNEL] = float[GAUSS_KERNEL](
@@ -87,6 +88,47 @@ const int GaussianOffsets[GAUSS_KERNEL] = int[GAUSS_KERNEL](
 	16
 );
 
+const int GAUSS_KERNEL_SMALL = 17;
+const float GaussianWeightsNormalized_SMALL[GAUSS_KERNEL_SMALL] = float[GAUSS_KERNEL_SMALL](
+	0.030036,
+	0.035151,
+	0.040283,
+	0.045207,
+	0.049681,
+	0.053463,
+	0.056341,
+	0.058141,
+	0.058754,
+	0.058141,
+	0.056341,
+	0.053463,
+	0.049681,
+	0.045207,
+	0.040283,
+	0.035151,
+	0.030036
+);
+
+const int GaussianOffsets_SMALL[GAUSS_KERNEL_SMALL] = int[GAUSS_KERNEL_SMALL](
+	-8,
+	-7,
+	-6,
+	-5,
+	-4,
+	-3,
+	-2,
+	-1,
+	0,
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8
+);
+
 // Edge stopping function
 bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
 {
@@ -102,20 +144,18 @@ bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal
 
 void main()
 {
-	//const float[5] Weights = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
-	//int SAMPLES = 5; // -5 to 5
-
 	vec4 BlurredColor = vec4(0.0f);
 	vec3 BasePosition = texture(u_PositionTexture, v_TexCoords).xyz;
 	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
 
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
-	
-	for (int s = 0 ; s < GAUSS_KERNEL - 1 ; s++)
+	int SZ = u_LargeKernel ? GAUSS_KERNEL : GAUSS_KERNEL_SMALL;
+
+	for (int s = 0 ; s < SZ ; s++)
 	{
-		float CurrentWeight = GaussianWeightsNormalized[s];
-		int Sample = GaussianOffsets[s]; // todo : use u_Step here!
+		float CurrentWeight = u_LargeKernel ? GaussianWeightsNormalized[s] : GaussianWeightsNormalized_SMALL[s];
+		int Sample = u_LargeKernel ? GaussianOffsets[s] : GaussianOffsets_SMALL[s]; 
 
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
 
