@@ -312,7 +312,7 @@ void main()
 	//int MinSPP = clamp(SPP / 2, 2, 32);
 	//SPP = 4;
 
-	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.325f); 
+	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.5f); 
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
