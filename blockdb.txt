@@ -422,6 +422,13 @@
 }
 
 {
+	Name : Ice
+	Albedo : Res/Block/Ice/Albedo.png
+	Normal : Res/Block/Ice/Normal.png
+	PBR : Res/Block/Ice/PBR.png
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png
