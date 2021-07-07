@@ -19,6 +19,9 @@ uniform vec3 u_SunDir;
 uniform vec3 u_PlayerPos;
 uniform mat4 u_CameraViewProjection;
 
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
 const vec3 SUN_COLOR_C = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.5f;
 const vec3 NIGHT_COLOR_C  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.0f; 
 
@@ -45,10 +48,22 @@ vec2 GetBlockSamplePosition()
 	return ProjectedPosition.xy * 0.5f + 0.5f; // Convert to screen space!
 }
 
+vec3 GetPositionAt(vec2 ScreenSpace)
+{
+	vec2 Position = ScreenSpace * 2.0f - 1.0f;
+	vec4 clip = vec4(Position.xy, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	vec3 Dir = vec3(u_InverseView * eye);
+	vec3 Orig = u_InverseView[3].xyz;
+	float Distance = texture(u_PositionTexture, ScreenSpace).r;
+	Dir = normalize(Dir);
+	return Orig + (Dir * Distance);
+}
+
 void main()
 {
 	vec2 ScreenSpaceCoordinates = gl_FragCoord.xy / u_Dimensions.xy;
-	vec3 WorldPosition = texture(u_PositionTexture, ScreenSpaceCoordinates).xyz;
+	vec3 WorldPosition = GetPositionAt(ScreenSpaceCoordinates).xyz;
 	vec4 ProjectedPosition = u_CameraViewProjection * vec4(WorldPosition, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 

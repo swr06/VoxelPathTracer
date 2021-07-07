@@ -400,7 +400,7 @@ bool SampleValid(in vec2 txc)
 
     for (int i = 0 ; i < 8 ; i++)
     {
-        if (texture(u_PositionTex, txc + Kernel[i] * TexelSize).w <= 0.0f)
+        if (texture(u_PositionTex, txc + Kernel[i] * TexelSize).r <= 0.0f)
         {
             return true;
         }

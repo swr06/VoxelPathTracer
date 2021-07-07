@@ -3,10 +3,11 @@
 layout (location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
+in vec3 v_RayOrigin;
+in vec3 v_RayDirection;
 
 uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_PositionTexture;
-
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousPositionTexture;
 
@@ -33,44 +34,10 @@ float FastDistance(in vec3 p1, in vec3 p2)
 	return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
 }
 
-vec2 GetNearFragment(vec2 coord, vec3 posat)
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
-	vec2 NearestOffset = vec2(0.0f, 0.0f);
-	float Difference = 10000;
-
-	vec2 Offsets[9] = vec2[9]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2(0.0f, 0.0f),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-	vec2 TexelSize = 1.0f / textureSize(u_PositionTexture, 0);
-	vec2 TexelSize2 = 1.0f / textureSize(u_PreviousColorTexture, 0);
-	
-	for (int i = 0 ; i < 9 ; i++)
-	{
-		vec4 PositionAt = texture(u_PreviousPositionTexture, coord + (Offsets[i] * TexelSize));
-
-		if (PositionAt.w > 0.0f) 
-		{
-			float diff = abs(FastDistance(posat, PositionAt.xyz));
-
-			if (diff < Difference)
-			{
-				NearestOffset = Offsets[i];
-				Difference = diff;
-			}
-		}
-	}
-
-	return coord + NearestOffset * TexelSize2;
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
 }
 
 vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor) 
@@ -101,6 +68,8 @@ vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor)
 	return clamp(tempColor, minclr - 0.025f, maxclr + 0.025f);
 }
 
+
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -115,9 +84,9 @@ void main()
 		return;
 	}
 
-	vec4 WorldPosition = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec4 WorldPosition = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 
-	if (WorldPosition.w <= 0.0f)
+	if (WorldPosition.w < 0.0f)
 	{
 		o_Color = CurrentColor;
 		return;
@@ -126,14 +95,14 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
 	float bias = 0.01f;
-	PreviousCoord = GetNearFragment(PreviousCoord, WorldPosition.xyz);
+	//PreviousCoord = texture(PreviousCoord, WorldPosition.xyz);
 
 	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
 		PreviousCoord.y > bias && PreviousCoord.y < 1.0f-bias && 
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
-		vec4 WorldPositionPrev = texture(u_PositionTexture, PreviousCoord).rgba;
+		vec4 WorldPositionPrev = GetPositionAt(u_PositionTexture, PreviousCoord).rgba;
 
 		if (WorldPositionPrev.w <= 0.0f)
 		{

@@ -43,6 +43,7 @@ layout(location = 0) out vec3 o_Color;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
+in vec3 v_RayOrigin;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_StrongerLightDirection;
@@ -87,6 +88,12 @@ uniform float u_LensFlareIntensity;
 uniform float u_Exposure;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
+
+vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
@@ -228,7 +235,7 @@ float GetScreenSpaceGodRays(vec3 position)
         vec2 coord = (v_TexCoords - SunScreenSpacePosition) * scale + SunScreenSpacePosition;
         coord = clamp(coord, 0.001f, 0.999f);
 
-        float is_sky_at = texture(u_PositionTexture, coord).w > 0.0f ? 0.0f : 1.0f;
+        float is_sky_at = SamplePositionAt(u_PositionTexture, coord).w > 0.0f ? 0.0f : 1.0f;
 
         rays += is_sky_at * RayIntensity * RayIntensityMultiplier;
     }
@@ -313,7 +320,7 @@ vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 
     for (int i = 0; i < 4; i++) 
     {
-		vec4 sampled_pos = texture(u_PositionTexture, txc + Kernel[i] * texel_size);
+		vec4 sampled_pos = SamplePositionAt(u_PositionTexture, txc + Kernel[i] * texel_size);
 
 		if (sampled_pos.w <= 0.0f)
 		{
@@ -351,7 +358,7 @@ bool DetectAtEdge(in vec2 txc)
 
 	for (int i = 0 ; i < 8 ; i++)
 	{
-		float T_at = texture(u_PositionTexture, txc + (NeighbourhoodOffsets[i] * TexelSize)).w;
+		float T_at = SamplePositionAt(u_PositionTexture, txc + (NeighbourhoodOffsets[i] * TexelSize)).w;
 
 		if (T_at <= 0.0f) 
 		{
@@ -390,7 +397,7 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
         vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
         float nweight = pow(abs(dot(sampled_normal, base_normal)), 4);
 
-        float sampled_depth = texture(u_PositionTexture, txc + Kernel[i] * texel_size).z; 
+        float sampled_depth = SamplePositionAt(u_PositionTexture, txc + Kernel[i] * texel_size).z; 
         float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
 
         float computed_weight = nweight * dweight;
@@ -441,7 +448,7 @@ vec3 ColorSaturate(vec3 rgb, float adjustment)
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
-	vec4 PositionAt = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec4 PositionAt = SamplePositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 NormalAt = texture(u_NormalTexture, v_TexCoords).rgb;
 
 	bool AtEdge = DetectAtEdge(v_TexCoords);

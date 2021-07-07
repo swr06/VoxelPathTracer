@@ -64,7 +64,7 @@ void main()
 			break;
 		}
 
-		float samp = float(texture2D(u_PositionTexture, StepTexCoord).w < 0.0f);
+		float samp = float(texture(u_PositionTexture, StepTexCoord).r < 0.0f);
 		samp *= Decay * Weight;
 		o_Volumetrics += samp;
 		IlluminationDecay *= Decay;

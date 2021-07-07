@@ -4,6 +4,8 @@
 layout (location = 0) out float o_AOValue;
 
 in vec2 v_TexCoords;
+in vec3 v_RayDirection;
+in vec3 v_RayOrigin;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
@@ -15,6 +17,12 @@ uniform mat4 u_ProjectionMatrix;
 uniform float u_Time;
 
 uint SAMPLE_SIZE = 16u;
+
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
 
 vec3 ToViewSpace(in vec3 WorldPosition)
 {
@@ -53,7 +61,7 @@ void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 
-	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec4 InitialTracePosition = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 
 	if (InitialTracePosition.a <= 0.0f)
 	{
@@ -87,7 +95,7 @@ void main()
 
 		if (ProjectedPosition.x > 0.0f && ProjectedPosition.y > 0.0f && ProjectedPosition.x < 1.0f && ProjectedPosition.y < 1.0f)
 		{
-			vec4 SampledPosition = texture(u_PositionTexture, ProjectedPosition.xy).xyzw;
+			vec4 SampledPosition = GetPositionAt(u_PositionTexture, ProjectedPosition.xy).xyzw;
 			
 			if (SampledPosition.w > 0.0f)
 			{

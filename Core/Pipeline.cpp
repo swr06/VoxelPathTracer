@@ -30,7 +30,7 @@ static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
 static int DiffuseSPP = 2;
-static int ReflectionSPP = 3;
+static int ReflectionSPP = 4;
 
 static bool TAA = true;
 static bool Bloom = true;
@@ -107,7 +107,7 @@ public:
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
-			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 64);
+			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
 			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
@@ -290,8 +290,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 
 	// Framebuffers 
-	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
-	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_RGBA32F, GL_RGBA, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
+	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
+	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
 	GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
@@ -558,6 +558,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
 		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
 
+
+		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
+		DiffuseTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
@@ -615,6 +619,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialInitial.SetInteger("u_PositionTexture", 1);
 			SpatialInitial.SetInteger("u_NormalTexture", 2);
 			SpatialInitial.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+			SpatialInitial.SetMatrix4("u_VertInverseView", inv_view);
+			SpatialInitial.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -650,6 +656,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
+
+		MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
+		MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
 
@@ -680,6 +690,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetBool("u_Dir", true);
 			SpatialFilter.SetBool("u_LargeKernel", true);
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
+			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
@@ -706,6 +718,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetBool("u_Dir", false);
 			SpatialFilter.SetBool("u_LargeKernel", true);
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
+			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
@@ -736,6 +750,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetBool("u_Dir", true);
 				SpatialFilter.SetBool("u_LargeKernel", false);
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoiseFBO.GetWidth(), DiffuseDenoiseFBO.GetHeight()));
+				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
+				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -762,6 +778,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetBool("u_Dir", false);
 				SpatialFilter.SetBool("u_LargeKernel", false);
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
+				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
@@ -803,6 +821,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetBool("u_DoFullTrace", DoFullTrace);
 			ShadowTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 			ShadowTraceShader.SetMatrix4("u_ShadowView", ShadowView);
+
+			ShadowTraceShader.SetMatrix4("u_VertInverseView", inv_view);
+			ShadowTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -873,6 +894,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+
+			ReflectionTraceShader.SetMatrix4("u_VertInverseView", inv_view);
+			ReflectionTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -960,6 +984,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
 
+			SpecularTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
+			SpecularTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionCheckerReconstructed.GetTexture());
 
@@ -1000,6 +1027,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
+				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
@@ -1033,6 +1062,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
+				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionDenoised_1.GetTexture());
@@ -1069,6 +1100,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			RTAOShader.SetInteger("u_BlockNormalTextures", 4);
 			RTAOShader.SetInteger("u_DataTexture", 5);
 			RTAOShader.SetFloat("u_Time", glfwGetTime());
+			RTAOShader.SetMatrix4("u_VertInverseView", inv_view);
+			RTAOShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1112,6 +1145,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetFloat("u_MaximumMix", 0.975f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
+
+			MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
+			MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());
@@ -1247,6 +1283,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);
+		TemporalAAShader.SetMatrix4("u_VertInverseView", inv_view);
+		TemporalAAShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
@@ -1283,6 +1321,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SSAOShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 			SSAOShader.SetVector2f("u_Dimensions", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
 			SSAOShader.SetFloat("u_Time", glfwGetTime());
+			SSAOShader.SetMatrix4("u_VertInverseView", inv_view);
+			SSAOShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1398,6 +1438,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BilateralBlur.SetVector2f("u_InvResolutionDirection", glm::vec2(1.0f / BlurredVolumetricFBO.GetWidth(), 0.0f));
 			BilateralBlur.SetInteger("u_ColorTexture", 0);
 			BilateralBlur.SetInteger("u_PositionTexture", 1);
+			BilateralBlur.SetMatrix4("u_VertInverseView", inv_view);
+			BilateralBlur.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, VolumetricFBO.GetTexture());
@@ -1421,6 +1463,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BilateralBlur.SetVector2f("u_InvResolutionDirection", glm::vec2(0.0f, 1.0f / BlurredVolumetricFBO.GetHeight()));
 			BilateralBlur.SetInteger("u_ColorTexture", 0);
 			BilateralBlur.SetInteger("u_PositionTexture", 1);
+			BilateralBlur.SetMatrix4("u_VertInverseView", inv_view);
+			BilateralBlur.SetMatrix4("u_VertInverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, BlurredVolumetricFBO.GetTexture());
@@ -1447,7 +1491,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_PositionTexture", 1);
 		PostProcessingShader.SetInteger("u_BlueNoise", 2);
 		PostProcessingShader.SetInteger("u_SSAOTexture", 3);
-		PostProcessingShader.SetInteger("u_PositionTexture", 4);
 		PostProcessingShader.SetInteger("u_VolumetricTexture", 10);
 		PostProcessingShader.SetInteger("u_RTAOTexture", 11);
 		PostProcessingShader.SetInteger("u_NormalTexture", 12);
@@ -1479,6 +1522,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
 
+		PostProcessingShader.SetMatrix4("u_VertInverseView", inv_view);
+		PostProcessingShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
 
@@ -1491,8 +1537,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, SSAOBlurred.GetTexture());
 
-		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+		//glActiveTexture(GL_TEXTURE4);
+		//glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 		// Bloom mips
 		glActiveTexture(GL_TEXTURE5);
@@ -1542,13 +1588,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		FinalShader.Use();
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
-		FinalShader.SetInteger("u_InitialTracePositionTexture", 1);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
-
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -9,6 +9,8 @@
 layout (location = 0) out float o_AO;
 
 in vec2 v_TexCoords;
+in vec3 v_RayOrigin;
+in vec3 v_RayDirection;
 
 uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
@@ -390,12 +392,18 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n)
     return normalize(rr);
 }
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800) * int(floor(u_Time * 60.0f));
 
-	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = texture(u_NormalTexture, v_TexCoords).rgb;
 	vec3 Tangent, Bitangent;
 	vec2 UV;

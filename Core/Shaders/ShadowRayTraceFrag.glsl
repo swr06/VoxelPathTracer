@@ -7,6 +7,8 @@
 layout (location = 0) out float o_Shadow;
 
 in vec2 v_TexCoords;
+in vec3 v_RayOrigin;
+in vec3 v_RayDirection;
 
 uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
@@ -145,9 +147,15 @@ vec2 ReprojectShadow (in vec3 pos)
 	return Projected.xy;
 }
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 void main()
 {
-	vec4 RayOrigin = texture(u_PositionTexture, v_TexCoords).rgba;
+	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
 	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
 	vec3 Bias = SampledNormal * vec3(0.055f);

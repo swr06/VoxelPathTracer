@@ -3,6 +3,9 @@
 
 layout (location = 0) out vec4 o_SpatialResult;
 
+in vec3 v_RayOrigin;
+in vec3 v_RayDirection;
+
 in vec2 v_TexCoords;
 
 uniform sampler2D u_PositionTexture;
@@ -10,10 +13,16 @@ uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InputTexture;
 uniform vec2 u_Dimensions;
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
 {
 	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
-	vec4 PositionAt = texture(u_PositionTexture, SampleCoord);
+	vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
 	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
 	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
 			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
@@ -55,7 +64,7 @@ void main()
 	vec4 TotalColor = vec4(0.0f);
 	float TotalWeight = 0.0f; 
 
-	vec3 BasePosition = texture(u_PositionTexture, v_TexCoords).xyz;
+	vec3 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyz;
 	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
 
 	for (int x = -2 ; x <= 2 ; x++)

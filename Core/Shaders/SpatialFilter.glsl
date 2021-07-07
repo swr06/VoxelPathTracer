@@ -5,6 +5,8 @@
 layout (location = 0) out vec4 o_SpatialResult;
 
 in vec2 v_TexCoords;
+in vec3 v_RayOrigin;
+in vec3 v_RayDirection;
 
 uniform sampler2D u_InputTexture;
 uniform sampler2D u_PositionTexture;
@@ -129,11 +131,17 @@ const int GaussianOffsets_SMALL[GAUSS_KERNEL_SMALL] = int[GAUSS_KERNEL_SMALL](
 	8
 );
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 // Edge stopping function
 bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
 {
 	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
-	vec4 PositionAt = texture(u_PositionTexture, SampleCoord);
+	vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
 	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
 	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
 			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
@@ -145,7 +153,7 @@ bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal
 void main()
 {
 	vec4 BlurredColor = vec4(0.0f);
-	vec3 BasePosition = texture(u_PositionTexture, v_TexCoords).xyz;
+	vec3 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyz;
 	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
 
 	float TotalWeight = 0.0f;

@@ -97,6 +97,12 @@ float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
     return StarVal;
 }
 
+vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 // Original star shader by : https://www.shadertoy.com/view/Md2SR3
 float StableStarField( in vec2 vSamplePos, float fThreshhold )
 {
@@ -552,7 +558,7 @@ vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 
     for (int i = 0; i < 4; i++) 
     {
-		vec4 sampled_pos = texture(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
+		vec4 sampled_pos = SamplePositionAt(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
 
 		if (sampled_pos.w <= 0.0f)
 		{
@@ -577,7 +583,7 @@ vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
 bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
 {
 	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
-	vec4 PositionAt = texture(u_InitialTracePositionTexture, SampleCoord);
+	vec4 PositionAt = SamplePositionAt(u_InitialTracePositionTexture, SampleCoord);
 	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
 	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
 			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
@@ -669,7 +675,7 @@ bool IsAtEdge(in vec2 txc)
 
     for (int i = 0 ; i < 8 ; i++)
     {
-        if (texture(u_InitialTracePositionTexture, txc + Kernel[i] * TexelSize).w <= 0.0f)
+        if (SamplePositionAt(u_InitialTracePositionTexture, txc + Kernel[i] * TexelSize).w <= 0.0f)
         {
             return true;
         }
@@ -692,7 +698,7 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-    vec4 WorldPosition = texture(u_InitialTracePositionTexture, v_TexCoords);
+    vec4 WorldPosition = SamplePositionAt(u_InitialTracePositionTexture, v_TexCoords);
 
     vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);

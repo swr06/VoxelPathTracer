@@ -21,10 +21,7 @@ void main()
 	v_TexCoords.xy = a_TexCoords.xy;
 
 	vec2 Position = a_Position;
-	//Position.xy += ((bayerSequenceOffsets[int(mod(u_VertCurrentFrame, 12.0f))] * 2.0 - 1.0) / u_VertDimensions);
-
 	vec4 clip = vec4(Position.xy, -1.0, 1.0);
-
 	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
 	v_RayDirection = vec3(u_InverseView * eye);
 	v_RayOrigin = u_InverseView[3].xyz;

@@ -209,15 +209,17 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	vec4 InitialTracePosition = texture(u_PositionTexture, v_TexCoords).rgba;
 	o_Color.w = 0.0f;
 
-	if (InitialTracePosition.w <= 0.0f)
+	float HitDistance = texture(u_PositionTexture, v_TexCoords).r;
+
+	if (HitDistance < 0.0f)
 	{
-		o_Color.xyz = GetSkyColorAt(normalize(v_RayDirection));
+		o_Color.xyz = vec3(0.0f);
 		return;
 	}
 
+	vec3 Position = v_RayOrigin + (normalize(v_RayDirection) * HitDistance);
 	vec3 TotalColor = vec3(0.0f);
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
 	float AccumulatedAO = 0.0f;
@@ -226,7 +228,7 @@ void main()
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec4 x = CalculateDiffuse(InitialTracePosition.xyz, Normal);
+		vec4 x = CalculateDiffuse(Position.xyz, Normal);
 		TotalColor += x.xyz;
 		AccumulatedAO += x.w;
 	}

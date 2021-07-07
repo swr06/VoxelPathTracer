@@ -16,10 +16,8 @@ void main()
 
 	gl_Position = vec4(a_Position.xy, 1.0f, 1.0f);
 	v_TexCoords.xy = a_TexCoords.xy;
-
 	vec2 Position = a_Position;
 	vec4 clip = vec4(Position.xy, -1.0, 1.0);
-
 	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
 	v_RayDirection = vec3(u_InverseView * eye);
 	v_RayOrigin = u_InverseView[3].xyz;

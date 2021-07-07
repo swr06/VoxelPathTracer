@@ -11,7 +11,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 #define MULTIPLE_TEXTURING_GRASS
 #define ALPHA_TESTING
 
-layout (location = 0) out vec4 o_Position;
+layout (location = 0) out float o_HitDistance;
 layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_Data;
 
@@ -186,21 +186,18 @@ void main()
 
 	float t = VoxelTraversalDF(r.Origin, r.Direction, normal, id);
 	bool intersect = t > 0.0f && id > 0;
-	vec3 world_position = r.Origin + (r.Direction * t);
 
 	if (intersect)
 	{
-		o_Position.xyz = world_position;
 		o_Normal = normal;
 	} 
 
 	else
 	{
-		o_Position.xyz = vec3(-1.0f);
 		o_Normal = vec3(-1.0f);
 	}
 
-	o_Position.w = t;
+	o_HitDistance = t;
 
 	int reference_id;
 	vec4 texture_ids;

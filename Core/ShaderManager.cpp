@@ -7,25 +7,30 @@ void VoxelRT::ShaderManager::CreateShaders()
 {
 	AddShader("INITIAL_TRACE", "Core/Shaders/InitialRayTraceVert.glsl", "Core/Shaders/InitialRayTraceFrag.glsl");
 	AddShader("FINAL_SHADER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FBOFrag.glsl");
-	AddShader("DIFFUSE_TRACE", "Core/Shaders/RayTraceVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
+	AddShader("DIFFUSE_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DiffuseRayTraceFrag.glsl");
 	AddShader("MAIN_TEMPORAL_FILER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalFilter.glsl");
-	AddShader("SMART_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
-	AddShader("COLOR_SHADER", "Core/Shaders/ColorPassVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
-	AddShader("POST_PROCESS", "Core/Shaders/PostProcessingVert.glsl", "Core/Shaders/PostProcessingFrag.glsl");
-	AddShader("TEMPORAL_AA", "Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalAA.glsl");
-	AddShader("SHADOW_TRACE", "Core/Shaders/RayTraceVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
+	AddShader("SHADOW_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
+	AddShader("SPATIAL_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
+	
 	AddShader("REFLECTION_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
+	AddShader("REFLECTION_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiser.glsl");
+	AddShader("SPECULAR_TEMPORAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
+
+	AddShader("RTAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/RaytracedAO.glsl");
+	AddShader("POST_PROCESS", "Core/Shaders/PostProcessingVert.glsl", "Core/Shaders/PostProcessingFrag.glsl");
+	AddShader("COLOR_SHADER", "Core/Shaders/ColorPassVert.glsl", "Core/Shaders/ColorPassFrag.glsl");
+	AddShader("TEMPORAL_AA", "Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalAA.glsl");
+
+	AddShader("SSAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
+	AddShader("BILATERAL_BLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
+
+
+	AddShader("SMART_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
 	AddShader("SIMPLE_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SimpleDownsampleFrag.glsl");
 	AddShader("LUMA_AVERAGER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
 	AddShader("VOLUMETRIC_SCATTERING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/VolumetricLighting.glsl");
-	AddShader("BILATERAL_BLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
-	AddShader("REFLECTION_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiser.glsl");
-	AddShader("SSAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
 	AddShader("SSAO_BLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAOBlur.glsl");
-	AddShader("RTAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/RaytracedAO.glsl");
-	AddShader("SPATIAL_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
 	AddShader("SPATIAL_INITIAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Spatial2x2Initial.glsl");
-	AddShader("SPECULAR_TEMPORAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
 	AddShader("CHECKER_RECONSTRUCT", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CheckerboardReconstruct.glsl");
 }
 

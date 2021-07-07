@@ -96,6 +96,8 @@ namespace VoxelRT
 				m_ParticleShader.SetVector2f("u_Dimensions", dims);
 				m_ParticleShader.SetVector3f("u_SunDir", sdir);
 				m_ParticleShader.SetVector3f("u_PlayerPos", player_pos);
+				m_ParticleShader.SetMatrix4("u_InverseView", glm::inverse(camera->GetViewMatrix()));
+				m_ParticleShader.SetMatrix4("u_InverseProjection", glm::inverse(camera->GetProjectionMatrix()));
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, posbuffer);

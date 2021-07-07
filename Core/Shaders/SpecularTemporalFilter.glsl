@@ -3,6 +3,8 @@
 layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
+in vec3 v_RayDirection;
+in vec3 v_RayOrigin;
 
 uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_CurrentPositionTexture;
@@ -92,12 +94,18 @@ vec4 GetClampedColor(vec2 reprojected, vec3 col)
 	return clamp(texture(u_PreviousColorTexture, reprojected + (BestOffset*TexelSize)), minclr, maxclr); 
 }
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
 
 	vec2 CurrentCoord = v_TexCoords;
-	vec4 CurrentPosition = texture(u_CurrentPositionTexture, v_TexCoords).rgba;
+	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
 
 	if (CurrentPosition.a > 0.0f)
 	{
@@ -109,7 +117,7 @@ void main()
 
 		float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
-		vec3 PrevPosition = texture(u_PreviousFramePositionTexture, Reprojected).xyz;
+		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
 		
 		if (Reprojected.x > 0.0 && Reprojected.x < 1.0 && Reprojected.y > 0.0 && Reprojected.y < 1.0f && d <= 1.41414f)

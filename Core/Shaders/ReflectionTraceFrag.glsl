@@ -12,6 +12,8 @@ layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec4 o_Data;
 
 in vec2 v_TexCoords;
+in vec3 v_RayDirection;
+in vec3 v_RayOrigin;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
@@ -245,6 +247,12 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+}
+
 vec2 GetCheckerboardedUV()
 {
 	vec2 Screenspace = v_TexCoords;
@@ -260,17 +268,17 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 
-	int SPP = clamp(u_SPP, 1, 64);
+	int SPP = clamp(u_SPP, 1, 16);
 	int total_hits = 0;
 	vec3 TotalColor = vec3(0.0f);
 
 	vec2 suv = GetCheckerboardedUV();
-	vec4 SampledWorldPosition = texture(u_PositionTexture, suv); // initial intersection point
+	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
 
 	o_Color.xyz = vec3(0.0f);
 	o_Data = vec4(-1.0f);
 
-	if (SampledWorldPosition.w <= 0.0001f)
+	if (SampledWorldPosition.w < 0.0f)
 	{
 		return;
 	}
@@ -289,7 +297,7 @@ void main()
 
 	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.015f; // Apply bias.
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.064500f; // Apply bias.
 
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;
@@ -302,7 +310,7 @@ void main()
 
 	//int MaxSPP = SPP;
 	//int MinSPP = clamp(SPP / 2, 2, 32);
-	SPP = 4;
+	//SPP = 4;
 
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.325f); 
 
