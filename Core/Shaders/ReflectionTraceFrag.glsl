@@ -297,7 +297,7 @@ void main()
 
 	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.064500f; // Apply bias.
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.92500000f; // Apply bias.
 
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;

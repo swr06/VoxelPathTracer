@@ -197,6 +197,13 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 	return vec4(total_color, ao); 
 }
 
+// basic fract(sin) pseudo random number generator
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -208,6 +215,8 @@ void main()
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += u_Time * 100.0f;
 
 	o_Color.w = 0.0f;
 
@@ -281,7 +290,8 @@ float nextFloat(inout int seed, in float min, in float max)
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
-  	vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
+  	vec2 r = vec2(hash2());
+	//vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
     
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
 	vec3  vv = cross(uu, n);
