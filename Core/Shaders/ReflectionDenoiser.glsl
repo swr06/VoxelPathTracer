@@ -1,6 +1,6 @@
 #version 330 core
 
-#define THRESH 1.41421f
+#define THRESH 0.3f
 
 layout (location = 0) out vec4 o_SpatialResult;
 

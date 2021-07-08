@@ -1,6 +1,13 @@
 #version 330 core
 
-#define THRESH 1.41421f
+#define THRESH 0.225f
+
+/*
+-- KNOWN ISSUES --
+- Overblurs TOO much
+- Uses a gaussian kernel, which isnt ideal, atrous would be better and faster 
+
+*/
 
 layout (location = 0) out vec4 o_SpatialResult;
 
