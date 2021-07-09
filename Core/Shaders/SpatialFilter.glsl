@@ -1,12 +1,11 @@
 #version 330 core
 
-#define THRESH 0.225f
+#define THRESH 1.550f
 
 /*
 -- KNOWN ISSUES --
 - Overblurs TOO much
 - Uses a gaussian kernel, which isnt ideal, atrous would be better and faster 
-
 */
 
 layout (location = 0) out vec4 o_SpatialResult;
@@ -18,6 +17,9 @@ in vec3 v_RayDirection;
 uniform sampler2D u_InputTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
+
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform vec2 u_Dimensions;
@@ -138,10 +140,17 @@ const int GaussianOffsets_SMALL[GAUSS_KERNEL_SMALL] = int[GAUSS_KERNEL_SMALL](
 	8
 );
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
 // Edge stopping function

@@ -40,6 +40,8 @@ uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
 uniform mat4 u_ReflectionView;
 uniform mat4 u_ReflectionProjection;
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
 
 uniform vec3 u_ViewerPosition;
 uniform vec2 u_Dimensions;
@@ -97,10 +99,17 @@ float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
     return StarVal;
 }
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
 // Original star shader by : https://www.shadertoy.com/view/Md2SR3

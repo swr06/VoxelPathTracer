@@ -19,6 +19,8 @@ uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
+uniform mat4 u_InverseProjection;
+uniform mat4 u_InverseView;
 
 uniform float u_MinimumMix = 0.25f;
 uniform float u_MaximumMix = 0.975f;
@@ -94,10 +96,17 @@ vec4 GetClampedColor(vec2 reprojected, vec3 col)
 	return clamp(texture(u_PreviousColorTexture, reprojected + (BestOffset*TexelSize)), minclr, maxclr); 
 }
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
 void main()
@@ -124,7 +133,7 @@ void main()
 		{
 			vec4 PrevColor = GetClampedColor(Reprojected, CurrentColor.xyz);
 			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
-			float BlendFactor = Moved ? 0.8250f : 0.9250f; 
+			float BlendFactor = Moved ? 0.8250f : 0.8750f; 
 			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
 		}
 

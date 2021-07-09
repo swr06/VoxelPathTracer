@@ -15,10 +15,10 @@ static bool CloudHighQuality = false;
 static bool DoSecondSpatialPass = true;
 
 static float InitialTraceResolution = 0.500f;
-static float DiffuseTraceResolution = 0.200f; // 1/5th res + 4 spp = 0.8 spp
+static float DiffuseTraceResolution = 0.200f; 
 
 static float ShadowTraceResolution = 0.750;
-static float ReflectionTraceResolution = 0.2500; // Resolution is key for specular indirect.
+static float ReflectionTraceResolution = 0.2500; 
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 
@@ -29,7 +29,7 @@ static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 1.0f;
 
-static int DiffuseSPP = 2;
+static int DiffuseSPP = 3; 
 static int ReflectionSPP = 4;
 
 static bool TAA = true;
@@ -659,6 +659,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
 		MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+		MainTemporalFilter.SetMatrix4("u_InverseView", inv_view);
+		MainTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -692,6 +694,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			SpatialFilter.SetMatrix4("u_InverseView", inv_view);
+			SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
@@ -720,6 +724,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			SpatialFilter.SetMatrix4("u_InverseView", inv_view);
+			SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
@@ -752,6 +758,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoiseFBO.GetWidth(), DiffuseDenoiseFBO.GetHeight()));
 				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+				SpatialFilter.SetMatrix4("u_InverseView", inv_view);
+				SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -780,6 +788,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+				SpatialFilter.SetMatrix4("u_InverseView", inv_view);
+				SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
@@ -986,6 +996,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			SpecularTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
 			SpecularTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			SpecularTemporalFilter.SetMatrix4("u_InverseView", inv_view);
+			SpecularTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ReflectionCheckerReconstructed.GetTexture());
@@ -1029,6 +1041,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
+				ReflectionDenoiser.SetMatrix4("u_InverseView", inv_view);
+				ReflectionDenoiser.SetMatrix4("u_InverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
@@ -1064,6 +1078,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
+				ReflectionDenoiser.SetMatrix4("u_InverseView", inv_view);
+				ReflectionDenoiser.SetMatrix4("u_InverseProjection", inv_projection);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionDenoised_1.GetTexture());
@@ -1148,6 +1164,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
 			MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			MainTemporalFilter.SetMatrix4("u_InverseView", inv_view);
+			MainTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());
@@ -1224,6 +1242,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
 		ColorShader.SetBool("u_RTAO", RTAO);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+		ColorShader.SetMatrix4("u_InverseView", inv_view);
+		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -1524,6 +1544,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingShader.SetMatrix4("u_VertInverseView", inv_view);
 		PostProcessingShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+		PostProcessingShader.SetMatrix4("u_InverseView", inv_view);
+		PostProcessingShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());

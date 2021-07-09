@@ -293,11 +293,12 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n)
   	vec2 r = vec2(hash2());
 	//vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
     
+	float PI2 = 2.0f * PI;
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
 	vec3  vv = cross(uu, n);
 	float ra = sqrt(r.y);
-	float rx = ra * cos(6.2831 * r.x); 
-	float ry = ra * sin(6.2831 * r.x);
+	float rx = ra * cos(PI2 * r.x); 
+	float ry = ra * sin(PI2 * r.x);
 	float rz = sqrt(1.0 - r.y);
 	vec3  rr = vec3(rx * uu + ry * vv + rz * n );
     

@@ -83,16 +83,25 @@ uniform sampler2D u_CloudData;
 
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
 
 uniform float u_LensFlareIntensity;
 uniform float u_Exposure;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
 float GetLuminance(vec3 color) {
