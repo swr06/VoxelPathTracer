@@ -561,6 +561,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
+		DiffuseTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -907,6 +909,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			ReflectionTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 			ReflectionTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+			ReflectionTraceShader.SetMatrix4("u_InverseView", inv_view);
+			ReflectionTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);

@@ -50,6 +50,9 @@ uniform int u_SPP;
 
 uniform int u_CurrentFrame;
 
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -247,10 +250,17 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
 vec2 GetCheckerboardedUV()
@@ -294,10 +304,9 @@ void main()
 	float RoughnessAt = PBRMap.r;
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
-
 	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.92500000f; // Apply bias.
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04500f; // Apply bias.
 
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;

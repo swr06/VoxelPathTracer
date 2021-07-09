@@ -61,6 +61,9 @@ uniform sampler2D u_ShadowMap;
 
 uniform float u_DiffuseLightIntensity = 1.0f;
 
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -204,6 +207,19 @@ vec2 hash2()
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -220,15 +236,14 @@ void main()
 
 	o_Color.w = 0.0f;
 
-	float HitDistance = texture(u_PositionTexture, v_TexCoords).r;
+	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
 
-	if (HitDistance < 0.0f)
+	if (Position.w < 0.0f)
 	{
 		o_Color.xyz = vec3(0.0f);
 		return;
 	}
 
-	vec3 Position = v_RayOrigin + (normalize(v_RayDirection) * HitDistance);
 	vec3 TotalColor = vec3(0.0f);
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
 	float AccumulatedAO = 0.0f;

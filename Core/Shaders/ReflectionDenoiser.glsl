@@ -1,6 +1,6 @@
 #version 330 core
 
-#define THRESH 0.7500f
+#define THRESH 4.4
 
 layout (location = 0) out vec4 o_SpatialResult;
 
@@ -114,11 +114,13 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 }
 
 // Edge stopping function
-bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal, in vec3 Col, in float BaseLuminance, in float BaseRoughness)
+bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal, in vec3 Col, in float BaseLuminance, in float BaseRoughness, out float SampleDistance)
 {
 	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
 	vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
 	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
+	SampleDistance = distance(PositionAt.xyz, InputPosition.xyz);
+	SampleDistance = clamp(SampleDistance, 0.0f, THRESH);
 	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
 			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
 			&& (abs(PositionAt.y - InputPosition.y) <= THRESH) 
@@ -157,13 +159,16 @@ void main()
 		float LumaDifference = abs(BaseLuminance - LumaAt);
 		float LumaThreshold = RoughnessAt * (1.0f + RoughnessAt);
 		LumaThreshold = clamp(LumaThreshold * 0.750, 0.01f, 100.0f);
-		//LumaThreshold = exp(RoughnessAt + 1);
+
+		float SampleDistance = 0.0f;
 		
-		if (SampleValid(SampleCoord, BasePosition, BaseNormal, SampleColor.xyz, BaseLuminance, RoughnessAt) && LumaDifference < LumaThreshold)
+		if (SampleValid(SampleCoord, BasePosition, BaseNormal, SampleColor.xyz, BaseLuminance, RoughnessAt, SampleDistance) && LumaDifference < LumaThreshold)
 		{
+			float DistanceWeight = abs(THRESH - SampleDistance);
+			DistanceWeight = pow(DistanceWeight, 5.0f);
 			vec3 SampledNormalMapped = texture(u_NormalMappedTexture, SampleCoord).xyz;
 			float NormalWeight = pow(abs(dot(SampledNormalMapped, BaseNormalMapped)), 16.0f);
-			CurrentWeight *= NormalWeight;
+			CurrentWeight *= NormalWeight * DistanceWeight;
 			BlurredColor += FireflyReject(SampleColor) * CurrentWeight;
 			TotalWeight += CurrentWeight;
 		}

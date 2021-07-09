@@ -1,6 +1,6 @@
 #version 330 core
 
-#define THRESH 1.550f
+#define THRESH 4.0f
 
 /*
 -- KNOWN ISSUES --
@@ -17,6 +17,7 @@ in vec3 v_RayDirection;
 uniform sampler2D u_InputTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
+uniform sampler2D u_NormalMappedTexture;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
@@ -154,11 +155,13 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 }
 
 // Edge stopping function
-bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
+bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal, out float Distance)
 {
 	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
 	vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
 	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
+	Distance = distance(InputPosition.xyz, PositionAt.xyz);
+	Distance = clamp(Distance, 0.0f, THRESH);
 	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
 			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
 			&& (abs(PositionAt.y - InputPosition.y) <= THRESH) 
@@ -182,9 +185,13 @@ void main()
 		int Sample = u_LargeKernel ? GaussianOffsets[s] : GaussianOffsets_SMALL[s]; 
 
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
+		float SamplePositionWeight = 0.0f;
 
-		if (SampleValid(SampleCoord, BasePosition, BaseNormal))
+		if (SampleValid(SampleCoord, BasePosition, BaseNormal, SamplePositionWeight))
 		{
+			float DistanceWeight = abs(THRESH - SamplePositionWeight);
+			DistanceWeight = pow(DistanceWeight, 6.0f);
+			CurrentWeight *= DistanceWeight;
 			vec4 SampleColor = texture(u_InputTexture, SampleCoord).xyzw;
 			BlurredColor += SampleColor * CurrentWeight;
 			TotalWeight += CurrentWeight;
