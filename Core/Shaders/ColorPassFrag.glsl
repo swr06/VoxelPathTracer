@@ -1,7 +1,7 @@
 #version 330 core
 
 #define CLOUD_HEIGHT 70
-#define PCF_COUNT 6 // we really dont care about the low sample count because we have taa.
+#define PCF_COUNT 4 // we really dont care about the low sample count because we have taa.
 //#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
 #define THRESH 1.41414
@@ -50,6 +50,7 @@ uniform bool u_CloudsEnabled;
 uniform bool u_POM = false;
 uniform bool u_HighQualityPOM = false;
 uniform bool u_RTAO;
+uniform bool u_ContactHardeningShadows;
 
 uniform float u_CloudBoxSize;
 
@@ -383,62 +384,50 @@ bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
     return t > 0.0f;
 }
 
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+bool InScreenSpace(vec2 x)
+{
+    return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
+}
+
 int RNG_SEED;
 
-float ComputeShadow(vec3 world_pos)
+float ComputeShadow(vec3 world_pos, vec3 flat_normal)
 {
-    float shadow = 0.0;
+    vec2 Txc = ReprojectShadow(world_pos);
+    float BaseShadow = texture(u_ShadowTexture, Txc).r;
+    float Shadow = BaseShadow;
+    float PlayerShadow  = 0.0f;
+    int PlayerShadowSamples = 16;
 
-    vec2 TexSize = textureSize(u_ShadowTexture, 0);
-    vec2 TexelSize = 1.0 / TexSize; 
-    int AVG = 0;
-    float Noise = nextFloat(RNG_SEED);
-
-    vec3 ShadowDirection = normalize(u_StrongerLightDirection);
-  
-	for(int x = 0; x <= PCF_COUNT; x++)
-	{
-    #ifdef POISSON_DISK_SAMPLING
-        BlueNoise *= (2.0f * PI);
-        float SinTheta = sin(Noise);
-        float CosTheta = cos(Noise);
-        
-        mat3 RotationMatrix = mat3(vec3(CosTheta, -SinTheta, 0.0f), 
-                                   vec3(SinTheta, CosTheta, 0.0f), 
-                                   vec3(0.0f, 0.0f, 1.0f));
-        
-        vec3 RotatedPoissonSample = RotationMatrix * PoissonDisk3D[x];
-        
-        vec3 SampleWorldPosition = world_pos + (RotatedPoissonSample * 0.05f); 
-    #else
-        vec3 WhiteNoise = vec3(nextFloat(RNG_SEED), nextFloat(RNG_SEED), nextFloat(RNG_SEED));
-        vec3 SampleWorldPosition = world_pos + WhiteNoise * 0.02f;
-    #endif
-
-        bool PlayerIntersect = GetPlayerIntersect(SampleWorldPosition.xyz, ShadowDirection.xyz);
-
-        if (PlayerIntersect)
+    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.125f);
+    if (u_ContactHardeningShadows) {
+        for (int i = 0 ; i < PlayerShadowSamples ; i++)
         {
-            shadow += 1.0f;
-            AVG++;
+            vec2 Hash = hash2();
+	        vec2 Hash2 = hash2();
+            vec3 JitteredLightDirection = u_StrongerLightDirection;
+            JitteredLightDirection.x += Hash.x * 0.03;
+	        JitteredLightDirection.z += Hash.y * 0.03;
+	        JitteredLightDirection.y += abs(Hash2.y * 0.01);
+	        JitteredLightDirection = normalize(JitteredLightDirection);
+            PlayerShadow += float(GetPlayerIntersect(BiasedWorldPos.xyz, JitteredLightDirection.xyz));
         }
 
-        else
-        {
-            vec2 ReprojectShadow = ReprojectShadow(SampleWorldPosition);
+        PlayerShadow /= float(PlayerShadowSamples);
+    }
 
-            if (ReprojectShadow.x > 0.0f && ReprojectShadow.x < 1.0f && ReprojectShadow.y > 0.0f && ReprojectShadow.y < 1.0f)
-            {
-                float ShadowAt = texture(u_ShadowTexture, ReprojectShadow).r;
-		        shadow += ShadowAt;        
-                AVG++;
-            }
-        }
-	}
+    else 
+    {
+        PlayerShadow = float(GetPlayerIntersect(world_pos.xyz, normalize(u_StrongerLightDirection).xyz));
+    }
 
-	shadow /= float(AVG);
-
-    return shadow;
+    return clamp(BaseShadow + PlayerShadow, 0.0f, 1.0f);
 }
 
 bool IsInScreenSpaceBounds(in vec2 tx)
@@ -706,6 +695,8 @@ void main()
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
+    HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += u_Time * 100.0f;
 
     vec4 WorldPosition = SamplePositionAt(u_InitialTracePositionTexture, v_TexCoords);
 
@@ -720,7 +711,7 @@ void main()
     {
         float RayTracedShadow = 0.0f;
         
-        RayTracedShadow = ComputeShadow(WorldPosition.xyz);
+        RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz);
 
         if (!IsAtEdge(v_TexCoords))
         {

@@ -288,6 +288,7 @@
     <None Include="Core\Shaders\RaytracedAO.glsl" />
     <None Include="Core\Shaders\RayTraceVert.glsl" />
     <None Include="Core\Shaders\ReflectionTraceFrag.glsl" />
+    <None Include="Core\Shaders\ShadowFilter.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />

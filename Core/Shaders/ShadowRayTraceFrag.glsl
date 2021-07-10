@@ -14,14 +14,21 @@ uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2DArray u_AlbedoTextures;
-uniform sampler2D u_PrevShadowFBO;
 uniform sampler3D u_DistanceFieldTexture;
+uniform sampler2D u_BlueNoiseTexture;
 
 uniform bool u_DoFullTrace;
 uniform mat4 u_ShadowProjection;
 uniform mat4 u_ShadowView;
+uniform float u_Time;
 
 uniform vec3 u_LightDirection;
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
+uniform int u_CurrentFrame;
+
+uniform bool u_ContactHardeningShadows;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -79,7 +86,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < 250 ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
@@ -147,24 +154,139 @@ vec2 ReprojectShadow (in vec3 pos)
 	return Projected.xy;
 }
 
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
 vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
+
+int MIN = -2147483648;
+int MAX = 2147483647;
+int RNG_SEED;
+
+int xorshift(in int value) 
+{
+    // Xorshift*32
+    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
+    value ^= value << 13;
+    value ^= value >> 17;
+    value ^= value << 5;
+    return value;
+}
+
+int nextInt(inout int seed) 
+{
+    seed = xorshift(seed);
+    return seed;
+}
+
+float nextFloat(inout int seed) 
+{
+    seed = xorshift(seed);
+    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
+    return abs(fract(float(seed) / 3141.592653));
+}
+
+float nextFloat(inout int seed, in float max) 
+{
+    return nextFloat(seed) * max;
+}
+
+float nextFloat(inout int seed, in float min, in float max) 
+{
+    return min + (max - min) * nextFloat(seed);
+}
+
+
+// basic fract(sin) pseudo random number generator
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+const float PI = 3.14159265359f;
+
+const float PHI = 1.61803398874989484820459; 
+
+float gold_noise(in vec2 xy, in float seed)
+{
+    return fract(tan(distance(xy*PHI, xy)*seed)*xy.x);
+}
+
+//#define USE_GOLD_NOISE
 
 void main()
 {
-	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 RayDirection = normalize(u_LightDirection - (u_LightDirection * 0.1f));
-	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
-	vec3 Bias = SampledNormal * vec3(0.055f);
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += u_Time * 100.0f;
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
+
+	// Xor shift once!
+	RNG_SEED ^= RNG_SEED << 13;
+    RNG_SEED ^= RNG_SEED >> 17;
+    RNG_SEED ^= RNG_SEED << 5;
 	
-	if (u_DoFullTrace)
+	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
+	vec3 JitteredLightDirection = u_LightDirection;
+
+	if (u_ContactHardeningShadows)
+	{
+		vec3 RayPosition = RayOrigin.xyz;
+
+		vec2 Hash;
+
+		#ifdef USE_GOLD_NOISE
+		// possibly.. more uniform? Didnt make a difference.
+		Hash.x = gold_noise(gl_FragCoord.xy, fract(u_Time) + 1.0);
+		Hash.y = gold_noise(gl_FragCoord.xy, fract(u_Time) + 2.0);
+		#else
+		Hash = hash2(); // white noise
+		#endif
+
+		float LightRadii = 0.006482f; 
+		float PointRadius = LightRadii * sqrt(Hash.x);
+
+		// Convert to angle 
+		float PointAngle = Hash.y * 2.0f * PI;
+		
+		// We now have a uniform point on a circle 
+		vec2 DiskPoint = vec2(PointRadius * cos(PointAngle), PointRadius * sin(PointAngle));
+		vec3 NormalizedLightDirection = normalize(u_LightDirection);
+		
+		// Convert to tangent basis
+		vec3 LightT = normalize(cross(NormalizedLightDirection, vec3(0.0f, 1.0f, 0.0f)));
+		vec3 LightB = normalize(cross(LightT, NormalizedLightDirection));
+
+		// Convert to world space : 
+		vec3 FinalTarget = RayPosition + NormalizedLightDirection + DiskPoint.x *
+						 LightT + DiskPoint.y * LightB;
+
+		// Get the direction
+		JitteredLightDirection = normalize(FinalTarget - RayPosition);
+	}
+
+	else 
+	{
+		JitteredLightDirection = normalize(JitteredLightDirection);
+	}
+
+	vec3 RayDirection = (JitteredLightDirection);
+	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
+	vec3 Bias = SampledNormal * vec3(0.06f);
+	
+	if (true) //(u_DoFullTrace)
 	{
 		float T = -1.0f;
 
-		float block_at = GetVoxel(ivec3(floor(RayOrigin.rgb + Bias)));
+		float block_at = GetVoxel(ivec3(floor(RayOrigin.xyz + Bias)));
 		 
 		if (RayOrigin.w > 0.0f) 
 		{
@@ -172,46 +294,6 @@ void main()
 			T = VoxelTraversalDF(RayOrigin.rgb + Bias, RayDirection, n, b);
 		}
 
-		if (T > 0.0f || block_at > 0) 
-		{ 
-			o_Shadow = 1.0f; 
-		}
-		
-		else 
-		{ 
-			o_Shadow = 0.0f; 
-		}
-	}
-
-	else 
-	{
-		vec2 PreviousFrameReprojected = ReprojectShadow(RayOrigin.xyz);
-
-	    if (PreviousFrameReprojected.x > 0.0f && PreviousFrameReprojected.x < 1.0f && PreviousFrameReprojected.y > 0.0f && PreviousFrameReprojected.y < 1.0f)
-		{
-			o_Shadow = texture(u_PrevShadowFBO, PreviousFrameReprojected).r;
-			return;
-		}
-
-		else 
-		{
-			float T = -1.0f;
-			 
-			if (RayOrigin.w > 0.0f) 
-			{
-				float b; vec3 n;
-				T = VoxelTraversalDF(RayOrigin.rgb + Bias, RayDirection, n, b);
-			}
-
-			if (T > 0.0f) 
-			{ 
-				o_Shadow = 1.0f; 
-			}
-			
-			else 
-			{ 
-				o_Shadow = 0.0f; 
-			}
-		}
+		o_Shadow = float(T > 0.0f || block_at > 0);
 	}
 }

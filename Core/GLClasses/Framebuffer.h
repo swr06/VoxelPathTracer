@@ -15,6 +15,7 @@ namespace GLClasses
 		GLenum Type;
 		bool MinFilter = true; // false = nearest; true = linear
 		bool MagFilter = true; // false = nearest; true = linear
+		bool ClampToBorder = false;
 	};
 
 	class Framebuffer
