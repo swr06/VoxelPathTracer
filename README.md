@@ -11,13 +11,14 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Normal mapping
 - PBR Texture support
 - Physically based lighting
-- Fast Shadow Tracing
+- Ray traced contact hardening soft shadows
 - Flexible material system
 - Temporal Anti Aliasing
 - FXAA
 - Tonemapping, Gamma correction
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX)
+- Checkerboard raytracing 
 - Naive world saving and loading
 - Physically based atmosphere 
 - God Rays (Screen space) 
@@ -33,7 +34,6 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 # Features to implement
 - Alpha testing
 - Foliage
-- Better Soft Shadows
 - Refractions (Will be done in screen space)
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
