@@ -32,6 +32,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Particle system
 
 # Features to implement
+- Spherical Harmonics to increase normal map sharpness
 - Alpha testing
 - Foliage
 - Refractions (Will be done in screen space)
