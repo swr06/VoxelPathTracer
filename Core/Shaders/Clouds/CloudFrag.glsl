@@ -420,7 +420,7 @@ void main()
 		return;
 	}
 
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(u_Time * 60.0f);
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
 
 	// xorshift once : 
 	RNG_SEED ^= RNG_SEED << 13;

@@ -169,15 +169,26 @@ bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal
 			&& (PositionAt.w > 0.0f) && (InScreenSpace);
 }
 
+vec3 Saturate(vec3 x)
+{
+	return clamp(x, 0.0f, 1.0f);
+}
+
 void main()
 {
 	vec4 BlurredColor = vec4(0.0f);
 	vec3 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyz;
 	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseColor = texture(u_InputTexture, v_TexCoords).rgb;
+	vec3  BaseSampleNormalized = normalize(BaseColor);
+    float BaseSaturation  = length(Saturate(BaseColor));
 
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	int SZ = u_LargeKernel ? GAUSS_KERNEL : GAUSS_KERNEL_SMALL;
+
+	const float SATURATION_POW = 8.0f;
+	const float DOT_POW = 24.0f;
 
 	for (int s = 0 ; s < SZ ; s++)
 	{
@@ -186,19 +197,25 @@ void main()
 
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
 		float SamplePositionWeight = 0.0f;
+		vec4 SampleColor = texture(u_InputTexture, SampleCoord).xyzw;
 
 		if (SampleValid(SampleCoord, BasePosition, BaseNormal, SamplePositionWeight))
 		{
 			float DistanceWeight = abs(THRESH - SamplePositionWeight);
 			DistanceWeight = pow(DistanceWeight, 6.0f);
 			CurrentWeight *= DistanceWeight;
-			vec4 SampleColor = texture(u_InputTexture, SampleCoord).xyzw;
+			
+			vec3 CurrentSampleNormalized = normalize(SampleColor.xyz);
+			float NormalizeWeight = pow(0.5f + 0.5f * dot(BaseSampleNormalized, CurrentSampleNormalized), DOT_POW);
+			float SaturationWeight = pow(1.0f - abs(length(Saturate(SampleColor.xyz)) - BaseSaturation), SATURATION_POW);
+			//CurrentWeight *= NormalizeWeight * SaturationWeight;
+			
 			BlurredColor += SampleColor * CurrentWeight;
 			TotalWeight += CurrentWeight;
 		}
 	}
 
 	BlurredColor = BlurredColor / max(TotalWeight, 0.01f);
-
 	o_SpatialResult = BlurredColor;
+	//o_SpatialResult = texture(u_InputTexture, v_TexCoords).rgba;
 }

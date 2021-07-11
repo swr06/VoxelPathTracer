@@ -401,7 +401,7 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800) * int(floor(u_Time * 60.0f));
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800) * int(fract(u_Time * 150.0f));
 
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = texture(u_NormalTexture, v_TexCoords).rgb;

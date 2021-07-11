@@ -562,6 +562,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
 		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
+		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);

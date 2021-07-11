@@ -226,7 +226,7 @@ float gold_noise(in vec2 xy, in float seed)
 void main()
 {
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
-	HASH2SEED += u_Time * 100.0f;
+	HASH2SEED += fract(u_Time) * 102.0f;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
 
 	// Xor shift once!

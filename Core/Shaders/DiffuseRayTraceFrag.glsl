@@ -232,7 +232,7 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
-	HASH2SEED += u_Time * 100.0f;
+	HASH2SEED += fract(u_Time) * 100.0f;
 
 	o_Color.w = 0.0f;
 
