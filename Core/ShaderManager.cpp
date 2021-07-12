@@ -11,7 +11,8 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("MAIN_TEMPORAL_FILER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/TemporalFilter.glsl");
 	AddShader("SHADOW_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ShadowRayTraceFrag.glsl");
 	AddShader("SHADOW_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ShadowFilter.glsl");
-	AddShader("SPATIAL_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
+	AddShader("GAUSSIAN_SPATIAL_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpatialFilter.glsl");
+	AddShader("ATROUS_SPATIAL_FILTER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/AtrousSpatialFilter.glsl");
 	
 	AddShader("REFLECTION_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
 	AddShader("REFLECTION_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiser.glsl");

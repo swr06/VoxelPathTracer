@@ -14,6 +14,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 layout (location = 0) out float o_HitDistance;
 layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_Data;
+layout (location = 3) out float o_BlockID;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -203,8 +204,10 @@ void main()
 	vec4 texture_ids;
 	bool transparent;
 
+	o_BlockID = 0.0f;
 	if (intersect)
 	{
+		o_BlockID = id;
 		reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
 		texture_ids.xyz = vec3(
 			float(BlockAlbedoData[reference_id]),

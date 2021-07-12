@@ -281,15 +281,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& BilateralBlur = ShaderManager::GetShader("BILATERAL_BLUR");
 	GLClasses::Shader& ReflectionDenoiser = ShaderManager::GetShader("REFLECTION_DENOISER");
 	GLClasses::Shader& RTAOShader = ShaderManager::GetShader("RTAO");
-	GLClasses::Shader& SpatialFilter = ShaderManager::GetShader("SPATIAL_FILTER");
+	GLClasses::Shader& GaussianSpatialFilter = ShaderManager::GetShader("GAUSSIAN_SPATIAL_FILTER");
+	GLClasses::Shader& AtrousSpatialFilter = ShaderManager::GetShader("ATROUS_SPATIAL_FILTER");
 	GLClasses::Shader& SpatialInitial = ShaderManager::GetShader("SPATIAL_INITIAL");
 	GLClasses::Shader& SpecularTemporalFilter = ShaderManager::GetShader("SPECULAR_TEMPORAL");
 	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 
 	// Framebuffers 
-	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
-	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false} });
+	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
+	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
 	GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
 	GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
@@ -688,25 +689,34 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTemporalFBO.Unbind();
 
-		// Spatial pass 1
-		{
-			DiffuseDenoisedFBO2.Bind();
-			SpatialFilter.Use();
+		//
+		/// Do 5 atrous spatial filter pass with varying step sizes
+		//
 
-			SpatialFilter.SetInteger("u_InputTexture", 0);
-			SpatialFilter.SetInteger("u_PositionTexture", 1);
-			SpatialFilter.SetInteger("u_NormalTexture", 2);
-			SpatialFilter.SetInteger("u_Step", 1);
-			SpatialFilter.SetBool("u_Dir", true);
-			SpatialFilter.SetBool("u_LargeKernel", true);
-			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
-			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
-			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-			SpatialFilter.SetMatrix4("u_InverseView", inv_view);
-			SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
+		int StepSizes[5] = { 10, 8, 4, 2, 1 };
+
+		for (int i = 0; i < 5; i++)
+		{
+			// 1 2 1 2 1
+			auto& CurrentDenoiseFBO = (i % 2 == 0) ? DiffuseDenoiseFBO : DiffuseDenoisedFBO2;
+			auto& PrevDenoiseFBO = (i == 0) ? DiffuseTemporalFBO :
+				(i % 2 == 0) ? DiffuseDenoisedFBO2 : DiffuseDenoiseFBO;
+
+			CurrentDenoiseFBO.Bind();
+			AtrousSpatialFilter.Use();
+			AtrousSpatialFilter.SetInteger("u_InputTexture", 0);
+			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
+			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
+			AtrousSpatialFilter.SetInteger("u_BlockIDTexture", 3);
+			AtrousSpatialFilter.SetInteger("u_Step", StepSizes[i]);
+			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+			AtrousSpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
+			AtrousSpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			AtrousSpatialFilter.SetMatrix4("u_InverseView", inv_view);
+			AtrousSpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -714,104 +724,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
-		}
-
-		{
-			DiffuseDenoiseFBO.Bind();
-			SpatialFilter.Use();
-
-			SpatialFilter.SetInteger("u_InputTexture", 0);
-			SpatialFilter.SetInteger("u_PositionTexture", 1);
-			SpatialFilter.SetInteger("u_NormalTexture", 2);
-			SpatialFilter.SetInteger("u_Step", 1);
-			SpatialFilter.SetBool("u_Dir", false);
-			SpatialFilter.SetBool("u_LargeKernel", true);
-			SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
-			SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
-			SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-			SpatialFilter.SetMatrix4("u_InverseView", inv_view);
-			SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
-
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
-		}
-
-		// Spatial pass.. 2 ?
-
-		if (DoSecondSpatialPass)
-		{
-			{
-				DiffuseDenoisedFBO2.Bind();
-				SpatialFilter.Use();
-
-				SpatialFilter.SetInteger("u_InputTexture", 0);
-				SpatialFilter.SetInteger("u_PositionTexture", 1);
-				SpatialFilter.SetInteger("u_NormalTexture", 2);
-				SpatialFilter.SetInteger("u_Step", 1);
-				SpatialFilter.SetBool("u_Dir", true);
-				SpatialFilter.SetBool("u_LargeKernel", false);
-				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoiseFBO.GetWidth(), DiffuseDenoiseFBO.GetHeight()));
-				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
-				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-				SpatialFilter.SetMatrix4("u_InverseView", inv_view);
-				SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
-
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
-
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
-
-				glActiveTexture(GL_TEXTURE2);
-				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
-
-				VAO.Bind();
-				glDrawArrays(GL_TRIANGLES, 0, 6);
-				VAO.Unbind();
-			}
-
-			{
-				DiffuseDenoiseFBO.Bind();
-				SpatialFilter.Use();
-
-				SpatialFilter.SetInteger("u_InputTexture", 0);
-				SpatialFilter.SetInteger("u_PositionTexture", 1);
-				SpatialFilter.SetInteger("u_NormalTexture", 2);
-				SpatialFilter.SetInteger("u_Step", 1);
-				SpatialFilter.SetBool("u_Dir", false);
-				SpatialFilter.SetBool("u_LargeKernel", false);
-				SpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
-				SpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
-				SpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-				SpatialFilter.SetMatrix4("u_InverseView", inv_view);
-				SpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
-
-				glActiveTexture(GL_TEXTURE0);
-				glBindTexture(GL_TEXTURE_2D, DiffuseDenoisedFBO2.GetTexture());
-
-				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
-
-				glActiveTexture(GL_TEXTURE2);
-				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
-
-				VAO.Bind();
-				glDrawArrays(GL_TRIANGLES, 0, 6);
-				VAO.Unbind();
-			}
 		}
 
 		glUseProgram(0);

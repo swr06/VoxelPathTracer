@@ -638,7 +638,7 @@ void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block
 		{
 			vec3 p = ro + (t * rd);
 			vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
-			vec3 albedo = vec3(1.0f);
+			vec3 albedo = vec3(0.6f);
 			float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
 			col = vec3(diff) * albedo;
 			col += vec3(0.150f) * albedo;
