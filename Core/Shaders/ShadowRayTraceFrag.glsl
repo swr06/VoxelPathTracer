@@ -221,17 +221,15 @@ float gold_noise(in vec2 xy, in float seed)
     return fract(tan(distance(xy*PHI, xy)*seed)*xy.x);
 }
 
-vec3 SampleUniformCone(vec2 Xi, float cosThetaMax) 
+vec3 SampleCone(vec2 Xi, float CosThetaMax) 
 {
-    float cosTheta = (1.0 - Xi.x) + Xi.x * cosThetaMax;
-    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
+    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
     float phi = Xi.y * PI * 2.0;
-    
     vec3 L;
-    L.x = sinTheta * cos(phi);
-    L.y = sinTheta * sin(phi);
-    L.z = cosTheta;
-    
+    L.x = SinTheta * cos(phi);
+    L.y = SinTheta * sin(phi);
+    L.z = CosTheta;
     return L;
 }
 
@@ -278,10 +276,13 @@ void main()
 		vec3 T = normalize(cross(L, vec3(0.0, 1.0, 1.0)));
 		vec3 B = cross(T, L);
 		mat3 TBN = mat3(T, B, L);
-		const float CosTheta = 0.999825604617; // 0.98906604617 // 0.999825604617
-		vec2 xi = Hash;
-		vec3 L_cone = TBN * SampleUniformCone(xi, CosTheta);
-        JitteredLightDirection = L_cone;
+
+		// 0.98906604617 -> physically based
+		// 0.999825604617
+		const float CosTheta = 0.999835604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
+		vec2 Xi = Hash;
+		vec3 ConeSample = TBN * SampleCone(Xi, CosTheta);
+        JitteredLightDirection = ConeSample;
 	}
 
 	vec3 RayDirection = (JitteredLightDirection);
