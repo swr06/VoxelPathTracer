@@ -21,8 +21,8 @@ namespace GLClasses
 	class Framebuffer
 	{
 	public :
-		Framebuffer(unsigned int w, unsigned int h, std::vector<FORMAT> format, bool has_depth_attachment = false);
-		Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool has_depth_attachment = false);
+		Framebuffer(unsigned int w, unsigned int h, std::vector<FORMAT> format, bool create_on_construct, bool has_depth_attachment = false);
+		Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool create_on_construct, bool has_depth_attachment = false);
 		~Framebuffer();
 
 		Framebuffer(const Framebuffer&) = delete;

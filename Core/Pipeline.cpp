@@ -219,6 +219,26 @@ public:
 
 };
 
+GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+
+GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false), DiffuseDenoisedFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+
+GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+
+GLClasses::Framebuffer ShadowRawTrace(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
+ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
+ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false);
+
+
 
 
 void VoxelRT::MainPipeline::StartPipeline()
@@ -287,34 +307,23 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularTemporalFilter = ShaderManager::GetShader("SPECULAR_TEMPORAL");
 	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
+	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
 
-	// Framebuffers 
-	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
-	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
-	GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), DiffuseDenoisedFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	VoxelRT::ColorPassFBO ColoredFBO;
-	GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
-	GLClasses::Framebuffer TAAFBO1(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
-	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
 	GLClasses::TextureArray BlueNoise;
-	GLClasses::Framebuffer ShadowRawTrace(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), 
-		ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }),
-		ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
-	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer AverageLumaFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::FramebufferRed VolumetricFBO, BlurredVolumetricFBO;
-	GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT } });
-	GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT });
-	GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	GLClasses::Framebuffer RTAO_FBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }), RTAO_TemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE });
+
+	
+	VoxelRT::ColorPassFBO ColoredFBO;
+	GLClasses::Framebuffer TAAFBO1(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
+	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
+	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+	GLClasses::Framebuffer AverageLumaFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+	GLClasses::Framebuffer VolumetricFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
+	GLClasses::Framebuffer BlurredVolumetricFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
+	GLClasses::Framebuffer RTAO_FBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true), RTAO_TemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true), RTAO_TemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	VoxelRT::BloomFBO BloomFBO(16, 16);
-	GLClasses::FramebufferRed SSAOFBO(16, 16);
-	GLClasses::FramebufferRed SSAOBlurred(16, 16);
+	GLClasses::Framebuffer SSAOFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
+	GLClasses::Framebuffer SSAOBlurred(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
+	GLClasses::Framebuffer VarianceFBO(16, 16, { GL_R16F, GL_RED, GL_FLOAT }, false);
 
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
@@ -391,43 +400,64 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glfwSwapInterval((int)VSync);
 
 		// Resize the framebuffers
+		{
+			// Diffuse FBOS
+			float DiffuseTraceResolution2 = DiffuseTraceResolution + 0.125f;
 
-		// Diffuse FBOS
-		float DiffuseTraceResolution2 = DiffuseTraceResolution + 0.125f;
-		DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-		DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
-		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
-		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
-		DiffuseDenoisedFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
-		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
-		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
-		InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-		InitialTraceFBO_2.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-		TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
-		TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
-		DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
-		
-		ShadowRawTrace.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
-		ShadowTemporalFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
-		ShadowTemporalFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
-		ShadowFiltered.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
-		
-		ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-		ReflectionCheckerReconstructed.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
-		ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight()* ReflectionTraceResolution * 2.0f);
-		ReflectionTemporalFBO_2.SetSize(app.GetWidth()* ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
-		ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
-		ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution*2.0f);
-		SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
-		SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
-		VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
-		BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
-		BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
-		float RTAO_Res2 = glm::max(RTAOResolution, 0.5f);
-		RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
-		RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
-		RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+			InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+			InitialTraceFBO_2.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 
+			DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
+			DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+			DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+			DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+			DiffuseDenoisedFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+
+
+			if (TAA)
+			{
+				TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
+				TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
+			}
+
+			DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
+			BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
+			VarianceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+			PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
+			ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
+
+			ShadowRawTrace.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
+			ShadowTemporalFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
+			ShadowTemporalFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
+			ShadowFiltered.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
+
+			ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+			ReflectionCheckerReconstructed.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+			ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+			ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+			ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+			ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+
+			if (GodRays)
+			{
+				VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
+				BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
+			}
+
+			if (SSAO)
+			{
+				SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
+				SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
+			}
+
+			if (RTAO)
+			{
+				float RTAO_Res2 = glm::max(RTAOResolution, 0.5f);
+				RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
+				RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+				RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+			}
+		}
 
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
@@ -689,6 +719,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTemporalFBO.Unbind();
 
+		// Do a variance estimation pass
+
+		VarianceFBO.Bind();
+		VarianceEstimator.Use();
+		VarianceEstimator.SetInteger("u_InputTexture", 0);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+		VarianceFBO.Unbind();
+
 		//
 		/// Do 5 atrous spatial filter pass with varying step sizes
 		//
@@ -708,12 +750,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
 			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
 			AtrousSpatialFilter.SetInteger("u_BlockIDTexture", 3);
+			AtrousSpatialFilter.SetInteger("u_VarianceTexture", 4);
 			AtrousSpatialFilter.SetInteger("u_Step", StepSizes[i]);
 			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 			AtrousSpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 			AtrousSpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 			AtrousSpatialFilter.SetMatrix4("u_InverseView", inv_view);
 			AtrousSpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
+			AtrousSpatialFilter.SetBool("u_ShouldDetailWeight", !(i >= 3));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -726,6 +770,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, VarianceFBO.GetTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

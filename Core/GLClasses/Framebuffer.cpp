@@ -6,16 +6,22 @@
 
 namespace GLClasses
 {
-    Framebuffer::Framebuffer(unsigned int w, unsigned int h, std::vector<FORMAT> format, bool has_depth_attachment) :
+    Framebuffer::Framebuffer(unsigned int w, unsigned int h, std::vector<FORMAT> format, bool create_on_construct, bool has_depth_attachment) :
         m_FBO(0), m_FBWidth(w), m_FBHeight(h), m_HasDepthMap(has_depth_attachment), m_Format(format)
     {
-       // CreateFramebuffer();
+        if (create_on_construct)
+        {
+            CreateFramebuffer();
+        }
     }
 
-    Framebuffer::Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool has_depth_attachment) :
+    Framebuffer::Framebuffer(unsigned int w, unsigned int h, FORMAT format, bool create_on_construct, bool has_depth_attachment) :
         m_FBO(0), m_FBWidth(w), m_FBHeight(h), m_HasDepthMap(has_depth_attachment), m_Format({ format })
     {
-        // CreateFramebuffer();
+        if (create_on_construct)
+        {
+            CreateFramebuffer();
+        }
     }
 
 	Framebuffer::~Framebuffer()

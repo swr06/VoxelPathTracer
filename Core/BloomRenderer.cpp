@@ -14,13 +14,13 @@ namespace VoxelRT
 		{
 			BloomFBOVBO = std::unique_ptr<GLClasses::VertexBuffer>(new GLClasses::VertexBuffer);
 			BloomFBOVAO = std::unique_ptr<GLClasses::VertexArray>(new GLClasses::VertexArray);
-			BloomAlternateFBO[0] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }));
+			BloomAlternateFBO[0] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
 			BloomAlternateFBO[0]->CreateFramebuffer();														 
-			BloomAlternateFBO[1] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }));
+			BloomAlternateFBO[1] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
 			BloomAlternateFBO[1]->CreateFramebuffer();														 
-			BloomAlternateFBO[2] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }));
+			BloomAlternateFBO[2] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
 			BloomAlternateFBO[2]->CreateFramebuffer();														 
-			BloomAlternateFBO[3] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }));
+			BloomAlternateFBO[3] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
 			BloomAlternateFBO[3]->CreateFramebuffer();
 
 			BloomBlurShader = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);

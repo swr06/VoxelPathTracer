@@ -10,8 +10,10 @@ uniform sampler2D u_InputTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTexture;
+uniform sampler2D u_VarianceTexture;
 uniform vec2 u_Dimensions;
 uniform int u_Step;
+uniform bool u_ShouldDetailWeight;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
@@ -81,9 +83,18 @@ void main()
 	float BaseSaturation = length(Saturate(BaseColorSample.xyz));
 	float BaseLuminosity = GetLuminance(BaseColorSample.xyz);
 	vec3 NormalizedBaseColor = normalize(Saturate(BaseColorSample.xyz));
+	float BaseVariance = texture(u_VarianceTexture, v_TexCoords).r;
+	bool BaseIsSky = IsSky(BasePosition.w);
 	
 	const float SATURATION_POW = 4.0f;
 	const float DOT_POW = 1.0f;
+
+	float VarianceWeight = 1.0f;
+
+	//if (BaseVariance > 0.025f)
+	//{
+	//	VarianceWeight = 1.34f;
+	//}
 
 	for (int tx = -2 ; tx <= 2 ; tx++)
 	{
@@ -102,7 +113,8 @@ void main()
 			float SamplePositionError = ManhattanDistance(PositionAt.xyz, BasePosition.xyz);
 
 			if (SamplePositionError < 4.25f &&
-				NormalAt == BaseNormal && BlockAt == BaseBlock)
+				NormalAt == BaseNormal && BlockAt == BaseBlock &&
+				IsSky(PositionAt.w) == BaseIsSky)
 			{
 				// Saturation and unit vector dot weights
 				float SaturationAt = length(Saturate(SampleColor.xyz));
@@ -134,23 +146,35 @@ void main()
 				// Idea : Try making it adaptive, so you make it depend on the temporal filter as well
 				// Store the temporal filter's blend factor and then have the edge preservation factor ONLY if 
 				// it has blended enough frames 
+				// Idea 2 : compute variance of each pixel and store in a buffer 
+				// Use that as a weight (or to influence some other weight) to improve the sharpness
 
-				float Threshold = 0.05f; 
+				float Threshold = 0.001f; 
 				float x = 0.5f / (Threshold * Threshold);   
 				float y = 0.3989422f / Threshold;
 				float EdgePreserveFactor = exp(-dot(DeltaColor, DeltaColor) * x) * y;
 
 				// Final Weight Sum : 
-				float AdditionalWeight;
+				float AdditionalWeight = 1.0f; 
 
+				if (BaseVariance <= 0.1100f) 
+				{
+					float ClampBias = BaseVariance;
+					ClampBias *= 2500.0f;
+					ClampBias = clamp(ClampBias, 0.05f, 1.0f);
+					AdditionalWeight = clamp(EdgePreserveFactor, ClampBias, 1.0f);
+				}
 
-				//AdditionalWeight = EdgePreserveFactor * FinalSatLumaWeight;
-				//AdditionalWeight = EdgePreserveFactor;
 				AdditionalWeight = 1.0f;
 
 				float DistanceWeight = abs(4.25f - SamplePositionError);
-				DistanceWeight = pow(DistanceWeight, 6.0f); // Strong attenuation
-				float Weight = CurrentWeightX * CurrentWeightY * DistanceWeight * clamp(AdditionalWeight, 0.0f, 1.0f);
+				DistanceWeight = pow(DistanceWeight, 5.0f); // Strong attenuation
+
+				float Weight = CurrentWeightX * CurrentWeightY *
+							   DistanceWeight *
+							   clamp(AdditionalWeight, 0.0f, 1.0f) *
+							   VarianceWeight;
+
 				TotalColor += SampleColor * Weight;
 				TotalWeight += Weight;
 			}
@@ -158,4 +182,5 @@ void main()
 	}
 
 	o_SpatialResult = TotalColor / max(TotalWeight, 0.01f);
+	//o_SpatialResult = texture(u_InputTexture, v_TexCoords).rgba;
 }
