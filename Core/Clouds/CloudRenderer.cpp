@@ -52,9 +52,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
-	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
-	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
+	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 
 	glm::mat4 CurrentProjection = MainCamera.GetProjectionMatrix();
 	glm::mat4 CurrentView = MainCamera.GetViewMatrix();

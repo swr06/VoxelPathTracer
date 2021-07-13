@@ -372,14 +372,18 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
-int RNG_SEED = 0;
-int MAX_RAYS = 6;
+int MAX_RAYS = 24;
 
-int CURRENT_IDX = 0;
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
-  	vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
+  	vec2 r = vec2(hash2());
     
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
 	vec3  vv = cross(uu, n);
@@ -401,7 +405,9 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800) * int(fract(u_Time * 150.0f));
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += fract(u_Time) * 100.0f;
+	hash2(); hash2();
 
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = texture(u_NormalTexture, v_TexCoords).rgb;

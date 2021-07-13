@@ -155,10 +155,17 @@ void main()
 				float EdgePreserveFactor = exp(-dot(DeltaColor, DeltaColor) * x) * y;
 
 				// Final Weight Sum : 
-				float AdditionalWeight = 1.0f;
-				if (BaseVariance < 0.005f && u_ShouldDetailWeight) {
-					AdditionalWeight = clamp(EdgePreserveFactor, 0.08500f, 1.0f);
+				float AdditionalWeight = 1.0f; 
+
+				if (BaseVariance <= 0.1100f) 
+				{
+					float ClampBias = BaseVariance;
+					ClampBias *= 2500.0f;
+					ClampBias = clamp(ClampBias, 0.05f, 1.0f);
+					AdditionalWeight = clamp(EdgePreserveFactor, ClampBias, 1.0f);
 				}
+
+				AdditionalWeight = 1.0f;
 
 				float DistanceWeight = abs(4.25f - SamplePositionError);
 				DistanceWeight = pow(DistanceWeight, 5.0f); // Strong attenuation
