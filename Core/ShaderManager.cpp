@@ -26,7 +26,8 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("SSAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAO.glsl");
 	AddShader("BILATERAL_BLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BilateralBlur.glsl");
 
-
+	AddShader("VARIANCE_ESTIMATOR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SampleVarianceCompute.glsl");
+	
 	AddShader("SMART_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
 	AddShader("SIMPLE_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SimpleDownsampleFrag.glsl");
 	AddShader("LUMA_AVERAGER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");

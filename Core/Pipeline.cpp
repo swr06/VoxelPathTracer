@@ -287,8 +287,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularTemporalFilter = ShaderManager::GetShader("SPECULAR_TEMPORAL");
 	GLClasses::Shader& CheckerboardReconstructor = ShaderManager::GetShader("CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
+	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
 
-	// Framebuffers 
+	// Framebuffers  
 	GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
 	GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} });
 	GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT });
@@ -315,6 +316,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 	GLClasses::FramebufferRed SSAOFBO(16, 16);
 	GLClasses::FramebufferRed SSAOBlurred(16, 16);
+	GLClasses::Framebuffer VarianceFBO(16, 16, { GL_R16F, GL_RED, GL_FLOAT });
 
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
@@ -399,6 +401,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 		DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 		DiffuseDenoisedFBO2.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
+		VarianceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution2, app.GetHeight() * DiffuseTraceResolution2);
 		PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
 		ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
 		InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
@@ -689,6 +692,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTemporalFBO.Unbind();
 
+		// Do a variance estimation pass
+
+		VarianceFBO.Bind();
+		VarianceEstimator.Use();
+		VarianceEstimator.SetInteger("u_InputTexture", 0);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+		VarianceFBO.Unbind();
+
 		//
 		/// Do 5 atrous spatial filter pass with varying step sizes
 		//
@@ -708,12 +723,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
 			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
 			AtrousSpatialFilter.SetInteger("u_BlockIDTexture", 3);
+			AtrousSpatialFilter.SetInteger("u_VarianceTexture", 4);
 			AtrousSpatialFilter.SetInteger("u_Step", StepSizes[i]);
 			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 			AtrousSpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 			AtrousSpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 			AtrousSpatialFilter.SetMatrix4("u_InverseView", inv_view);
 			AtrousSpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
+			AtrousSpatialFilter.SetBool("u_ShouldDetailWeight", !(i >= 3));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -726,6 +743,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, VarianceFBO.GetTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
