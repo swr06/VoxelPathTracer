@@ -23,7 +23,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Physically based atmosphere 
 - God Rays (Screen space) 
 - Emissive Materials
-- Spatial filtering
+- Atrous Spatial filtering
 - Screen Space Ambient Occlusion
 - Ray Traced Ambient Occlusion
 - Lens Flare
