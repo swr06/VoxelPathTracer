@@ -42,6 +42,7 @@ float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thre
 
 void main()
 {
-    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.325); 
-    //o_Color = texture(u_InputTexture, v_TexCoords).r;
+    // High edge threshold because the color delta is HUGE! between areas of shadow and no shadow 
+    // Doesnt matter at the end, the hard parts are NOT overblurred
+    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.5f); 
 }

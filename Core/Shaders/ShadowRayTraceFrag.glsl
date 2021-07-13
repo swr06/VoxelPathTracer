@@ -221,13 +221,36 @@ float gold_noise(in vec2 xy, in float seed)
     return fract(tan(distance(xy*PHI, xy)*seed)*xy.x);
 }
 
+vec3 SampleUniformCone(vec2 Xi, float cosThetaMax) 
+{
+    float cosTheta = (1.0 - Xi.x) + Xi.x * cosThetaMax;
+    float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
+    float phi = Xi.y * PI * 2.0;
+    
+    vec3 L;
+    L.x = sinTheta * cos(phi);
+    L.y = sinTheta * sin(phi);
+    L.z = cosTheta;
+    
+    return L;
+}
+
 //#define USE_GOLD_NOISE
+const float GoldenAngle = PI * (3.0 - sqrt(5.0));
+
+vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
+{
+	float r = sqrt(float(sampleIndex) + 0.5f) / sqrt(float(samplesCount));
+	float theta = float(sampleIndex) * GoldenAngle + Offset;
+	return r * vec2(cos(theta), sin(theta));
+}
 
 void main()
 {
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 102.0f;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
+	hash2(); hash2();
 
 	// Xor shift once!
 	RNG_SEED ^= RNG_SEED << 13;
@@ -235,7 +258,7 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 JitteredLightDirection = u_LightDirection;
+	vec3 JitteredLightDirection = normalize(u_LightDirection);
 
 	if (u_ContactHardeningShadows)
 	{
@@ -251,31 +274,14 @@ void main()
 		Hash = hash2(); // white noise
 		#endif
 
-		float LightRadii = 0.006482f; 
-		float PointRadius = LightRadii * sqrt(Hash.x);
-
-		// Convert to angle 
-		float PointAngle = Hash.y * 2.0f * PI;
-		
-		// We now have a uniform point on a circle 
-		vec2 DiskPoint = vec2(PointRadius * cos(PointAngle), PointRadius * sin(PointAngle));
-		vec3 NormalizedLightDirection = normalize(u_LightDirection);
-		
-		// Convert to tangent basis
-		vec3 LightT = normalize(cross(NormalizedLightDirection, vec3(0.0f, 1.0f, 0.0f)));
-		vec3 LightB = normalize(cross(LightT, NormalizedLightDirection));
-
-		// Convert to world space : 
-		vec3 FinalTarget = RayPosition + NormalizedLightDirection + DiskPoint.x *
-						 LightT + DiskPoint.y * LightB;
-
-		// Get the direction
-		JitteredLightDirection = normalize(FinalTarget - RayPosition);
-	}
-
-	else 
-	{
-		JitteredLightDirection = normalize(JitteredLightDirection);
+		vec3 L = JitteredLightDirection;
+		vec3 T = normalize(cross(L, vec3(0.0, 1.0, 1.0)));
+		vec3 B = cross(T, L);
+		mat3 TBN = mat3(T, B, L);
+		const float CosTheta = 0.999825604617; // 0.98906604617 // 0.999825604617
+		vec2 xi = Hash;
+		vec3 L_cone = TBN * SampleUniformCone(xi, CosTheta);
+        JitteredLightDirection = L_cone;
 	}
 
 	vec3 RayDirection = (JitteredLightDirection);
@@ -291,7 +297,7 @@ void main()
 		if (RayOrigin.w > 0.0f) 
 		{
 			float b; vec3 n;
-			T = VoxelTraversalDF(RayOrigin.rgb + Bias, RayDirection, n, b);
+			T = VoxelTraversalDF(RayOrigin.xyz + Bias, RayDirection, n, b);
 		}
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
