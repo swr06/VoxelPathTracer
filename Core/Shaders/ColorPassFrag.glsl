@@ -788,20 +788,20 @@ void main()
             vec2 ShCoCg = texture(u_DiffuseSHData2, v_TexCoords).xy;
 
             vec3 IndirectN = NormalMapped.xyz;
-            //vec3 SampledIndirectDiffuse = vec3(0.0f);
-            //
-            //for (int i = 0 ; i < 4 ; i++) {
-            //    vec3 SampleDirection = IndirectN;
-            //    vec2 J = vec2(nextFloat(RNG_SEED, 1.0f, 1.2f), nextFloat(RNG_SEED, 1.0f, 1.165f));
-            //    SampleDirection.x *= J.x;
-            //    SampleDirection.z *= J.y;
-            //    SampleDirection = normalize(SampleDirection);
-            //    SampledIndirectDiffuse += SHToIrridiance(SHy, ShCoCg, SampleDirection);
-            //}
-            //
-            //SampledIndirectDiffuse /= 4.0f;
+            vec3 SampledIndirectDiffuse = vec3(0.0f);
+            int SampleCount = 4;
 
-            vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
+            for (int i = 0 ; i < SampleCount ; i++) {
+                vec3 SampleDirection = IndirectN;
+                vec2 J = vec2(nextFloat(RNG_SEED, 1.0f, 1.2f), nextFloat(RNG_SEED, 1.0f, 1.165f));
+                SampleDirection.x *= J.x;
+                SampleDirection.z *= J.y;
+                SampleDirection = normalize(SampleDirection);
+                SampledIndirectDiffuse += SHToIrridiance(SHy, ShCoCg, SampleDirection);
+            }
+            
+            SampledIndirectDiffuse /= float(SampleCount);
+            //vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
 
 
             //float AO = texture(u_DiffuseTexture, v_TexCoords).w;
