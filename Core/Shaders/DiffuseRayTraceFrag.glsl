@@ -25,6 +25,8 @@
 // Outputs diffuse indirect
 // Specular indirect is handled separately and in a higher resolution
 layout (location = 0) out vec4 o_Color;
+layout (location = 1) out vec4 o_SphericalHarmonicData_1;
+layout (location = 2) out vec2 o_SphericalHarmonicData_2;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -168,7 +170,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 	}
 }
 
-vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir)
 {
 	float bias = 0.0f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
@@ -181,19 +183,21 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
-		
-
 		vec3 tangent_normal;
 		total_color += GetBlockRayColor(new_ray, Position, Normal);
-		new_ray.Origin = Position + Normal * bias;
-		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
 
 		if (i == 0)
 		{
 			// Calculate ao on first bounce
 			float dist = distance(initial_origin, Position);
 			ao = 1.0f - float(dist*dist < 0.4f);
+			
+			// store sh direction
+			dir = new_ray.Direction;
 		}
+
+		new_ray.Origin = Position + Normal * bias;
+		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
 	}
 	
 	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
@@ -218,6 +222,26 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
+}
+
+float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
+	
+	float Co = Radiance.x - Radiance.z; 
+	float T = Radiance.z + Co * 0.5; 
+	float Cg = Radiance.y - T;
+	float Y  = max(T + Cg * 0.5, 0.0);
+	float L00  = 0.282095f;
+    float L1_1 = 0.488603f * Direction.y;
+    float L10  = 0.488603f * Direction.z;
+    float L11  = 0.488603f * Direction.x;
+	float ReturnValue[6];
+	ReturnValue[0] = max(L11 * Y, -100.0f);
+	ReturnValue[1] = max(L1_1 * Y, -100.0f);
+	ReturnValue[2] = max(L10 * Y, -100.0f);
+	ReturnValue[3] = max(L00 * Y, -100.0f);
+	ReturnValue[4] = Co;
+	ReturnValue[5] = Cg;
+	return ReturnValue;
 }
 
 void main()
@@ -249,17 +273,36 @@ void main()
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
+	vec3 sh_dir = vec3(0.0f);
+	vec3 diffuse_sh = vec3(0.0f);
 
+	vec4 sh_data1 = vec4(0.0f);
+	vec2 sh_data2 = vec2(0.0f);
+	SPP = 4;
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec4 x = CalculateDiffuse(Position.xyz, Normal);
+		vec3 d;
+		vec4 x = CalculateDiffuse(Position.xyz, Normal, d);
 		TotalColor += x.xyz;
 		AccumulatedAO += x.w;
+		sh_dir = d;
+		diffuse_sh = x.xyz;
+
+		float SH[6] = IrridianceToSH(diffuse_sh, sh_dir);
+		sh_data1 += vec4(SH[0], SH[1], SH[2], SH[3]);
+		sh_data2 += vec2(SH[4], SH[5]);
 	}
 
 	o_Color.xyz = TotalColor / SPP;
 	o_Color.xyz += vec3(0.00525f);
 	o_Color.w = AccumulatedAO / SPP;
+
+	sh_data1 /= SPP;
+	sh_data2 /= SPP;
+
+	// Store sh
+	o_SphericalHarmonicData_1 = sh_data1;
+	o_SphericalHarmonicData_2 = sh_data2;
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

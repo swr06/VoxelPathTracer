@@ -222,7 +222,7 @@ public:
 GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
-GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false), DiffuseDenoisedFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
@@ -1277,6 +1277,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_ReflectionTraceTexture", 10);
 		ColorShader.SetInteger("u_BlockEmissiveTextures", 11);
 		ColorShader.SetInteger("u_CloudData", 12);
+		ColorShader.SetInteger("u_DiffuseSHData1", 14);
+		ColorShader.SetInteger("u_DiffuseSHData2", 15);
 		ColorShader.SetInteger("u_ContactHardeningShadows", true);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -1338,6 +1340,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE12);
 		glBindTexture(GL_TEXTURE_2D, CloudData);
+
+		glActiveTexture(GL_TEXTURE14);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
+
+		glActiveTexture(GL_TEXTURE15);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(2));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
