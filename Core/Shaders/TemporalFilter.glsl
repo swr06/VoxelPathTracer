@@ -1,6 +1,7 @@
 #version 330 core
 
 layout (location = 0) out vec4 o_Color;
+layout (location = 1) out vec2 o_SH;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -10,6 +11,9 @@ uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
+
+uniform sampler2D u_PreviousSH;
+uniform sampler2D u_CurrentSH;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -26,7 +30,9 @@ uniform vec3 u_PrevCameraPos;
 uniform vec3 u_CurrentCameraPos;
 
 uniform bool u_ReflectionTemporal = false;
+uniform bool u_DiffuseTemporal = false;
 uniform float u_ClampBias = 0.025f;
+
 
 vec2 Dimensions;
 
@@ -57,17 +63,35 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+
 bool InScreenSpace(vec2 x)
 {
     return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
+}
+
+vec4 ClipColor(vec4 aabbMin, vec4 aabbMax, vec4 prevColor) 
+{
+    vec4 pClip = (aabbMax + aabbMin) / 2;
+    vec4 eClip = (aabbMax - aabbMin) / 2;
+    vec4 vClip = prevColor - pClip;
+    vec4 vUnit = vClip / eClip;
+    vec4 aUnit = abs(vUnit);
+    float divisor = max(aUnit.x, max(aUnit.y, aUnit.z));
+
+    if (divisor > 1)
+	{
+        return pClip + vClip / divisor;
+    }
+
+    return prevColor;
 }
 
 vec4 GetClampedColor(vec2 reprojected, in vec3 worldpos)
 {
 	int quality = clamp(u_TemporalQuality, 0, 2);
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
-	ivec2 Coord = ivec2(v_TexCoords * Dimensions); 
-
+	ivec2 Coord = ivec2(v_TexCoords * Dimensions);
+	
 	if (quality == 1)
 	{
 
@@ -153,27 +177,45 @@ void main()
 		Reprojected = Reprojection(CurrentPosition.xyz);
 
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
-		vec4 PrevColor = GetClampedColor(Reprojected, CurrentPosition.xyz).rgba;
+		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 
-		if (Reprojected.x > 0.0 && Reprojected.x < 1.0 && Reprojected.y > 0.0 && Reprojected.y < 1.0)
+		float Bias = u_DiffuseTemporal ? 0.005f : 0.005f;
+
+		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
 			float BlendFactor = d;
 			BlendFactor = exp(-BlendFactor);
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
+			
 			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
+
+			if (u_DiffuseTemporal) {
+				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
+				vec2 PrevSH = texture(u_PreviousSH, Reprojected.xy).xy;
+				o_SH = mix(CurrentSH, PrevSH, BlendFactor);
+			}
 		}
 
 		else 
 		{
 			o_Color = CurrentColor;
+
+			if (u_DiffuseTemporal) {
+				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
+				o_SH = CurrentSH;
+			}
 		}
 	}
 
 	else 
 	{
 		o_Color = texture(u_CurrentColorTexture, v_TexCoords);
+		if (u_DiffuseTemporal) {
+				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
+				o_SH = CurrentSH;
+		}
 	}
 }
 

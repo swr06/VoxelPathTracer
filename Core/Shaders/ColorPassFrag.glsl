@@ -45,6 +45,8 @@ uniform mat4 u_ReflectionView;
 uniform mat4 u_ReflectionProjection;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform mat4 u_View;
+uniform mat4 u_Projection;
 
 uniform vec3 u_ViewerPosition;
 uniform vec2 u_Dimensions;
@@ -284,6 +286,14 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
 
+	return ProjectedPosition.xy;
+}
+
+vec2 Reproject(in vec3 WorldPos)
+{
+	vec4 ProjectedPosition = u_Projection * u_View * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
 	return ProjectedPosition.xy;
 }
 
@@ -685,22 +695,23 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
-vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 N)
+vec3 saturate(vec3 x)
 {
-    float d = dot(shY.xyz, N);
-    float Y = 2.0 * (1.023326 * d + 0.886226 * shY.w);
-    Y = max(Y, 0.0);
-
-	CoCg *= Y * 0.282095 / (shY.w + 1e-6);
-
-    float   T       = Y - CoCg.y * 0.5;
-    float   G       = CoCg.y + T;
-    float   B       = T - CoCg.x * 0.5;
-    float   R       = B + CoCg.x;
-
-    return max(vec3(R, G, B), vec3(0.0));
+    return clamp(x, 0.0f, 1.0f);
 }
 
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+{
+    float x = dot(shY.xyz, v);
+    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
 
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 4.0f;
@@ -709,7 +720,7 @@ const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f;
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * fract(u_Time));
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
 
     // Xorshift!
 	RNG_SEED ^= RNG_SEED << 13;
@@ -726,6 +737,8 @@ void main()
     o_Color = vec3(1.0f);
     bool BodyIntersect = GetAtmosphere(AtmosphereAt, v_RayDirection);
     o_PBR.w = float(BodyIntersect);
+
+    vec2 TexCoords = Reproject(WorldPosition.xyz);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -763,7 +776,7 @@ void main()
 
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
-            vec3 NormalMapped = tbn * (textureLod(u_BlockNormalTextures, vec3(UV, data.y), 0).rgb * 2.0f - 1.0f);
+            vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
             float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
             //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);
@@ -772,9 +785,24 @@ void main()
             //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
             
             vec4 SHy = texture(u_DiffuseSHData1, v_TexCoords);
-            vec2 ShCoCg = texture(u_DiffuseSHData2, v_TexCoords).rg;
-            //vec3 SampledIndirectDiffuse = texture(u_DiffuseTexture, v_TexCoords).xyz;
-            vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, NormalMapped.xyz);
+            vec2 ShCoCg = texture(u_DiffuseSHData2, v_TexCoords).xy;
+
+            vec3 IndirectN = NormalMapped.xyz;
+            //vec3 SampledIndirectDiffuse = vec3(0.0f);
+            //
+            //for (int i = 0 ; i < 4 ; i++) {
+            //    vec3 SampleDirection = IndirectN;
+            //    vec2 J = vec2(nextFloat(RNG_SEED, 1.0f, 1.2f), nextFloat(RNG_SEED, 1.0f, 1.165f));
+            //    SampleDirection.x *= J.x;
+            //    SampleDirection.z *= J.y;
+            //    SampleDirection = normalize(SampleDirection);
+            //    SampledIndirectDiffuse += SHToIrridiance(SHy, ShCoCg, SampleDirection);
+            //}
+            //
+            //SampledIndirectDiffuse /= 4.0f;
+
+            vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
+
 
             //float AO = texture(u_DiffuseTexture, v_TexCoords).w;
             float AO = 1.0f;
@@ -806,11 +834,11 @@ void main()
             vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 
             vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
+            
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
                       * clamp(SampledAO, 0.2f, 1.01f);
 
-            o_Color = DiffuseIndirect;
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;

@@ -12,6 +12,7 @@ in vec3 v_WorldPosition;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_ShadowTexture;
 uniform sampler2D u_DiffuseTexture;
+uniform sampler2D u_DiffuseTextureYoCoCg;
 uniform sampler2DArray u_BlockTextures;
 
 uniform vec2 u_Dimensions;
@@ -39,6 +40,19 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	t_min = t0;
 	t_max = t1;
 	return t1 > max(t0, 0.0);
+}
+
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+{
+    float x = dot(shY.xyz, v);
+    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
 }
 
 vec2 GetBlockSamplePosition()
@@ -93,7 +107,10 @@ void main()
     bool PlayerIntersect = RayBoxIntersect(u_PlayerPos + vec3(0.2f, 0.0f, 0.2f), u_PlayerPos - vec3(0.75f, 1.75f, 0.75f), WorldPosition, StrongerLightDirection, t1, t2);
 
 	float Shadow = PlayerIntersect ? 1.0f : texture(u_ShadowTexture, SamplePosition).r;
-	vec3 Diffuse = texture(u_DiffuseTexture, SamplePosition).rgb * 8.0f;
+	vec4 DiffuseSample = texture(u_DiffuseTexture, SamplePosition).rgba;
+	vec2 YoCoCg = texture(u_DiffuseTextureYoCoCg, SamplePosition).rg;
+	vec3 Diffuse = SHToIrridiance(DiffuseSample, YoCoCg, vec3(0.0f, 1.0f, 0.0f));
+	Diffuse *= 7.0f;
 	vec3 SUN_COLOR = Shadow > 0.01f ? Diffuse : SUN_COLOR_C;
 	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;
 

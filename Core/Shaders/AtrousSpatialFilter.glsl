@@ -1,12 +1,15 @@
 #version 330 core
 
 layout (location = 0) out vec4 o_SpatialResult;
+layout (location = 1) out vec2 o_SpatialResult2;
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
 in vec3 v_RayDirection;
 
 uniform sampler2D u_InputTexture;
+uniform sampler2D u_InputTexture2;
+
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTexture;
@@ -85,16 +88,13 @@ void main()
 	vec3 NormalizedBaseColor = normalize(Saturate(BaseColorSample.xyz));
 	float BaseVariance = texture(u_VarianceTexture, v_TexCoords).r;
 	bool BaseIsSky = IsSky(BasePosition.w);
-	
+	float EdgeWeight = 1.0f;
+
 	const float SATURATION_POW = 4.0f;
 	const float DOT_POW = 1.0f;
 
 	float VarianceWeight = 1.0f;
-
-	//if (BaseVariance > 0.025f)
-	//{
-	//	VarianceWeight = 1.34f;
-	//}
+	vec2 TotalSphericalHarmonic2 = vec2(0.0f);
 
 	for (int tx = -2 ; tx <= 2 ; tx++)
 	{
@@ -106,10 +106,21 @@ void main()
 			float CurrentWeightY = Weights[ty + 2];
 			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
 
+			bool SampleInScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && 
+								 SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
+			bool BaseInScreenSpace = v_TexCoords.x > 0.0f && v_TexCoords.x < 1.0f && 
+			v_TexCoords.y > 0.0f && v_TexCoords.y < 1.0f;
+
+			if (!BaseInScreenSpace || !SampleInScreenSpace)
+			{ 
+				continue;	
+			}
+
 			vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
 			vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
 			int BlockAt = GetBlockAt(SampleCoord);
 			vec4 SampleColor = texture(u_InputTexture, SampleCoord);
+			vec2 SampleSphericalData = texture(u_InputTexture2, SampleCoord).xy;
 			float SamplePositionError = ManhattanDistance(PositionAt.xyz, BasePosition.xyz);
 
 			if (SamplePositionError < 4.25f &&
@@ -168,19 +179,21 @@ void main()
 				AdditionalWeight = 1.0f;
 
 				float DistanceWeight = abs(4.25f - SamplePositionError);
-				DistanceWeight = pow(DistanceWeight, 5.0f); // Strong attenuation
+				DistanceWeight = pow(DistanceWeight, 6.9f); // Strong attenuation, also 6.9, nice.
 
 				float Weight = CurrentWeightX * CurrentWeightY *
 							   DistanceWeight *
 							   clamp(AdditionalWeight, 0.0f, 1.0f) *
-							   VarianceWeight;
+							   VarianceWeight * 
+							   EdgeWeight;
 
 				TotalColor += SampleColor * Weight;
+				TotalSphericalHarmonic2 += SampleSphericalData * Weight;
 				TotalWeight += Weight;
 			}
 		}
 	}
 
 	o_SpatialResult = TotalColor / max(TotalWeight, 0.01f);
-	//o_SpatialResult = texture(u_InputTexture, v_TexCoords).rgba;
+	o_SpatialResult2 = TotalSphericalHarmonic2 / max(TotalWeight, 0.01f);
 }
