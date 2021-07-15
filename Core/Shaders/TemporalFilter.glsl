@@ -31,6 +31,7 @@ uniform vec3 u_CurrentCameraPos;
 
 uniform bool u_ReflectionTemporal = false;
 uniform bool u_DiffuseTemporal = false;
+uniform bool u_ShadowTemporal = false;
 uniform float u_ClampBias = 0.025f;
 
 
@@ -180,7 +181,7 @@ void main()
 		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 
-		float Bias = u_DiffuseTemporal ? 0.005f : 0.005f;
+		float Bias = 0.006524f;
 
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
@@ -189,7 +190,16 @@ void main()
 			BlendFactor = exp(-BlendFactor);
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
 			
+			if (u_ShadowTemporal) {  
+				CurrentColor = clamp(CurrentColor + 0.005f, 0.0f, 1.0f);  // Bias
+				PrevColor = clamp(PrevColor + 0.005f, 0.0f, 1.0f);  // Bias
+			}
+
 			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
+
+			if (u_ShadowTemporal) {  
+				o_Color = clamp(o_Color, 0.0f, 1.0f);  // Bias
+			}
 
 			if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;

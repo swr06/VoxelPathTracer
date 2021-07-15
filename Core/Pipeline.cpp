@@ -415,7 +415,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
 
-			float DiffuseResolution2 = DiffuseTraceResolution * 2.0f;
+			float DiffuseResolution2 = DiffuseTraceResolution;
 			DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
 			DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
 			DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
@@ -697,6 +697,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetInteger("u_CurrentSH", 4);
 		MainTemporalFilter.SetInteger("u_PreviousSH", 5);
 		MainTemporalFilter.SetBool("u_DiffuseTemporal", true);
+		MainTemporalFilter.SetBool("u_ShadowTemporal", false);
 
 
 		MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
@@ -705,7 +706,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 
 		MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-		MainTemporalFilter.SetFloat("u_MaximumMix", 0.95f);
+		MainTemporalFilter.SetFloat("u_MaximumMix", 0.96f);
 		MainTemporalFilter.SetInteger("u_TemporalQuality", 0); // No clamping!
 		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 		MainTemporalFilter.SetFloat("u_ClampBias", 0.025f);
@@ -885,9 +886,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 			MainTemporalFilter.SetFloat("u_ClampBias", 0.001f);
 			MainTemporalFilter.SetBool("u_DiffuseTemporal", false);
+			MainTemporalFilter.SetBool("u_ShadowTemporal", true);
 
 			MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.064f : 0.95f);
+			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.25f : 0.95f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
@@ -1240,6 +1242,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
 			MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
 			MainTemporalFilter.SetBool("u_DiffuseTemporal", false);
+			MainTemporalFilter.SetBool("u_ShadowTemporal", false);
 
 			MainTemporalFilter.SetFloat("u_MinimumMix", 0.25f);
 			MainTemporalFilter.SetFloat("u_MaximumMix", 0.975f);

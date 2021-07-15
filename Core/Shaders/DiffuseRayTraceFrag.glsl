@@ -428,7 +428,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < 120 ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
