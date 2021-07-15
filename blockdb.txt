@@ -429,6 +429,84 @@
 }
 
 {
+	Name : rClay
+	Albedo : Res/Block/rClay/Albedo.png
+	Normal : Res/Block/rClay/Normal.png
+	PBR : Res/Block/rClay/PBR.png
+}
+
+{
+	Name : rSandstone
+	Albedo : Res/Block/rSandstone/Albedo.png
+	Normal : Res/Block/rSandstone/Normal.png
+	PBR : Res/Block/rSandstone/PBR.png
+}
+
+{
+	Name : rLightConcrete
+	Albedo : Res/Block/rLightConcrete/Albedo.png
+	Normal : Res/Block/rLightConcrete/Normal.png
+	PBR : Res/Block/rLightConcrete/PBR.png
+}
+
+{
+	Name : rBlackstone1
+	Albedo : Res/Block/rBlackstone1/Albedo.png
+	Normal : Res/Block/rBlackstone1/Normal.png
+	PBR : Res/Block/rBlackstone1/PBR.png
+}
+
+{
+	Name : rQuartz
+	Albedo : Res/Block/rQuartz/Albedo.png
+	Normal : Res/Block/rQuartz/Normal.png
+	PBR : Res/Block/rQuartz/PBR.png
+}
+
+{
+	Name : rChiseled
+	Albedo : Res/Block/rChiseled/Albedo.png
+	Normal : Res/Block/rChiseled/Normal.png
+	PBR : Res/Block/rChiseled/PBR.png
+}
+
+
+{
+	Name : rCrackedStone
+	Albedo : Res/Block/rCrackedStone/Albedo.png
+	Normal : Res/Block/rCrackedStone/Normal.png
+	PBR : Res/Block/rCrackedStone/PBR.png
+}
+
+{
+	Name : rMossy
+	Albedo : Res/Block/rMossy/Albedo.png
+	Normal : Res/Block/rMossy/Normal.png
+	PBR : Res/Block/rMossy/PBR.png
+}
+
+{
+	Name : rSmooth
+	Albedo : Res/Block/rSmooth/Albedo.png
+	Normal : Res/Block/rSmooth/Normal.png
+	PBR : Res/Block/rSmooth/PBR.png
+}
+
+{
+	Name : rStoneBricks
+	Albedo : Res/Block/rStoneBricks/Albedo.png
+	Normal : Res/Block/rStoneBricks/Normal.png
+	PBR : Res/Block/rStoneBricks/PBR.png
+}
+
+{
+	Name : rStone
+	Albedo : Res/Block/rStone/Albedo.png
+	Normal : Res/Block/rStone/Normal.png
+	PBR : Res/Block/rStone/PBR.png
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png

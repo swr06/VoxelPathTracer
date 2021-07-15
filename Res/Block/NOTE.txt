@@ -1,2 +1,5 @@
 The textures with u_ before them are taken from the UMSOEA texture pack!
-This project is educational and is NOT making ANY money.
+The textures with r_ before them are taken from "Realism mats!" 
+This project is educational and is NOT making ANY money, I just used them because they look fantastic.
+If any of the texture devs want their textures removed, please contact me and I will remove them at the earliest.
+
