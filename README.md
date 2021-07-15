@@ -30,9 +30,9 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Bloom (Mip based) 
 - Volumetric clouds
 - Particle system
+- Spherical harmonics (to encode indirect diffuse data) 
 
 # Features to implement
-- Spherical Harmonics to increase normal map sharpness
 - Alpha testing
 - Foliage
 - Refractions (Will be done in screen space)
