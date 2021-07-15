@@ -239,7 +239,7 @@ GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }
 
 
 
-GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }, { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT }}, false);
 GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false), ReflectionTemporalFBO_2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
@@ -1064,7 +1064,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
 			SpecularTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 			SpecularTemporalFilter.SetInteger("u_PBRTex", 4);
-			SpecularTemporalFilter.SetInteger("u_ReflectionHitData", 5);
 
 			SpecularTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			SpecularTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -1098,9 +1097,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE4);
 			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
-
-			glActiveTexture(GL_TEXTURE5);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

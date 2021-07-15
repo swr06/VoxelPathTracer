@@ -67,9 +67,9 @@
 
 {
 	Name : Brick1
-	Albedo : Res/Block/Brick1/Albedo.png
-	Normal : Res/Block/Brick1/Normal.png
-	PBR : Res/Block/Brick1/PBR.png
+	Albedo : Res/Block/rStoneBricks/Albedo.png
+	Normal : Res/Block/rStoneBricks/Normal.png
+	PBR : Res/Block/rStoneBricks/PBR.png
 }
 
 {

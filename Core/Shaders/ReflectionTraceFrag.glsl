@@ -9,7 +9,6 @@
 //#define JITTER_BASED_ON_ROUGHNESS
 
 layout (location = 0) out vec3 o_Color;
-layout (location = 1) out vec4 o_Data;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -286,7 +285,6 @@ void main()
 	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
 
 	o_Color.xyz = vec3(0.0f);
-	o_Data = vec4(-1.0f);
 
 	if (SampledWorldPosition.w < 0.0f)
 	{
@@ -450,8 +448,6 @@ void main()
 	}
 
 	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
-	o_Data.xyz = ReflectionVector;
-	o_Data.w = Hit ? MaxHitDistance / 10.0f : -1.0f; // To try out some sort of specular reprojection? I dont fucking know.
 }
 
 bool IsInVolume(in vec3 pos)

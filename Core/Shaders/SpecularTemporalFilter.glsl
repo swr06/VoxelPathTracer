@@ -11,7 +11,6 @@ uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
-uniform sampler2D u_ReflectionHitData;
 
 uniform sampler2D u_PBRTex;
 
