@@ -82,7 +82,7 @@ namespace VoxelRT
 			m_ParticleVertices.push_back(v4);
 		}
 
-		void ParticleRenderer::EndParticleRender(FPSCamera* camera, GLuint posbuffer, GLuint shadow_buff, GLuint diff_buff, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims)
+		void ParticleRenderer::EndParticleRender(FPSCamera* camera, GLuint posbuffer, GLuint shadow_buff, GLuint diff_buff, GLuint diff2, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims)
 		{
 			if (m_ParticleVertices.size() > 0)
 			{
@@ -93,6 +93,7 @@ namespace VoxelRT
 				m_ParticleShader.SetInteger("u_BlockTextures", 1);
 				m_ParticleShader.SetInteger("u_ShadowTexture", 2);
 				m_ParticleShader.SetInteger("u_DiffuseTexture", 3);
+				m_ParticleShader.SetInteger("u_DiffuseTextureYoCoCg", 4);
 				m_ParticleShader.SetVector2f("u_Dimensions", dims);
 				m_ParticleShader.SetVector3f("u_SunDir", sdir);
 				m_ParticleShader.SetVector3f("u_PlayerPos", player_pos);
@@ -110,6 +111,9 @@ namespace VoxelRT
 
 				glActiveTexture(GL_TEXTURE3);
 				glBindTexture(GL_TEXTURE_2D, diff_buff);
+
+				glActiveTexture(GL_TEXTURE4);
+				glBindTexture(GL_TEXTURE_2D, diff2);
 				
 				m_VAO.Bind();
 				m_VBO.BufferData(m_ParticleVertices.size() * sizeof(ParticleVertex), &m_ParticleVertices.front(), GL_STATIC_DRAW);
@@ -157,7 +161,7 @@ namespace VoxelRT
 			}
 		}
 
-		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint pos_tex, GLuint shadow_tex, GLuint diff, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims, float dt)
+		void ParticleEmitter::OnUpdateAndRender(FPSCamera* camera, std::array<Block, WORLD_SIZE_X* WORLD_SIZE_Y* WORLD_SIZE_Z>& data, GLuint pos_tex, GLuint shadow_tex, GLuint diff, GLuint diff2, const glm::vec3& sundir, const glm::vec3& player_pos, const glm::vec2& dims, float dt)
 		{
 			m_Renderer.StartParticleRender();
 
@@ -172,7 +176,7 @@ namespace VoxelRT
 				m_Renderer.RenderParticle(m_Particles[i], camera);
 			}
 
-			m_Renderer.EndParticleRender(camera, pos_tex, shadow_tex, diff, sundir, player_pos, dims);
+			m_Renderer.EndParticleRender(camera, pos_tex, shadow_tex, diff, diff2, sundir, player_pos, dims);
 		}
 
 		void ParticleEmitter::CleanUpList()

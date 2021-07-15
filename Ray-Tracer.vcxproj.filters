@@ -45,9 +45,6 @@
     <Filter Include="Source Files\Shaders\DF">
       <UniqueIdentifier>{00a692a3-7c9d-4c25-b5c7-0d5ba1fd5db7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Shaders\SVGF-WIP">
-      <UniqueIdentifier>{2dc965b6-a33e-4805-b75a-cf882ca2c73a}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -506,12 +503,6 @@
     </None>
     <None Include="Core\Shaders\SampleVarianceCompute.glsl">
       <Filter>Source Files\Shaders</Filter>
-    </None>
-    <None Include="Core\Shaders\SVGF_TemporalFilter.glsl">
-      <Filter>Source Files\Shaders\SVGF-WIP</Filter>
-    </None>
-    <None Include="Core\Shaders\SVGF_SpatialFilter.glsl">
-      <Filter>Source Files\Shaders\SVGF-WIP</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

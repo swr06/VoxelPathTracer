@@ -24,7 +24,9 @@
 
 // Outputs diffuse indirect
 // Specular indirect is handled separately and in a higher resolution
-layout (location = 0) out vec4 o_Color;
+layout (location = 0) out vec4 o_SphericalHarmonicData_1;
+layout (location = 1) out vec2 o_ColorData; // Stores the radiance color data in YCoCg
+layout (location = 3) out float o_AO;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -115,7 +117,7 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radian
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (8.0f);
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (12.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.8f; 
 	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
@@ -168,7 +170,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 	}
 }
 
-vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir)
 {
 	float bias = 0.0f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
@@ -181,19 +183,21 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal)
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
-		
-
 		vec3 tangent_normal;
 		total_color += GetBlockRayColor(new_ray, Position, Normal);
-		new_ray.Origin = Position + Normal * bias;
-		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
 
 		if (i == 0)
 		{
 			// Calculate ao on first bounce
 			float dist = distance(initial_origin, Position);
 			ao = 1.0f - float(dist*dist < 0.4f);
+			
+			// store sh direction
+			dir = new_ray.Direction;
 		}
+
+		new_ray.Origin = Position + Normal * bias;
+		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
 	}
 	
 	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
@@ -220,6 +224,29 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
+	
+	float Co = Radiance.x - Radiance.z; 
+	float T = Radiance.z + Co * 0.5f; 
+	float Cg = Radiance.y - T;
+	float Y  = max(T + Cg * 0.5f, 0.0);
+	float L00  = 0.282095f;
+    float L1_1 = 0.488603f * Direction.y;
+    float L10  = 0.488603f * Direction.z;
+    float L11  = 0.488603f * Direction.x;
+	float ReturnValue[6];
+	ReturnValue[0] = max(L11 * Y, -100.0f);
+	ReturnValue[1] = max(L1_1 * Y, -100.0f);
+	ReturnValue[2] = max(L10 * Y, -100.0f);
+	ReturnValue[3] = max(L00 * Y, -100.0f);
+
+	// Idea by lars to store the color as cocg
+	// https://www.shadertoy.com/view/ltjBWG
+	ReturnValue[4] = Co;
+	ReturnValue[5] = Cg;
+	return ReturnValue;
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -234,13 +261,13 @@ void main()
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 100.0f;
 
-	o_Color.w = 0.0f;
-
 	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
+	o_AO = 1.0f;
 
 	if (Position.w < 0.0f)
 	{
-		o_Color.xyz = vec3(0.0f);
+		o_SphericalHarmonicData_1 = vec4(0.0f);
+		o_ColorData.xy = vec2(0.0f, 0.0f);
 		return;
 	}
 
@@ -250,16 +277,27 @@ void main()
 
 	int SPP = clamp(u_SPP, 1, 32);
 
+	vec4 sh_data1 = vec4(0.0f);
+	vec2 color_data = vec2(0.0f);
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec4 x = CalculateDiffuse(Position.xyz, Normal);
+		vec3 d = vec3(0.0f);
+		vec4 x = CalculateDiffuse(Position.xyz, Normal, d);
 		TotalColor += x.xyz;
 		AccumulatedAO += x.w;
+		
+		float SH[6] = IrridianceToSH(x.xyz, d);
+		sh_data1 += vec4(SH[0], SH[1], SH[2], SH[3]);
+		color_data += vec2(SH[4], SH[5]);
 	}
 
-	o_Color.xyz = TotalColor / SPP;
-	o_Color.xyz += vec3(0.00525f);
-	o_Color.w = AccumulatedAO / SPP;
+	AccumulatedAO /= SPP;
+	sh_data1 /= SPP;
+	color_data /= SPP;
+	o_SphericalHarmonicData_1 = sh_data1;
+	o_ColorData.xy = color_data;
+	o_AO.x = AccumulatedAO;
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)
@@ -390,7 +428,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < 120 ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
