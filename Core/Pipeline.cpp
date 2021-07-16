@@ -895,7 +895,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetBool("u_ShadowTemporal", true);
 
 			MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.25f : 0.95f);
+			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.1f : 0.95f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
