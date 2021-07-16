@@ -55,6 +55,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - https://google.github.io/filament/Filament.md
 - http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
 - http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+- Textures from "Realism Mats", "Umsoea", CC0 textures and Quixel Megascans 
 
 # Thanks
 - [Fuzdex](https://github.com/Shadax-stack)
