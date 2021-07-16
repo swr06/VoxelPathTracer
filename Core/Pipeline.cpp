@@ -43,6 +43,7 @@ static bool FakeGodRays = false;
 static bool RoughReflections = true;
 static bool DenoiseReflections = true;
 static bool RenderParticles = true;
+static bool Bloom_HQ = true;
 
 static bool LensFlare = false;
 static bool SSAO = false;
@@ -108,6 +109,7 @@ public:
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
+			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
 			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
@@ -1481,7 +1483,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture());
+			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture(), Bloom_HQ);
 		}
 
 		// ---- Auto Exposure ----

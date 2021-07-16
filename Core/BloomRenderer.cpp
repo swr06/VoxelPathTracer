@@ -40,14 +40,14 @@ namespace VoxelRT
 			BloomFBOVBO->VertexAttribPointer(1, 2, GL_FLOAT, 0, 4 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
 			BloomFBOVAO->Unbind();
 
-			BloomBlurShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian5TapSinglePass.glsl");
+			BloomBlurShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BloomBlur.glsl");
 			BloomBlurShader->CompileShaders();
 
 			BloomMaskShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BloomMaskFrag.glsl");
 			BloomMaskShader->CompileShaders();
 		}
 
-		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex)
+		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex, bool hq)
 		{
 			GLenum buffer;
 			int w = floor(bloomfbo.GetWidth() * bloomfbo.m_MipScales[mip_num]), h = floor(bloomfbo.GetHeight() * bloomfbo.m_MipScales[mip_num]);
@@ -82,6 +82,7 @@ namespace VoxelRT
 			bloomfbo.BindMip(mip_num);
 
 			GaussianBlur.SetInteger("u_Texture", 0);
+			GaussianBlur.SetBool("u_HQ", hq);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, fbo->get()->GetTexture());
@@ -91,7 +92,7 @@ namespace VoxelRT
 			BloomFBOVAO->Unbind();
 		}
 
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex)
+		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq)
 		{
 			// Render the bright parts to a texture
 
@@ -99,10 +100,10 @@ namespace VoxelRT
 			glDisable(GL_CULL_FACE);
 
 			// Blur the mips					
-			BlurBloomMip(bloom_fbo, 0, source_tex, bright_tex);
-			BlurBloomMip(bloom_fbo, 1, source_tex, bright_tex);
-			BlurBloomMip(bloom_fbo, 2, source_tex, bright_tex);
-			BlurBloomMip(bloom_fbo, 3, source_tex, bright_tex);
+			BlurBloomMip(bloom_fbo, 0, source_tex, bright_tex, hq);
+			BlurBloomMip(bloom_fbo, 1, source_tex, bright_tex, hq);
+			BlurBloomMip(bloom_fbo, 2, source_tex, bright_tex, hq);
+			BlurBloomMip(bloom_fbo, 3, source_tex, bright_tex, hq);
 
 			return;
 		}

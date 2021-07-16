@@ -255,6 +255,7 @@
     <None Include="Core\Shaders\2DElementShaderFrag.glsl" />
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
+    <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
     <None Include="Core\Shaders\ReflectionDenoiser.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
