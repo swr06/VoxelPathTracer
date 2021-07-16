@@ -10,12 +10,12 @@ in vec2 v_TexCoords;
 
 void main()
 {
-    float Scale = u_HQ ? 1.524f : 1.7f;
+    float Scale = u_HQ ? 1.5f : 1.7f;
     vec2 TexelSize = 1.0f / textureSize(u_Texture, 0);
     vec3 TotalBloom = vec3(0.0f); 
     float TotalWeight = 0.0f;
 
-    int KernelSize = u_HQ ? 2 : 5;
+    int KernelSize = u_HQ ? 5 : 2;
 
     for (int i = -KernelSize; i < KernelSize; i++)
     {

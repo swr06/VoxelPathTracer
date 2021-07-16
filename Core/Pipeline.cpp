@@ -43,7 +43,7 @@ static bool FakeGodRays = false;
 static bool RoughReflections = true;
 static bool DenoiseReflections = true;
 static bool RenderParticles = true;
-static bool Bloom_HQ = true;
+static bool Bloom_HQ = false;
 
 static bool LensFlare = false;
 static bool SSAO = false;
