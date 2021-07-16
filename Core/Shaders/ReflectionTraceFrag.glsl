@@ -177,7 +177,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
 	vec3 diffuseBRDF = kd * albedo;
 	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo);
-	vec3 radiance_s = radiance * 0.05f;
+	vec3 radiance_s = radiance * 0.05f * 0;
 	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
@@ -423,7 +423,11 @@ void main()
 				
 				if (Emissivity > 0.2f)
 				{
-					float m = SPP <= 5 ? 12.5f : 7.0f;
+					float m = SPP <= 5 ? 10.5f : 8.0f;
+					float lbiasx = 0.02501f;
+                    float lbiasy = 0.03001f;
+                    Emissivity *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
+                                 UV.y > lbiasy && UV.y < 1.0f - lbiasy);
 					DirectLighting = Albedo * max(Emissivity * m, 2.0f);
 				}
 			}

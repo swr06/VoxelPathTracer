@@ -133,7 +133,7 @@ bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal
 // Basic clamp firefly reject
 vec4 FireflyReject(vec4 Col)
 {
-	return vec4(clamp(Col.xyz, 0.0f, 1.0f), Col.w);
+	return vec4(clamp(Col.xyz, 0.0f, 1.0f + 0.8f), Col.w);
 }
 
 void main()
