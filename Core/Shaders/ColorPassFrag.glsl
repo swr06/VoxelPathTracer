@@ -853,6 +853,14 @@ void main()
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
 
+            const bool BloomLightLeakFix = true;
+            if (BloomLightLeakFix) {
+                float lbiasx = 0.02501f;
+                float lbiasy = 0.03001f;
+                o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
+                                 UV.y > lbiasy && UV.y < 1.0f - lbiasy);
+            }
+
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.00125f;

@@ -4,6 +4,7 @@ layout(location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 
 uniform sampler2D u_FramebufferTexture;
+uniform bool u_BrutalFXAA;
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
@@ -41,14 +42,15 @@ vec3 sharpen(in sampler2D tex, in vec2 coords)
 	return sum;
 }
 
-//FXAA 3.11 from http://blog.simonrodriguez.fr/articles/30-07-2016_implementing_fxaa.html
+// FXAA 3.11 implemented from http://blog.simonrodriguez.fr/articles/30-07-2016_implementing_fxaa.html
+// Pretty good read.
 
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
 void FXAA311(inout vec3 color) {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = 1.10058; // 1.10058
+	float subpixelQuality = u_BrutalFXAA ? 1.9058 : 0.8f; 
 	int iterations = 12;
 	vec2 texCoord = v_TexCoords;
 	
@@ -201,6 +203,13 @@ void main()
 {
     vec3 SampledColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
     vec2 FragCoord = v_TexCoords * textureSize(u_FramebufferTexture, 0);
-	FXAA311(SampledColor);
+
+	const bool fxaa = true;
+	
+	if (fxaa) {
+		FXAA311(SampledColor);
+	}
+
+
     o_Color = pow(SampledColor, vec3(1.0f / 2.2f)); // Gamma correction
 }

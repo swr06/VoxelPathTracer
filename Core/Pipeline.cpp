@@ -36,6 +36,8 @@ static int ReflectionSPP = 3;
 static bool TAA = true;
 static bool Bloom = true;
 
+static bool BrutalFXAA = true;
+
 static bool GodRays = false;
 static bool FakeGodRays = false;
 static bool RoughReflections = true;
@@ -106,6 +108,7 @@ public:
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
+			ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
 			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
@@ -1711,6 +1714,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		FinalShader.Use();
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
+		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());

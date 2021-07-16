@@ -422,6 +422,30 @@
 }
 
 {
+	Name : Ore1
+	Albedo : Res/Block/Ore1/Albedo.png
+	Normal : Res/Block/Ore1/Normal.png
+	PBR : Res/Block/Ore1/PBR.png
+	Emissive : Res/Block/Ore1/Emissive.png
+}
+
+{
+	Name : Ore2
+	Albedo : Res/Block/Ore2/Albedo.png
+	Normal : Res/Block/Ore2/Normal.png
+	PBR : Res/Block/Ore2/PBR.png
+	Emissive : Res/Block/Ore2/Emissive.png
+}
+
+{
+	Name : Ore3
+	Albedo : Res/Block/Ore3/Albedo.png
+	Normal : Res/Block/Ore3/Normal.png
+	PBR : Res/Block/Ore3/PBR.png
+	Emissive : Res/Block/Ore3/Emissive.png
+}
+
+{
 	Name : rTerracotta
 	Albedo : Res/Block/rTerracotta/Albedo.png
 	Normal : Res/Block/rTerracotta/Normal.png
