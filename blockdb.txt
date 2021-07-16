@@ -165,10 +165,10 @@
 }
 
 {
-	Name : Brick2
-	Albedo : Res/Block/Brick2/Albedo.png
-	Normal : Res/Block/Brick2/Normal.png
-	PBR : Res/Block/Brick2/PBR.png
+	Name : NetherGold
+	Albedo : Res/Block/NetherGold/Albedo.png
+	Normal : Res/Block/NetherGold/Normal.png
+	PBR : Res/Block/NetherGold/PBR.png
 }
 
 {
@@ -317,6 +317,13 @@
 }
 
 {
+	Name : Iron2
+	Albedo : Res/Block/Iron2/Albedo.png
+	Normal : Res/Block/Iron2/Normal.png
+	PBR : Res/Block/Iron2/PBR.png
+}
+
+{
 	Name : uBricks
 	Albedo : Res/Block/uBricks/Albedo.png
 	Normal : Res/Block/uBricks/Normal.png
@@ -356,20 +363,6 @@
 	Albedo : Res/Block/uStoneSmooth/Albedo.png
 	Normal : Res/Block/uStoneSmooth/Normal.png
 	PBR : Res/Block/uStoneSmooth/PBR.png
-}
-
-{
-	Name : uTerracotta
-	Albedo : Res/Block/uTerracotta/Albedo.png
-	Normal : Res/Block/uTerracotta/Normal.png
-	PBR : Res/Block/uTerracotta/PBR.png
-}
-
-{
-	Name : Iron2
-	Albedo : Res/Block/Iron2/Albedo.png
-	Normal : Res/Block/Iron2/Normal.png
-	PBR : Res/Block/Iron2/PBR.png
 }
 
 {
@@ -426,6 +419,13 @@
 	Albedo : Res/Block/Ice/Albedo.png
 	Normal : Res/Block/Ice/Normal.png
 	PBR : Res/Block/Ice/PBR.png
+}
+
+{
+	Name : rTerracotta
+	Albedo : Res/Block/rTerracotta/Albedo.png
+	Normal : Res/Block/rTerracotta/Normal.png
+	PBR : Res/Block/rTerracotta/PBR.png
 }
 
 {
@@ -500,11 +500,26 @@
 }
 
 {
+	Name : rPlanks
+	Albedo : Res/Block/rPlanks/Albedo.png
+	Normal : Res/Block/rPlanks/Normal.png
+	PBR : Res/Block/rPlanks/PBR.png
+}
+
+{
+	Name : rAndesite
+	Albedo : Res/Block/rAndesite/Albedo.png
+	Normal : Res/Block/rAndesite/Normal.png
+	PBR : Res/Block/rAndesite/PBR.png
+}
+
+{
 	Name : rStone
 	Albedo : Res/Block/rStone/Albedo.png
 	Normal : Res/Block/rStone/Normal.png
 	PBR : Res/Block/rStone/PBR.png
 }
+
 
 {
 	Name : MISC_LEAVE_THIS_AT_THE_END

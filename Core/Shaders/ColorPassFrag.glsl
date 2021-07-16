@@ -56,6 +56,7 @@ uniform bool u_POM = false;
 uniform bool u_HighQualityPOM = false;
 uniform bool u_RTAO;
 uniform bool u_ContactHardeningShadows;
+uniform bool u_AmplifyNormalMap;
 
 uniform float u_CloudBoxSize;
 
@@ -777,6 +778,14 @@ void main()
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+            
+            if (u_AmplifyNormalMap) {
+                NormalMapped.x *= 1.64f;
+                NormalMapped.z *= 1.85f;
+                NormalMapped += 1e-4f;
+                NormalMapped = normalize(NormalMapped);
+            }
+            
             float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
             //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);

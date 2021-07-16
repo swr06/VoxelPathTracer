@@ -17,7 +17,7 @@ static bool DoSecondSpatialPass = true;
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.250f; 
 
-static float ShadowTraceResolution = 0.640f;
+static float ShadowTraceResolution = 0.500f;
 static float ReflectionTraceResolution = 0.2500; 
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
@@ -49,6 +49,7 @@ static bool POM = false;
 static bool HighQualityPOM = false;
 
 static bool CheckerboardClouds = true;
+static bool AmplifyNormalMap = true;
 
 static int GodRaysStepCount = 12;
 
@@ -110,8 +111,8 @@ public:
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Particles?", &RenderParticles);
+			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
 			ImGui::Checkbox("Ray traced ambient occlusion (Slower, more accurate)?", &RTAO);
-			ImGui::Checkbox("POM? (WIP)", &POM);
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
@@ -128,6 +129,8 @@ public:
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 			ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
+			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
+				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
 
 		if (ImGui::Begin("Other Settings"))
@@ -1330,6 +1333,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
 		ColorShader.SetBool("u_RTAO", RTAO);
+		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);

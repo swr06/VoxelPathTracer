@@ -417,7 +417,7 @@ void main()
 								   SampledPBR.xyz,
 								   ComputedShadow);
 			
-			if (texture_ids.w > 0.0f) 
+			if (texture_ids.w > -0.5f) // If the block is not emissive, the read data will be -1!
 			{
 				float Emissivity = texture(u_BlockEmissiveTextures, vec3(UV, texture_ids.w)).r;
 				

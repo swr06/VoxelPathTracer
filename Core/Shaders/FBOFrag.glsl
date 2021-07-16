@@ -48,7 +48,7 @@ float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0,
 void FXAA311(inout vec3 color) {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = 0.75;
+	float subpixelQuality = 1.10058; // 1.10058
 	int iterations = 12;
 	vec2 texCoord = v_TexCoords;
 	

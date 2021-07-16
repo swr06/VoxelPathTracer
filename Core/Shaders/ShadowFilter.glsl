@@ -44,5 +44,5 @@ void main()
 {
     // High edge threshold because the color delta is HUGE! between areas of shadow and no shadow 
     // Doesnt matter at the end, the hard parts are NOT overblurred
-    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.5f); 
+    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.450000f); 
 }
