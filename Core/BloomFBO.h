@@ -52,7 +52,7 @@ namespace VoxelRT
 
 		void BindMip(int v);
 
-		const float m_MipScales[4] = { 0.9f, 0.5f, 0.3f, 0.15f };
+		const float m_MipScales[4] = { 1.0f, 0.5f, 0.25f, 0.125f };
 
 	private :
 		void DeleteEverything();

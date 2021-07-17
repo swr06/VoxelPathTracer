@@ -446,6 +446,8 @@ vec3 BasicTonemap(vec3 color)
     return color;
 }
 
+
+
 vec3 ColorSaturate(vec3 rgb, float adjustment)
 {
     // Algorithm from Chapter 16 of OpenGL Shading Language
@@ -453,6 +455,26 @@ vec3 ColorSaturate(vec3 rgb, float adjustment)
     vec3 intensity = vec3(dot(rgb, W));
     return mix(intensity, rgb, adjustment);
 }
+
+vec4 textureGood( sampler2D sam, vec2 uv )
+{
+    vec2 res = textureSize( sam, 0 );
+
+    vec2 st = uv*res - 0.5;
+
+    vec2 iuv = floor( st );
+    vec2 fuv = fract( st );
+
+    vec4 a = texture( sam, (iuv+vec2(0.5,0.5))/res );
+    vec4 b = texture( sam, (iuv+vec2(1.5,0.5))/res );
+    vec4 c = texture( sam, (iuv+vec2(0.5,1.5))/res );
+    vec4 d = texture( sam, (iuv+vec2(1.5,1.5))/res );
+
+    return mix( mix( a, b, fuv.x),
+                mix( c, d, fuv.x), fuv.y );
+}
+
+vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv);
 
 void main()
 {
@@ -540,16 +562,17 @@ void main()
 	if (u_Bloom)
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
-		Bloom[0] = textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
-		Bloom[1] = textureBicubic(u_BloomMips[1], v_TexCoords).xyz;
-		Bloom[2] = textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
-		Bloom[3] = textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
+
+		Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
+		Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz;
+		Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
+		Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
 
 		const float bloom_multiplier = 2.0f;
 		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + 
 						  (Bloom[1] * 0.5f * bloom_multiplier) +
 						  (Bloom[2] * 0.125f * bloom_multiplier) +
-						  (Bloom[3] * 0.095f * bloom_multiplier);
+						  (Bloom[3] * 0.1f * bloom_multiplier);
 
 		o_Color += TotalBloom;
 	}
@@ -618,4 +641,65 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     return mix(
        mix(sample3, sample2, sx), mix(sample1, sample0, sx)
     , sy);
+}
+
+vec4 sampleLevel0(sampler2D tex, vec2 uv )
+{
+    return texture( tex, uv, -10.0 );
+}
+
+// note: entirely stolen from https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
+//
+// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
+// See http://vec3.ca/bicubic-filtering-in-fewer-taps/ for more details
+vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv)
+{
+	vec2 texSize = textureSize(tex, 0);
+
+    // We're going to sample a a 4x4 grid of texels surrounding the target UV coordinate. We'll do this by rounding
+    // down the sample location to get the exact center of our "starting" texel. The starting texel will be at
+    // location [1, 1] in the grid, where [0, 0] is the top left corner.
+    vec2 samplePos = uv * texSize;
+    vec2 texPos1 = floor(samplePos - 0.5) + 0.5;
+
+    // Compute the fractional offset from our starting texel to our original sample location, which we'll
+    // feed into the Catmull-Rom spline function to get our filter weights.
+    vec2 f = samplePos - texPos1;
+
+    // Compute the Catmull-Rom weights using the fractional offset that we calculated earlier.
+    // These equations are pre-expanded based on our knowledge of where the texels will be located,
+    // which lets us avoid having to evaluate a piece-wise function.
+    vec2 w0 = f * ( -0.5 + f * (1.0 - 0.5*f));
+    vec2 w1 = 1.0 + f * f * (-2.5 + 1.5*f);
+    vec2 w2 = f * ( 0.5 + f * (2.0 - 1.5*f) );
+    vec2 w3 = f * f * (-0.5 + 0.5 * f);
+    
+    // Work out weighting factors and sampling offsets that will let us use bilinear filtering to
+    // simultaneously evaluate the middle 2 samples from the 4x4 grid.
+    vec2 w12 = w1 + w2;
+    vec2 offset12 = w2 / w12;
+
+    // Compute the final UV coordinates we'll use for sampling the texture
+    vec2 texPos0 = texPos1 - vec2(1.0);
+    vec2 texPos3 = texPos1 + vec2(2.0);
+    vec2 texPos12 = texPos1 + offset12;
+
+    texPos0 /= texSize;
+    texPos3 /= texSize;
+    texPos12 /= texSize;
+
+    vec4 result = vec4(0.0);
+    result += sampleLevel0(tex, vec2(texPos0.x,  texPos0.y)) * w0.x * w0.y;
+    result += sampleLevel0(tex, vec2(texPos12.x, texPos0.y)) * w12.x * w0.y;
+    result += sampleLevel0(tex, vec2(texPos3.x,  texPos0.y)) * w3.x * w0.y;
+
+    result += sampleLevel0(tex, vec2(texPos0.x,  texPos12.y)) * w0.x * w12.y;
+    result += sampleLevel0(tex, vec2(texPos12.x, texPos12.y)) * w12.x * w12.y;
+    result += sampleLevel0(tex, vec2(texPos3.x,  texPos12.y)) * w3.x * w12.y;
+
+    result += sampleLevel0(tex, vec2(texPos0.x,  texPos3.y)) * w0.x * w3.y;
+    result += sampleLevel0(tex, vec2(texPos12.x, texPos3.y)) * w12.x * w3.y;
+    result += sampleLevel0(tex, vec2(texPos3.x,  texPos3.y)) * w3.x * w3.y;
+
+    return result;
 }
