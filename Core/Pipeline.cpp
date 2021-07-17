@@ -26,7 +26,7 @@ static float VolumetricResolution = 0.5f;
 static float SunTick = 50.0f;
 static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
-static float BloomQuality = 0.5f;
+static float BloomQuality = 0.75f;
 
 static bool SoftShadows = true;
 
