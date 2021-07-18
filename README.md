@@ -30,7 +30,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Bloom (Mip based) 
 - Volumetric clouds
 - Particle system
-- Spherical harmonics (to encode indirect diffuse data) 
+- Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
 
 # Features to implement
 - Spatio temporal variance guided filtering (W.I.P)
