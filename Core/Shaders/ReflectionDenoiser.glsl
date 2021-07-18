@@ -171,7 +171,7 @@ void main()
 	if (Reprojected.x > 0.0f + ReprojectionBias && Reprojected.x < 1.0f - ReprojectionBias &&
 		Reprojected.y > 0.0f + ReprojectionBias && Reprojected.y < 1.0f - ReprojectionBias) {
 		RoughnessAt = texture(u_PBRTex, Reprojected).r;
-	} else { RoughnessAt = 0.01f; }
+	} else { RoughnessAt = 0.99f; }
 
 	for (int s = 0 ; s < GAUSS_KERNEL; s++)
 	{
