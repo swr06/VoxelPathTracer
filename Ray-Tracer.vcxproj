@@ -299,6 +299,8 @@
     <None Include="Core\Shaders\Spatial2x2Initial.glsl" />
     <None Include="Core\Shaders\SpecularCheckerReconstruct.glsl" />
     <None Include="Core\Shaders\SpecularTemporalFilter.glsl" />
+    <None Include="Core\Shaders\SVGF\SpatialFilter.glsl" />
+    <None Include="Core\Shaders\SVGF\TemporalFilter.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />

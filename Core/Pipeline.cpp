@@ -329,6 +329,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularCheckerboardReconstructor = ShaderManager::GetShader("SPECULAR_CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
+	
+	// wip.
+	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
+	GLClasses::Shader& SVGF_Spatial = ShaderManager::GetShader("SVGF_SPATIAL");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -666,70 +670,43 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTraceFBO.Unbind();
 
-		// Basic denoise pass 1
-		// Single pass atrous 2x2 filter
-		/*{
-			DiffuseDenoiseFBO.Bind();
-			SpatialInitial.Use();
-
-			SpatialInitial.SetInteger("u_InputTexture", 0);
-			SpatialInitial.SetInteger("u_PositionTexture", 1);
-			SpatialInitial.SetInteger("u_NormalTexture", 2);
-			SpatialInitial.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
-			SpatialInitial.SetMatrix4("u_VertInverseView", inv_view);
-			SpatialInitial.SetMatrix4("u_VertInverseProjection", inv_projection);
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
-
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
-
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
-		}*/
-
 		// Temporal filter 
 
 		DiffuseTemporalFBO.Bind();
-		MainTemporalFilter.Use();
+		SVGF_Temporal.Use();
 
-		MainTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
-		MainTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
-		MainTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
-		MainTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
-
-
-		MainTemporalFilter.SetInteger("u_CurrentSH", 4);
-		MainTemporalFilter.SetInteger("u_PreviousSH", 5);
-		MainTemporalFilter.SetBool("u_DiffuseTemporal", true);
-		MainTemporalFilter.SetBool("u_ShadowTemporal", false);
+		SVGF_Temporal.SetInteger("u_CurrentColorTexture", 0);
+		SVGF_Temporal.SetInteger("u_CurrentPositionTexture", 1);
+		SVGF_Temporal.SetInteger("u_PreviousColorTexture", 2);
+		SVGF_Temporal.SetInteger("u_PreviousFramePositionTexture", 3);
 
 
-		MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
-		MainTemporalFilter.SetMatrix4("u_View", CurrentView);
-		MainTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
-		MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
-
-		MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-		MainTemporalFilter.SetFloat("u_MaximumMix", 0.96f);
-		MainTemporalFilter.SetInteger("u_TemporalQuality", 0); // No clamping!
-		MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
-		MainTemporalFilter.SetFloat("u_ClampBias", 0.025f);
-		MainTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
-		MainTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
+		SVGF_Temporal.SetInteger("u_CurrentSH", 4);
+		SVGF_Temporal.SetInteger("u_PreviousSH", 5);
+		SVGF_Temporal.SetBool("u_DiffuseTemporal", true);
+		SVGF_Temporal.SetBool("u_ShadowTemporal", false);
 
 
-		MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
-		MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-		MainTemporalFilter.SetMatrix4("u_InverseView", inv_view);
-		MainTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
-		MainTemporalFilter.SetMatrix4("u_PrevInverseProjection", glm::inverse(PreviousProjection));
-		MainTemporalFilter.SetMatrix4("u_PrevInverseView", glm::inverse(PreviousView));
+		SVGF_Temporal.SetMatrix4("u_Projection", CurrentProjection);
+		SVGF_Temporal.SetMatrix4("u_View", CurrentView);
+		SVGF_Temporal.SetMatrix4("u_PrevProjection", PreviousProjection);
+		SVGF_Temporal.SetMatrix4("u_PrevView", PreviousView);
+
+		SVGF_Temporal.SetFloat("u_MinimumMix", 0.0f);
+		SVGF_Temporal.SetFloat("u_MaximumMix", 0.96f);
+		SVGF_Temporal.SetInteger("u_TemporalQuality", 0); // No clamping!
+		SVGF_Temporal.SetBool("u_ReflectionTemporal", false);
+		SVGF_Temporal.SetFloat("u_ClampBias", 0.025f);
+		SVGF_Temporal.SetVector3f("u_PrevCameraPos", PreviousPosition);
+		SVGF_Temporal.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
+
+
+		SVGF_Temporal.SetMatrix4("u_VertInverseView", inv_view);
+		SVGF_Temporal.SetMatrix4("u_VertInverseProjection", inv_projection);
+		SVGF_Temporal.SetMatrix4("u_InverseView", inv_view);
+		SVGF_Temporal.SetMatrix4("u_InverseProjection", inv_projection);
+		SVGF_Temporal.SetMatrix4("u_PrevInverseProjection", glm::inverse(PreviousProjection));
+		SVGF_Temporal.SetMatrix4("u_PrevInverseView", glm::inverse(PreviousView));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
@@ -781,20 +758,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 				(i % 2 == 0) ? DiffuseDenoisedFBO2 : DiffuseDenoiseFBO;
 
 			CurrentDenoiseFBO.Bind();
-			AtrousSpatialFilter.Use();
-			AtrousSpatialFilter.SetInteger("u_InputTexture", 0);
-			AtrousSpatialFilter.SetInteger("u_PositionTexture", 1);
-			AtrousSpatialFilter.SetInteger("u_NormalTexture", 2);
-			AtrousSpatialFilter.SetInteger("u_BlockIDTexture", 3);
-			AtrousSpatialFilter.SetInteger("u_VarianceTexture", 4);
-			AtrousSpatialFilter.SetInteger("u_InputTexture2", 5);
-			AtrousSpatialFilter.SetInteger("u_Step", StepSizes[i]);
-			AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
-			AtrousSpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
-			AtrousSpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-			AtrousSpatialFilter.SetMatrix4("u_InverseView", inv_view);
-			AtrousSpatialFilter.SetMatrix4("u_InverseProjection", inv_projection);
-			AtrousSpatialFilter.SetBool("u_ShouldDetailWeight", !(i >= 3));
+			SVGF_Spatial.Use();
+			SVGF_Spatial.SetInteger("u_InputTexture", 0);
+			SVGF_Spatial.SetInteger("u_PositionTexture", 1);
+			SVGF_Spatial.SetInteger("u_NormalTexture", 2);
+			SVGF_Spatial.SetInteger("u_BlockIDTexture", 3);
+			SVGF_Spatial.SetInteger("u_VarianceTexture", 4);
+			SVGF_Spatial.SetInteger("u_InputTexture2", 5);
+			SVGF_Spatial.SetInteger("u_Step", StepSizes[i]);
+			SVGF_Spatial.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+			SVGF_Spatial.SetMatrix4("u_VertInverseView", inv_view);
+			SVGF_Spatial.SetMatrix4("u_VertInverseProjection", inv_projection);
+			SVGF_Spatial.SetMatrix4("u_InverseView", inv_view);
+			SVGF_Spatial.SetMatrix4("u_InverseProjection", inv_projection);
+			SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
