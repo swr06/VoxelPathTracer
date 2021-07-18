@@ -25,12 +25,14 @@ uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlueNoiseTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
 uniform samplerCube u_Skybox;
-uniform sampler2D u_ReflectionTraceTexture;
 uniform sampler2D u_CloudData;
 uniform sampler2D u_PreviousNormalTexture; 
 
 uniform sampler2D u_DiffuseSHData1;
 uniform sampler2D u_DiffuseSHData2;
+
+uniform sampler2D u_ReflectionSHData;
+uniform sampler2D u_ReflectionCoCgData;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
@@ -830,13 +832,18 @@ void main()
             
             DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
             float Roughness = PBRMap.r;
-            vec3 SpecularIndirect = texture(u_ReflectionTraceTexture, v_TexCoords).rgb;
             vec3 DiffuseIndirect = (SampledIndirectDiffuse.xyz * AlbedoColor);
 
+            // Compute Specular indirect from spherical harmonic 
+
+            vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
+            vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
+            vec3 SpecularIndirect = SHToIrridiance(SpecularSH, SpecularCoCg, IndirectN).rgb;
+            
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
             // That it hurts my soul
             float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
-            float NDotMapM = clamp(exp(NDotMap) * 0.85f, 0.2f, 1.0f);
+            float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
             SpecularIndirect *= NDotMapM; 
            
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
@@ -847,7 +854,6 @@ void main()
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
                       * clamp(SampledAO, 0.2f, 1.01f);
-
 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;

@@ -8,7 +8,8 @@
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
-layout (location = 0) out vec3 o_Color;
+layout (location = 0) out vec4 o_SH;
+layout (location = 1) out vec2 o_CoCg;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -262,6 +263,30 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+
+float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
+	
+	float Co = Radiance.x - Radiance.z; 
+	float T = Radiance.z + Co * 0.5f; 
+	float Cg = Radiance.y - T;
+	float Y  = max(T + Cg * 0.5f, 0.0);
+	float L00  = 0.282095f;
+    float L1_1 = 0.488603f * Direction.y;
+    float L10  = 0.488603f * Direction.z;
+    float L11  = 0.488603f * Direction.x;
+	float ReturnValue[6];
+	ReturnValue[0] = max(L11 * Y, -100.0f);
+	ReturnValue[1] = max(L1_1 * Y, -100.0f);
+	ReturnValue[2] = max(L10 * Y, -100.0f);
+	ReturnValue[3] = max(L00 * Y, -100.0f);
+
+	// Idea by lars to store the color as cocg
+	// https://www.shadertoy.com/view/ltjBWG
+	ReturnValue[4] = Co;
+	ReturnValue[5] = Cg;
+	return ReturnValue;
+}
+
 vec2 GetCheckerboardedUV()
 {
 	vec2 Screenspace = v_TexCoords;
@@ -279,15 +304,17 @@ void main()
 
 	int SPP = clamp(u_SPP, 1, 16);
 	int total_hits = 0;
-	vec3 TotalColor = vec3(0.0f);
+
+	vec4 TotalSH = vec4(0.0f);
+	vec2 TotalCoCg = vec2(0.0f);
 
 	vec2 suv = GetCheckerboardedUV();
 	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
 
-	o_Color.xyz = vec3(0.0f);
-
 	if (SampledWorldPosition.w < 0.0f)
 	{
+		o_SH = vec4(0.0f);
+		o_CoCg.xy = vec2(0.0f, 0.0f);
 		return;
 	}
 
@@ -299,6 +326,7 @@ void main()
 	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
 	
 	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
+
 	float RoughnessAt = PBRMap.r;
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
@@ -436,7 +464,10 @@ void main()
 			Computed = DirectLighting;
 			Computed *= AO;
 			ComputePlayerReflection(refpos, R, Computed, T);
-			TotalColor += Computed;
+
+			float[6] SH = IrridianceToSH(Computed, R);
+			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
+			TotalCoCg += vec2(SH[4], SH[5]);
 		}
 
 		else
@@ -444,14 +475,19 @@ void main()
 			vec3 AtmosphereColor;
 			GetAtmosphere(AtmosphereColor, R);
 			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
-			TotalColor += AtmosphereColor;
+			float[6] SH = IrridianceToSH(AtmosphereColor, R);
+			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
+			TotalCoCg += vec2(SH[4], SH[5]);
 		}
 
 
 		total_hits++;
 	}
-
-	o_Color.xyz = total_hits > 0 ? (TotalColor / float(total_hits)) : vec3(0.0f);
+	
+	TotalSH /= max(float(total_hits), 1.0f);
+	TotalCoCg /= max(float(total_hits), 1.0f);
+	o_SH = TotalSH;
+	o_CoCg = TotalCoCg;
 }
 
 bool IsInVolume(in vec3 pos)
