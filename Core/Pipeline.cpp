@@ -1740,10 +1740,24 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		FinalShader.Use();
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
+		FinalShader.SetInteger("u_PositionTexture", 1);
+		FinalShader.SetInteger("u_NormalTexture", 2);
+		FinalShader.SetInteger("u_BlockIDTex", 3);
 		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
+		FinalShader.SetMatrix4("u_InverseView", inv_view);
+		FinalShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
