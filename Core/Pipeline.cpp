@@ -236,8 +236,8 @@ GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, t
 GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }}, false);
 GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
-GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
-GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
+GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } }, false);
+GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
 
 
@@ -794,15 +794,38 @@ void VoxelRT::MainPipeline::StartPipeline()
 			auto& CurrentDenoiseFBO = (i % 2 == 0) ? DiffuseDenoiseFBO : DiffuseDenoisedFBO2;
 			auto& PrevDenoiseFBO = (i == 0) ? DiffuseTemporalFBO :
 				(i % 2 == 0) ? DiffuseDenoisedFBO2 : DiffuseDenoiseFBO;
+			
+			GLuint VarianceTexture = 0;
+
+			if (i == 0)
+			{
+				VarianceTexture = VarianceFBO.GetTexture();
+			}
+
+			else {
+
+				if (i % 2 == 0)
+				{
+					VarianceTexture = DiffuseDenoisedFBO2.GetTexture(2);
+				} 
+
+				else {
+					VarianceTexture = DiffuseDenoiseFBO.GetTexture(2);
+				}
+			}
 
 			CurrentDenoiseFBO.Bind();
 			SVGF_Spatial.Use();
-			SVGF_Spatial.SetInteger("u_InputTexture", 0);
+
+			// textures :
+			SVGF_Spatial.SetInteger("u_SH", 0);
 			SVGF_Spatial.SetInteger("u_PositionTexture", 1);
 			SVGF_Spatial.SetInteger("u_NormalTexture", 2);
 			SVGF_Spatial.SetInteger("u_BlockIDTexture", 3);
 			SVGF_Spatial.SetInteger("u_VarianceTexture", 4);
-			SVGF_Spatial.SetInteger("u_InputTexture2", 5);
+			SVGF_Spatial.SetInteger("u_CoCg", 5);
+			SVGF_Spatial.SetInteger("u_Utility", 6);
+
 			SVGF_Spatial.SetInteger("u_Step", StepSizes[i]);
 			SVGF_Spatial.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 			SVGF_Spatial.SetMatrix4("u_VertInverseView", inv_view);
@@ -824,7 +847,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 			glActiveTexture(GL_TEXTURE4);
-			glBindTexture(GL_TEXTURE_2D, VarianceFBO.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, VarianceTexture);
 
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture(1));
