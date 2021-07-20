@@ -196,4 +196,7 @@ void main()
 
 	o_SpatialResult = TotalColor / max(TotalWeight, 0.01f);
 	o_SpatialResult2 = TotalSphericalHarmonic2 / max(TotalWeight, 0.01f);
+
+	o_SpatialResult = texture(u_InputTexture, v_TexCoords).rgba;
+	o_SpatialResult2 = texture(u_InputTexture2, v_TexCoords).rg;
 }

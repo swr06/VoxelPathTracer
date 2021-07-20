@@ -48,6 +48,9 @@
     <Filter Include="Source Files\Shaders\SVGF">
       <UniqueIdentifier>{325b80c3-71b4-4d3c-817d-0231b20e0bd4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\Temporary">
+      <UniqueIdentifier>{61f7df1f-ebeb-49c9-a8cc-dbd066ac16ff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -518,6 +521,9 @@
     </None>
     <None Include="Core\Shaders\SVGF\TemporalFilter.glsl">
       <Filter>Source Files\Shaders\SVGF</Filter>
+    </None>
+    <None Include="Core\Shaders\Reference\asvgf_temporal.comp">
+      <Filter>Source Files\Shaders\Temporary</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

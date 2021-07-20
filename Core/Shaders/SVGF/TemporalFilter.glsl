@@ -1,19 +1,26 @@
 #version 330 core
 
-layout (location = 0) out vec4 o_Color;
-layout (location = 1) out vec2 o_SH;
+layout (location = 0) out vec4 o_SH;
+layout (location = 1) out vec2 o_CoCg;
+layout (location = 2) out vec3 o_Utility;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 
-uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_CurrentPositionTexture;
-uniform sampler2D u_PreviousColorTexture;
-uniform sampler2D u_PreviousFramePositionTexture;
+uniform sampler2D u_PreviousPositionTexture;
 
-uniform sampler2D u_PreviousSH;
 uniform sampler2D u_CurrentSH;
+uniform sampler2D u_PreviousSH;
+uniform sampler2D u_CurrentCoCg;
+uniform sampler2D u_PrevCoCg;
+
+uniform sampler2D u_CurrentNormalTexture;
+uniform sampler2D u_PreviousNormalTexture;
+uniform sampler2D u_NoisyLuminosity;
+
+uniform sampler2D u_PreviousUtility;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -54,53 +61,99 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+float GetLuminance(vec3 color) 
+{
+    return dot(color, vec3(0.299, 0.587, 0.114));
+}
 
 bool InScreenSpace(vec2 x)
 {
     return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
 }
 
+bool InThresholdedScreenSpace(vec2 x)
+{
+	const float b = 0.01f;
+    return x.x < 1.0f - b && x.x > b && x.y < 1.0f - b && x.y > b;
+}
+
 void main()
 {
-	vec2 CurrentCoord = v_TexCoords;
-	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
+	vec4 BasePosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords);
+	vec3 BaseNormal = texture(u_CurrentNormalTexture, v_TexCoords).xyz;
+	vec4 BaseSH = texture(u_CurrentSH, v_TexCoords).rgba;
+	vec2 BaseCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
 
-	if (CurrentPosition.a > 0.0f)
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentSH, 0);
+
+	float TotalWeight = 0.0f;
+	vec4 SumSH = vec4(0.0f); vec2 SumCoCg = vec2(0.0f);
+	float SumSPP = 0.0f;
+	float SumMoment = 0.0f;
+	vec2 ReprojectedCoord = Reprojection(BasePosition.xyz);
+	vec2 PositionFract = fract(ReprojectedCoord);
+	vec2 OneMinusPositionFract = 1.0f - PositionFract;
+	float BaseLuminosity = texture(u_NoisyLuminosity, v_TexCoords).r;
+
+	// https://www.eso.org/sci/software/esomidas/doc/user/18NOV/volb/node317.html
+	float Weights[5] = float[5](3.0f / 32.0f,
+								3.0f / 32.0f,
+								9.0f / 64.0f,
+								3.0f / 32.0f,
+								3.0f / 32.0f);
+
+	const vec2 Offsets[5] = vec2[5](vec2(1, 0), vec2(0, 1), vec2(0.0f), vec2(-1, 0), vec2(0, -1));
+
+	for (int i = 0 ; i < 5 ; i++)
 	{
-		vec2 Reprojected;
-		Reprojected = Reprojection(CurrentPosition.xyz);
-		
-		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
-		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
-		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
+		vec2 Offset = Offsets[i];
+		vec2 SampleCoord = ReprojectedCoord + vec2(Offset.x, Offset.y) * TexelSize;
 
-		float Bias = 0.006524f;
+		if (!InThresholdedScreenSpace(SampleCoord)) { continue; }
 
-		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
+		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
+		vec3 PreviousNormalAt = texture(u_PreviousNormalTexture, SampleCoord).xyz;
+		vec3 PositionDifference = abs(BasePosition.xyz - PreviousPositionAt.xyz);
+		//float PositionError = dot(PositionDifference, PositionDifference);
+		float PositionError = distance(PreviousPositionAt.xyz, BasePosition.xyz);
+		float CurrentWeight = Weights[i];
+
+		if (PositionError < 1.5f &&
+			PreviousNormalAt == BaseNormal)
 		{
-			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
-			float BlendFactor = d;
-			BlendFactor = exp(-BlendFactor);
-			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
-			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
-			vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-			vec2 PrevSH = texture(u_PreviousSH, Reprojected.xy).xy;
-			o_SH = mix(CurrentSH, PrevSH, BlendFactor);
-		}
-
-		else 
-		{
-			o_Color = CurrentColor;
-			vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-			o_SH = CurrentSH;
+			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
+			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
+			vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
+			SumSH += PreviousSH * CurrentWeight;
+			SumCoCg += PreviousCoCg * CurrentWeight;
+			SumSPP += PreviousUtility.x * CurrentWeight;
+			SumMoment += PreviousUtility.y * CurrentWeight;
+			TotalWeight += CurrentWeight;
 		}
 	}
 
-	else 
-	{
-		o_Color = texture(u_CurrentColorTexture, v_TexCoords);
-		vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-		o_SH = CurrentSH;
+	if (TotalWeight > 0.0f) { 
+		SumSH /= TotalWeight;
+		SumCoCg /= TotalWeight;
+		SumMoment /= TotalWeight;
+		SumSPP /= TotalWeight;
 	}
+
+	const bool AccumulateAll = false;
+
+	float BlendFactor = max(1.0f / (SumSPP + 1.0f), 0.05f);
+	float MomentFactor = max(1.0f / (SumSPP + 1.0f), 0.05f);
+
+	
+	if (AccumulateAll) {
+		BlendFactor = 0.01f;
+	}
+
+	float UtilitySPP = SumSPP + 1.0;
+	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);
+	o_SH = mix(SumSH, BaseSH, BlendFactor);
+	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);
+	o_Utility = vec3(UtilitySPP, UtilityMoment, 1.0f);
 }
+
 

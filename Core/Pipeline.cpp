@@ -233,9 +233,9 @@ GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, t
 
 
 
-GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }}, false);
-GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }}, false);
-GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }}, false);
+GLClasses::Framebuffer DiffuseTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }}, false);
+GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
+GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 
@@ -675,14 +675,21 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTemporalFBO.Bind();
 		SVGF_Temporal.Use();
 
-		SVGF_Temporal.SetInteger("u_CurrentColorTexture", 0);
+		SVGF_Temporal.SetInteger("u_CurrentCoCg", 0);
 		SVGF_Temporal.SetInteger("u_CurrentPositionTexture", 1);
-		SVGF_Temporal.SetInteger("u_PreviousColorTexture", 2);
-		SVGF_Temporal.SetInteger("u_PreviousFramePositionTexture", 3);
+		SVGF_Temporal.SetInteger("u_PrevCoCg", 2);
+		SVGF_Temporal.SetInteger("u_PreviousPositionTexture", 3);
 
 
 		SVGF_Temporal.SetInteger("u_CurrentSH", 4);
 		SVGF_Temporal.SetInteger("u_PreviousSH", 5);
+
+		SVGF_Temporal.SetInteger("u_CurrentNormalTexture", 6);
+		SVGF_Temporal.SetInteger("u_PreviousNormalTexture", 7);
+		SVGF_Temporal.SetInteger("u_PreviousUtility", 8);
+		SVGF_Temporal.SetInteger("u_NoisyLuminosity", 9);
+
+
 		SVGF_Temporal.SetBool("u_DiffuseTemporal", true);
 		SVGF_Temporal.SetBool("u_ShadowTemporal", false);
 
@@ -709,22 +716,30 @@ void VoxelRT::MainPipeline::StartPipeline()
 		SVGF_Temporal.SetMatrix4("u_PrevInverseView", glm::inverse(PreviousView));
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture());
-
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture());
-
+		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture(1));
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(0));
 
 		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
-
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(0));
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture(1));
+		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture(0));
+
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(1));
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture(2));
+
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(2));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
