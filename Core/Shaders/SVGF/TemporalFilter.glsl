@@ -87,7 +87,9 @@ void main()
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentSH, 0);
 
 	float TotalWeight = 0.0f;
-	vec4 SumSH = vec4(0.0f); vec2 SumCoCg = vec2(0.0f);
+	vec4 SumSH = vec4(0.0f); 
+	vec2 SumCoCg = vec2(0.0f);
+	float SumLuminosity = 0.0f;
 	float SumSPP = 0.0f;
 	float SumMoment = 0.0f;
 	vec2 ReprojectedCoord = Reprojection(BasePosition.xyz);
@@ -124,10 +126,12 @@ void main()
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
 			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
 			vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
+
 			SumSH += PreviousSH * CurrentWeight;
 			SumCoCg += PreviousCoCg * CurrentWeight;
 			SumSPP += PreviousUtility.x * CurrentWeight;
 			SumMoment += PreviousUtility.y * CurrentWeight;
+			SumLuminosity += PreviousUtility.z * CurrentWeight;
 			TotalWeight += CurrentWeight;
 		}
 	}
@@ -137,6 +141,7 @@ void main()
 		SumCoCg /= TotalWeight;
 		SumMoment /= TotalWeight;
 		SumSPP /= TotalWeight;
+		SumLuminosity /= TotalWeight;
 	}
 
 	const bool AccumulateAll = false;
@@ -151,9 +156,13 @@ void main()
 
 	float UtilitySPP = SumSPP + 1.0;
 	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);
+	
+	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
+	float StoreLuma = mix(SumLuminosity, CurrentNoisyLuma, BlendFactor).r;
+
 	o_SH = mix(SumSH, BaseSH, BlendFactor);
 	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);
-	o_Utility = vec3(UtilitySPP, UtilityMoment, 1.0f);
+	o_Utility = vec3(UtilitySPP, UtilityMoment, StoreLuma);
 }
 
 

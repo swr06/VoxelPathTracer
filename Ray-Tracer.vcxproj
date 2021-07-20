@@ -302,6 +302,7 @@
     <None Include="Core\Shaders\SpecularTemporalFilter.glsl" />
     <None Include="Core\Shaders\SVGF\SpatialFilter.glsl" />
     <None Include="Core\Shaders\SVGF\TemporalFilter.glsl" />
+    <None Include="Core\Shaders\SVGF\VarianceEstimate.glsl" />
     <None Include="Core\Shaders\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />

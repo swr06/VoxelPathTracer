@@ -333,6 +333,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
 	GLClasses::Shader& SVGF_Spatial = ShaderManager::GetShader("SVGF_SPATIAL");
+	GLClasses::Shader& SVGF_Variance = ShaderManager::GetShader("SVGF_VARIANCE");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -750,18 +751,40 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Do a variance estimation pass
 
 		VarianceFBO.Bind();
-		VarianceEstimator.Use();
-		VarianceEstimator.SetInteger("u_InputTexture", 0);
+		SVGF_Variance.Use();
+
+		SVGF_Variance.SetInteger("u_PositionTexture", 0);
+		SVGF_Variance.SetInteger("u_NormalTexture", 1);
+		SVGF_Variance.SetInteger("u_SH", 2);
+		SVGF_Variance.SetInteger("u_CoCg", 3);
+		SVGF_Variance.SetInteger("u_Utility", 4);
+		SVGF_Variance.SetMatrix4("u_InverseView", inv_view);
+		SVGF_Variance.SetMatrix4("u_InverseProjection", inv_projection);
+		SVGF_Variance.SetMatrix4("u_VertInverseView", inv_view);
+		SVGF_Variance.SetMatrix4("u_VertInverseProjection", inv_projection);
+
 		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture(1));
+
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture(2));
+
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
+
 		VarianceFBO.Unbind();
 
-		//
-		/// Do 5 atrous spatial filter pass with varying step sizes
-		//
+		// Spatial filter :
 
 		int StepSizes[5] = { 10, 8, 4, 2, 1 };
 
@@ -815,6 +838,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 		// ---- SHADOW TRACE ----
+
 		GLClasses::Framebuffer& ShadowFBO = ShadowRawTrace;
 
 		{
