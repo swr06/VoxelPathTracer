@@ -31,7 +31,7 @@ static float BloomQuality = 0.75f;
 static bool SoftShadows = true;
 
 static int DiffuseSPP = 3; 
-static int ReflectionSPP = 3;
+static int ReflectionSPP = 2;
 
 static bool TAA = true;
 static bool Bloom = true;
@@ -238,6 +238,7 @@ GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FL
 GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } }, false);
 GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } }, false);
+GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
 
 
@@ -349,7 +350,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VoxelRT::BloomFBO BloomFBO(16, 16);
 	GLClasses::Framebuffer SSAOFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	GLClasses::Framebuffer SSAOBlurred(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
-	GLClasses::Framebuffer VarianceFBO(16, 16, { GL_R16F, GL_RED, GL_FLOAT }, false);
 
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
@@ -786,20 +786,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Spatial filter :
 
-		int StepSizes[5] = { 10, 8, 4, 2, 1 };
+		int StepSizes[5] = { 32, 16, 8, 4, 2 };
 
 		for (int i = 0; i < 5; i++)
 		{
 			// 1 2 1 2 1
 			auto& CurrentDenoiseFBO = (i % 2 == 0) ? DiffuseDenoiseFBO : DiffuseDenoisedFBO2;
-			auto& PrevDenoiseFBO = (i == 0) ? DiffuseTemporalFBO :
+			auto& PrevDenoiseFBO = (i == 0) ? VarianceFBO :
 				(i % 2 == 0) ? DiffuseDenoisedFBO2 : DiffuseDenoiseFBO;
 			
 			GLuint VarianceTexture = 0;
 
 			if (i == 0)
 			{
-				VarianceTexture = VarianceFBO.GetTexture();
+				VarianceTexture = VarianceFBO.GetTexture(2);
 			}
 
 			else {

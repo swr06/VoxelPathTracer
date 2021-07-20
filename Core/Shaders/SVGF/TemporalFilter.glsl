@@ -73,7 +73,7 @@ bool InScreenSpace(vec2 x)
 
 bool InThresholdedScreenSpace(vec2 x)
 {
-	const float b = 0.01f;
+	const float b = 0.0025f;
     return x.x < 1.0f - b && x.x > b && x.y < 1.0f - b && x.y > b;
 }
 

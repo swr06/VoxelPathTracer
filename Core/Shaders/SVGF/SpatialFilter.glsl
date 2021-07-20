@@ -155,22 +155,25 @@ void main()
 			float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
 
 			// Weights : 
-			float PositionError = distance(BasePosition.xyz, SamplePosition);
-            float PositionWeight = 1.0f / PositionError;
-            float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
-            float LuminosityWeight = abs(SampleLuma - BaseLuminance) / 1.0e1;
-            float Weight = exp(-LuminosityWeight - PositionWeight - NormalWeight);
-			Weight = max(Weight, 0.0f);
+			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
+            float DistSqr = dot(PositionDifference, PositionDifference);
 
-			// Kernel Weights : 
-			float XWeight = AtrousWeights[abs(x)];
-			float YWeight = AtrousWeights[abs(y)];
-			Weight = (XWeight * YWeight) * Weight;
+			if (DistSqr < 2.4f) {
+				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
+				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / 1.0e1;
+				float Weight = exp(-LuminosityWeight - NormalWeight);
+				Weight = max(Weight, 0.0f);
 
-			TotalSH += SampleSH * Weight;
-			TotalCoCg += SampleCoCg * Weight;
-			TotalVariance += sqr(Weight) * SampleVariance;
-			TotalWeight += Weight;
+				// Kernel Weights : 
+				float XWeight = AtrousWeights[abs(x)];
+				float YWeight = AtrousWeights[abs(y)];
+				Weight = (XWeight * YWeight) * Weight;
+
+				TotalSH += SampleSH * Weight;
+				TotalCoCg += SampleCoCg * Weight;
+				TotalVariance += sqr(Weight) * SampleVariance;
+				TotalWeight += Weight;
+			}
 		}
 	}
 	

@@ -1,6 +1,9 @@
 #version 330 core
 
-layout (location = 0) out float o_Variance;
+layout (location = 0) out vec4 o_SH;
+layout (location = 1) out vec2 o_CoCg;
+layout (location = 2) out float o_Variance;
+
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -69,8 +72,10 @@ void main()
     float SPP = BaseUtility.x;
     float BaseMoment = BaseUtility.y;
 
-    float TotalWeight = 0.0f;
+    float TotalWeight = 1.0f;
     float TotalMoment = 0.0f;
+    vec4 TotalSH = vec4(0.0f);
+    vec2 TotalCoCg = vec2(0.0f);
     vec3 TotalRadiance = vec3(0.0f);
 
     float Variance = 0.0f;
@@ -97,15 +102,20 @@ void main()
                 float SampleLuminosity = GetLuminance(SampleRadiance);
 
                 // Weights : 
-                float PositionError = distance(BasePosition, SamplePosition);
-                float PositionWeight = 1.0f / PositionError;
-                float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
-                float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
-                float Weight = exp(-LuminosityWeight - PositionWeight - NormalWeight);
+                vec3 PositionDifference = abs(SamplePosition - BasePosition);
+                float DistSqr = dot(PositionDifference, PositionDifference);
 
-                TotalWeight += Weight;
-                TotalMoment += SampleMoment * Weight;
-                TotalRadiance += SampleRadiance * Weight;
+                if (DistSqr < 2.4f) 
+                { 
+                    float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
+                    float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
+                    float Weight = exp(-LuminosityWeight - NormalWeight);
+                    TotalWeight += Weight;
+                    TotalMoment += SampleMoment * Weight;
+                    TotalRadiance += SampleRadiance * Weight;
+                    TotalSH += SampleSH * Weight;
+                    TotalCoCg += SampleCoCg * Weight;
+                }
             }
         }
 
@@ -113,7 +123,13 @@ void main()
         {
             TotalMoment /= TotalWeight;
             TotalRadiance /= TotalWeight;
+            TotalCoCg /= TotalWeight;
+            TotalSH /= TotalWeight;
         }
+
+
+        o_SH = TotalSH;
+        o_CoCg = TotalCoCg;
 
         float AccumulatedLuminosity = GetLuminance(TotalRadiance);
         AccumulatedLuminosity = AccumulatedLuminosity * AccumulatedLuminosity;
@@ -124,6 +140,8 @@ void main()
 
     else 
     {
+        o_SH = BaseSH;
+        o_CoCg = BaseCoCg;
         Variance = BaseMoment - BaseLuminosity * BaseLuminosity;
     }
 
