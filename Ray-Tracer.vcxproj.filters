@@ -522,9 +522,6 @@
     <None Include="Core\Shaders\SVGF\TemporalFilter.glsl">
       <Filter>Source Files\Shaders\SVGF</Filter>
     </None>
-    <None Include="Core\Shaders\Reference\asvgf_temporal.comp">
-      <Filter>Source Files\Shaders\Temporary</Filter>
-    </None>
     <None Include="Core\Shaders\SVGF\VarianceEstimate.glsl">
       <Filter>Source Files\Shaders\SVGF</Filter>
     </None>
