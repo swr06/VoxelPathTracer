@@ -17,6 +17,8 @@ uniform sampler2D u_Utility;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
+uniform bool DO_SPATIAL = true;
+
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
 	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
@@ -105,6 +107,9 @@ void main()
                     float Weight = exp(-LuminosityWeight - NormalWeight);
                     float Weight_2 = NormalWeight;
 
+                    Weight = max(Weight, 0.015f);
+                    Weight_2 = max(Weight_2, 0.015f);
+
                     TotalWeight += Weight;
                     TotalMoment += SampleMoment * Weight_2;
 
@@ -138,6 +143,12 @@ void main()
 
     else 
     {
+        o_SH = BaseSH;
+        o_CoCg = BaseCoCg;
+        Variance = BaseMoment - BaseLuminosity * BaseLuminosity;
+    }
+
+    if (!DO_SPATIAL) {
         o_SH = BaseSH;
         o_CoCg = BaseCoCg;
         Variance = BaseMoment - BaseLuminosity * BaseLuminosity;

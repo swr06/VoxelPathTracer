@@ -36,6 +36,8 @@ static int ReflectionSPP = 2;
 static bool TAA = true;
 static bool Bloom = true;
 static bool USE_SVGF = true;
+static bool DO_VARIANCE_SPATIAL = true;
+static bool DO_SVGF_SPATIAL = true;
 
 static bool BrutalFXAA = true;
 
@@ -96,6 +98,8 @@ public:
 		if (ImGui::Begin("Settings"))
 		{
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled.) ", &USE_SVGF);
+			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
+			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
@@ -770,6 +774,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Variance.SetMatrix4("u_InverseProjection", inv_projection);
 				SVGF_Variance.SetMatrix4("u_VertInverseView", inv_view);
 				SVGF_Variance.SetMatrix4("u_VertInverseProjection", inv_projection);
+				SVGF_Variance.SetBool("DO_SPATIAL", DO_VARIANCE_SPATIAL);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -841,6 +846,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetMatrix4("u_InverseView", inv_view);
 					SVGF_Spatial.SetMatrix4("u_InverseProjection", inv_projection);
 					SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
+					SVGF_Spatial.SetBool("DO_SPATIAL", DO_SVGF_SPATIAL);
 
 					glActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());

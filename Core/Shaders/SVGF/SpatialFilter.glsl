@@ -22,6 +22,7 @@ uniform sampler2D u_VarianceTexture;
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 uniform bool u_ShouldDetailWeight;
+uniform bool DO_SPATIAL;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
@@ -161,13 +162,14 @@ void main()
 				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
 				float Weight = exp(-LuminosityWeight - NormalWeight);
-				Weight = clamp(Weight, 0.0f, 100.0f);
+				Weight = max(Weight, 0.0f);
 
 				// Kernel Weights : 
 				float XWeight = AtrousWeights[abs(x)];
 				float YWeight = AtrousWeights[abs(y)];
 
 				Weight = (XWeight * YWeight) * Weight;
+				Weight = max(Weight, 0.01f);
 
 				TotalSH += SampleSH * Weight;
 				TotalCoCg += SampleCoCg * Weight;
@@ -188,7 +190,7 @@ void main()
 
 	const bool DontFilter = false;
 
-	if (DontFilter) { 
+	if (!DO_SPATIAL) { 
 		o_SH = BaseSH;
 		o_CoCg = BaseCoCg;
 		o_Variance = BaseVariance;
