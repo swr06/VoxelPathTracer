@@ -120,7 +120,7 @@ void main()
 		float PositionError = distance(PreviousPositionAt.xyz, BasePosition.xyz);
 		float CurrentWeight = Weights[i];
 
-		if (PositionError < 2.0f &&
+		if (PositionError < 1.2f &&
 			PreviousNormalAt == BaseNormal)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
@@ -153,6 +153,7 @@ void main()
 	if (AccumulateAll) {
 		BlendFactor = 0.01f;
 	}
+	
 
 	float UtilitySPP = SumSPP + 1.0;
 	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);

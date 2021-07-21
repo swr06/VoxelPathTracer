@@ -35,18 +35,9 @@ float GetLuminance(vec3 color)
     return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-// From quake2rtx 
-vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+float SHToY(vec4 shY)
 {
-    float x = dot(shY.xyz, v);
-    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
-    Y = max(Y, 0.0);
-	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
-    float T = Y - CoCg.y * 0.5f;
-    float G = CoCg.y + T;
-    float B = T - CoCg.x * 0.5f;
-    float R = B + CoCg.x;
-    return max(vec3(R, G, B), vec3(0.0f));
+    return max(0, 3.544905f * shY.w);
 }
 
 bool InScreenSpace(in vec2 v) 
@@ -66,21 +57,21 @@ void main()
 
     vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
     vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
-    vec3 BaseRadiance = SHToIrridiance(BaseSH, BaseCoCg, normalize(BaseNormal));
-    float BaseLuminosity = GetLuminance(BaseRadiance);
+    float BaseLuminosity = SHToY(BaseSH);
 
     float SPP = BaseUtility.x;
     float BaseMoment = BaseUtility.y;
 
-    float TotalWeight = 1.0f;
+    float TotalWeight = 0.0f;
     float TotalMoment = 0.0f;
     vec4 TotalSH = vec4(0.0f);
     vec2 TotalCoCg = vec2(0.0f);
-    vec3 TotalRadiance = vec3(0.0f);
+    float TotalLuminosity = 0.0f;
 
     float Variance = 0.0f;
+    const float SPP_THRESH = 4.0f;
 
-    if (SPP < 4.0f)
+    if (SPP < SPP_THRESH)
     {
         for (int x = -2 ; x <= 2 ; x++) 
         {
@@ -90,31 +81,32 @@ void main()
 
                 if (!InScreenSpace(SampleCoord)) { continue; }
 
-                vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
                 vec3 SamplePosition = GetPositionAt(SampleCoord).xyz;
-                vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
-                float SampleMoment = SampleUtility.y;
-
-                // Sample SH : 
-                vec4 SampleSH = texture(u_SH, SampleCoord);
-                vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
-                vec3 SampleRadiance = SHToIrridiance(SampleSH, SampleCoCg, SampleNormal);
-                float SampleLuminosity = GetLuminance(SampleRadiance);
 
                 // Weights : 
                 vec3 PositionDifference = abs(SamplePosition - BasePosition);
                 float DistSqr = dot(PositionDifference, PositionDifference);
 
-                if (DistSqr < 2.4f) 
+                if (DistSqr < 1.0f) 
                 { 
+                    vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+                    vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
+                    float SampleMoment = SampleUtility.y;
+
+                    // Sample SH : 
+                    vec4 SampleSH = texture(u_SH, SampleCoord);
+                    vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
+                    float SampleLuminosity = SHToY(SampleSH);
+
                     float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
                     float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
                     float Weight = exp(-LuminosityWeight - NormalWeight);
                     TotalWeight += Weight;
                     TotalMoment += SampleMoment * Weight;
-                    TotalRadiance += SampleRadiance * Weight;
+
                     TotalSH += SampleSH * Weight;
                     TotalCoCg += SampleCoCg * Weight;
+                    TotalLuminosity += SampleLuminosity * Weight;
                 }
             }
         }
@@ -122,7 +114,7 @@ void main()
         if (TotalWeight > 0.0f) 
         {
             TotalMoment /= TotalWeight;
-            TotalRadiance /= TotalWeight;
+            TotalLuminosity /= TotalWeight;
             TotalCoCg /= TotalWeight;
             TotalSH /= TotalWeight;
         }
@@ -131,10 +123,10 @@ void main()
         o_SH = TotalSH;
         o_CoCg = TotalCoCg;
 
-        float AccumulatedLuminosity = GetLuminance(TotalRadiance);
+        float AccumulatedLuminosity = TotalLuminosity;
         AccumulatedLuminosity = AccumulatedLuminosity * AccumulatedLuminosity;
         Variance = TotalMoment - AccumulatedLuminosity;
-	    Variance *= 4.0 / SPP;
+	    Variance *= SPP_THRESH / SPP;
     } 
 
 

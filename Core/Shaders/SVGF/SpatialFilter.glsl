@@ -92,18 +92,9 @@ float GetVarianceEstimate(out float BaseVariance)
 	return VarianceSum;
 }
 
-// From quake2rtx 
-vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+float SHToY(vec4 shY)
 {
-    float x = dot(shY.xyz, v);
-    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
-    Y = max(Y, 0.0);
-	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
-    float T = Y - CoCg.y * 0.5f;
-    float G = CoCg.y + T;
-    float B = T - CoCg.x * 0.5f;
-    float R = B + CoCg.x;
-    return max(vec3(R, G, B), vec3(0.0f));
+    return max(0, 3.544905f * shY.w);
 }
 
 float sqr(float x) { return x * x; }
@@ -122,14 +113,9 @@ void main()
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
 	vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
-	vec3 BaseRadiance = SHToIrridiance(BaseSH, BaseCoCg, BaseNormal);
-
-	float BaseSat = length(BaseRadiance);
-	float BaseLuminance = GetLuminance(BaseRadiance);
+	float BaseLuminance = SHToY(BaseSH);
 	float BaseVariance = 0.0f;
 	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
-
-	// Sigma :
 
 	// Start with the base inputs, one iteration of the loop can then be skipped
 	vec4 TotalSH = BaseSH;
@@ -138,6 +124,7 @@ void main()
 	float TotalVariance = BaseVariance;
 	
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
+	PhiColor /= 1.75f; 
 
 	for (int x = -2 ; x <= 2 ; x++)
 	{
@@ -147,30 +134,24 @@ void main()
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 
-			// Sample :
-			vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;
-			vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
-			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
 			vec3 SamplePosition = GetPositionAt(SampleCoord).xyz;
-			vec3 SampleRadiance = SHToIrridiance(SampleSH, SampleCoCg, SampleNormal);
-			float SampleLuma = GetLuminance(SampleRadiance);
-			float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
-			float SampleSaturation = GetSaturation(SampleRadiance);
 
 			// Weights : 
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
             float DistSqr = dot(PositionDifference, PositionDifference);
 
-			if (DistSqr < 2.4f) {
+			if (DistSqr < 1.0f) {
 
+				// Samples :
+				vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;
+				vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
+				vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+				float SampleLuma = SHToY(SampleSH);
+				float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
+
+				// :D
 				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
-				float SaturationWeight = abs(SampleSaturation - BaseSat) / (PhiColor * 4.0f);
-
-				if (u_Step > 1) {
-					LuminosityWeight *= 1.4f;
-				}
-
 				float Weight = exp(-LuminosityWeight - NormalWeight);
 				Weight = clamp(Weight, 0.0f, 100.0f);
 
