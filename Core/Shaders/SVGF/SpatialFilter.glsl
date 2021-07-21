@@ -107,6 +107,7 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
 }
 
 float sqr(float x) { return x * x; }
+float GetSaturation(in vec3 v) { return length(v); }
 
 void main()
 {
@@ -122,6 +123,8 @@ void main()
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
 	vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
 	vec3 BaseRadiance = SHToIrridiance(BaseSH, BaseCoCg, BaseNormal);
+
+	float BaseSat = length(BaseRadiance);
 	float BaseLuminance = GetLuminance(BaseRadiance);
 	float BaseVariance = 0.0f;
 	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
@@ -133,15 +136,14 @@ void main()
 	vec2 TotalCoCg = BaseCoCg;
 	float TotalWeight = 1.0f;
 	float TotalVariance = BaseVariance;
-
-	float PhiColor = 1.0e1 * sqrt(max(0.0f, 1e-10f + VarianceEstimate));
+	
+	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
 
 	for (int x = -2 ; x <= 2 ; x++)
 	{
 		for (int y = -2 ; y <= 2 ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
-
+			vec2 SampleCoord = v_TexCoords + (vec2(x, y) * float(u_Step)) * TexelSize;
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 
@@ -153,20 +155,29 @@ void main()
 			vec3 SampleRadiance = SHToIrridiance(SampleSH, SampleCoCg, SampleNormal);
 			float SampleLuma = GetLuminance(SampleRadiance);
 			float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
+			float SampleSaturation = GetSaturation(SampleRadiance);
 
 			// Weights : 
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
             float DistSqr = dot(PositionDifference, PositionDifference);
 
 			if (DistSqr < 2.4f) {
-				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
-				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / 1.0e1;
+
+				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
+				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
+				float SaturationWeight = abs(SampleSaturation - BaseSat) / (PhiColor * 4.0f);
+
+				if (u_Step > 1) {
+					LuminosityWeight *= 1.4f;
+				}
+
 				float Weight = exp(-LuminosityWeight - NormalWeight);
-				Weight = max(Weight, 0.0f);
+				Weight = clamp(Weight, 0.0f, 100.0f);
 
 				// Kernel Weights : 
 				float XWeight = AtrousWeights[abs(x)];
 				float YWeight = AtrousWeights[abs(y)];
+
 				Weight = (XWeight * YWeight) * Weight;
 
 				TotalSH += SampleSH * Weight;
@@ -185,4 +196,12 @@ void main()
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
 	o_Variance = TotalVariance;
+
+	const bool DontFilter = false;
+
+	if (DontFilter) { 
+		o_SH = BaseSH;
+		o_CoCg = BaseCoCg;
+		o_Variance = BaseVariance;
+	}
 }

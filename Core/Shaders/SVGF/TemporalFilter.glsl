@@ -120,7 +120,7 @@ void main()
 		float PositionError = distance(PreviousPositionAt.xyz, BasePosition.xyz);
 		float CurrentWeight = Weights[i];
 
-		if (PositionError < 1.5f &&
+		if (PositionError < 2.0f &&
 			PreviousNormalAt == BaseNormal)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;

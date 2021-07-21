@@ -786,7 +786,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Spatial filter :
 
-		int StepSizes[5] = { 32, 16, 8, 4, 2 };
+		int StepSizes[5] = {16, 8, 4, 2, 1 };
 
 		for (int i = 0; i < 5; i++)
 		{
