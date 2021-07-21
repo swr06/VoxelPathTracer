@@ -1,5 +1,7 @@
 #version 330 core
 
+#define ESTIMATE_WEIGHT_BASED_ON_NEIGHBOURS
+
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Variance;
@@ -67,6 +69,7 @@ vec3 Saturate(vec3 x)
 
 float GetVarianceEstimate(out float BaseVariance)
 {
+#ifdef ESTIMATE_WEIGHT_BASED_ON_NEIGHBOURS
 	vec2 TexelSize = 1.0f / textureSize(u_SH, 0);
 	float VarianceSum = 0.0f;
 
@@ -90,6 +93,11 @@ float GetVarianceEstimate(out float BaseVariance)
 	}
 
 	return VarianceSum;
+#else 
+	float x = texture(u_VarianceTexture, v_TexCoords).r;
+	BaseVariance = x;
+	return x;
+#endif
 }
 
 float SHToY(vec4 shY)
@@ -140,7 +148,7 @@ void main()
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
             float DistSqr = dot(PositionDifference, PositionDifference);
 
-			if (DistSqr < 1.0f) {
+			if (DistSqr < 1.2f) {
 
 				// Samples :
 				vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;

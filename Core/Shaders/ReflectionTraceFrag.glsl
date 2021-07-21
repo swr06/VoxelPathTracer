@@ -5,6 +5,8 @@
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
 
+#define DERIVE_FROM_DIFFUSE_SH
+
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
@@ -26,6 +28,10 @@ uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
 
 uniform sampler2D u_PlayerSprite;
+
+uniform sampler2D u_DiffuseSH;
+uniform sampler2D u_DiffuseCoCg;
+
 
 uniform bool u_RoughReflections;
 
@@ -263,7 +269,7 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-
+// Quake2RTX
 float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	
 	float Co = Radiance.x - Radiance.z; 
@@ -280,11 +286,22 @@ float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	ReturnValue[2] = max(L10 * Y, -100.0f);
 	ReturnValue[3] = max(L00 * Y, -100.0f);
 
-	// Idea by lars to store the color as cocg
-	// https://www.shadertoy.com/view/ltjBWG
 	ReturnValue[4] = Co;
 	ReturnValue[5] = Cg;
 	return ReturnValue;
+}
+
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+{
+    float x = dot(shY.xyz, v);
+    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
 }
 
 vec2 GetCheckerboardedUV()
@@ -349,6 +366,11 @@ void main()
 
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 1.05f);  // Bias 
 
+
+	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
+	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
+
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		//if (MetalnessAt < 0.025f) 
@@ -363,6 +385,18 @@ void main()
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
+
+		#ifdef DERIVE_FROM_DIFFUSE_SH
+		if (RoughnessAt >= 0.85f) { 
+			vec3 DiffuseSHCompute = SHToIrridiance(DiffuseSH, DiffuseCoCg, InitialTraceNormal	);
+			float[6] SH = IrridianceToSH(DiffuseSHCompute, R);
+			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
+			TotalCoCg += vec2(SH[4], SH[5]); 
+			total_hits ++;
+			continue;
+		} 
+		#endif
+
 		vec3 Normal;
 		float Blocktype;
 

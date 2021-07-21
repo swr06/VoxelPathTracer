@@ -67,6 +67,8 @@ void main()
     vec4 TotalSH = vec4(0.0f);
     vec2 TotalCoCg = vec2(0.0f);
     float TotalLuminosity = 0.0f;
+    float TotalWeight2 = 0.0f;
+
 
     float Variance = 0.0f;
     const float SPP_THRESH = 4.0f;
@@ -101,20 +103,24 @@ void main()
                     float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
                     float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
                     float Weight = exp(-LuminosityWeight - NormalWeight);
+                    float Weight_2 = NormalWeight;
+
                     TotalWeight += Weight;
-                    TotalMoment += SampleMoment * Weight;
+                    TotalMoment += SampleMoment * Weight_2;
 
                     TotalSH += SampleSH * Weight;
                     TotalCoCg += SampleCoCg * Weight;
-                    TotalLuminosity += SampleLuminosity * Weight;
+                    TotalLuminosity += SampleLuminosity * Weight_2;
+
+                    TotalWeight2 += Weight_2;
                 }
             }
         }
 
         if (TotalWeight > 0.0f) 
         {
-            TotalMoment /= TotalWeight;
-            TotalLuminosity /= TotalWeight;
+            TotalMoment /= TotalWeight2;
+            TotalLuminosity /= TotalWeight2;
             TotalCoCg /= TotalWeight;
             TotalSH /= TotalWeight;
         }

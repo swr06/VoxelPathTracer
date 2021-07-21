@@ -37,6 +37,32 @@ float GetLuminance(vec3 color)
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
+vec3 linear_to_srgb(vec3 x) 
+{
+    vec3 r;
+  
+    // Adapted from cuda_utils.h in TwinkleBear's ChameleonRT
+    if(x.x <= 0.0031308f) {
+	r.x = 12.92f * x.x;
+    } else {
+	r.x = 1.055f * pow(x.x, 1.f/2.4f) - 0.055f;
+    }
+
+    if(x.y <= 0.0031308f) {
+	r.y = 12.92f * x.y;
+    } else {
+	r.y = 1.055f * pow(x.y, 1.f/2.4f) - 0.055f;
+    }
+
+    if(x.z <= 0.0031308f) {
+	r.z = 12.92f * x.z;
+    } else {
+	r.z = 1.055f * pow(x.z, 1.f/2.4f) - 0.055f;
+    }
+  
+    return r;
+}
+
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
 bool DetectEdge()
@@ -312,5 +338,5 @@ void main()
 		FXAA311(Color);
 	}
 
-	o_Color = pow(Color, vec3(1.0f / 2.2f)); // Gamma correction
+	o_Color = linear_to_srgb(Color); // Gamma correction
 }

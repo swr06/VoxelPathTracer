@@ -707,6 +707,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		SVGF_Temporal.SetFloat("u_ClampBias", 0.025f);
 		SVGF_Temporal.SetVector3f("u_PrevCameraPos", PreviousPosition);
 		SVGF_Temporal.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
+		SVGF_Temporal.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 
 
 		SVGF_Temporal.SetMatrix4("u_VertInverseView", inv_view);
@@ -1015,6 +1016,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_BlueNoiseTexture", 9);
 			ReflectionTraceShader.SetInteger("u_DistanceFieldTexture", 10);
 			ReflectionTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
+			ReflectionTraceShader.SetInteger("u_DiffuseSH", 14);
+			ReflectionTraceShader.SetInteger("u_DiffuseCoCg", 15);
+
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
 			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1080,6 +1084,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE12);
 			glBindTexture(GL_TEXTURE_2D, PlayerSprite.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE14);
+			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE15);
+			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

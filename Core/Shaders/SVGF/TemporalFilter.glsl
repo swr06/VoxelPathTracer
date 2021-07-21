@@ -73,7 +73,7 @@ bool InScreenSpace(vec2 x)
 
 bool InThresholdedScreenSpace(vec2 x)
 {
-	const float b = 0.0025f;
+	const float b = 0.0035f;
     return x.x < 1.0f - b && x.x > b && x.y < 1.0f - b && x.y > b;
 }
 
@@ -97,6 +97,7 @@ void main()
 	vec2 OneMinusPositionFract = 1.0f - PositionFract;
 	float BaseLuminosity = texture(u_NoisyLuminosity, v_TexCoords).r;
 
+	// Atrous weights : 
 	// https://www.eso.org/sci/software/esomidas/doc/user/18NOV/volb/node317.html
 	float Weights[5] = float[5](3.0f / 32.0f,
 								3.0f / 32.0f,
@@ -106,6 +107,7 @@ void main()
 
 	const vec2 Offsets[5] = vec2[5](vec2(1, 0), vec2(0, 1), vec2(0.0f), vec2(-1, 0), vec2(0, -1));
 
+	// Sample neighbours and hope to find a good sample : 
 	for (int i = 0 ; i < 5 ; i++)
 	{
 		vec2 Offset = Offsets[i];
@@ -116,11 +118,10 @@ void main()
 		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
 		vec3 PreviousNormalAt = texture(u_PreviousNormalTexture, SampleCoord).xyz;
 		vec3 PositionDifference = abs(BasePosition.xyz - PreviousPositionAt.xyz);
-		//float PositionError = dot(PositionDifference, PositionDifference);
-		float PositionError = distance(PreviousPositionAt.xyz, BasePosition.xyz);
+		float PositionError = dot(PositionDifference, PositionDifference);
 		float CurrentWeight = Weights[i];
 
-		if (PositionError < 1.2f &&
+		if (PositionError < 1.5f &&
 			PreviousNormalAt == BaseNormal)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
@@ -153,7 +154,6 @@ void main()
 	if (AccumulateAll) {
 		BlendFactor = 0.01f;
 	}
-	
 
 	float UtilitySPP = SumSPP + 1.0;
 	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);
