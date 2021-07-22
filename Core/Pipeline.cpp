@@ -12,7 +12,6 @@ static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
 
-static bool DoSecondSpatialPass = true;
 
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -29,6 +28,8 @@ static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 0.75f;
 
 static bool SoftShadows = true;
+
+static bool ReprojectReflectionsToScreenSpace = true;
 
 static int DiffuseSPP = 3; 
 static int ReflectionSPP = 2;
@@ -117,11 +118,14 @@ public:
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
-			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
-			ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
+			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
+			
+			//ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
+			
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
+			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
@@ -1152,6 +1156,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
 			ReflectionTraceShader.SetInteger("u_DiffuseSH", 14);
 			ReflectionTraceShader.SetInteger("u_DiffuseCoCg", 15);
+			ReflectionTraceShader.SetInteger("u_ShadowTrace", 16);
 
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
@@ -1179,6 +1184,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 			ReflectionTraceShader.SetMatrix4("u_InverseView", inv_view);
 			ReflectionTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
+			ReflectionTraceShader.SetMatrix4("u_View", MainCamera.GetViewMatrix());
+			ReflectionTraceShader.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
+			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -1224,6 +1232,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE15);
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE16);
+			glBindTexture(GL_TEXTURE_2D, SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
