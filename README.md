@@ -23,7 +23,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Physically based atmosphere 
 - God Rays (Screen space) 
 - Emissive Materials
-- Atrous Spatial filtering
+- Spatial filtering (Atrous and SVGF)
 - Screen Space Ambient Occlusion
 - Ray Traced Ambient Occlusion
 - Lens Flare
@@ -33,7 +33,6 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
 
 # Features to implement
-- Spatio temporal variance guided filtering (W.I.P)
 - Alpha testing
 - Foliage
 - Refractions (Will be done in screen space)
@@ -56,6 +55,9 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - https://google.github.io/filament/Filament.md
 - http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
 - http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
+- https://github.com/NVIDIA/Q2RTX
+- https://cg.ivd.kit.edu/publications/2017/svgf/svgf_preprint.pdf
+- https://teamwisp.github.io/research/svfg.html
 - Textures from "Realism Mats", "Umsoea", CC0 textures and Quixel Megascans 
 
 # Thanks
