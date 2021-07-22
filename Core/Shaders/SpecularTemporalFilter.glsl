@@ -92,14 +92,14 @@ void main()
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
-		float ReprojectBias = 0.004f;
+		float ReprojectBias = 0.005f;
 
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
-		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && d <= 1.41414f)
+		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && d <= 0.5f)
 		{
 			vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
-			float BlendFactor = Moved ? 0.8250f : 0.8750f; 
+			float BlendFactor = Moved ? 0.8f : 0.8750f; 
 			o_SH = mix(CurrentColor, PrevColor, BlendFactor);
 
 			// store cocg

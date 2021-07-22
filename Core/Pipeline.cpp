@@ -235,8 +235,8 @@ public:
 
 };
 
-GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
-GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RGBA16F, GL_RGBA, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RGB16F, GL_RGB, GL_FLOAT, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
 
 
@@ -556,18 +556,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
-			/// TEMPORARY ///
-			InitialTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[3]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[4]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[5]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[6]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
-			InitialTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
-
+			
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
 
@@ -600,7 +589,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_PositionTexture", 1);
 		DiffuseTraceShader.SetInteger("u_NormalTexture", 2);
 		DiffuseTraceShader.SetInteger("u_Skymap", 3);
-		DiffuseTraceShader.SetInteger("u_DataTexture", 5);
 		DiffuseTraceShader.SetInteger("u_BlockNormalTextures", 4);
 		DiffuseTraceShader.SetInteger("u_BlockAlbedoTextures", 6);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTextures", 7);
@@ -646,9 +634,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
-
-		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
 
 		glActiveTexture(GL_TEXTURE6);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
@@ -858,7 +843,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 					glActiveTexture(GL_TEXTURE3);
-					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
 
 					glActiveTexture(GL_TEXTURE4);
 					glBindTexture(GL_TEXTURE_2D, VarianceTexture);
@@ -992,7 +977,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 					glActiveTexture(GL_TEXTURE3);
-					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+					glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
 
 					glActiveTexture(GL_TEXTURE4);
 					glBindTexture(GL_TEXTURE_2D, VarianceFBO.GetTexture());
@@ -1155,7 +1140,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.Use();
 
 			ReflectionTraceShader.SetInteger("u_PositionTexture", 0);
-			ReflectionTraceShader.SetInteger("u_PBRTexture", 1);
+			ReflectionTraceShader.SetInteger("u_BlockIDTex", 1);
 			ReflectionTraceShader.SetInteger("u_InitialTraceNormalTexture", 2);
 			ReflectionTraceShader.SetInteger("u_BlockNormalTextures", 4);
 			ReflectionTraceShader.SetInteger("u_BlockAlbedoTextures", 5);
@@ -1354,6 +1339,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_PrevProjection", PreviousProjection);
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
 
+				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
+				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
+
+				BlockDataStorageBuffer.Bind(0);
+
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture());
 
@@ -1372,6 +1362,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE5);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(1));
 
+				glActiveTexture(GL_TEXTURE6);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE7);
+				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
+
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 				VAO.Unbind();
@@ -1386,9 +1382,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_InputTexture", 0);
 				ReflectionDenoiser.SetInteger("u_PositionTexture", 1);
 				ReflectionDenoiser.SetInteger("u_NormalTexture", 2);
-				ReflectionDenoiser.SetInteger("u_NormalMappedTexture", 4);
 				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
-				ReflectionDenoiser.SetInteger("u_PBRTex", 3);
+				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
+				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
@@ -1399,6 +1395,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_PrevProjection", PreviousProjection);
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
 
+				BlockDataStorageBuffer.Bind(0);
+
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, ReflectionDenoised_1.GetTexture());
 
@@ -1408,14 +1406,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE2);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
-				glActiveTexture(GL_TEXTURE3);
-				glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
-
-				glActiveTexture(GL_TEXTURE4);
-				glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
-				
 				glActiveTexture(GL_TEXTURE5);
 				glBindTexture(GL_TEXTURE_2D, ReflectionDenoised_1.GetTexture(1));
+
+				glActiveTexture(GL_TEXTURE6);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE7);
+				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 				
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1435,7 +1433,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			RTAOShader.SetInteger("u_NormalTexture", 2);
 			RTAOShader.SetInteger("u_BlockAlbedoTextures", 3);
 			RTAOShader.SetInteger("u_BlockNormalTextures", 4);
-			RTAOShader.SetInteger("u_DataTexture", 5);
+			RTAOShader.SetInteger("u_BlockIDTexture", 5);
 			RTAOShader.SetFloat("u_Time", glfwGetTime());
 			RTAOShader.SetMatrix4("u_VertInverseView", inv_view);
 			RTAOShader.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -1457,6 +1455,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+			BlockDataStorageBuffer.Bind(0);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1537,7 +1537,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_DiffuseTexture", 0);
 		ColorShader.SetInteger("u_NormalTexture", 1);
 		ColorShader.SetInteger("u_InitialTracePositionTexture", 2);
-		ColorShader.SetInteger("u_DataTexture", 3);
+		ColorShader.SetInteger("u_BlockIDTexture", 3);
 		ColorShader.SetInteger("u_BlockAlbedoTextures", 4);
 		ColorShader.SetInteger("u_BlockNormalTextures", 5);
 		ColorShader.SetInteger("u_BlockPBRTextures", 6);
@@ -1581,6 +1581,22 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
+
+
+
+
+		ColorShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
+		ColorShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+		ColorShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+		ColorShader.SetInteger("u_GrassBlockProps[3]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+		ColorShader.SetInteger("u_GrassBlockProps[4]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+		ColorShader.SetInteger("u_GrassBlockProps[5]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+		ColorShader.SetInteger("u_GrassBlockProps[6]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+		ColorShader.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+		ColorShader.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+		ColorShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+
+
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture());
@@ -1634,6 +1650,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE17);
 		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionCheckerReconstructed.GetTexture(1));
 
+		BlockDataStorageBuffer.Bind(0);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1978,7 +1995,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

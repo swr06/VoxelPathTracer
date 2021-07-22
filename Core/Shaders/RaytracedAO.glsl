@@ -15,7 +15,7 @@ in vec3 v_RayDirection;
 uniform sampler3D u_VoxelData;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
-uniform sampler2D u_DataTexture;
+uniform sampler2D u_BlockIDTexture;
 
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
@@ -24,6 +24,15 @@ uniform float u_Time;
 
 const vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
+	
 bool IsInVoxelizationVolume(in vec3 pos)
 {
     if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
@@ -402,6 +411,19 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
 }
 
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTexture, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
 
 void main()
 {
@@ -416,7 +438,7 @@ void main()
 
 	CalculateVectors(RayOrigin.xyz, InitialNormal, Tangent, Bitangent, UV);
 
-	vec4 Data = texture(u_DataTexture, v_TexCoords).rgba;
+	vec4 Data = GetTextureIDs(GetBlockID(v_TexCoords));
 	vec3 NormalMap = (texture(u_BlockNormalTextures, vec3(UV, Data.g)).rgb) * 2.0f - 1.0f;
 	mat3 TBN = mat3(Tangent, Bitangent, InitialNormal);
 	NormalMap = TBN * NormalMap;

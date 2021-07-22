@@ -43,9 +43,6 @@ uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
 
-uniform sampler2D u_DataTexture;
-//uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
-
 uniform vec2 u_Dimensions;
 uniform float u_Time;
 

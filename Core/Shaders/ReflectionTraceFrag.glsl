@@ -19,7 +19,7 @@ in vec3 v_RayOrigin;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
-uniform sampler2D u_PBRTexture;
+uniform sampler2D u_BlockIDTex;
 uniform sampler2D u_DataTexture;
 
 //uniform sampler2D u_BlueNoiseTexture;
@@ -312,6 +312,21 @@ vec2 GetCheckerboardedUV()
 	return Screenspace;
 }
 
+
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTex, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(u_Time) * 200));
@@ -336,7 +351,7 @@ void main()
 	}
 
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
-	vec4 data = texture(u_PBRTexture, suv);
+	vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
 
 	vec2 iUV; 
 	vec3 iTan, iBitan;
