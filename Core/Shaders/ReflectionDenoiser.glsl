@@ -11,7 +11,6 @@ uniform sampler2D u_InputTexture;
 uniform sampler2D u_InputCoCgTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
-uniform sampler2D u_PBRTex;
 uniform sampler2D u_BlockIDTex;
 uniform sampler2DArray u_BlockPBRTexArray;
 
