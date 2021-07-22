@@ -514,7 +514,7 @@ void main()
 
 			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.z).r;
 			RTAO = pow(RTAO, rtao_strength);
-			RTAO = max(RTAO, 0.2f);
+			RTAO = max(RTAO, 0.825f);
 
 			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}

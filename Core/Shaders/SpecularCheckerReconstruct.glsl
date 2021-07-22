@@ -8,6 +8,10 @@ uniform int u_CurrentFrame;
 uniform sampler2D u_CurrentSH;
 uniform sampler2D u_CoCgTexture;
 
+vec4 TextureClamped(sampler2D t, vec2 txc) {
+	return texture(t, clamp(txc, 0.0f, 1.0f));
+}
+
 
 void main()
 {
@@ -20,18 +24,18 @@ void main()
 		const ivec2 Offsets[4] = ivec2[](ivec2(1, 0), ivec2(0, 1), ivec2(-1, 0), ivec2(0, -1));
 
 		vec4 Total = vec4(0.0f);
-		Total += texture(u_CurrentSH, v_TexCoords + (Offsets[0] * TexelSize));
-		Total += texture(u_CurrentSH, v_TexCoords + (Offsets[1] * TexelSize));
-		Total += texture(u_CurrentSH, v_TexCoords + (Offsets[2] * TexelSize));
-		Total += texture(u_CurrentSH, v_TexCoords + (Offsets[3] * TexelSize));
+		Total += TextureClamped(u_CurrentSH, v_TexCoords + (Offsets[0] * TexelSize));
+		Total += TextureClamped(u_CurrentSH, v_TexCoords + (Offsets[1] * TexelSize));
+		Total += TextureClamped(u_CurrentSH, v_TexCoords + (Offsets[2] * TexelSize));
+		Total += TextureClamped(u_CurrentSH, v_TexCoords + (Offsets[3] * TexelSize));
 		Total /= 4.0f;
 
 
 		vec2 TotalCoCg = vec2(0.0f);
-		TotalCoCg += texture(u_CoCgTexture, v_TexCoords + (Offsets[0] * TexelSize)).rg;
-		TotalCoCg += texture(u_CoCgTexture, v_TexCoords + (Offsets[1] * TexelSize)).rg;
-		TotalCoCg += texture(u_CoCgTexture, v_TexCoords + (Offsets[2] * TexelSize)).rg;
-		TotalCoCg += texture(u_CoCgTexture, v_TexCoords + (Offsets[3] * TexelSize)).rg;
+		TotalCoCg += TextureClamped(u_CoCgTexture, v_TexCoords + (Offsets[0] * TexelSize)).rg;
+		TotalCoCg += TextureClamped(u_CoCgTexture, v_TexCoords + (Offsets[1] * TexelSize)).rg;
+		TotalCoCg += TextureClamped(u_CoCgTexture, v_TexCoords + (Offsets[2] * TexelSize)).rg;
+		TotalCoCg += TextureClamped(u_CoCgTexture, v_TexCoords + (Offsets[3] * TexelSize)).rg;
 		TotalCoCg /= 4.0f;
 
 		o_SH = Total;

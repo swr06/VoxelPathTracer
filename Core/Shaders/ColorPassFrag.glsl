@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 
 #define CLOUD_HEIGHT 70
 #define PCF_COUNT 4 // we really dont care about the low sample count because we have taa.
@@ -17,7 +17,7 @@ in vec3 v_RayDirection;
 uniform sampler2D u_DiffuseTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTracePositionTexture;
-uniform sampler2D u_DataTexture;
+uniform sampler2D u_BlockIDTexture;
 uniform sampler2D u_ShadowTexture;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
@@ -62,6 +62,26 @@ uniform bool u_AmplifyNormalMap;
 
 uniform float u_CloudBoxSize;
 
+layout (std430, binding = 0) buffer SSBO_BlockData
+{
+    int BlockAlbedoData[128];
+    int BlockNormalData[128];
+    int BlockPBRData[128];
+    int BlockEmissiveData[128];
+	int BlockTransparentData[128];
+};
+
+// *****Temporary****** solution to have multi texturing for grass blocks
+// Data stored : 
+// Grass block ID
+// top face index (albedo, normal, pbr),
+// right/left/front/back face index (albedo, normal, pbr),
+// bottom face index (albedo, normal, pbr)
+// 9 + 1 ints total
+
+uniform int u_GrassBlockProps[10];
+
+
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -90,6 +110,12 @@ vec3 PoissonDisk3D[16] = vec3[](
     vec3(0.180761, 0.585253, 0.245888)
 );
 
+const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 float Noise2d( in vec2 x )
 {
@@ -655,13 +681,28 @@ vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness)
 	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
 }
 
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTexture, txc).r;
+
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
 vec3 GetNormalMapAt(vec2 txc, vec3 world_pos, vec3 normal)
 {
     vec3 T, B;
     vec2 UV;
     CalculateVectors(world_pos.xyz, normal, T, B, UV); 
 	mat3 tbn = mat3((T), (B), (normal));
-    vec4 data = texture(u_DataTexture, txc);
+    vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
     vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
     return NormalMapped;
 } 
@@ -756,7 +797,37 @@ void main()
 
             CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
-            vec4 data = texture(u_DataTexture, v_TexCoords);
+            int BaseBlockID = GetBlockID(v_TexCoords);
+            vec4 data = GetTextureIDs(BaseBlockID);
+
+
+            // Handle grass block! 
+            // dont kill me pls :( 
+            if (BaseBlockID == u_GrassBlockProps[0])
+	        {
+	            if (SampledNormals == NORMAL_LEFT || SampledNormals == NORMAL_RIGHT || SampledNormals == NORMAL_FRONT || SampledNormals == NORMAL_BACK)
+	        	{
+	        		data.x = u_GrassBlockProps[4];
+	        		data.y = u_GrassBlockProps[5];
+	        		data.z = u_GrassBlockProps[6];
+	        	}
+
+	        	else if (SampledNormals == NORMAL_TOP)
+	        	{
+	        		data.x = u_GrassBlockProps[1];
+	        		data.y = u_GrassBlockProps[2];
+	        		data.z = u_GrassBlockProps[3];
+	        	}
+
+	        	else if (SampledNormals == NORMAL_BOTTOM)
+	        	{
+	        		data.x = u_GrassBlockProps[7];
+	        		data.y = u_GrassBlockProps[8];
+	        		data.z = u_GrassBlockProps[9];
+	        	}
+	        }
+
+
 
             if (u_POM && data.r != u_GrassblockAlbedoID)
             {

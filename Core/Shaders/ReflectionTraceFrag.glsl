@@ -5,6 +5,11 @@
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
 
+//#define DERIVE_FROM_DIFFUSE_SH
+
+#define REPROJECT_TO_SCREEN_SPACE
+
+
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
@@ -17,7 +22,7 @@ in vec3 v_RayOrigin;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_InitialTraceNormalTexture;
-uniform sampler2D u_PBRTexture;
+uniform sampler2D u_BlockIDTex;
 uniform sampler2D u_DataTexture;
 
 //uniform sampler2D u_BlueNoiseTexture;
@@ -26,6 +31,11 @@ uniform sampler3D u_VoxelData;
 uniform sampler3D u_DistanceFieldTexture;
 
 uniform sampler2D u_PlayerSprite;
+
+uniform sampler2D u_DiffuseSH;
+uniform sampler2D u_DiffuseCoCg;
+uniform sampler2D u_ShadowTrace;
+
 
 uniform bool u_RoughReflections;
 
@@ -52,6 +62,10 @@ uniform int u_CurrentFrame;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform mat4 u_View;
+uniform mat4 u_Projection;
+
+uniform bool u_ReprojectToScreenSpace;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -263,7 +277,7 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-
+// Quake2RTX
 float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	
 	float Co = Radiance.x - Radiance.z; 
@@ -280,11 +294,33 @@ float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	ReturnValue[2] = max(L10 * Y, -100.0f);
 	ReturnValue[3] = max(L00 * Y, -100.0f);
 
-	// Idea by lars to store the color as cocg
-	// https://www.shadertoy.com/view/ltjBWG
 	ReturnValue[4] = Co;
 	ReturnValue[5] = Cg;
 	return ReturnValue;
+}
+
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+{
+    float x = dot(shY.xyz, v);
+    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
+
+vec3 SHToIrradianceA(vec4 shY, vec2 CoCg)
+{
+	float Y = max(0, 3.544905f * shY.w);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
 }
 
 vec2 GetCheckerboardedUV()
@@ -293,6 +329,40 @@ vec2 GetCheckerboardedUV()
 	float TexelSizeX = 1.0f / u_Dimensions.x;
 	Screenspace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX);
 	return Screenspace;
+}
+
+
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTex, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
+bool InThresholdedScreenSpace(in vec2 v) 
+{
+	float b = 0.07593f;
+	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
+}
+
+vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success)
+{
+    vec4 ProjectedPosition = u_Projection * u_View * vec4(HitPosition, 1.0f);
+    ProjectedPosition.xyz /= ProjectedPosition.w;
+    ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+    vec4 PositionAt = GetPositionAt(u_PositionTexture, ProjectedPosition.xy);
+    vec3 NormalAt = texture(u_InitialTraceNormalTexture, ProjectedPosition.xy).xyz;
+    vec3 PositionDifference = abs(PositionAt.xyz - HitPosition.xyz);
+    float Error = dot(PositionDifference, PositionDifference) ;
+    Success = Error < 0.085f && NormalAt == HitNormal && InThresholdedScreenSpace(ProjectedPosition.xy);
+    return ProjectedPosition.xy;
 }
 
 void main()
@@ -319,7 +389,7 @@ void main()
 	}
 
 	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
-	vec4 data = texture(u_PBRTexture, suv);
+	vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
 
 	vec2 iUV; 
 	vec3 iTan, iBitan;
@@ -349,6 +419,11 @@ void main()
 
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 1.05f);  // Bias 
 
+
+	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
+	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
+	vec3 BaseIndirectDiffuse = SHToIrradianceA(DiffuseSH, DiffuseCoCg);
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		//if (MetalnessAt < 0.025f) 
@@ -363,6 +438,18 @@ void main()
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
+
+		#ifdef DERIVE_FROM_DIFFUSE_SH
+		if (RoughnessAt >= 0.85f) { 
+			vec3 DiffuseSHCompute = SHToIrridiance(DiffuseSH, DiffuseCoCg, InitialTraceNormal	);
+			float[6] SH = IrridianceToSH(DiffuseSHCompute, R);
+			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
+			TotalCoCg += vec2(SH[4], SH[5]); 
+			total_hits ++;
+			continue;
+		} 
+		#endif
+
 		vec3 Normal;
 		float Blocktype;
 
@@ -375,6 +462,22 @@ void main()
 
 		if (T > 0.0f)
 		{
+			vec3 Ambient = BaseIndirectDiffuse;
+			bool ReprojectionSuccessful = false;
+			vec2 ScreenSpaceReprojected = vec2(-1.0f);
+			
+			// Reproject to screen space !
+
+			if (u_ReprojectToScreenSpace) {
+				ScreenSpaceReprojected = ReprojectReflectionToScreenSpace(HitPosition, Normal, ReprojectionSuccessful);
+
+				if (ReprojectionSuccessful) {
+					vec4 ReprojectedSH = texture(u_DiffuseSH, ScreenSpaceReprojected);
+					vec2 ReprojectedCoCg = texture(u_DiffuseCoCg, ScreenSpaceReprojected).xy;
+					Ambient = SHToIrradianceA(ReprojectedSH, ReprojectedCoCg);
+				} 
+			}
+
 			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 
@@ -416,8 +519,6 @@ void main()
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
 			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
 			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR * 0.7500f; 
-			vec3 Ambient = SunStronger ? SUN_AMBIENT : NIGHT_AMBIENT;
-			Ambient = (Albedo * Ambient);
 				
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
@@ -425,7 +526,18 @@ void main()
 			// Compute shadow rays for only 1/4 the reflection samples because performance :p
 			if ((ShadowItr < max(SPP / 4, 1))) 
 			{
-				ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
+				// Try to reuse screen space shadow info : 
+
+				if (ReprojectionSuccessful && u_ReprojectToScreenSpace && InThresholdedScreenSpace(ScreenSpaceReprojected))
+				{
+					ComputedShadow = texture(u_ShadowTrace, ScreenSpaceReprojected).x;
+				}
+
+				else 
+				{
+					ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
+				}
+
 				ShadowItr = ShadowItr + 1;
 			}
 
@@ -436,8 +548,12 @@ void main()
 				ComputedShadow = clamp(ComputedShadow, 0.0f, 1.0f);
 			}
 
+
+			Ambient = Ambient * vec3(Albedo);
+
+
 			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
-			vec3 DirectLighting =  (Ambient * 0.0684f) + CalculateDirectionalLight(HitPosition, 
+			vec3 DirectLighting =  Ambient + CalculateDirectionalLight(HitPosition, 
 								   NormalizedStrongerDir, 
 								   Radiance, 
 								   Albedo, 

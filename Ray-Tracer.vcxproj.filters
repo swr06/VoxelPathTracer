@@ -45,6 +45,12 @@
     <Filter Include="Source Files\Shaders\DF">
       <UniqueIdentifier>{00a692a3-7c9d-4c25-b5c7-0d5ba1fd5db7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\SVGF">
+      <UniqueIdentifier>{325b80c3-71b4-4d3c-817d-0231b20e0bd4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shaders\Temporary">
+      <UniqueIdentifier>{61f7df1f-ebeb-49c9-a8cc-dbd066ac16ff}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -509,6 +515,15 @@
     </None>
     <None Include="Core\Shaders\SpecularCheckerReconstruct.glsl">
       <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\SVGF\SpatialFilter.glsl">
+      <Filter>Source Files\Shaders\SVGF</Filter>
+    </None>
+    <None Include="Core\Shaders\SVGF\TemporalFilter.glsl">
+      <Filter>Source Files\Shaders\SVGF</Filter>
+    </None>
+    <None Include="Core\Shaders\SVGF\VarianceEstimate.glsl">
+      <Filter>Source Files\Shaders\SVGF</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

@@ -8,6 +8,12 @@ uniform bool u_HQ = true;
 
 in vec2 v_TexCoords;
 
+bool InThresholdedScreenSpace(vec2 x)
+{
+	const float b = 0.001f;
+    return x.x < 1.0f - b && x.x > b && x.y < 1.0f - b && x.y > b;
+}
+
 void main()
 {
     float Scale = u_HQ ? 1.5f : 1.7f;
@@ -21,8 +27,10 @@ void main()
     {
         for (int j = -KernelSize; j < KernelSize; j++)
         {
+            vec2 S = vec2(i, j) * Scale * TexelSize + v_TexCoords;
+            if (!InThresholdedScreenSpace(S)) { continue; }
             float CurrentWeight = pow(1.0 - length(vec2(i, j)) * 0.125f, 6.0);
-            TotalBloom += texture(u_Texture, vec2(i, j) * Scale * TexelSize + v_TexCoords).rgb * CurrentWeight;
+            TotalBloom += texture(u_Texture, S).rgb * CurrentWeight;
             TotalWeight += CurrentWeight;
         }
     }

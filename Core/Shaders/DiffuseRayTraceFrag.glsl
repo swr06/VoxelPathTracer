@@ -26,7 +26,7 @@
 // Specular indirect is handled separately and in a higher resolution
 layout (location = 0) out vec4 o_SphericalHarmonicData_1;
 layout (location = 1) out vec2 o_ColorData; // Stores the radiance color data in YCoCg
-layout (location = 3) out float o_AO;
+layout (location = 2) out float o_Utility;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -42,9 +42,6 @@ uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
-
-uniform sampler2D u_DataTexture;
-//uniform sampler2D u_BlueNoiseTexture; // Single 256x256 blue noise texture
 
 uniform vec2 u_Dimensions;
 uniform float u_Time;
@@ -247,6 +244,11 @@ float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	return ReturnValue;
 }
 
+float GetLuminance(vec3 color) 
+{
+    return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -262,7 +264,7 @@ void main()
 	HASH2SEED += fract(u_Time) * 100.0f;
 
 	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
-	o_AO = 1.0f;
+	o_Utility = GetLuminance(vec3(0.0f));
 
 	if (Position.w < 0.0f)
 	{
@@ -271,7 +273,6 @@ void main()
 		return;
 	}
 
-	vec3 TotalColor = vec3(0.0f);
 	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
 	float AccumulatedAO = 0.0f;
 
@@ -279,12 +280,13 @@ void main()
 
 	vec4 sh_data1 = vec4(0.0f);
 	vec2 color_data = vec2(0.0f);
+	vec3 radiance = vec3(0.0f);
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		vec3 d = vec3(0.0f);
 		vec4 x = CalculateDiffuse(Position.xyz, Normal, d);
-		TotalColor += x.xyz;
+		radiance += x.xyz;
 		AccumulatedAO += x.w;
 		
 		float SH[6] = IrridianceToSH(x.xyz, d);
@@ -295,9 +297,10 @@ void main()
 	AccumulatedAO /= SPP;
 	sh_data1 /= SPP;
 	color_data /= SPP;
+	radiance /= SPP;
 	o_SphericalHarmonicData_1 = sh_data1;
 	o_ColorData.xy = color_data;
-	o_AO.x = AccumulatedAO;
+	o_Utility = GetLuminance(radiance);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

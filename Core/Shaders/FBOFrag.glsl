@@ -4,53 +4,102 @@ layout(location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 
 uniform sampler2D u_FramebufferTexture;
+uniform sampler2D u_PositionTexture;
+uniform sampler2D u_NormalTexture;
+uniform sampler2D u_BlockIDTex;
 uniform bool u_BrutalFXAA;
 
-float GetLuminance(vec3 color) {
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
+vec4 SamplePositionAt(vec2 txc)
+{
+	vec3 O = u_InverseView[3].xyz;
+	float Dist = texture(u_PositionTexture, txc).r;
+	return vec4(O + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
+}
+
+int GetBlockAt(vec2 txc)
+{
+	float id = texture(u_BlockIDTex, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
+float GetLuminance(vec3 color) 
+{
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-//Due to low sample count we "tonemap" the inputs to preserve colors and smoother edges
-vec3 WeightedSample(sampler2D colorTex, vec2 texcoord)
+vec3 linear_to_srgb(vec3 x) 
 {
-	vec3 wsample = texture(colorTex,texcoord).rgb * 1.0f;
-	return wsample / (1.0f + GetLuminance(wsample));
-}
+    vec3 r;
+  
+    // Adapted from cuda_utils.h in TwinkleBear's ChameleonRT
+    if(x.x <= 0.0031308f) {
+	r.x = 12.92f * x.x;
+    } else {
+	r.x = 1.055f * pow(x.x, 1.f/2.4f) - 0.055f;
+    }
 
-vec3 smoothfilter(in sampler2D tex, in vec2 uv)
-{
-	vec2 textureResolution = textureSize(tex, 0);
-	uv = uv*textureResolution + 0.5;
-	vec2 iuv = floor( uv );
-	vec2 fuv = fract( uv );
-	uv = iuv + fuv*fuv*fuv*(fuv*(fuv*6.0-15.0)+10.0);
-	uv = (uv - 0.5)/textureResolution;
-	return WeightedSample( tex, uv);
-}
+    if(x.y <= 0.0031308f) {
+	r.y = 12.92f * x.y;
+    } else {
+	r.y = 1.055f * pow(x.y, 1.f/2.4f) - 0.055f;
+    }
 
-vec3 sharpen(in sampler2D tex, in vec2 coords) 
-{
-	vec2 renderSize = textureSize(tex, 0);
-	float dx = 1.0 / renderSize.x;
-	float dy = 1.0 / renderSize.y;
-	vec3 sum = vec3(0.0);
-	sum += -1. * smoothfilter(tex, coords + vec2( -1.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , -1.0 * dy));
-	sum += 5. * smoothfilter(tex, coords + vec2( 0.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , 1.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 1.0 * dx , 0.0 * dy));
-	return sum;
+    if(x.z <= 0.0031308f) {
+	r.z = 12.92f * x.z;
+    } else {
+	r.z = 1.055f * pow(x.z, 1.f/2.4f) - 0.055f;
+    }
+  
+    return r;
 }
-
-// FXAA 3.11 implemented from http://blog.simonrodriguez.fr/articles/30-07-2016_implementing_fxaa.html
-// Pretty good read.
 
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
-void FXAA311(inout vec3 color) {
+bool DetectEdge()
+{
+	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
+	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
+	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
+	int BaseBlock = GetBlockAt(v_TexCoords);
+
+	for (int x = -1 ; x <= 1 ; x++)
+	{
+		for (int y = -2 ; y <= 2 ; y++)
+		{
+			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
+			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
+			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+			float PositionError = distance(BasePosition, SamplePosition);
+			int SampleBlock = GetBlockAt(SampleCoord);
+
+			if (BaseNormal != SampleNormal ||
+				PositionError > 0.9f ||
+				SampleBlock != BaseBlock) 
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void FXAA311(inout vec3 color) 
+{
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = u_BrutalFXAA ? 1.5558 : 0.8f; 
+	float subpixelQuality = u_BrutalFXAA ? (DetectEdge() ? 3.0 : 1.0) : 0.8f; 
 	int iterations = 12;
 	vec2 texCoord = v_TexCoords;
 	
@@ -199,17 +248,95 @@ void FXAA311(inout vec3 color) {
 	}
 }
 
-void main()
+//
+// W I P! 
+//
+vec3 GetFXAACustom()
 {
-    vec3 SampledColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
-    vec2 FragCoord = v_TexCoords * textureSize(u_FramebufferTexture, 0);
+	vec3 BlurredColor = vec3(0.0f);
+	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
 
-	const bool fxaa = true;
-	
-	if (fxaa) {
-		FXAA311(SampledColor);
+	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
+	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
+	float BaseLuma = GetLuminance(BaseColor);
+	int BaseBlock = GetBlockAt(v_TexCoords);
+	float AverageLuminosity = 0.0f;
+	int AliasedSamples = 0;
+	int SamplesTaken = 0;
+	bool IsAtEdge = false;
+
+	float TotalWeight = 0.0f;
+	float Step = 1.0f;
+
+	for (int xx = -2 ; xx <= 2 ; xx++)
+	{
+		for (int yy = -2 ; yy <= 2; yy++)
+		{	
+			float x = xx * Step; 
+			float y = yy * Step;
+			float CurrentWeight = 1.0f;
+			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
+			vec3 SampleColor = texture(u_FramebufferTexture, SampleCoord).xyz;
+			AverageLuminosity += GetLuminance(SampleColor) * float(x != 0 && y != 0) * CurrentWeight;
+			BlurredColor += SampleColor * CurrentWeight;
+			TotalWeight += 1.0f * CurrentWeight;
+
+			if (x < -1 || x > 1 || y < -1 || y > 1) {
+				continue;
+			}
+
+			// Edge detection : 
+
+			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
+			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+			float PositionError = distance(BasePosition, SamplePosition);
+			float SampleLuma = GetLuminance(SampleColor);
+			float LumaDifference = abs(SampleLuma - BaseLuma);
+			int SampleBlock = GetBlockAt(SampleCoord);
+
+			LumaDifference = 0.0f;
+
+			if (BaseNormal != SampleNormal ||
+				PositionError > 0.9f ||
+				LumaDifference >= 0.3f || SampleBlock != BaseBlock) 
+			{
+				AliasedSamples++;
+				IsAtEdge = true;
+			}
+
+			SamplesTaken += 1;
+		}
 	}
 
+	BlurredColor /= TotalWeight;
+	AverageLuminosity /= TotalWeight;
 
-    o_Color = pow(SampledColor, vec3(1.0f / 2.2f)); // Gamma correction
+
+	float Mix = float(AliasedSamples) / float(SamplesTaken);
+	Mix = clamp(Mix, 0.75f, 1.0f);
+
+	if (IsAtEdge)
+	{
+		return mix(BaseColor, BlurredColor, Mix);
+	}
+
+	return BaseColor;
+
+}
+
+
+void main()
+{
+	vec3 BaseSample = texture(u_FramebufferTexture, v_TexCoords).rgb;
+    vec3 Color = BaseSample;
+	const bool CustomFXAA = false;
+
+	if (CustomFXAA) {
+		Color = GetFXAACustom();
+	} else {
+		FXAA311(Color);
+	}
+
+	o_Color = linear_to_srgb(Color); // Gamma correction
 }

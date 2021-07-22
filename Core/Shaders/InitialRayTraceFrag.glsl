@@ -13,8 +13,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 
 layout (location = 0) out float o_HitDistance;
 layout (location = 1) out vec3 o_Normal;
-layout (location = 2) out vec4 o_Data;
-layout (location = 3) out float o_BlockID;
+layout (location = 2) out float o_BlockID;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -37,16 +36,6 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
 };
-
-// Temporary solution to have multi texturing for grass blocks
-// Data stored : 
-// Grass block ID
-// top face index (albedo, normal, pbr),
-// right/left/front/back face index (albedo, normal, pbr),
-// bottom face index (albedo, normal, pbr)
-// 9 + 1 ints total
-
-uniform int u_GrassBlockProps[10];
 
 struct Ray
 {
@@ -200,63 +189,12 @@ void main()
 
 	o_HitDistance = t;
 
-	int reference_id;
-	vec4 texture_ids;
 	bool transparent;
 
 	o_BlockID = 0.0f;
+
 	if (intersect)
 	{
 		o_BlockID = id;
-		reference_id = clamp(int(floor(id * 255.0f)), 0, 127);
-		texture_ids.xyz = vec3(
-			float(BlockAlbedoData[reference_id]),
-			float(BlockNormalData[reference_id]),
-			float(BlockPBRData[reference_id])
-		);
-		texture_ids.w = float(BlockEmissiveData[reference_id]);
 	}
-
-	else 
-	{
-		texture_ids = vec4(-1.0f);
-	}
-
-	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
-	#ifdef MULTIPLE_TEXTURING_GRASS
-
-	// /* Specific to grass texture. Temporary solution */
-	if (reference_id == u_GrassBlockProps[0])
-	{
-	    if (normal == NORMAL_LEFT || normal == NORMAL_RIGHT || normal == NORMAL_FRONT || normal == NORMAL_BACK)
-		{
-			texture_ids.x = u_GrassBlockProps[4];
-			texture_ids.y = u_GrassBlockProps[5];
-			texture_ids.z = u_GrassBlockProps[6];
-		}
-
-		else if (normal == NORMAL_TOP)
-		{
-			texture_ids.x = u_GrassBlockProps[1];
-			texture_ids.y = u_GrassBlockProps[2];
-			texture_ids.z = u_GrassBlockProps[3];
-		}
-
-		else if (normal == NORMAL_BOTTOM)
-		{
-			texture_ids.x = u_GrassBlockProps[7];
-			texture_ids.y = u_GrassBlockProps[8];
-			texture_ids.z = u_GrassBlockProps[9];
-		}
-	}
-
-	#endif
-
-	o_Data = vec4(texture_ids);
 }
