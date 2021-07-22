@@ -744,6 +744,7 @@ vec3 saturate(vec3 x)
     return clamp(x, 0.0f, 1.0f);
 }
 
+// from quake2rtx
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
 {
     float x = dot(shY.xyz, v);

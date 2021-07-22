@@ -221,6 +221,7 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+// from quake2rtx project
 float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	
 	float Co = Radiance.x - Radiance.z; 
@@ -236,9 +237,6 @@ float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	ReturnValue[1] = max(L1_1 * Y, -100.0f);
 	ReturnValue[2] = max(L10 * Y, -100.0f);
 	ReturnValue[3] = max(L00 * Y, -100.0f);
-
-	// Idea by lars to store the color as cocg
-	// https://www.shadertoy.com/view/ltjBWG
 	ReturnValue[4] = Co;
 	ReturnValue[5] = Cg;
 	return ReturnValue;
