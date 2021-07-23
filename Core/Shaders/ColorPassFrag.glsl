@@ -270,38 +270,6 @@ float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-//Due to low sample count we "tonemap" the inputs to preserve colors and smoother edges
-vec3 WeightedSample(sampler2D colorTex, vec2 texcoord)
-{
-	vec3 wsample = texture(colorTex,texcoord).rgb * 1.0f;
-	return wsample / (1.0f + GetLuminance(wsample));
-}
-
-vec3 smoothfilter(in sampler2D tex, in vec2 uv)
-{
-	vec2 textureResolution = textureSize(tex, 0);
-	uv = uv*textureResolution + 0.5;
-	vec2 iuv = floor( uv );
-	vec2 fuv = fract( uv );
-	uv = iuv + fuv*fuv*fuv*(fuv*(fuv*6.0-15.0)+10.0);
-	uv = (uv - 0.5)/textureResolution;
-	return WeightedSample( tex, uv);
-}
-
-vec3 sharpen(in sampler2D tex, in vec2 coords) 
-{
-	vec2 renderSize = textureSize(tex, 0);
-	float dx = 1.0 / renderSize.x;
-	float dy = 1.0 / renderSize.y;
-	vec3 sum = vec3(0.0);
-	sum += -1. * smoothfilter(tex, coords + vec2( -1.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , -1.0 * dy));
-	sum += 5. * smoothfilter(tex, coords + vec2( 0.0 * dx , 0.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 0.0 * dx , 1.0 * dy));
-	sum += -1. * smoothfilter(tex, coords + vec2( 1.0 * dx , 0.0 * dy));
-	return sum;
-}
-
 vec4 ClampedTexture(sampler2D tex, vec2 txc)
 {
     return texture(tex, clamp(txc, 0.0f, 1.0f));
@@ -312,25 +280,6 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	vec3 WorldPos = world_pos;
 
 	vec4 ProjectedPosition = u_ShadowProjection * u_ShadowView * vec4(WorldPos, 1.0f);
-	ProjectedPosition.xyz /= ProjectedPosition.w;
-	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
-
-	return ProjectedPosition.xy;
-}
-
-vec2 Reproject(in vec3 WorldPos)
-{
-	vec4 ProjectedPosition = u_Projection * u_View * vec4(WorldPos, 1.0f);
-	ProjectedPosition.xyz /= ProjectedPosition.w;
-	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
-	return ProjectedPosition.xy;
-}
-
-vec2 ReprojectReflection(in vec3 world_pos)
-{
-	vec3 WorldPos = world_pos;
-
-	vec4 ProjectedPosition = u_ReflectionProjection * u_ReflectionView * vec4(WorldPos, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
 
@@ -582,100 +531,6 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
 }
 
-vec4 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec4 color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-		vec4 sampled_pos = SamplePositionAt(u_InitialTracePositionTexture, txc + Kernel[i] * texel_size);
-
-		if (sampled_pos.w <= 0.0f)
-		{
-			continue;
-		}
-
-        float sampled_depth = (sampled_pos.z); 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = dweight;
-        color.rgba += texture(tex, txc + Kernel[i] * texel_size) * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    
-    color /= weight_sum + 0.01f;
-    //color = clamp(color, texture(tex, txc) * 0.12f, vec4(1.0f));
-    return color;
-}
-
-
-bool SampleValid(in vec2 SampleCoord, in vec3 InputPosition, in vec3 InputNormal)
-{
-	bool InScreenSpace = SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f;
-	vec4 PositionAt = SamplePositionAt(u_InitialTracePositionTexture, SampleCoord);
-	vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
-	return (abs(PositionAt.z - InputPosition.z) <= THRESH) 
-			&& (abs(PositionAt.x - InputPosition.x) <= THRESH) 
-			&& (abs(PositionAt.y - InputPosition.y) <= THRESH) 
-			&& (InputNormal == NormalAt) 
-			&& (PositionAt.w > 0.0f) && (InScreenSpace);
-}
-
-vec4 BilateralUpsample2(sampler2D tex, vec2 txc, vec3 base_pos, vec3 base_normal)
-{
-    const vec2 Kernel[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-    const float Weights[8] = float[8](
-        1.0f / 16.0f,
-        3.0f / 32.0f,
-        1.0f / 16.0f,
-        3.0f / 32.0f,
-        3.0f / 32.0f,
-        1.0f / 16.0f,
-        3.0f / 32.0f,
-        1.0f / 16.0f
-    );
-
-    vec2 TexelSize = 1.0f / textureSize(tex, 0);
-
-    vec4 Color = vec4(0.0f, 0.0f, 0.0f, 0.0f);
-    float TotalWeights = 0.0f;
-
-    for (int i = 0; i < 8; i++) 
-    {
-        float weight = Weights[i];
-
-        if (SampleValid(txc + Kernel[i] * TexelSize, base_pos, base_normal))
-        {
-            Color.rgba += texture(tex, txc + Kernel[i] * TexelSize) * weight;
-            TotalWeights += weight;
-        }
-    }
-    
-    return Color / max(TotalWeights, 0.01f);
-}
-
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
 	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
@@ -695,17 +550,6 @@ int GetBlockID(vec2 txc)
 
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
-
-vec3 GetNormalMapAt(vec2 txc, vec3 world_pos, vec3 normal)
-{
-    vec3 T, B;
-    vec2 UV;
-    CalculateVectors(world_pos.xyz, normal, T, B, UV); 
-	mat3 tbn = mat3((T), (B), (normal));
-    vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
-    vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
-    return NormalMapped;
-} 
 
 float FastDistance(vec3 p1, vec3 p2)
 {
@@ -782,8 +626,6 @@ void main()
     o_Color = vec3(1.0f);
     bool BodyIntersect = GetAtmosphere(AtmosphereAt, v_RayDirection);
     o_PBR.w = float(BodyIntersect);
-
-    vec2 TexCoords = Reproject(WorldPosition.xyz);
 
     if (WorldPosition.w > 0.0f)
     {
