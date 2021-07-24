@@ -662,6 +662,10 @@ void main()
         
         RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz);
 
+        float Bias = 0.0035f;
+        bool InBiasedSS =  (v_TexCoords.x > 0.0 + Bias && v_TexCoords.x < 1.0 - Bias 
+		 && v_TexCoords.y > 0.0 + Bias && v_TexCoords.y < 1.0f - Bias);
+
         if (!IsAtEdge(v_TexCoords))
         {
             vec2 UV;
@@ -782,7 +786,7 @@ void main()
 
             vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
             vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
-            vec3 SpecularIndirect = SHToIrridiance(SpecularSH, SpecularCoCg, IndirectN).rgb;
+            vec3 SpecularIndirect = InBiasedSS ? SHToIrridiance(SpecularSH, SpecularCoCg, IndirectN).rgb : vec3(0.0f);
             
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
             // That it hurts my soul

@@ -154,7 +154,7 @@ vec2 CalculateUV(vec3 world_pos, in vec3 normal);
 
 int GetBlockID(vec2 txc)
 {
-	float id = texture(u_BlockIDTex, txc).r;
+	float id = texelFetch(u_BlockIDTex, ivec2(txc * textureSize(u_BlockIDTex, 0).xy), 0).r;
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
 
@@ -183,8 +183,11 @@ void main()
 		int Sample = GaussianOffsets[s]; // todo : use u_Step here!
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
 		
-		if (SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f) 
+		// Solves clamp issues : 
+		float bias = 0.01f;
+		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 
 		{
+
 			vec3 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyz;
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 

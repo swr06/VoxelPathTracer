@@ -92,7 +92,7 @@ void main()
 		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
-		float ReprojectBias = 0.005f;
+		float ReprojectBias = 0.0125f;
 
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && d <= 0.5f)
