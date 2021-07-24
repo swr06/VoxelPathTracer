@@ -161,8 +161,9 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 }
 
 bool CompareVec3(vec3 v1, vec3 v2) {
-	float e = 0.0125f;
-	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+	//float e = 0.0125f;
+	//return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+	return v1 == v2;
 }
 
 float GetNormalID(in vec3 normal)
@@ -177,33 +178,33 @@ float GetNormalID(in vec3 normal)
 
 	if (CompareVec3(normal, Normals[0]))
     {
-        return 1.0f / 10.0f;
+        return 0.0f / 10.0f;
     }
 
     else if (CompareVec3(normal, Normals[1]))
     {
-        return 2.0f / 10.0f;
+        return 1.0f / 10.0f;
     }
 
     else if (CompareVec3(normal, Normals[2]))
     {
-        return 3.0f / 10.0f;
+        return 2.0f / 10.0f;
     }
 
     else if (CompareVec3(normal, Normals[3]))
     {
-        return 4.0f / 10.0f;
+        return 3.0f / 10.0f;
     }
 	
     else if (CompareVec3(normal, Normals[4]))
     {
-        return 5.0f / 10.0f;
+        return 4.0f / 10.0f;
     }
     
 
     else if (CompareVec3(normal, Normals[5]))
     {
-        return 6.0f / 10.0f;
+        return 5.0f / 10.0f;
     }
 
 	return 0.0f;
@@ -217,9 +218,14 @@ vec3 GetNormalFromID(float n) {
 	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
 					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
 					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
-    return Normals[int(floor(n*10.0f))];
-}
+    int idx = int(round(n*10.0f));
 
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
 
 void main()
 {
