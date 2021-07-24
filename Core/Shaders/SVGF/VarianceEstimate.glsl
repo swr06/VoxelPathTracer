@@ -47,13 +47,34 @@ bool InScreenSpace(in vec2 v)
     return v.x < 1.0f && v.x > 0.0f && v.y < 1.0f && v.y > 0.0f;
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 { 
     vec2 Dimensions = textureSize(u_SH, 0);
     vec2 TexelSize = 1.0f / Dimensions;
 
     vec3 BasePosition = GetPositionAt(v_TexCoords).xyz;
-    vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+    vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 
     vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
 
@@ -93,7 +114,7 @@ void main()
 
                 if (DistSqr < 1.0f) 
                 { 
-                    vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+                    vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
                     vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
                     float SampleMoment = SampleUtility.y;
 

@@ -12,7 +12,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 #define ALPHA_TESTING
 
 layout (location = 0) out float o_HitDistance;
-layout (location = 1) out vec3 o_Normal;
+layout (location = 1) out float o_Normal;
 layout (location = 2) out float o_BlockID;
 
 in vec2 v_TexCoords;
@@ -160,7 +160,72 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	//float e = 0.0125f;
+	//return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+	return v1 == v2;
+}
 
+float GetNormalID(in vec3 normal)
+{
+	// Hard coded normals, tangents and bitangents
+
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+
+	if (CompareVec3(normal, Normals[0]))
+    {
+        return 0.0f / 10.0f;
+    }
+
+    else if (CompareVec3(normal, Normals[1]))
+    {
+        return 1.0f / 10.0f;
+    }
+
+    else if (CompareVec3(normal, Normals[2]))
+    {
+        return 2.0f / 10.0f;
+    }
+
+    else if (CompareVec3(normal, Normals[3]))
+    {
+        return 3.0f / 10.0f;
+    }
+	
+    else if (CompareVec3(normal, Normals[4]))
+    {
+        return 4.0f / 10.0f;
+    }
+    
+
+    else if (CompareVec3(normal, Normals[5]))
+    {
+        return 5.0f / 10.0f;
+    }
+
+	return 0.0f;
+}
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
 
 void main()
 {
@@ -179,12 +244,12 @@ void main()
 
 	if (intersect)
 	{
-		o_Normal = normal;
+		o_Normal = GetNormalID(normal);
 	} 
 
 	else
 	{
-		o_Normal = vec3(-1.0f);
+		o_Normal = 0.0f;
 	}
 
 	o_HitDistance = t;

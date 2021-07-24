@@ -352,13 +352,34 @@ bool InThresholdedScreenSpace(in vec2 v)
 	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success)
 {
     vec4 ProjectedPosition = u_Projection * u_View * vec4(HitPosition, 1.0f);
     ProjectedPosition.xyz /= ProjectedPosition.w;
     ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
     vec4 PositionAt = GetPositionAt(u_PositionTexture, ProjectedPosition.xy);
-    vec3 NormalAt = texture(u_InitialTraceNormalTexture, ProjectedPosition.xy).xyz;
+    vec3 NormalAt = SampleNormalFromTex(u_InitialTraceNormalTexture, ProjectedPosition.xy).xyz;
     vec3 PositionDifference = abs(PositionAt.xyz - HitPosition.xyz);
     float Error = dot(PositionDifference, PositionDifference) ;
     Success = Error < 0.085f && NormalAt == HitNormal && InThresholdedScreenSpace(ProjectedPosition.xy);
@@ -388,7 +409,7 @@ void main()
 		return;
 	}
 
-	vec3 InitialTraceNormal = texture(u_InitialTraceNormalTexture, suv).rgb;
+	vec3 InitialTraceNormal = SampleNormalFromTex(u_InitialTraceNormalTexture, suv).rgb;
 	vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
 
 	vec2 iUV; 
@@ -819,6 +840,11 @@ float GetShadowAt(in vec3 pos, in vec3 ldir)
 	}
 }
 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
 	// Hard coded normals, tangents and bitangents
@@ -838,35 +864,35 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
 	);
 
-	if (normal == Normals[0])
+	if (CompareVec3(normal, Normals[0]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[0];
 		bitangent = BiTangents[0];
     }
 
-    else if (normal == Normals[1])
+    else if (CompareVec3(normal, Normals[1]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[1];
 		bitangent = BiTangents[1];
     }
 
-    else if (normal == Normals[2])
+    else if (CompareVec3(normal, Normals[2]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[2];
 		bitangent = BiTangents[2];
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, Normals[3]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[3];
 		bitangent = BiTangents[3];
     }
 	
-    else if (normal == Normals[4])
+    else if (CompareVec3(normal, Normals[4]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[4];
@@ -874,7 +900,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
     
 
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, Normals[5]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[5];
@@ -884,41 +910,40 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 {
-	// Hard coded normals, tangents and bitangents
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	if (normal == Normals[0])
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-    else if (normal == Normals[1])
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-    else if (normal == Normals[2])
+    if (CompareVec3(normal, NORMAL_TOP))
     {
         uv = vec2(fract(world_pos.xz));
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
     {
         uv = vec2(fract(world_pos.xz));
     }
-	
-    else if (normal == Normals[4])
+
+    else if (CompareVec3(normal, NORMAL_RIGHT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+
+    else if (CompareVec3(normal, NORMAL_LEFT))
     {
         uv = vec2(fract(world_pos.zy));
     }
     
-
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, NORMAL_FRONT))
     {
-        uv = vec2(fract(world_pos.zy));
+        uv = vec2(fract(world_pos.xy));
+    }
+
+     else if (CompareVec3(normal, NORMAL_BACK))
+    {
+        uv = vec2(fract(world_pos.xy));
     }
 }

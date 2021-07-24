@@ -12,6 +12,27 @@ uniform bool u_BrutalFXAA;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+
+}
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
 	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
@@ -68,7 +89,7 @@ float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0,
 bool DetectEdge()
 {
 	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
-	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
 	int BaseBlock = GetBlockAt(v_TexCoords);
@@ -79,7 +100,7 @@ bool DetectEdge()
 		{
 			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
 			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
-			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 			float PositionError = distance(BasePosition, SamplePosition);
 			int SampleBlock = GetBlockAt(SampleCoord);
 
@@ -257,7 +278,7 @@ vec3 GetFXAACustom()
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
 
 	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
-	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
 	float BaseLuma = GetLuminance(BaseColor);
 	int BaseBlock = GetBlockAt(v_TexCoords);
@@ -289,7 +310,7 @@ vec3 GetFXAACustom()
 			// Edge detection : 
 
 			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
-			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 			float PositionError = distance(BasePosition, SamplePosition);
 			float SampleLuma = GetLuminance(SampleColor);
 			float LumaDifference = abs(SampleLuma - BaseLuma);
@@ -338,5 +359,6 @@ void main()
 		FXAA311(Color);
 	}
 
+	o_Color = Color;
 	o_Color = linear_to_srgb(Color); // Gamma correction
 }

@@ -167,6 +167,27 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
+
 int MIN = -2147483648;
 int MAX = 2147483647;
 int RNG_SEED;
@@ -286,7 +307,7 @@ void main()
 	}
 
 	vec3 RayDirection = (JitteredLightDirection);
-	vec3 SampledNormal = texture(u_NormalTexture, v_TexCoords).rgb;
+	vec3 SampledNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
 	vec3 Bias = SampledNormal * vec3(0.06f);
 	
 	if (true) //(u_DoFullTrace)

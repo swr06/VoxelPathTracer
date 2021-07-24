@@ -77,10 +77,31 @@ bool InThresholdedScreenSpace(vec2 x)
     return x.x < 1.0f - b && x.x > b && x.y < 1.0f - b && x.y > b;
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormal(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 {
 	vec4 BasePosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords);
-	vec3 BaseNormal = texture(u_CurrentNormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormal(u_CurrentNormalTexture, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_CurrentSH, v_TexCoords).rgba;
 	vec2 BaseCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
 
@@ -116,7 +137,7 @@ void main()
 		if (!InThresholdedScreenSpace(SampleCoord)) { continue; }
 
 		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
-		vec3 PreviousNormalAt = texture(u_PreviousNormalTexture, SampleCoord).xyz;
+		vec3 PreviousNormalAt = SampleNormal(u_PreviousNormalTexture, SampleCoord).xyz;
 		vec3 PositionDifference = abs(BasePosition.xyz - PreviousPositionAt.xyz);
 		float PositionError = dot(PositionDifference, PositionDifference);
 		float CurrentWeight = Weights[i];
