@@ -122,6 +122,21 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 
 // Basic clamp firefly reject
 vec4 FireflyReject(vec4 Col)
@@ -143,7 +158,7 @@ void main()
 	vec2 BlurredCoCg = vec2(0.0f);
 
 	vec3 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyz;
-	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	int BaseBlockID = GetBlockID(v_TexCoords);
 
 	vec4 BaseSH = texture(u_InputTexture, v_TexCoords).xyzw;
@@ -165,7 +180,7 @@ void main()
 		if (SampleCoord.x > 0.0f && SampleCoord.x < 1.0f && SampleCoord.y > 0.0f && SampleCoord.y < 1.0f) 
 		{
 			vec3 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyz;
-			vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 
 			vec3 PositionDifference = abs(SamplePosition - BasePosition);
 			float PositionError = dot(PositionDifference, PositionDifference);
@@ -229,44 +244,50 @@ void main()
 	}
 }
 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
 vec2 CalculateUV(vec3 world_pos, in vec3 normal)
 {
-	vec2 uv;
-	
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
+	vec2 uv = vec2(0.0f);
 
-	if (normal == Normals[0])
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
-    else if (normal == Normals[1])
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-    else if (normal == Normals[2])
+    if (CompareVec3(normal, NORMAL_TOP))
     {
         uv = vec2(fract(world_pos.xz));
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
     {
         uv = vec2(fract(world_pos.xz));
     }
-	
-    else if (normal == Normals[4])
+
+    else if (CompareVec3(normal, NORMAL_RIGHT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+
+    else if (CompareVec3(normal, NORMAL_LEFT))
     {
         uv = vec2(fract(world_pos.zy));
     }
     
-
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, NORMAL_FRONT))
     {
-        uv = vec2(fract(world_pos.zy));
+        uv = vec2(fract(world_pos.xy));
+    }
+
+     else if (CompareVec3(normal, NORMAL_BACK))
+    {
+        uv = vec2(fract(world_pos.xy));
     }
 
 	return uv;

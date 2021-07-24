@@ -117,6 +117,22 @@ const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormal(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
+
 float Noise2d( in vec2 x )
 {
     float xhash = cos( x.x * 37.0 );
@@ -468,6 +484,11 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
     return FinalTexCoords;
 }   
 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
 	// Hard coded normals, tangents and bitangents
@@ -487,35 +508,37 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
 	);
 
-	if (normal == Normals[0])
+    uv = vec2(1.0f);
+
+	if (CompareVec3(normal, Normals[0]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[0];
 		bitangent = BiTangents[0];
     }
 
-    else if (normal == Normals[1])
+    else if (CompareVec3(normal, Normals[1]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[1];
 		bitangent = BiTangents[1];
     }
 
-    else if (normal == Normals[2])
+    else if (CompareVec3(normal, Normals[2]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[2];
 		bitangent = BiTangents[2];
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, Normals[3]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[3];
 		bitangent = BiTangents[3];
     }
 	
-    else if (normal == Normals[4])
+    else if (CompareVec3(normal, Normals[4]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[4];
@@ -523,7 +546,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
     
 
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, Normals[5]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[5];
@@ -620,7 +643,7 @@ void main()
 
     vec4 WorldPosition = SamplePositionAt(u_InitialTracePositionTexture, v_TexCoords);
 
-    vec3 SampledNormals = texture(u_NormalTexture, v_TexCoords).rgb;
+    vec3 SampledNormals = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);
 
     o_Color = vec3(1.0f);
@@ -639,6 +662,10 @@ void main()
             vec3 Tangent, Bitangent;
 
             CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
+
+            o_Color = vec3(SampledNormals);
+            return;
+
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
             int BaseBlockID = GetBlockID(v_TexCoords);
             vec4 data = GetTextureIDs(BaseBlockID);

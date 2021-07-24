@@ -84,7 +84,7 @@ vec3 CosineSampleHemisphere(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float GetShadowAt(vec3 pos, in vec3 ldir);
 vec2 ReprojectShadow(vec3);
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex);
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
 bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist);
 
@@ -150,14 +150,13 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 {
 	float b = 0;
-	int temp;
 
 	bool Intersect = voxel_traversal(r.Origin, r.Direction, b, out_n, pos, MAX_VOXEL_DIST);
 	int tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
 
 	if (Intersect && b > 0) 
 	{ 
-		vec2 txc; CalculateUV(pos, out_n, txc, temp);
+		vec2 txc; CalculateUV(pos, out_n, txc);
 		return GetDirectLighting(pos, tex_ref, txc, out_n);
 	} 
 
@@ -247,6 +246,21 @@ float GetLuminance(vec3 color)
     return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormal(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -271,7 +285,7 @@ void main()
 		return;
 	}
 
-	vec3 Normal = texture(u_NormalTexture, v_TexCoords).rgb;
+	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
@@ -622,6 +636,11 @@ vec3 CosineSampleHemisphere(float u1, float u2)
     return vec3(x, y, sqrt(max(0.0f, 1 - u1)));
 }
 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
 	// Hard coded normals, tangents and bitangents
@@ -641,35 +660,35 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
 	);
 
-	if (normal == Normals[0])
+	if (CompareVec3(normal, Normals[0]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[0];
 		bitangent = BiTangents[0];
     }
 
-    else if (normal == Normals[1])
+    else if (CompareVec3(normal, Normals[1]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[1];
 		bitangent = BiTangents[1];
     }
 
-    else if (normal == Normals[2])
+    else if (CompareVec3(normal, Normals[2]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[2];
 		bitangent = BiTangents[2];
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, Normals[3]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[3];
 		bitangent = BiTangents[3];
     }
 	
-    else if (normal == Normals[4])
+    else if (CompareVec3(normal, Normals[4]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[4];
@@ -677,7 +696,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
     
 
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, Normals[5]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[5];
@@ -733,7 +752,7 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 {
 	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
@@ -742,39 +761,33 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalInde
 	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
-    if (normal == NORMAL_TOP)
+    if (CompareVec3(normal, NORMAL_TOP))
     {
         uv = vec2(fract(world_pos.xz));
-		NormalIndex = 0;
     }
 
-    else if (normal == NORMAL_BOTTOM)
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
     {
         uv = vec2(fract(world_pos.xz));
-		NormalIndex = 1;
     }
 
-    else if (normal == NORMAL_RIGHT)
+    else if (CompareVec3(normal, NORMAL_RIGHT))
     {
         uv = vec2(fract(world_pos.zy));
-		NormalIndex = 2;
     }
 
-    else if (normal == NORMAL_LEFT)
+    else if (CompareVec3(normal, NORMAL_LEFT))
     {
         uv = vec2(fract(world_pos.zy));
-		NormalIndex = 3;
     }
     
-    else if (normal == NORMAL_FRONT)
+    else if (CompareVec3(normal, NORMAL_FRONT))
     {
         uv = vec2(fract(world_pos.xy));
-		NormalIndex = 4;
     }
 
-     else if (normal == NORMAL_BACK)
+     else if (CompareVec3(normal, NORMAL_BACK))
     {
         uv = vec2(fract(world_pos.xy));
-		NormalIndex = 5;
     }
 }

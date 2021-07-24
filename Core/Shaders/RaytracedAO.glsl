@@ -74,7 +74,12 @@ float ProjectToCube(vec3 ro, vec3 rd)
 	return t;
 }
 
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalIndex)
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 {
 	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
@@ -83,40 +88,34 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv, out int NormalInde
 	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
-    if (normal == NORMAL_TOP)
+    if (CompareVec3(normal, NORMAL_TOP))
     {
         uv = vec2(fract(world_pos.xz));
-		NormalIndex = 0;
     }
 
-    else if (normal == NORMAL_BOTTOM)
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
     {
         uv = vec2(fract(world_pos.xz));
-		NormalIndex = 1;
     }
 
-    else if (normal == NORMAL_RIGHT)
+    else if (CompareVec3(normal, NORMAL_RIGHT))
     {
         uv = vec2(fract(world_pos.zy));
-		NormalIndex = 2;
     }
 
-    else if (normal == NORMAL_LEFT)
+    else if (CompareVec3(normal, NORMAL_LEFT))
     {
         uv = vec2(fract(world_pos.zy));
-		NormalIndex = 3;
     }
     
-    else if (normal == NORMAL_FRONT)
+    else if (CompareVec3(normal, NORMAL_FRONT))
     {
         uv = vec2(fract(world_pos.xy));
-		NormalIndex = 4;
     }
 
-     else if (normal == NORMAL_BACK)
+     else if (CompareVec3(normal, NORMAL_BACK))
     {
         uv = vec2(fract(world_pos.xy));
-		NormalIndex = 5;
     }
 }
 
@@ -301,35 +300,35 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
 	);
 
-	if (normal == Normals[0])
+	if (CompareVec3(normal, Normals[0]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[0];
 		bitangent = BiTangents[0];
     }
 
-    else if (normal == Normals[1])
+    else if (CompareVec3(normal, Normals[1]))
     {
         uv = vec2(fract(world_pos.xy));
 		tangent = Tangents[1];
 		bitangent = BiTangents[1];
     }
 
-    else if (normal == Normals[2])
+    else if (CompareVec3(normal, Normals[2]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[2];
 		bitangent = BiTangents[2];
     }
 
-    else if (normal == Normals[3])
+    else if (CompareVec3(normal, Normals[3]))
     {
         uv = vec2(fract(world_pos.xz));
 		tangent = Tangents[3];
 		bitangent = BiTangents[3];
     }
 	
-    else if (normal == Normals[4])
+    else if (CompareVec3(normal, Normals[4]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[4];
@@ -337,7 +336,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
     
 
-    else if (normal == Normals[5])
+    else if (CompareVec3(normal, Normals[5]))
     {
         uv = vec2(fract(world_pos.zy));
 		tangent = Tangents[5];
@@ -425,6 +424,21 @@ int GetBlockID(vec2 txc)
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 {
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
@@ -432,7 +446,7 @@ void main()
 	hash2(); hash2();
 
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 InitialNormal = texture(u_NormalTexture, v_TexCoords).rgb;
+	vec3 InitialNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
 	vec3 Tangent, Bitangent;
 	vec2 UV;
 

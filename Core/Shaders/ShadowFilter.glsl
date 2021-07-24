@@ -26,6 +26,21 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(u_InverseView[3].xyz + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius;
@@ -37,7 +52,7 @@ float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thre
     float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
     float centrPx = texture(tex, uv).r;
     vec4 CenterPosition = GetPositionAt(u_PositionTexture, v_TexCoords);
-    vec3 CenterNormal = texture(u_NormalTexture, v_TexCoords).rgb;
+    vec3 CenterNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
 
     float zBuff = 0.0f;
     float aBuff = 0.0f;
@@ -52,7 +67,7 @@ float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thre
             vec2 d = vec2(x, y);
             vec2 SampleCoord = uv + d / size;
             vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord);
-            vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).rgb;
+            vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
             // Sample valiation : 
             if (distance(SamplePosition.xyz, CenterPosition.xyz) > 0.6 ||

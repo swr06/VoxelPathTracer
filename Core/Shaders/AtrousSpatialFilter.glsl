@@ -72,6 +72,21 @@ vec3 Saturate(vec3 x)
 	return clamp(x, 0.0f, 1.0f);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 {
 	vec2 TexelSize = 1.0f / u_Dimensions;
@@ -80,7 +95,7 @@ void main()
 	float TotalWeight = 0.0f; 
 
 	vec4 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords);
-	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec4 BaseColorSample = texture(u_InputTexture, v_TexCoords).rgba;
 	int BaseBlock = GetBlockAt(v_TexCoords);
 	float BaseSaturation = length(Saturate(BaseColorSample.xyz));
@@ -117,7 +132,7 @@ void main()
 			}
 
 			vec4 PositionAt = GetPositionAt(u_PositionTexture, SampleCoord);
-			vec3 NormalAt = texture(u_NormalTexture, SampleCoord).xyz;
+			vec3 NormalAt = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 			int BlockAt = GetBlockAt(SampleCoord);
 			vec4 SampleColor = texture(u_InputTexture, SampleCoord);
 			vec2 SampleSphericalData = texture(u_InputTexture2, SampleCoord).xy;

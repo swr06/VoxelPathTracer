@@ -106,6 +106,21 @@ float SHToY(vec4 shY)
     return max(0, 3.544905f * shY.w);
 }
 
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    return Normals[int(floor(n*10.0f))];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
 float sqr(float x) { return x * x; }
 float GetSaturation(in vec3 v) { return length(v); }
 
@@ -118,7 +133,7 @@ void main()
 	vec4 TotalColor = vec4(0.0f);
 
 	vec4 BasePosition = GetPositionAt(v_TexCoords);
-	vec3 BaseNormal = texture(u_NormalTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
 	vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
@@ -154,7 +169,7 @@ void main()
 				// Samples :
 				vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;
 				vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
-				vec3 SampleNormal = texture(u_NormalTexture, SampleCoord).xyz;
+				vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 				float SampleLuma = SHToY(SampleSH);
 				float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
 
