@@ -29,6 +29,7 @@ uniform mat4 u_InverseProjection;
 uniform int u_CurrentFrame;
 
 uniform bool u_ContactHardeningShadows;
+uniform bool u_ShouldAlphaTest;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -38,6 +39,8 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
 };
+
+vec2 CalculateUV(vec3 world_pos, in vec3 normal);
 
 bool IsInVolume(in vec3 pos)
 {
@@ -75,7 +78,111 @@ float GetDistance(ivec3 loc)
     return -1.0f;
 }
 
-float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blockType) 
+int GetBlockID(float id)
+{
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+float AlphaTest(float d, vec3 initial_origin, vec3 o, vec3 direction, inout vec3 normal, inout float blockType)
+{
+	vec2 SampleUV = CalculateUV(o, normal);
+	SampleUV.y = 1.0f - SampleUV.y;
+	int BlockID = GetBlockID(blockType);
+	float Lod = textureQueryLod(u_AlbedoTextures, vec2(SampleUV)).x;
+	float Alpha = textureLod(u_AlbedoTextures, vec3(SampleUV, float(BlockAlbedoData[BlockID])), clamp(Lod - 2.5f, 0.0f, 3.0f)).w;
+	
+	if (Alpha <= 0.02f) { 
+		vec3 origin = o;
+		const float epsilon = 0.01f;
+		bool Intersection = false;
+
+		ivec3 BaseGridCoords = ivec3(origin);
+
+		int MinIdx = 0;
+		ivec3 RaySign = ivec3(sign(direction));
+
+		int itr = 0;
+
+		for (itr = 0 ; itr < 30 ; itr++)
+		{
+			bool Continue = false;
+
+			ivec3 Loc = ivec3(floor(origin));
+			
+			if (!IsInVolume(Loc))
+			{
+				Intersection = false;
+				break;
+			}
+
+			float Dist = GetDistance(Loc) * 255.0f; 
+
+			int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+			if (Euclidean == 0)
+			{
+				float BlockAt = GetVoxel(Loc);
+				int IDAt = GetBlockID(BlockAt);
+
+				if (IDAt != BlockID)
+				{
+					break;
+				}
+
+				Continue = true;
+			}
+
+			if (Euclidean == 1 || Continue)
+			{
+				// Do the DDA algorithm for one voxel 
+
+				ivec3 GridCoords = ivec3(origin);
+				vec3 WithinVoxelCoords = origin - GridCoords;
+				vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+
+				MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+					? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+					: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+
+				GridCoords[MinIdx] += RaySign[MinIdx];
+				WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+				WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+
+				origin = GridCoords + WithinVoxelCoords;
+				origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
+
+				Intersection = true;
+			}
+
+			else 
+			{
+				origin += int(Euclidean - 1) * direction;
+			}
+		}
+
+		if (Intersection)
+		{
+			vec3 n = vec3(0.0f);
+			n[MinIdx] = -RaySign[MinIdx];
+			normal = (n);
+			blockType = GetVoxel(ivec3(floor(origin)));
+			return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+		} 
+	}
+
+	return d;
+}
+
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType) 
 {
 	vec3 initial_origin = origin;
 	const float epsilon = 0.01f;
@@ -86,7 +193,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 250 ; itr++)
+	for (itr = 0 ; itr < 350 ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
@@ -133,12 +240,24 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, float blo
 		}
 	}
 
-	if (Intersection)
+	if (u_ShouldAlphaTest)
 	{
 		normal = vec3(0.0f);
 		normal[MinIdx] = -RaySign[MinIdx];
-		blockType = GetVoxel(ivec3(origin));
-		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+		blockType = GetVoxel(ivec3(floor(origin)));
+		float dd = blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+		return AlphaTest(dd, initial_origin.xyz, origin.xyz, direction, normal, blockType);
+	}
+
+	else 
+	{
+		if (Intersection)
+		{
+			normal = vec3(0.0f);
+			normal[MinIdx] = -RaySign[MinIdx];
+			blockType = GetVoxel(ivec3(floor(origin)));
+			return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+		}
 	}
 
 	return -1.0f;
@@ -167,9 +286,6 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-bool CompareFloatNormal(float x, float y) {
-    return abs(x - y) < 0.02f;
-}
 
 vec3 GetNormalFromID(float n) {
 	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
@@ -324,4 +440,48 @@ void main()
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
 	}
+}
+
+vec2 CalculateUV(vec3 world_pos, in vec3 normal)
+{
+	vec2 uv;
+
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+    if (CompareVec3(normal, NORMAL_TOP))
+    {
+        uv = vec2(fract(world_pos.xz));
+    }
+
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
+    {
+        uv = vec2(fract(world_pos.xz));
+    }
+
+    else if (CompareVec3(normal, NORMAL_RIGHT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+
+    else if (CompareVec3(normal, NORMAL_LEFT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+    
+    else if (CompareVec3(normal, NORMAL_FRONT))
+    {
+        uv = vec2(fract(world_pos.xy));
+    }
+
+     else if (CompareVec3(normal, NORMAL_BACK))
+    {
+        uv = vec2(fract(world_pos.xy));
+    }
+
+	return uv;
 }

@@ -34,6 +34,11 @@ static bool ReprojectReflectionsToScreenSpace = true;
 static int DiffuseSPP = 3; 
 static int ReflectionSPP = 2;
 
+// Alpha test : 
+static bool ShouldAlphaTest = false;
+static bool ShouldAlphaTestShadows = false;
+
+
 static bool TAA = true;
 static bool Bloom = true;
 static bool USE_SVGF = true;
@@ -101,6 +106,8 @@ public:
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled.) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
+			ImGui::Checkbox("Alpha Test? ", &ShouldAlphaTest);
+			ImGui::Checkbox("Alpha Test Shadows? ", &ShouldAlphaTestShadows);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
@@ -539,6 +546,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
 		}
 
+		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
+			ModifiedWorld)
 		{
 			// Swap the initial trace framebuffers
 			InitialTraceFBO = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
@@ -559,7 +568,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
-
+			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
 			
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -1028,6 +1037,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 			ShadowTraceShader.SetBool("u_ContactHardeningShadows", SoftShadows);
+			ShadowTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTestShadows);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
