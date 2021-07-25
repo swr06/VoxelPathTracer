@@ -2,6 +2,7 @@
 #include <chrono>
 #include "ShaderManager.h"
 #include "BlockDataSSBO.h"
+#include "BlueNoiseDataSSBO.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -379,6 +380,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VoxelRT::AtmosphereRenderMap Skymap(64);
 	VoxelRT::AtmosphereRenderer AtmosphereRenderer;
 
+	BlueNoiseDataSSBO BlueNoise_SSBO;
+
 	GLClasses::Texture Crosshair;
 	GLClasses::Texture BluenoiseTexture;
 	GLClasses::Texture PlayerSprite;
@@ -627,6 +630,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
+		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+		DiffuseTraceShader.SetInteger("u_CurrentFrameMod512", glm::clamp((int)app.GetCurrentFrame() % 512, 0, 524));
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -670,6 +675,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
 
 		BlockDataStorageBuffer.Bind(0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

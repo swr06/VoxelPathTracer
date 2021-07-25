@@ -48,6 +48,9 @@
     <Filter Include="Source Files\Shaders\SVGF">
       <UniqueIdentifier>{325b80c3-71b4-4d3c-817d-0231b20e0bd4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\voxel-rt\Bluenoise">
+      <UniqueIdentifier>{310dd36c-f5b0-4edf-a640-a5fe7186b6e7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -193,6 +196,9 @@
     </ClCompile>
     <ClCompile Include="Core\BlockDataSSBO.cpp">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\BlueNoiseDataSSBO.cpp">
+      <Filter>Source Files\voxel-rt\Bluenoise</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -348,6 +354,9 @@
     </ClInclude>
     <ClInclude Include="Core\BlockDataSSBO.h">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\BlueNoiseDataSSBO.h">
+      <Filter>Source Files\voxel-rt\Bluenoise</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

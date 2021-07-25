@@ -47,6 +47,8 @@ uniform vec2 u_Dimensions;
 uniform float u_Time;
 
 uniform int u_SPP;
+uniform int u_CurrentFrame;
+uniform int u_CurrentFrameMod512;
 
 uniform vec3 u_ViewerPosition;
 uniform vec3 u_SunDirection;
@@ -71,6 +73,41 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
 };
+
+layout (std430, binding = 2) buffer BlueNoise_Data
+{
+	int sobol_256spp_256d[256*256];
+	int scramblingTile[128*128*8];
+	int rankingTile[128*128*8];
+};
+
+
+float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
+{
+	int pixel_i = px.x;
+	int pixel_j = px.y;
+	
+	// wrap arguments
+	pixel_i = pixel_i & 127;
+	pixel_j = pixel_j & 127;
+	sampleIndex = sampleIndex & 255;
+	sampleDimension = sampleDimension & 255;
+
+	// xor index based on optimized ranking
+	int rankedSampleIndex = sampleIndex ^ rankingTile[sampleDimension + (pixel_i + pixel_j*128)*8];
+
+	// fetch value in sequence
+	int value = sobol_256spp_256d[sampleDimension + rankedSampleIndex*256];
+
+	// If the dimension is optimized, xor sequence value based on optimized scrambling
+	value = value ^ scramblingTile[(sampleDimension%8) + (pixel_i + pixel_j*128)*8];
+
+	// convert to float and return
+	float v = (0.5f+value)/256.0f;
+	return v;
+}
+
+
 
 // Function prototypes
 float nextFloat(inout int seed, in float min, in float max);
@@ -267,6 +304,22 @@ vec3 SampleNormal(sampler2D samp, vec2 txc) {
 	return GetNormalFromID(texture(samp, txc).x);
 }
 
+float SampleBlueNoise1D(ivec2 Pixel, int Index, int Dimension) {
+	return samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(Pixel, Index, Dimension);
+}
+
+int CurrentBLSample = 0;
+
+vec2 SampleBlueNoise2D() 
+{
+	vec2 Noise;
+	Noise.x = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), u_CurrentFrameMod512, CurrentBLSample + 1);
+	Noise.y = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), u_CurrentFrameMod512, CurrentBLSample + 2);
+	CurrentBLSample += 2;
+	CurrentBLSample = CurrentBLSample % 12;
+	return Noise;
+}
+
 void main()
 {
     #ifdef ANIMATE_NOISE
@@ -366,7 +419,8 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n)
 {
   	vec2 r = vec2(hash2());
 	//vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
-    
+    //vec2 r = SampleBlueNoise2D();
+
 	float PI2 = 2.0f * PI;
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
 	vec3  vv = cross(uu, n);

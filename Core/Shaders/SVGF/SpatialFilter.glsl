@@ -154,7 +154,7 @@ void main()
 	float TotalVariance = BaseVariance;
 	
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
-	PhiColor /= 1.75f; 
+	PhiColor /= 2.0f; 
 
 	for (int x = -2 ; x <= 2 ; x++)
 	{

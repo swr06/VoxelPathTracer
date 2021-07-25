@@ -159,6 +159,7 @@
     <ClCompile Include="Core\BlockDataSSBO.cpp" />
     <ClCompile Include="Core\BloomFBO.cpp" />
     <ClCompile Include="Core\BloomRenderer.cpp" />
+    <ClCompile Include="Core\BlueNoiseDataSSBO.cpp" />
     <ClCompile Include="Core\Clouds\CloudFBO.cpp" />
     <ClCompile Include="Core\Clouds\CloudRenderer.cpp" />
     <ClCompile Include="Core\Clouds\NoiseRenderer.cpp" />
@@ -210,6 +211,7 @@
     <ClInclude Include="Core\BlockDataSSBO.h" />
     <ClInclude Include="Core\BloomFBO.h" />
     <ClInclude Include="Core\BloomRenderer.h" />
+    <ClInclude Include="Core\BlueNoiseDataSSBO.h" />
     <ClInclude Include="Core\Clouds\CloudFBO.h" />
     <ClInclude Include="Core\Clouds\CloudRenderer.h" />
     <ClInclude Include="Core\Clouds\NoiseRenderer.h" />
