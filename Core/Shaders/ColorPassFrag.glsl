@@ -776,25 +776,8 @@ void main()
             vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
             vec3 SpecularIndirect = vec3(0.0f);
             
-            // Reduce reflection aliasing with *very* high frequency normal maps 
-            // -> fool the hardware into doing 4 bilinear taps and then sample at a lower lod
-            // 2.5 is used, which should be fine, given that we're using 512x textures.
             if (InBiasedSS) {
-                vec2 SmoothUV = UV;
-	            SmoothUV = SmoothUV * vec2(512.0f) + 0.5f;
-                
-                // Integer part of the UV
-	            vec2 i_uv = floor(SmoothUV);
-                
-                // Fraction
-	            vec2 f_uv = fract(SmoothUV);
-
-                // Apply a function -> (From iq)
-	            SmoothUV = i_uv + f_uv * f_uv * f_uv * (f_uv * (f_uv * 6.0f - 15.0f) + 10.0f);
-
-	            SmoothUV = (SmoothUV - 0.5) / vec2(512.0f);
-	            SmoothUV = (SmoothUV - 0.5) / vec2(512.0f);
-                vec3 LowerFreqNormal = tbn * (texture(u_BlockNormalTextures, vec3(SmoothUV, data.y), 2.5f).rgb * 2.0f - 1.0f); // Sample at a lower lod
+                vec3 LowerFreqNormal = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y), 2.5f).rgb * 2.0f - 1.0f); // Sample at a lower lod
                 SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, LowerFreqNormal);
             }
 
