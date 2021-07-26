@@ -599,7 +599,7 @@ void main()
 				
 				if (Emissivity > 0.2f)
 				{
-					float m = SPP <= 5 ? 10.5f : 8.0f;
+					float m = SPP <= 5 ? 16.5f : 12.0f;
 					float lbiasx = 0.02501f;
                     float lbiasy = 0.03001f;
                     Emissivity *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
