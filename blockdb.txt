@@ -544,6 +544,33 @@
 	PBR : Res/Block/rStone/PBR.png
 }
 
+{
+	Name : CryingObsidian
+	Albedo : Res/Block/CryingObsidian/Albedo.png
+	Normal : Res/Block/CryingObsidian/Normal.png
+	PBR : Res/Block/CryingObsidian/PBR.png
+}
+
+{
+	Name : PolishedBlackBricks
+	Albedo : Res/Block/PolishedBlackBricks/Albedo.png
+	Normal : Res/Block/PolishedBlackBricks/Normal.png
+	PBR : Res/Block/PolishedBlackBricks/PBR.png
+}
+
+{
+	Name : Quartz
+	Albedo : Res/Block/Quartz/Albedo.png
+	Normal : Res/Block/Quartz/Normal.png
+	PBR : Res/Block/Quartz/PBR.png
+}
+
+{
+	Name : Sandstone3
+	Albedo : Res/Block/Sandstone3/Albedo.png
+	Normal : Res/Block/Sandstone3/Normal.png
+	PBR : Res/Block/Sandstone3/PBR.png
+}
 
 {
 	Name : MISC_LEAVE_THIS_AT_THE_END

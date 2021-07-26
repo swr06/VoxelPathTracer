@@ -12,6 +12,7 @@ uniform sampler2D u_InputCoCgTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTex;
+uniform sampler2D u_NormalMappedTexture;
 uniform sampler2DArray u_BlockPBRTexArray;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
@@ -20,6 +21,8 @@ uniform int u_Step;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform mat4 u_PrevProjection;
+uniform mat4 u_PrevView;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -158,6 +161,16 @@ int GetBlockID(vec2 txc)
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
 
+bool SampleNormalMappedAt(vec3 WorldPos, out vec3 N) {
+	vec4 ProjectedPosition = u_PrevProjection * u_PrevView * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
+	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+	float b = 0.02f;
+	bool v = ProjectedPosition.x > b && ProjectedPosition.x < 1.0f - b && ProjectedPosition.y > b && ProjectedPosition.y < 1.0f - b;
+	N = texture(u_NormalMappedTexture, ProjectedPosition.xy).xyz;
+	return v;
+}
+
 void main()
 {
 	vec4 BlurredSH = vec4(0.0f);
@@ -177,6 +190,8 @@ void main()
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	vec3 BaseNormalMapped = vec3(0.0f);
+	bool BaseNormalMappedValid = SampleNormalMappedAt(BasePosition, BaseNormalMapped);
 
 	for (int s = 0 ; s < GAUSS_KERNEL; s++)
 	{
@@ -206,17 +221,28 @@ void main()
 			// Luminosity weights
 			float LumaAt = SHToY(SampleSH);
 			float LuminanceError = 1.0f - abs(LumaAt - BaseLuminance);
-			float LumaTolerance = mix(8.0f, 0.0f, clamp(RoughnessAt * 2.0f, 0.0f, 1.0f));
-			LumaTolerance = clamp(LumaTolerance, 0.5f, 8.0f);
-			float LuminanceWeight = pow(abs(LuminanceError), LumaTolerance);
+
+
+			//float LumaTolerance = mix(8.0f, 0.0f, clamp(RoughnessAt * 2.0f, 0.0f, 1.0f));
+			//LumaTolerance = clamp(LumaTolerance, 0.25f, 8.0f);
+
+
+			float LumaWeightExponent = 1.0f;
+			LumaWeightExponent = mix(0.1f, 8.0f, RoughnessAt*RoughnessAt);
+			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent);
 			float CurrentKernelWeight = GaussianWeightsNormalized[s];
 
-			/////
-			// Todo : 
-			//float CurrentWeight = LuminanceWeight;
-			/////
-
 			float CurrentWeight = 1.0f;
+			//CurrentWeight *= clamp(LuminanceWeight, 0.1f, 1.0f);
+
+			if (BaseNormalMappedValid) 
+			{
+				vec3 NormalMappedAt;
+				bool nmv = SampleNormalMappedAt(SamplePosition, NormalMappedAt);
+				float NormalWeight = 1.0f;
+				NormalWeight = pow(dot(NormalMappedAt, BaseNormalMapped), 16.0f);
+				CurrentKernelWeight *= mix(1.0f, NormalWeight, float(nmv));
+			}
 
 			CurrentWeight = CurrentKernelWeight * CurrentWeight;
 			BlurredSH += SampleSH * CurrentWeight;
@@ -228,7 +254,9 @@ void main()
 	vec4 BaseSampled = texture(u_InputTexture, v_TexCoords).rgba;
 	vec2 BaseSampledCoCg = texture(u_InputCoCgTexture, v_TexCoords).rg;
 
-	if (TotalWeight > 0.001f) { 
+	bool DoSpatial = true;
+
+	if (TotalWeight > 0.001f && DoSpatial) { 
 		BlurredSH = BlurredSH / TotalWeight;
 		BlurredCoCg = BlurredCoCg / TotalWeight;
 
@@ -239,9 +267,9 @@ void main()
 		{
 			m = RoughnessAt * 16.0f;
 			m = 1.0f - m;
-			m = pow(m, 6.0f);
+			m = m * m * m * m;
 			m = clamp(m, 0.01f, 0.999f);
-		} 
+		}  
 
 		o_SpatialResult = mix(BaseSampled, BlurredSH, m);
 		o_CoCg = mix(BaseSampledCoCg, BlurredCoCg, m);

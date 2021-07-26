@@ -386,12 +386,20 @@ vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool
     return ProjectedPosition.xy;
 }
 
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(u_Time) * 200));
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += fract(u_Time) * 100.0f;
 
 	int SPP = clamp(u_SPP, 1, 16);
 	int total_hits = 0;
@@ -399,7 +407,9 @@ void main()
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
 
-	vec2 suv = GetCheckerboardedUV();
+	// no checkering here 
+	vec2 suv = v_TexCoords;
+
 	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
 
 	if (SampledWorldPosition.w < 0.0f)
@@ -454,8 +464,9 @@ void main()
 
 		vec2 Xi;
 		//Xi = Hammersley(s, SPP);
-		Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); // We want the samples to converge faster! 
-		Xi = Xi * vec2(1.0f, 0.6f); // Reduce the variance and crease clarity
+		//Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); 
+		Xi = vec2(hash2());
+		Xi = Xi * vec2(0.8f, 0.7f); // Reduce the variance and increase clarity
 		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;

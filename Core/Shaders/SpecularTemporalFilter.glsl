@@ -97,9 +97,11 @@ void main()
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && d <= 0.5f)
 		{
+
 			vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			float BlendFactor = Moved ? 0.8f : 0.8750f; 
+
 			o_SH = mix(CurrentColor, PrevColor, BlendFactor);
 
 			// store cocg

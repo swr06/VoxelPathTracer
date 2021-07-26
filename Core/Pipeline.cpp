@@ -269,7 +269,6 @@ GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }
 
 
 GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionCheckerReconstructed(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
@@ -478,7 +477,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowFiltered.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
 
 			ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-			ReflectionCheckerReconstructed.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 			ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 			ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 			ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
@@ -1259,24 +1257,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceFBO.Unbind();
 		}
 
-		{
-			SpecularCheckerboardReconstructor.Use();
-			ReflectionCheckerReconstructed.Bind();
-			SpecularCheckerboardReconstructor.SetInteger("u_CurrentSH", 0);
-			SpecularCheckerboardReconstructor.SetInteger("u_CoCgTexture", 1);
-			SpecularCheckerboardReconstructor.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
-
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
-
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
-		}
-
 		// Temporally filter it
 		if (RoughReflections)
 		{
@@ -1312,7 +1292,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, ReflectionCheckerReconstructed.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1328,7 +1308,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 			glActiveTexture(GL_TEXTURE5);
-			glBindTexture(GL_TEXTURE_2D, ReflectionCheckerReconstructed.GetTexture(1));
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 			glActiveTexture(GL_TEXTURE6);
 			glBindTexture(GL_TEXTURE_2D, PrevReflectionTemporalFBO.GetTexture(1));
 
@@ -1673,9 +1653,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		//glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE16);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionCheckerReconstructed.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTraceFBO.GetTexture());
 		glActiveTexture(GL_TEXTURE17);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionCheckerReconstructed.GetTexture(1));
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionTraceFBO.GetTexture(1));
 
 		BlockDataStorageBuffer.Bind(0);
 

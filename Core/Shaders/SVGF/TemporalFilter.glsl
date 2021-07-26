@@ -142,7 +142,7 @@ void main()
 		float PositionError = dot(PositionDifference, PositionDifference);
 		float CurrentWeight = Weights[i];
 
-		if (PositionError < 1.5f &&
+		if (PositionError < 1.10f &&
 			PreviousNormalAt == BaseNormal)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;

@@ -747,21 +747,7 @@ void main()
             vec2 ShCoCg = texture(u_DiffuseSHData2, v_TexCoords).xy;
 
             vec3 IndirectN = NormalMapped.xyz;
-            vec3 SampledIndirectDiffuse = vec3(0.0f);
-            int SampleCount = 4;
-
-            for (int i = 0 ; i < SampleCount ; i++) {
-                vec3 SampleDirection = IndirectN;
-                vec2 J = vec2(nextFloat(RNG_SEED, 1.0f, 1.2f), nextFloat(RNG_SEED, 1.0f, 1.165f));
-                SampleDirection.x *= J.x;
-                SampleDirection.z *= J.y;
-                SampleDirection = normalize(SampleDirection);
-                SampledIndirectDiffuse += SHToIrridiance(SHy, ShCoCg, SampleDirection);
-            }
-            
-            SampledIndirectDiffuse /= float(SampleCount);
-            //vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
-
+            vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
 
             //float AO = texture(u_DiffuseTexture, v_TexCoords).w;
             float AO = 1.0f;
@@ -770,9 +756,11 @@ void main()
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f); // Ambient occlusion map
 
+            // Interpolate and find sun colors : 
             float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
             float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
             vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR * 0.5f, DuskVisibility);
+
             //vec3 SunColor = SUN_COLOR;
             vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SunColor, SunColor * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
@@ -786,23 +774,50 @@ void main()
 
             vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
             vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
-            vec3 SpecularIndirect = InBiasedSS ? SHToIrridiance(SpecularSH, SpecularCoCg, IndirectN).rgb : vec3(0.0f);
+            vec3 SpecularIndirect = vec3(0.0f);
             
+            // Reduce reflection aliasing with *very* high frequency normal maps 
+            // -> fool the hardware into doing 4 bilinear taps and then sample at a lower lod
+            // 2.5 is used, which should be fine, given that we're using 512x textures.
+            if (InBiasedSS) {
+                vec2 SmoothUV = UV;
+	            SmoothUV = SmoothUV * vec2(512.0f) + 0.5f;
+                
+                // Integer part of the UV
+	            vec2 i_uv = floor(SmoothUV);
+                
+                // Fraction
+	            vec2 f_uv = fract(SmoothUV);
+
+                // Apply a function -> (From iq)
+	            SmoothUV = i_uv + f_uv * f_uv * f_uv * (f_uv * (f_uv * 6.0f - 15.0f) + 10.0f);
+
+	            SmoothUV = (SmoothUV - 0.5) / vec2(512.0f);
+	            SmoothUV = (SmoothUV - 0.5) / vec2(512.0f);
+                vec3 LowerFreqNormal = tbn * (texture(u_BlockNormalTextures, vec3(SmoothUV, data.y), 2.5f).rgb * 2.0f - 1.0f); // Sample at a lower lod
+                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, LowerFreqNormal);
+            }
+
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
             // That it hurts my soul
+            // (this just slightly darkens areas where the normal map effect is high)
             float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
             float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
             SpecularIndirect *= NDotMapM; 
            
+
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
             vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 
             vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
             
+            // Final combine : 
+            // Use fresnel to get the amount of diffuse and reflected light 
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
                       * clamp(SampledAO, 0.2f, 1.01f);
-
+            
+            // Output utility : 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
@@ -815,6 +830,11 @@ void main()
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
 
+
+
+
+            // wip, I removed the ao when adding the spherical harmonics 
+            // will be done soon :/
             if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.00125f;
@@ -847,6 +867,8 @@ void main()
         o_PBR.w = float(BodyIntersect) * 0.35f;
     }
 }
+
+// cook torrance brdf : 
 
 float ndfGGX(float cosLh, float roughness)
 {
@@ -895,7 +917,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	float cosLh = max(0.0, dot(N, Lh));
 
 	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
-	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); 
+	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); // use fresnel roughness, gives a slightly better approximation
 	float D = ndfGGX(cosLh, pbr.r);
 	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
 
