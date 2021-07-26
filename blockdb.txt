@@ -545,6 +545,14 @@
 }
 
 {
+	Name : EmeraldBlock
+	Albedo : Res/Block/EmeraldBlock/Albedo.png
+	Normal : Res/Block/EmeraldBlock/Normal.png
+	PBR : Res/Block/EmeraldBlock/PBR.png
+}
+
+
+{
 	Name : CryingObsidian
 	Albedo : Res/Block/CryingObsidian/Albedo.png
 	Normal : Res/Block/CryingObsidian/Normal.png
@@ -570,6 +578,27 @@
 	Albedo : Res/Block/Sandstone3/Albedo.png
 	Normal : Res/Block/Sandstone3/Normal.png
 	PBR : Res/Block/Sandstone3/PBR.png
+}
+
+{
+	Name : Copper
+	Albedo : Res/Block/Copper/Albedo.png
+	Normal : Res/Block/Copper/Normal.png
+	PBR : Res/Block/Copper/PBR.png
+}
+
+{
+	Name : CopperRough
+	Albedo : Res/Block/CopperRough/Albedo.png
+	Normal : Res/Block/CopperRough/Normal.png
+	PBR : Res/Block/CopperRough/PBR.png
+}
+
+{
+	Name : Netherrite
+	Albedo : Res/Block/Netherrite/Albedo.png
+	Normal : Res/Block/Netherrite/Normal.png
+	PBR : Res/Block/Netherrite/PBR.png
 }
 
 {
