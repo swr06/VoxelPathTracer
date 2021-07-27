@@ -11,6 +11,9 @@
 	PBR_top : Res/Block/Grass/Top/PBR.png
 	PBR_bottom : Res/Block/Dirt/PBR.png
 	PBR : Res/Block/Grass/Side/PBR.png
+	
+	SND_STEP : Grass
+	SND_MODIFY : Grass
 }
 
 {
@@ -19,6 +22,9 @@
 	Albedo : Res/Block/Dirt/Albedo.png
 	Normal : Res/Block/Dirt/Normal.png
 	PBR : Res/Block/Dirt/PBR.png
+	
+	SND_STEP : Grass
+	SND_MODIFY : Grass
 }
 
 {
@@ -26,6 +32,9 @@
 	Albedo : Res/Block/Stone/Albedo.png
 	Normal : Res/Block/Stone/Normal.png
 	PBR : Res/Block/Stone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -33,6 +42,9 @@
 	Albedo : Res/Block/Cobblestone/Albedo.png
 	Normal : Res/Block/Cobblestone/Normal.png
 	PBR : Res/Block/Cobblestone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -40,6 +52,9 @@
 	Albedo : Res/Block/Sand/Albedo.png
 	Normal : Res/Block/Sand/Normal.png
 	PBR : Res/Block/Sand/PBR.png
+	
+	SND_STEP : Sand
+	SND_MODIFY : Sand
 }
 
 {
@@ -48,6 +63,9 @@
 	Albedo :  Res/Block/Bark/Side/Albedo.png
 	Normal :  Res/Block/Bark/Side/Normal.png
 	PBR :  Res/Block/Bark/Side/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -56,6 +74,9 @@
 	Normal : Res/Block/Leaves/Normal.png
 	PBR : Res/Block/Leaves/PBR.png
 	Transparent;
+	
+	SND_STEP : Grass
+	SND_MODIFY : Grass
 }
 
 {
@@ -63,6 +84,9 @@
 	Albedo : Res/Block/Brick/Albedo.png
 	Normal : Res/Block/Brick/Normal.png
 	PBR : Res/Block/Brick/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -70,6 +94,9 @@
 	Albedo : Res/Block/rStoneBricks/Albedo.png
 	Normal : Res/Block/rStoneBricks/Normal.png
 	PBR : Res/Block/rStoneBricks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -77,6 +104,9 @@
 	Albedo : Res/Block/Fab1/Albedo.png
 	Normal : Res/Block/Fab1/Normal.png
 	PBR : Res/Block/Fab1/PBR.png
+	
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
@@ -84,6 +114,9 @@
 	Albedo : Res/Block/Gravel/Albedo.png
 	Normal : Res/Block/Gravel/Normal.png
 	PBR : Res/Block/Gravel/PBR.png
+	
+	SND_STEP : Gravel
+	SND_MODIFY : Gravel
 }
 
 {
@@ -92,6 +125,9 @@
 	Normal : Res/Block/Lamp/Normal.png
 	PBR : Res/Block/Lamp/PBR.png
 	Emissive : Res/Block/Lamp/Emissive.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -99,6 +135,9 @@
 	Albedo : Res/Block/Metal/Albedo.png
 	Normal : Res/Block/Metal/Normal.png
 	PBR : Res/Block/Metal/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -106,6 +145,9 @@
 	Albedo : Res/Block/Metal1/Albedo.png
 	Normal : Res/Block/Metal1/Normal.png
 	PBR : Res/Block/Metal1/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -113,6 +155,9 @@
 	Albedo : Res/Block/Metal2/Albedo.png
 	Normal : Res/Block/Metal2/Normal.png
 	PBR : Res/Block/Metal2/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -120,6 +165,9 @@
 	Albedo : Res/Block/Metal3/Albedo.png
 	Normal : Res/Block/Metal3/Normal.png
 	PBR : Res/Block/Metal3/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -127,6 +175,9 @@
 	Albedo : Res/Block/Leather/Albedo.png
 	Normal : Res/Block/Leather/Normal.png
 	PBR : Res/Block/Leather/PBR.png
+	
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
@@ -134,6 +185,9 @@
 	Albedo : Res/Block/WhitePorcelain/Albedo.png
 	Normal : Res/Block/WhitePorcelain/Normal.png
 	PBR : Res/Block/WhitePorcelain/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -141,6 +195,9 @@
 	Albedo : Res/Block/Gravel1/Albedo.png
 	Normal : Res/Block/Gravel1/Normal.png
 	PBR : Res/Block/Gravel1/PBR.png
+	
+	SND_STEP : Gravel
+	SND_MODIFY : Gravel
 }
 
 {
@@ -148,6 +205,9 @@
 	Albedo : Res/Block/Planks/Albedo.png
 	Normal : Res/Block/Planks/Normal.png
 	PBR : Res/Block/Planks/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -155,6 +215,9 @@
 	Albedo : Res/Block/Planks1/Albedo.png
 	Normal : Res/Block/Planks1/Normal.png
 	PBR : Res/Block/Planks1/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -162,6 +225,9 @@
 	Albedo : Res/Block/Planks2/Albedo.png
 	Normal : Res/Block/Planks2/Normal.png
 	PBR : Res/Block/Planks2/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -169,6 +235,9 @@
 	Albedo : Res/Block/NetherGold/Albedo.png
 	Normal : Res/Block/NetherGold/Normal.png
 	PBR : Res/Block/NetherGold/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -176,6 +245,9 @@
 	Albedo : Res/Block/Marble/Albedo.png
 	Normal : Res/Block/Marble/Normal.png
 	PBR : Res/Block/Marble/PBR.png
+	
+	SND_STEP : Marble
+	SND_MODIFY : Stone
 }
 
 {
@@ -183,6 +255,9 @@
 	Albedo : Res/Block/Farmland/Albedo.png
 	Normal : Res/Block/Farmland/Normal.png
 	PBR : Res/Block/Farmland/PBR.png
+	
+	SND_STEP : Grass
+	SND_MODIFY : Grass
 }
 
 {
@@ -191,6 +266,9 @@
 	Normal : Res/Block/SeaLantern/Normal.png
 	PBR : Res/Block/SeaLantern/PBR.png
 	Emissive : Res/Block/SeaLantern/Emissive.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -199,6 +277,9 @@
 	Normal : Res/Block/Glowstone/Normal.png
 	PBR : Res/Block/Glowstone/PBR.png
 	Emissive : Res/Block/Glowstone/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -207,6 +288,9 @@
 	Normal : Res/Block/Glowstone_1/Normal.png
 	PBR : Res/Block/Glowstone_1/PBR.png
 	Emissive : Res/Block/Glowstone_1/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -215,6 +299,9 @@
 	Normal : Res/Block/Glowstone_2/Normal.png
 	PBR : Res/Block/Glowstone_2/PBR.png
 	Emissive : Res/Block/Glowstone_2/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -223,6 +310,9 @@
 	Normal : Res/Block/Glowstone_3/Normal.png
 	PBR : Res/Block/Glowstone_3/PBR.png
 	Emissive : Res/Block/Glowstone_3/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -230,6 +320,9 @@
 	Albedo : Res/Block/Iron/Albedo.png
 	Normal : Res/Block/Iron/Normal.png
 	PBR : Res/Block/Iron/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -237,6 +330,9 @@
 	Albedo : Res/Block/Gold/Albedo.png
 	Normal : Res/Block/Gold/Normal.png
 	PBR : Res/Block/Gold/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -244,6 +340,9 @@
 	Albedo : Res/Block/Rock/Albedo.png
 	Normal : Res/Block/Rock/Normal.png
 	PBR : Res/Block/Rock/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -251,6 +350,9 @@
 	Albedo : Res/Block/Sandstone/Albedo.png
 	Normal : Res/Block/Sandstone/Normal.png
 	PBR : Res/Block/Sandstone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -258,6 +360,9 @@
 	Albedo : Res/Block/Marble2/Albedo.png
 	Normal : Res/Block/Marble2/Normal.png
 	PBR : Res/Block/Marble2/PBR.png
+	
+	SND_STEP : Marble
+	SND_MODIFY : Stone
 }
 
 {
@@ -265,6 +370,9 @@
 	Albedo : Res/Block/Fabric1/Albedo.png
 	Normal : Res/Block/Fabric1/Normal.png
 	PBR : Res/Block/Fabric1/PBR.png
+	
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
@@ -272,6 +380,9 @@
 	Albedo : Res/Block/Fabric2/Albedo.png
 	Normal : Res/Block/Fabric2/Normal.png
 	PBR : Res/Block/Fabric2/PBR.png
+	
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
@@ -279,6 +390,9 @@
 	Albedo : Res/Block/Fabric3/Albedo.png
 	Normal : Res/Block/Fabric3/Normal.png
 	PBR : Res/Block/Fabric3/PBR.png
+	
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
@@ -286,6 +400,9 @@
 	Albedo : Res/Block/Snow/Albedo.png
 	Normal : Res/Block/Snow/Normal.png
 	PBR : Res/Block/Snow/PBR.png
+	
+	SND_STEP : Snow
+	SND_MODIFY : Snow
 }
 
 {
@@ -293,6 +410,9 @@
 	Albedo : Res/Block/WhiteBricks/Albedo.png
 	Normal : Res/Block/WhiteBricks/Normal.png
 	PBR : Res/Block/WhiteBricks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -300,6 +420,9 @@
 	Albedo : Res/Block/Obsidian/Albedo.png
 	Normal : Res/Block/Obsidian/Normal.png
 	PBR : Res/Block/Obsidian/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -307,6 +430,9 @@
 	Albedo : Res/Block/Redstone/Albedo.png
 	Normal : Res/Block/Redstone/Normal.png
 	PBR : Res/Block/Redstone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -314,6 +440,9 @@
 	Albedo : Res/Block/Rock2/Albedo.png
 	Normal : Res/Block/Rock2/Normal.png
 	PBR : Res/Block/Rock2/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -321,6 +450,9 @@
 	Albedo : Res/Block/Iron2/Albedo.png
 	Normal : Res/Block/Iron2/Normal.png
 	PBR : Res/Block/Iron2/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -328,6 +460,9 @@
 	Albedo : Res/Block/uBricks/Albedo.png
 	Normal : Res/Block/uBricks/Normal.png
 	PBR : Res/Block/uBricks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -335,6 +470,9 @@
 	Albedo : Res/Block/uChiseled/Albedo.png
 	Normal : Res/Block/uChiseled/Normal.png
 	PBR : Res/Block/uChiseled/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -342,6 +480,9 @@
 	Albedo : Res/Block/uCobblestone/Albedo.png
 	Normal : Res/Block/uCobblestone/Normal.png
 	PBR : Res/Block/uCobblestone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -349,6 +490,9 @@
 	Albedo : Res/Block/uGold/Albedo.png
 	Normal : Res/Block/uGold/Normal.png
 	PBR : Res/Block/uGold/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -356,6 +500,9 @@
 	Albedo : Res/Block/uGranite/Albedo.png
 	Normal : Res/Block/uGranite/Normal.png
 	PBR : Res/Block/uGranite/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -363,6 +510,9 @@
 	Albedo : Res/Block/uStoneSmooth/Albedo.png
 	Normal : Res/Block/uStoneSmooth/Normal.png
 	PBR : Res/Block/uStoneSmooth/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -370,6 +520,9 @@
 	Albedo : Res/Block/uOakPlanks/Albedo.png
 	Normal : Res/Block/uOakPlanks/Normal.png
 	PBR : Res/Block/uOakPlanks/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -377,6 +530,9 @@
 	Albedo : Res/Block/uAcacia/Albedo.png
 	Normal : Res/Block/uAcacia/Normal.png
 	PBR : Res/Block/uAcacia/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -384,6 +540,9 @@
 	Albedo : Res/Block/uDarkOak/Albedo.png
 	Normal : Res/Block/uDarkOak/Normal.png
 	PBR : Res/Block/uDarkOak/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
@@ -391,6 +550,9 @@
 	Albedo : Res/Block/uPrismarine/Albedo.png
 	Normal : Res/Block/uPrismarine/Normal.png
 	PBR : Res/Block/uPrismarine/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -398,6 +560,9 @@
 	Albedo : Res/Block/uPanel/Albedo.png
 	Normal : Res/Block/uPanel/Normal.png
 	PBR : Res/Block/uPanel/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -405,6 +570,9 @@
 	Albedo : Res/Block/uSand/Albedo.png
 	Normal : Res/Block/uSand/Normal.png
 	PBR : Res/Block/uSand/PBR.png
+	
+	SND_STEP : Sand
+	SND_MODIFY : Sand
 }
 
 {
@@ -412,6 +580,9 @@
 	Albedo : Res/Block/uRedSand/Albedo.png
 	Normal : Res/Block/uRedSand/Normal.png
 	PBR : Res/Block/uRedSand/PBR.png
+	
+	SND_STEP : Sand
+	SND_MODIFY : Sand
 }
 
 {
@@ -419,6 +590,9 @@
 	Albedo : Res/Block/Ice/Albedo.png
 	Normal : Res/Block/Ice/Normal.png
 	PBR : Res/Block/Ice/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -427,6 +601,9 @@
 	Normal : Res/Block/Ore1/Normal.png
 	PBR : Res/Block/Ore1/PBR.png
 	Emissive : Res/Block/Ore1/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -435,6 +612,9 @@
 	Normal : Res/Block/Ore2/Normal.png
 	PBR : Res/Block/Ore2/PBR.png
 	Emissive : Res/Block/Ore2/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -443,6 +623,9 @@
 	Normal : Res/Block/Ore3/Normal.png
 	PBR : Res/Block/Ore3/PBR.png
 	Emissive : Res/Block/Ore3/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -450,6 +633,9 @@
 	Albedo : Res/Block/rTerracotta/Albedo.png
 	Normal : Res/Block/rTerracotta/Normal.png
 	PBR : Res/Block/rTerracotta/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -457,6 +643,9 @@
 	Albedo : Res/Block/rClay/Albedo.png
 	Normal : Res/Block/rClay/Normal.png
 	PBR : Res/Block/rClay/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -464,6 +653,9 @@
 	Albedo : Res/Block/rSandstone/Albedo.png
 	Normal : Res/Block/rSandstone/Normal.png
 	PBR : Res/Block/rSandstone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -471,6 +663,9 @@
 	Albedo : Res/Block/rLightConcrete/Albedo.png
 	Normal : Res/Block/rLightConcrete/Normal.png
 	PBR : Res/Block/rLightConcrete/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -478,6 +673,9 @@
 	Albedo : Res/Block/rBlackstone1/Albedo.png
 	Normal : Res/Block/rBlackstone1/Normal.png
 	PBR : Res/Block/rBlackstone1/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -485,6 +683,9 @@
 	Albedo : Res/Block/rQuartz/Albedo.png
 	Normal : Res/Block/rQuartz/Normal.png
 	PBR : Res/Block/rQuartz/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -492,6 +693,9 @@
 	Albedo : Res/Block/rChiseled/Albedo.png
 	Normal : Res/Block/rChiseled/Normal.png
 	PBR : Res/Block/rChiseled/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 
@@ -500,6 +704,9 @@
 	Albedo : Res/Block/rCrackedStone/Albedo.png
 	Normal : Res/Block/rCrackedStone/Normal.png
 	PBR : Res/Block/rCrackedStone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -507,6 +714,9 @@
 	Albedo : Res/Block/rMossy/Albedo.png
 	Normal : Res/Block/rMossy/Normal.png
 	PBR : Res/Block/rMossy/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -514,6 +724,9 @@
 	Albedo : Res/Block/rSmooth/Albedo.png
 	Normal : Res/Block/rSmooth/Normal.png
 	PBR : Res/Block/rSmooth/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -521,6 +734,9 @@
 	Albedo : Res/Block/rStoneBricks/Albedo.png
 	Normal : Res/Block/rStoneBricks/Normal.png
 	PBR : Res/Block/rStoneBricks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -528,6 +744,9 @@
 	Albedo : Res/Block/rPlanks/Albedo.png
 	Normal : Res/Block/rPlanks/Normal.png
 	PBR : Res/Block/rPlanks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -535,6 +754,9 @@
 	Albedo : Res/Block/rAndesite/Albedo.png
 	Normal : Res/Block/rAndesite/Normal.png
 	PBR : Res/Block/rAndesite/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -542,6 +764,9 @@
 	Albedo : Res/Block/rStone/Albedo.png
 	Normal : Res/Block/rStone/Normal.png
 	PBR : Res/Block/rStone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -549,6 +774,9 @@
 	Albedo : Res/Block/EmeraldBlock/Albedo.png
 	Normal : Res/Block/EmeraldBlock/Normal.png
 	PBR : Res/Block/EmeraldBlock/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 
@@ -557,6 +785,9 @@
 	Albedo : Res/Block/CryingObsidian/Albedo.png
 	Normal : Res/Block/CryingObsidian/Normal.png
 	PBR : Res/Block/CryingObsidian/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -564,6 +795,9 @@
 	Albedo : Res/Block/PolishedBlackBricks/Albedo.png
 	Normal : Res/Block/PolishedBlackBricks/Normal.png
 	PBR : Res/Block/PolishedBlackBricks/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -571,6 +805,9 @@
 	Albedo : Res/Block/Quartz/Albedo.png
 	Normal : Res/Block/Quartz/Normal.png
 	PBR : Res/Block/Quartz/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -578,6 +815,9 @@
 	Albedo : Res/Block/Sandstone3/Albedo.png
 	Normal : Res/Block/Sandstone3/Normal.png
 	PBR : Res/Block/Sandstone3/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
@@ -585,6 +825,9 @@
 	Albedo : Res/Block/Copper/Albedo.png
 	Normal : Res/Block/Copper/Normal.png
 	PBR : Res/Block/Copper/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -592,6 +835,9 @@
 	Albedo : Res/Block/CopperRough/Albedo.png
 	Normal : Res/Block/CopperRough/Normal.png
 	PBR : Res/Block/CopperRough/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -599,6 +845,9 @@
 	Albedo : Res/Block/Netherrite/Albedo.png
 	Normal : Res/Block/Netherrite/Normal.png
 	PBR : Res/Block/Netherrite/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }
 
 {
@@ -606,4 +855,7 @@
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png
 	PBR : Res/Block/Misc/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
 }

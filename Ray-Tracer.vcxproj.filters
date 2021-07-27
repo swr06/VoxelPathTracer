@@ -54,6 +54,9 @@
     <Filter Include="Source Files\voxel-rt\Physics">
       <UniqueIdentifier>{74deced0-6539-4322-9ee7-aab188bf382c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\voxel-rt\Sound">
+      <UniqueIdentifier>{fef0865a-5f92-4c9e-9c5b-e52c94b20caf}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -202,6 +205,9 @@
     </ClCompile>
     <ClCompile Include="Core\BlueNoiseDataSSBO.cpp">
       <Filter>Source Files\voxel-rt\Bluenoise</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\SoundManager.cpp">
+      <Filter>Source Files\voxel-rt\Sound</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -363,6 +369,9 @@
     </ClInclude>
     <ClInclude Include="Core\Physics\AABB.h">
       <Filter>Source Files\voxel-rt\Physics</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\SoundManager.h">
+      <Filter>Source Files\voxel-rt\Sound</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -3,6 +3,7 @@
 #include "ShaderManager.h"
 #include "BlockDataSSBO.h"
 #include "BlueNoiseDataSSBO.h"
+#include "SoundManager.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -79,6 +80,8 @@ static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
 static float Frametime;
 static float DeltaTime;
+
+float VoxelRT_VolumeMultiplier = 1.0f;
 
 class RayTracerApp : public VoxelRT::Application
 {
@@ -181,8 +184,8 @@ public:
 
 				}
 
-				ImGui::Text("Player Grounded : %s", s.c_str());
 				ImGui::Text("Stood On Block : %s", s1.c_str());
+				ImGui::SliderFloat("Volume", &VoxelRT_VolumeMultiplier, 0.0f, 3.5f);
 			}
 
 			ImGui::NewLine();
@@ -357,10 +360,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GenerateWorld(world, gen_type);
 	}
 
+	// Initialize world, df generator etc 
 	world->Buffer();
 	world->InitializeDistanceGenerator();
 	world->GenerateDistanceField();
 
+	// Initialize sound engine
+
+	std::cout << "\n\n";
+	SoundManager::InitializeSoundManager();
+	std::cout << "\n\n";
+
+	// Create shaders 
 	ShaderManager::CreateShaders();
 
 	VoxelRT::Renderer2D RendererUI;
@@ -483,6 +494,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		// Sound update ->
+
+		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
+
+
 		// Tick the sun and moon
 		float time_angle = SunTick * 2.0f;
 		glm::mat4 sun_rotation_matrix;
@@ -574,7 +590,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f);
+		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame());
 		app.OnUpdate();
 
 		glm::mat4 TempView = PreviousView;
@@ -2110,6 +2126,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	}
 
 	SaveWorld(world, world_name);
+	SoundManager::Destroy();
+
 	delete world;
 
 	return;

@@ -7,6 +7,7 @@
 #include <glfw/glfw3.h>
 
 #include "Physics/AABB.h"
+#include "SoundManager.h"
 
 namespace VoxelRT
 {
@@ -15,7 +16,7 @@ namespace VoxelRT
 	public :
 
 		Player();
-		void OnUpdate(GLFWwindow* window, World* world, float dt);
+		void OnUpdate(GLFWwindow* window, World* world, float dt, int frame);
 
 		FPSCamera Camera;
 		void TestBlockCollision(glm::vec3& position, World* world, glm::vec3 vel);

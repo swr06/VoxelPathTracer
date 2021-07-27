@@ -182,6 +182,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 					uint8_t editblock = m_CurrentlyHeldBlock;
 
+					SoundManager::PlayBlockSound(editblock, position, false);
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { editblock });
 					
 					if (m_Buffered)
@@ -207,6 +208,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					m_ParticleEmitter.EmitParticlesAt(glm::vec3(floor(position.x), floor(position.y), floor(position.z)), 2.75f, 40,
 					particle_pos, glm::vec3(5, 5, 5), x, GetBlock((int)position.x, (int)position.y, (int)position.z).block);
 
+					SoundManager::PlayBlockSound(GetBlock((int)position.x, (int)position.y, (int)position.z).block, position, false);
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
 
 					if (m_Buffered)

@@ -15,8 +15,10 @@ namespace VoxelRT
 	// Basic aabb collisions :p
 	// Nothing too complex here
 
-	void Player::OnUpdate(GLFWwindow* window, World* world, float dt)
+	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame)
 	{
+		glm::vec3 StartPosition = m_Position;
+
 		dt = glm::min(dt, 35.0f);
 		const float camera_speed = Freefly ? 0.2f : 0.1f;
 
@@ -103,6 +105,28 @@ namespace VoxelRT
 		}
 
 		Camera.SetPosition(m_Position);
+
+
+		// Step sounds : 
+
+		float fracttime = glm::fract(glfwGetTime());
+		int Moment = static_cast<int>(glm::floor(fracttime * 800.0f));
+
+		if (glm::distance(StartPosition, Camera.GetPosition()) > 0.1f && frame % 10 == 0)
+		{
+			
+			glm::ivec3 Idx = glm::ivec3(glm::floor(Camera.GetPosition()));
+			Idx.y -= 2;
+
+			if (Idx.x > 0 && Idx.x < WORLD_SIZE_X - 1 &&
+				Idx.y > 0 && Idx.y < WORLD_SIZE_Y - 1 &&
+				Idx.z > 0 && Idx.z < WORLD_SIZE_Z - 1)
+			{
+				auto blockat = world->GetBlock((uint16_t)Idx.x, (uint16_t)Idx.y, (uint16_t)Idx.z);
+				//s1 = blockat.block > 0 ? VoxelRT::BlockDatabase::GetBlockName(blockat.block) : s1;
+				SoundManager::PlayBlockSound(blockat.block, glm::vec3(Idx), true);
+			}
+		}
 	}
 
 	static bool Test3DAABBCollision(const glm::vec3& pos_1, const glm::vec3& dim_1, const glm::vec3& pos_2, const glm::vec3& dim_2)

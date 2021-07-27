@@ -12,6 +12,8 @@
 #include "GLClasses/ComputeShader.h"
 #include "ParticleSystem.h"
 
+#include "SoundManager.h"
+
 namespace VoxelRT
 {
 	class World
