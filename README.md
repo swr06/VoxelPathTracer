@@ -32,6 +32,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Particle system
 - Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
+- Fully 3D Audio
 
 # Features to implement
 - Foliage
