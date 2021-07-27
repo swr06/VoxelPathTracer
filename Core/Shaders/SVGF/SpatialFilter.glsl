@@ -132,7 +132,7 @@ float GetSaturation(in vec3 v) { return length(v); }
 
 void main()
 {
-	const float AtrousWeights[3] = { 1.0f, 2.0f / 3.0f, 1.0f / 6.0f };
+	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 	const float AtrousWeights2[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
 
 	vec2 TexelSize = 1.0f / u_Dimensions;

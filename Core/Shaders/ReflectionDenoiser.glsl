@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 layout (location = 0) out vec4 o_SpatialResult;
 layout (location = 1) out vec2 o_CoCg;
