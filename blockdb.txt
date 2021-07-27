@@ -186,7 +186,7 @@
 	Normal : Res/Block/WhitePorcelain/Normal.png
 	PBR : Res/Block/WhitePorcelain/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -278,7 +278,7 @@
 	PBR : Res/Block/Glowstone/PBR.png
 	Emissive : Res/Block/Glowstone/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -289,7 +289,7 @@
 	PBR : Res/Block/Glowstone_1/PBR.png
 	Emissive : Res/Block/Glowstone_1/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -300,7 +300,7 @@
 	PBR : Res/Block/Glowstone_2/PBR.png
 	Emissive : Res/Block/Glowstone_2/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -311,7 +311,7 @@
 	PBR : Res/Block/Glowstone_3/PBR.png
 	Emissive : Res/Block/Glowstone_3/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -421,7 +421,7 @@
 	Normal : Res/Block/Obsidian/Normal.png
 	PBR : Res/Block/Obsidian/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -471,7 +471,7 @@
 	Normal : Res/Block/uChiseled/Normal.png
 	PBR : Res/Block/uChiseled/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -501,7 +501,7 @@
 	Normal : Res/Block/uGranite/Normal.png
 	PBR : Res/Block/uGranite/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -511,7 +511,7 @@
 	Normal : Res/Block/uStoneSmooth/Normal.png
 	PBR : Res/Block/uStoneSmooth/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -551,7 +551,7 @@
 	Normal : Res/Block/uPrismarine/Normal.png
 	PBR : Res/Block/uPrismarine/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -561,7 +561,7 @@
 	Normal : Res/Block/uPanel/Normal.png
 	PBR : Res/Block/uPanel/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -591,7 +591,7 @@
 	Normal : Res/Block/Ice/Normal.png
 	PBR : Res/Block/Ice/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -602,7 +602,7 @@
 	PBR : Res/Block/Ore1/PBR.png
 	Emissive : Res/Block/Ore1/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -613,7 +613,7 @@
 	PBR : Res/Block/Ore2/PBR.png
 	Emissive : Res/Block/Ore2/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -624,7 +624,7 @@
 	PBR : Res/Block/Ore3/PBR.png
 	Emissive : Res/Block/Ore3/Emissive.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -644,7 +644,7 @@
 	Normal : Res/Block/rClay/Normal.png
 	PBR : Res/Block/rClay/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -684,7 +684,7 @@
 	Normal : Res/Block/rQuartz/Normal.png
 	PBR : Res/Block/rQuartz/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -775,7 +775,7 @@
 	Normal : Res/Block/EmeraldBlock/Normal.png
 	PBR : Res/Block/EmeraldBlock/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -796,7 +796,7 @@
 	Normal : Res/Block/PolishedBlackBricks/Normal.png
 	PBR : Res/Block/PolishedBlackBricks/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -806,7 +806,7 @@
 	Normal : Res/Block/Quartz/Normal.png
 	PBR : Res/Block/Quartz/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 
@@ -816,7 +816,7 @@
 	Normal : Res/Block/Sandstone3/Normal.png
 	PBR : Res/Block/Sandstone3/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 

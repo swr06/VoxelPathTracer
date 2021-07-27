@@ -199,6 +199,7 @@ public:
 			{
 				MainPlayer.Sensitivity = 0.25f;
 				MainPlayer.Speed = 0.045f;
+				VoxelRT_VolumeMultiplier = 1.0f;
 				VSync = false;
 			}
 		} ImGui::End();
