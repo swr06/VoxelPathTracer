@@ -158,8 +158,36 @@ public:
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
 
-		if (ImGui::Begin("Other Settings"))
+		if (ImGui::Begin("Other Settings and properties"))
 		{
+			if (world) {
+
+				std::string s = MainPlayer.m_isOnGround ? "Yes" : "No";
+				std::string s1 = "Air, not grounded.";
+
+				//if (MainPlayer.m_isOnGround) 
+				{
+
+					glm::ivec3 Idx = glm::ivec3(glm::floor(MainPlayer.m_Position));
+					Idx.y -= 2;
+
+					if (Idx.x > 0 && Idx.x < WORLD_SIZE_X - 1 && 
+						Idx.y > 0 && Idx.y < WORLD_SIZE_Y - 1 && 
+						Idx.z > 0 && Idx.z < WORLD_SIZE_Z - 1)
+					{
+						auto blockat = world->GetBlock((uint16_t)Idx.x, (uint16_t)Idx.y, (uint16_t)Idx.z);
+						s1 = blockat.block > 0 ? VoxelRT::BlockDatabase::GetBlockName(blockat.block) : s1;
+					}
+
+				}
+
+				ImGui::Text("Player Grounded : %s", s.c_str());
+				ImGui::Text("Stood On Block : %s", s1.c_str());
+			}
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
 			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
 			ImGui::Checkbox("VSync", &VSync);
@@ -234,6 +262,11 @@ public:
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_E)
 		{
 			world->ChangeCurrentlyHeldBlock(false);
+		}
+
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_C)
+		{
+			MainPlayer.DisableCollisions = !MainPlayer.DisableCollisions;
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)
@@ -2064,7 +2097,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDisable(GL_BLEND);
 		glDisable(GL_CULL_FACE);
 
-		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "  ";
+		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "     "; 
+		title += MainPlayer.Freefly ? "   |  FREEFLY" : "";
+		title += MainPlayer.DisableCollisions ? "   |  NO COLLISIONS" : "";
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);
 
 		float CurrentTime = glfwGetTime();

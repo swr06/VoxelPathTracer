@@ -32,6 +32,7 @@ namespace VoxelRT
 		glm::vec3 m_Acceleration;
 		AABB m_AABB;
 		bool m_isOnGround;
+		bool DisableCollisions = false;
 
 	private :
 

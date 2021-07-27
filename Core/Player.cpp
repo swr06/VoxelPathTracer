@@ -12,8 +12,12 @@ namespace VoxelRT
 		m_AABB.m_Position = m_Position;
 	}
 
+	// Basic aabb collisions :p
+	// Nothing too complex here
+
 	void Player::OnUpdate(GLFWwindow* window, World* world, float dt)
 	{
+		dt = glm::min(dt, 35.0f);
 		const float camera_speed = Freefly ? 0.2f : 0.1f;
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
@@ -118,6 +122,10 @@ namespace VoxelRT
 
 	void Player::TestBlockCollision(glm::vec3& position, World* world, glm::vec3 vel)
 	{
+		if (DisableCollisions && Freefly) {
+			return;
+		}
+
 		for (int x = position.x - m_AABB.m_Dimensions.x; x < position.x + m_AABB.m_Dimensions.x; x++)
 		{
 			for (int y = position.y - m_AABB.m_Dimensions.y; y < position.y + 0.7; y++)
@@ -153,12 +161,14 @@ namespace VoxelRT
 
 							else if (vel.x < 0)
 							{
-								position.x = x + m_AABB.m_Dimensions.x + 1.0f;
+								position.x = x + m_AABB.m_Dimensions.x + 1.0f; // clip
 							}
 
-							if (vel.z > 0) {
+							if (vel.z > 0) 
+							{
 								position.z = z - m_AABB.m_Dimensions.z;
 							}
+
 							else if (vel.z < 0) 
 							{
 								position.z = z + m_AABB.m_Dimensions.z + 1.0f;
