@@ -87,7 +87,7 @@ namespace VoxelRT
 		std::string Path = list[Type][rand_idx];
 
 		float v = type ? 6.0f : 6.0f; v *= VoxelRT_VolumeMultiplier;
-		PlaySound(Path, p, 4.0f, v, false);
+		PlaySound(Path, p, 2.5f, v, false);
 	}
 
 	void SoundManager::Destroy()

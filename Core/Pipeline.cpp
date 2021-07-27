@@ -369,11 +369,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 	// Initialize sound engine
 
 	std::cout << "\n\n";
+	std::cout << "Initializing Sound Engine..\n";
 	SoundManager::InitializeSoundManager();
+	std::cout << "\nInitialized Sound Engine.";
 	std::cout << "\n\n";
 
-	// Create shaders 
+
+	// Create and compile shaders 
 	ShaderManager::CreateShaders();
+
 
 	VoxelRT::Renderer2D RendererUI;
 	GLClasses::VertexBuffer VBO;
