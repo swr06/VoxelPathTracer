@@ -83,6 +83,8 @@ static float DeltaTime;
 
 float VoxelRT_VolumeMultiplier = 1.0f;
 
+static float DeltaSum = 0.0f;
+
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -595,7 +597,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame());
+		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
 		app.OnUpdate();
 
 		glm::mat4 TempView = PreviousView;
@@ -2123,10 +2125,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		title += MainPlayer.DisableCollisions ? "   |  NO COLLISIONS" : "";
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);
 
+
 		float CurrentTime = glfwGetTime();
 		DeltaTime = CurrentTime - Frametime;
 		Frametime = glfwGetTime();
 
+		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
 	}
 

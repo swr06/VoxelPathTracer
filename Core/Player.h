@@ -16,7 +16,7 @@ namespace VoxelRT
 	public :
 
 		Player();
-		void OnUpdate(GLFWwindow* window, World* world, float dt, int frame);
+		void OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt);
 
 		FPSCamera Camera;
 		void TestBlockCollision(glm::vec3& position, World* world, glm::vec3 vel);

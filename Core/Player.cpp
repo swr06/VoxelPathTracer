@@ -15,7 +15,7 @@ namespace VoxelRT
 	// Basic aabb collisions :p
 	// Nothing too complex here
 
-	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame)
+	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt)
 	{
 		glm::vec3 StartPosition = m_Position;
 
@@ -112,9 +112,9 @@ namespace VoxelRT
 		float fracttime = glm::fract(glfwGetTime());
 		int Moment = static_cast<int>(glm::floor(fracttime * 800.0f));
 
-		if (glm::distance(StartPosition, Camera.GetPosition()) > 0.1f && frame % 10 == 0)
+		if (glm::distance(StartPosition, Camera.GetPosition()) > 0.1f && dtt >= 0.3f)
 		{
-			
+			dtt = 0.0f;
 			glm::ivec3 Idx = glm::ivec3(glm::floor(Camera.GetPosition()));
 			Idx.y -= 2;
 
