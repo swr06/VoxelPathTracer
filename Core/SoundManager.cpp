@@ -67,6 +67,7 @@ namespace VoxelRT
 
 	void SoundManager::PlayBlockSound(uint8_t block, const glm::vec3& p, bool type)
 	{
+		// Air.
 		if (block <= 0)
 		{
 			return;
@@ -86,7 +87,7 @@ namespace VoxelRT
 		std::string Path = list[Type][rand_idx];
 
 		float v = type ? 6.0f : 6.0f; v *= VoxelRT_VolumeMultiplier;
-		PlaySound(Path, p, type ? 4.0f : 8.0f, v, false);
+		PlaySound(Path, p, 4.0f, v, false);
 	}
 
 	void SoundManager::Destroy()
