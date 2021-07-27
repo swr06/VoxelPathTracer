@@ -34,6 +34,8 @@ namespace VoxelRT
 			std::string BlockName = "";
 			uint8_t ID = 0;
 			bool transparent = false;
+			std::string snd_step;
+			std::string snd_modify;
 		};
 
 		void Parse(const std::string& path);

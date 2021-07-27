@@ -2,95 +2,131 @@
 
 namespace VoxelRT
 {
-	Player::Player() : Camera(60.0f, 800.0f / 600.0f, 0.1f, 1000.0f)
+	Player::Player() : Camera(60.0f, 800.0f / 600.0f, 0.1f, 1000.0f), m_AABB(glm::vec3(0.3f, 1.0f, 0.3f))
 	{
-
+		m_Acceleration = glm::vec3(0.0f);
+		m_Velocity = glm::vec3(0.0f);
+		m_Position = glm::vec3(WORLD_SIZE_X / 2, 70, WORLD_SIZE_Z / 2);
+		Freefly = false;
+		m_isOnGround = false;
+		m_AABB.m_Position = m_Position;
 	}
 
-	bool Player::OnUpdate(GLFWwindow* window, World* world, float dt)
+	// Basic aabb collisions :p
+	// Nothing too complex here
+
+	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame)
 	{
-		Camera.SetSensitivity(Sensitivity);
+		glm::vec3 StartPosition = m_Position;
 
-		bool moved = false;
-		float camera_speed = Speed * dt * 4.0f;
-
-		Camera.ResetAcceleration();
-		FPSCamera cam = Camera;
+		dt = glm::min(dt, 35.0f);
+		const float camera_speed = Freefly ? 0.2f : 0.1f;
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		{
 			// Take the cross product of the camera's right and up.
 			glm::vec3 front = -glm::cross(Camera.GetRight(), Camera.GetUp());
-			Camera.ApplyAcceleration(front * camera_speed);
+			m_Acceleration += (front * camera_speed);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
 		{
 			glm::vec3 back = glm::cross(Camera.GetRight(), Camera.GetUp());
-			Camera.ApplyAcceleration(back * camera_speed);
+			m_Acceleration += (back * camera_speed);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
 		{
-			Camera.ApplyAcceleration(-(Camera.GetRight() * camera_speed));
+			m_Acceleration += (-(Camera.GetRight() * camera_speed));
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		{
-			Camera.ApplyAcceleration(Camera.GetRight() * camera_speed);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-		{
-			Camera.ApplyAcceleration(Camera.GetUp() * camera_speed);
+			m_Acceleration += (Camera.GetRight() * camera_speed);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
 		{
-			Camera.ApplyAcceleration(-(Camera.GetUp() * camera_speed));
+			m_Acceleration.y -= camera_speed * 1.35f;
 		}
 
-		Camera.OnUpdate();
-		glm::vec3 new_pos = Camera.GetPosition();
-		glm::vec3 old_pos = cam.GetPosition();
-
-		if (new_pos != old_pos)
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
 		{
-			glm::vec3* camera_pos = (glm::vec3*)&Camera.GetPosition();
+			float jump_speed = 0.06f;
 
-			if (TestBlockCollision(glm::vec3(new_pos.x, old_pos.y, old_pos.z), world))
+			if (!Freefly) 
 			{
-				camera_pos->x = old_pos.x;
-				Camera.ResetVelocity();
-				Camera.ResetAcceleration();
+				if (m_isOnGround)
+				{
+					m_isOnGround = false;
+					m_Acceleration.y += jump_speed * 14.0f;
+				}
 			}
 
-			if (TestBlockCollision(glm::vec3(old_pos.x, old_pos.y, new_pos.z), world))
+			else 
 			{
-				camera_pos->z = old_pos.z;
-				Camera.ResetVelocity();
-				Camera.ResetAcceleration();
-			}
-
-			if (TestBlockCollision(glm::vec3(old_pos.x, new_pos.y, old_pos.z), world))
-			{
-				camera_pos->y = old_pos.y;
-				Camera.ResetVelocity();
-				Camera.ResetAcceleration();
+				m_Acceleration.y += jump_speed * 3.0f;
 			}
 		}
 
-		Camera.Refresh();
 
-		glm::ivec3 player_block = {
-			(int)floor(Camera.GetPosition().x),
-			(int)floor(Camera.GetPosition().y),
-			(int)floor(Camera.GetPosition().z)
-		};
+		Camera.SetSensitivity(Sensitivity);
 
-		InWater = false;
+		m_Velocity += m_Acceleration;
+		m_Acceleration = { 0, 0, 0 };
 
-		return moved;
+		// Gravity : 
+		if (!Freefly) 
+		{
+			if (!m_isOnGround) 
+			{
+				m_Velocity.y -= 0.2 * dt;
+			}
+
+			m_isOnGround = false;
+		}
+
+		// Test collisions on three axes 
+		m_Position.x += m_Velocity.x * dt;
+		TestBlockCollision(m_Position, world, glm::vec3(m_Velocity.x, 0.0f, 0.0f));
+		m_Position.y += m_Velocity.y * dt;
+		TestBlockCollision(m_Position, world, glm::vec3(0.0f, m_Velocity.y, 0.0f));
+		m_Position.z += m_Velocity.z * dt;
+		TestBlockCollision(m_Position, world, glm::vec3(0.0f, 0.0f, m_Velocity.z));
+
+		// 
+		m_AABB.SetPosition(m_Position);
+
+		m_Velocity.x *= 0.825f;
+		m_Velocity.z *= 0.825f;
+
+		if (Freefly) {
+			m_Velocity.y *= 0.9f;
+		}
+
+		Camera.SetPosition(m_Position);
+
+
+		// Step sounds : 
+
+		float fracttime = glm::fract(glfwGetTime());
+		int Moment = static_cast<int>(glm::floor(fracttime * 800.0f));
+
+		if (glm::distance(StartPosition, Camera.GetPosition()) > 0.1f && frame % 10 == 0)
+		{
+			
+			glm::ivec3 Idx = glm::ivec3(glm::floor(Camera.GetPosition()));
+			Idx.y -= 2;
+
+			if (Idx.x > 0 && Idx.x < WORLD_SIZE_X - 1 &&
+				Idx.y > 0 && Idx.y < WORLD_SIZE_Y - 1 &&
+				Idx.z > 0 && Idx.z < WORLD_SIZE_Z - 1)
+			{
+				auto blockat = world->GetBlock((uint16_t)Idx.x, (uint16_t)Idx.y, (uint16_t)Idx.z);
+				//s1 = blockat.block > 0 ? VoxelRT::BlockDatabase::GetBlockName(blockat.block) : s1;
+				SoundManager::PlayBlockSound(blockat.block, glm::vec3(Idx), true);
+			}
+		}
 	}
 
 	static bool Test3DAABBCollision(const glm::vec3& pos_1, const glm::vec3& dim_1, const glm::vec3& pos_2, const glm::vec3& dim_2)
@@ -108,43 +144,68 @@ namespace VoxelRT
 		return false;
 	}
 
-	bool Player::TestBlockCollision(const glm::vec3& position, World* world)
+	void Player::TestBlockCollision(glm::vec3& position, World* world, glm::vec3 vel)
 	{
-		if (Freefly) { return false; }
+		if (DisableCollisions && Freefly) {
+			return;
+		}
 
-		// Convert center position to top-left position
-		glm::vec3 pos = glm::vec3(
-			position.x - 0.375f,
-			position.y - 0.96f,
-			position.z - 0.375f);
-
-		glm::ivec3 player_block = {
-			(int)floor(pos.x),
-			(int)floor(pos.y),
-			(int)floor(pos.z)
-		};
-
-		const glm::ivec3 block_range = { 2, 2, 2 };
-
-		for (int i = player_block.x - block_range.x; i < player_block.x + block_range.x; i++)
-			for (int j = player_block.y - block_range.y; j < player_block.y + block_range.y; j++)
-				for (int k = player_block.z - block_range.z; k < player_block.z + block_range.z; k++)
+		for (int x = position.x - m_AABB.m_Dimensions.x; x < position.x + m_AABB.m_Dimensions.x; x++)
+		{
+			for (int y = position.y - m_AABB.m_Dimensions.y; y < position.y + 0.7; y++)
+			{
+				for (int z = position.z - m_AABB.m_Dimensions.z; z < position.z + m_AABB.m_Dimensions.z; z++)
 				{
-					if (i < WORLD_SIZE_X && i >= 0 && j < WORLD_SIZE_Y && j >= 0 && k < WORLD_SIZE_X && k >= 0)
+					if (x >= 0 && x < WORLD_SIZE_X - 1 &&
+						y >= 0 && y < WORLD_SIZE_Y - 1 &&
+						z >= 0 && z < WORLD_SIZE_Z - 1)
 					{
-						Block* block = (Block*)&world->GetBlock(i, j, k);
 
-						if (block && block->block != 0)
+						Block block = world->GetBlock(x, y, z);
+
+						if (block.block != 0)
 						{
-							if (Test3DAABBCollision(pos, glm::vec3(0.75f, 1.5f, 0.75f), glm::vec3(i, j, k), glm::vec3(1, 1, 1)))
+							if (vel.y > 0)
 							{
-								return true;
+								position.y = y - m_AABB.m_Dimensions.y;
+								m_Velocity.y = 0;
+							}
+
+							else if (vel.y < 0)
+							{
+								m_isOnGround = true;
+								position.y = y + m_AABB.m_Dimensions.y + 1;
+								m_Velocity.y = 0;
+							}
+
+							if (vel.x > 0)
+							{
+								position.x = x - m_AABB.m_Dimensions.x;
+							}
+
+							else if (vel.x < 0)
+							{
+								position.x = x + m_AABB.m_Dimensions.x + 1.0f; // clip
+							}
+
+							if (vel.z > 0) 
+							{
+								position.z = z - m_AABB.m_Dimensions.z;
+							}
+
+							else if (vel.z < 0) 
+							{
+								position.z = z + m_AABB.m_Dimensions.z + 1.0f;
 							}
 						}
 					}
 				}
+			}
+		}
+	}
 
-		return false;
-
+	void Player::Jump()
+	{
+		return;
 	}
 }

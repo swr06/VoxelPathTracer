@@ -3,6 +3,7 @@
 #include "ShaderManager.h"
 #include "BlockDataSSBO.h"
 #include "BlueNoiseDataSSBO.h"
+#include "SoundManager.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -79,6 +80,8 @@ static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
 static float Frametime;
 static float DeltaTime;
+
+float VoxelRT_VolumeMultiplier = 1.0f;
 
 class RayTracerApp : public VoxelRT::Application
 {
@@ -158,8 +161,36 @@ public:
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
 
-		if (ImGui::Begin("Other Settings"))
+		if (ImGui::Begin("Other Settings and properties"))
 		{
+			if (world) {
+
+				std::string s = MainPlayer.m_isOnGround ? "Yes" : "No";
+				std::string s1 = "Air, not grounded.";
+
+				//if (MainPlayer.m_isOnGround) 
+				{
+
+					glm::ivec3 Idx = glm::ivec3(glm::floor(MainPlayer.m_Position));
+					Idx.y -= 2;
+
+					if (Idx.x > 0 && Idx.x < WORLD_SIZE_X - 1 && 
+						Idx.y > 0 && Idx.y < WORLD_SIZE_Y - 1 && 
+						Idx.z > 0 && Idx.z < WORLD_SIZE_Z - 1)
+					{
+						auto blockat = world->GetBlock((uint16_t)Idx.x, (uint16_t)Idx.y, (uint16_t)Idx.z);
+						s1 = blockat.block > 0 ? VoxelRT::BlockDatabase::GetBlockName(blockat.block) : s1;
+					}
+
+				}
+
+				ImGui::Text("Stood On Block : %s", s1.c_str());
+				ImGui::SliderFloat("Volume", &VoxelRT_VolumeMultiplier, 0.0f, 3.5f);
+			}
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
 			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
 			ImGui::Checkbox("VSync", &VSync);
@@ -168,6 +199,7 @@ public:
 			{
 				MainPlayer.Sensitivity = 0.25f;
 				MainPlayer.Speed = 0.045f;
+				VoxelRT_VolumeMultiplier = 1.0f;
 				VSync = false;
 			}
 		} ImGui::End();
@@ -175,6 +207,11 @@ public:
 
 	void OnEvent(VoxelRT::Event e) override
 	{
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_SPACE)
+		{
+			MainPlayer.Jump();
+		}
+
 		if (e.type == VoxelRT::EventTypes::MouseMove && GetCursorLocked())
 		{
 			MainCamera.UpdateOnMouseMovement(GetCursorX(), GetCursorY());
@@ -231,6 +268,11 @@ public:
 			world->ChangeCurrentlyHeldBlock(false);
 		}
 
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_C)
+		{
+			MainPlayer.DisableCollisions = !MainPlayer.DisableCollisions;
+		}
+
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_ESCAPE)
 		{
 			VoxelRT::SaveWorld(world, world->m_Name);
@@ -243,6 +285,11 @@ public:
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
 			OCamera.SetProjection(0.0f, e.wx, 0.0f, e.wy);
 		}
+
+
+
+
+		
 	}
 
 };
@@ -314,11 +361,23 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GenerateWorld(world, gen_type);
 	}
 
+	// Initialize world, df generator etc 
 	world->Buffer();
 	world->InitializeDistanceGenerator();
 	world->GenerateDistanceField();
 
+	// Initialize sound engine
+
+	std::cout << "\n\n";
+	std::cout << "Initializing Sound Engine..\n";
+	SoundManager::InitializeSoundManager();
+	std::cout << "\nInitialized Sound Engine.";
+	std::cout << "\n\n";
+
+
+	// Create and compile shaders 
 	ShaderManager::CreateShaders();
+
 
 	VoxelRT::Renderer2D RendererUI;
 	GLClasses::VertexBuffer VBO;
@@ -433,8 +492,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 	float CameraExposure = 1.0f;
 	float PrevCameraExposure = 1.0f;
 
+
+	Frametime = glfwGetTime();
+
+
+
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		// Sound update ->
+
+		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
+
+
 		// Tick the sun and moon
 		float time_angle = SunTick * 2.0f;
 		glm::mat4 sun_rotation_matrix;
@@ -526,7 +595,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f);
+		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame());
 		app.OnUpdate();
 
 		glm::mat4 TempView = PreviousView;
@@ -2049,7 +2118,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDisable(GL_BLEND);
 		glDisable(GL_CULL_FACE);
 
-		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "  ";
+		std::string title = "Voxel RT | "; title += BlockDatabase::GetBlockName(world->GetCurrentBlock()); title += "     "; 
+		title += MainPlayer.Freefly ? "   |  FREEFLY" : "";
+		title += MainPlayer.DisableCollisions ? "   |  NO COLLISIONS" : "";
 		GLClasses::DisplayFrameRate(app.GetWindow(), title);
 
 		float CurrentTime = glfwGetTime();
@@ -2060,6 +2131,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	}
 
 	SaveWorld(world, world_name);
+	SoundManager::Destroy();
+
 	delete world;
 
 	return;

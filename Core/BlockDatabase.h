@@ -36,6 +36,8 @@ namespace VoxelRT
 		int GetBlockPBRTexture(BlockIDType block_id, const BlockFaceType type);
 		int GetBlockEmissiveTexture(BlockIDType block_id);
 		std::string GetBlockName(BlockIDType block_id);
+		std::string GetStepSound(BlockIDType block_id);
+		std::string GetModifySound(BlockIDType block_id);
 
 		bool IsBlockTransparent(BlockIDType block_id);
 

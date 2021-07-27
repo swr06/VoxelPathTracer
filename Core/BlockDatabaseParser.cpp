@@ -306,6 +306,26 @@ namespace VoxelRT
 
 						parsed_data.EmissiveMap = s;
 					}
+
+					else if (field.find("SND_STEP") != std::string::npos)
+					{
+						std::string s;
+						size_t loc = field.find(":");
+						s = field.substr(loc + 1, field.size());
+						s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+
+						parsed_data.snd_step = s;
+					}
+
+					else if (field.find("SND_MODIFY") != std::string::npos)
+					{
+						std::string s;
+						size_t loc = field.find(":");
+						s = field.substr(loc + 1, field.size());
+						s.erase(remove_if(s.begin(), s.end(), isspace), s.end());
+
+						parsed_data.snd_modify = s;
+					}
 				}
 
 				parsed_data.ID = GenerateBlockID();
