@@ -180,7 +180,7 @@ void main()
 	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);
 	
 	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
-	float StoreLuma = mix(SumLuminosity, CurrentNoisyLuma, BlendFactor).r;
+	float StoreLuma = mix(SumLuminosity, CurrentNoisyLuma, BlendFactor);
 
 	o_SH = mix(SumSH, BaseSH, BlendFactor);
 	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);

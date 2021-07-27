@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128

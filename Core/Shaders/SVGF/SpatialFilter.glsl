@@ -74,7 +74,7 @@ float GetVarianceEstimate(out float BaseVariance)
 	vec2 TexelSize = 1.0f / textureSize(u_SH, 0);
 	float VarianceSum = 0.0f;
 
-	const float Kernel[3] = { 1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0 };
+	const float Kernel[3] = float[3](1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0);
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
