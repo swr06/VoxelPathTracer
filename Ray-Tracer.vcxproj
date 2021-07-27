@@ -222,6 +222,7 @@
     <ClInclude Include="Core\Macros.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />
+    <ClInclude Include="Core\Physics\AABB.h" />
     <ClInclude Include="Core\Pipeline.h" />
     <ClInclude Include="Core\Player.h" />
     <ClInclude Include="Core\Renderer2D.h" />

@@ -175,6 +175,11 @@ public:
 
 	void OnEvent(VoxelRT::Event e) override
 	{
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_SPACE)
+		{
+			MainPlayer.Jump();
+		}
+
 		if (e.type == VoxelRT::EventTypes::MouseMove && GetCursorLocked())
 		{
 			MainCamera.UpdateOnMouseMovement(GetCursorX(), GetCursorY());
@@ -243,6 +248,11 @@ public:
 			MainCamera.SetAspect((float)e.wx / (float)e.wy);
 			OCamera.SetProjection(0.0f, e.wx, 0.0f, e.wy);
 		}
+
+
+
+
+		
 	}
 
 };
@@ -432,6 +442,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	float CameraExposure = 1.0f;
 	float PrevCameraExposure = 1.0f;
+
+
+	Frametime = glfwGetTime();
+
+
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
