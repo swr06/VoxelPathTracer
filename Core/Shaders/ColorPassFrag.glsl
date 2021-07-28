@@ -418,7 +418,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
     float PlayerShadow  = 0.0f;
     int PlayerShadowSamples = 16;
 
-    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.125f);
+    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.255f);
     if (u_ContactHardeningShadows) {
         for (int i = 0 ; i < PlayerShadowSamples ; i++)
         {
