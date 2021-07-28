@@ -112,7 +112,7 @@ namespace VoxelRT
 		float fracttime = glm::fract(glfwGetTime());
 		int Moment = static_cast<int>(glm::floor(fracttime * 800.0f));
 
-		if (glm::distance(StartPosition, Camera.GetPosition()) > 0.1f && dtt >= 0.3f)
+		if (glm::distance(StartPosition, Camera.GetPosition()) + 1e-3 >= 0.03f)
 		{
 			dtt = 0.0f;
 			glm::ivec3 Idx = glm::ivec3(glm::floor(Camera.GetPosition()));

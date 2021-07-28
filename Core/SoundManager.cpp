@@ -2,6 +2,8 @@
 
 #include "Audio.h"
 
+#include <glfw/glfw3.h>
+
 extern float VoxelRT_VolumeMultiplier;
 
 namespace VoxelRT
@@ -9,6 +11,7 @@ namespace VoxelRT
 	static irrklang::ISoundEngine* MainSoundEngine;
 	static std::unordered_map<std::string, std::array<std::string, 4>> SoundPathsStep;
 	static std::unordered_map<std::string, std::array<std::string, 4>> SoundPathsModify;
+	static double PreviousStepTime = -1.0f;
 
 	void SoundManager::InitializeSoundManager()
 	{
@@ -73,6 +76,15 @@ namespace VoxelRT
 			return;
 		}
 
+		if (PreviousStepTime >= 0.0f)
+		{
+			float DeltaStep = glfwGetTime() - PreviousStepTime;
+
+			if (DeltaStep < 0.3750f && type) {
+				return;
+			}
+		}
+
 		// 1 : step, 0 : modify
 		std::string Type = type ? BlockDatabase::GetStepSound(block) : BlockDatabase::GetModifySound(block);
 		auto& list = type ? SoundPathsStep : SoundPathsModify;
@@ -88,6 +100,8 @@ namespace VoxelRT
 
 		float v = type ? 6.0f : 6.0f; v *= VoxelRT_VolumeMultiplier;
 		PlaySound(Path, p, 2.5f, v, false);
+
+		PreviousStepTime = type ? glfwGetTime() : PreviousStepTime;
 	}
 
 	void SoundManager::Destroy()
