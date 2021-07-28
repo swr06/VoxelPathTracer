@@ -774,6 +774,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Temporal.SetInteger("u_PreviousUtility", 8);
 				SVGF_Temporal.SetInteger("u_NoisyLuminosity", 9);
 
+				SVGF_Temporal.SetInteger("u_CurrentBlockIDTexture", 10);
+				SVGF_Temporal.SetInteger("u_PrevBlockIDTexture", 11);
+
 
 				SVGF_Temporal.SetBool("u_DiffuseTemporal", true);
 				SVGF_Temporal.SetBool("u_ShadowTemporal", false);
@@ -826,6 +829,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				glActiveTexture(GL_TEXTURE9);
 				glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE10);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE11);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(2));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);

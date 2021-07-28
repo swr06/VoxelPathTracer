@@ -22,6 +22,9 @@ uniform sampler2D u_NoisyLuminosity;
 
 uniform sampler2D u_PreviousUtility;
 
+uniform sampler2D u_CurrentBlockIDTexture;
+uniform sampler2D u_PrevBlockIDTexture;
+
 uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform mat4 u_PrevProjection;
@@ -128,6 +131,8 @@ void main()
 
 	const vec2 Offsets[5] = vec2[5](vec2(1, 0), vec2(0, 1), vec2(0.0f), vec2(-1, 0), vec2(0, -1));
 
+	int BaseBlock = clamp(int(floor((texture(u_CurrentBlockIDTexture, v_TexCoords).r) * 255.0f)), 0, 127);
+
 	// Sample neighbours and hope to find a good sample : 
 	for (int i = 0 ; i < 5 ; i++)
 	{
@@ -141,9 +146,12 @@ void main()
 		vec3 PositionDifference = abs(BasePosition.xyz - PreviousPositionAt.xyz);
 		float PositionError = dot(PositionDifference, PositionDifference);
 		float CurrentWeight = Weights[i];
+		float idat = texture(u_PrevBlockIDTexture, SampleCoord).r;
+		int SampleBlock = clamp(int(floor((idat) * 255.0f)), 0, 127);
 
 		if (PositionError < 1.10f &&
-			PreviousNormalAt == BaseNormal)
+			PreviousNormalAt == BaseNormal &&
+			BaseBlock == SampleBlock)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
 			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;

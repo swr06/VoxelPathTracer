@@ -165,6 +165,7 @@ vec4 GetClampedColor(vec2 reprojected, in vec3 worldpos)
 	}
 }
 
+// I know i use a shitton of uniform branches but they are nearly free so i dont really care 
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -181,11 +182,25 @@ void main()
 		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 
-		float Bias = 0.006524f;
+		float Bias = 0.01;
 
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
+			float t = u_ShadowTemporal ? 0.5f : 1.1f;
+
+			if (d > t) 
+			{
+				o_Color = CurrentColor;
+
+				if (u_DiffuseTemporal) {
+					vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
+					o_SH = CurrentSH;
+				}
+
+				return;
+			}
+
 			float BlendFactor = d;
 			BlendFactor = exp(-BlendFactor);
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
