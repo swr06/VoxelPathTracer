@@ -110,12 +110,39 @@ bool TestAABB3DCollision(const glm::vec3& pos_1, const glm::vec3& dim_1, const g
 	return false;
 }
 
-bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_pos)
+bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_pos, glm::vec3 a, bool v, float dt)
 {
 	glm::vec3 pos = player_pos; 
 
 	if (TestAABB3DCollision(pos, glm::vec3(0.75f, 1.5f, 0.75f), ray_block, glm::vec3(1.2f, 1.2f, 1.2f)))
 	{
+		//if (v) 
+		/*{
+			{
+				glm::vec3 feet_pos = player_pos; feet_pos.y -= 1.0f;
+				if (glm::distance(ray_block, feet_pos) < 3.2)
+				{
+					return true;
+				}
+
+				glm::vec3 feet_pos2 = player_pos; feet_pos2.y -= 0.9f;
+				if (glm::distance(ray_block, feet_pos2) < 3.2)
+				{
+					return true;
+				}
+
+				if (glm::distance(ray_block, player_pos) < 3.2)
+				{
+					return true;
+				}
+
+				if (glm::distance(ray_block, glm::vec3(player_pos.x, player_pos.y + 0.6f, player_pos.z)) < 3.2)
+				{
+					return true;
+				}
+			}
+		}*/
+
 		return true;
 	}
 
@@ -123,7 +150,7 @@ bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_
 
 }
 
-void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& dir)
+void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& acceleration, bool is_falling, float dt)
 {
 	glm::vec3 position = pos;
 	const glm::vec3& direction = dir;
@@ -175,7 +202,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 				if (op == 1)
 				{
-					if (TestRayPlayerCollision(glm::vec3((position.x), (position.y), (position.z)), pos))
+					if (TestRayPlayerCollision(glm::vec3((position.x), (position.y), (position.z)), pos, acceleration, is_falling, dt))
 					{
 						return;
 					}

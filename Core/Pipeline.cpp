@@ -198,6 +198,55 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
+			ImGui::NewLine();
+			ImGui::Text("--- Spec Presets ---\n");
+
+			if (ImGui::Button("LOW") == true)
+			{
+				InitialTraceResolution = 0.5f;
+				ShadowTraceResolution = 0.5f;
+				DiffuseSPP = 3;
+				ColorPhiBias = 2.0f;
+				ReflectionTraceResolution = 0.25f;
+				DiffuseTraceResolution = 0.25f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("MEDIUM") == true)
+			{
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 0.75f;
+				DiffuseSPP = 8;
+				ColorPhiBias = 3.5f;
+				ReflectionTraceResolution = 0.25f;
+				DiffuseTraceResolution = 0.25f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("HIGH") == true) {
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 0.75f;
+				DiffuseSPP = 4;
+				ColorPhiBias = 3.25f;
+				ReflectionTraceResolution = 0.5f;
+				DiffuseTraceResolution = 0.5f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("INSANE") == true) {
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 1.0f;
+				ReflectionTraceResolution = 0.75f;
+				DiffuseTraceResolution = 0.5f;
+				DiffuseSPP = 6;
+				ColorPhiBias = 3.5f;
+				RTAOResolution = 0.75f;
+				RTAO = true;
+			}
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
 			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
 			ImGui::Checkbox("VSync", &VSync);
@@ -228,7 +277,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 				ModifiedWorld = true;
 			}
 		}
@@ -237,7 +286,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 				ModifiedWorld = true;
 			}
 		}
@@ -246,7 +295,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(2, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(2, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 			}
 		}
 
@@ -361,11 +410,48 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	if (!LoadWorld(world, world_name))
 	{
-		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, SIMPLEX FRACTAL = 1) : ";
+		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
 		std::cin >> gen_type;
 		std::cout << "\n\n";
 
 		GenerateWorld(world, gen_type);
+	}
+
+	int HardwareProfile = 0;
+
+	std::cout << "\nHardware Spec? (0 -> Low, 1 -> Medium, 2 -> High, 3 -> Insane) : ";
+	std::cin >> HardwareProfile;
+
+	if (HardwareProfile == 0)
+	{
+		// //
+	}
+
+	if (HardwareProfile == 1) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 0.75f;
+		DiffuseSPP = 8;
+		ColorPhiBias = 3.5f;
+	}
+
+	if (HardwareProfile == 2) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 0.75f;
+		ReflectionTraceResolution = 0.5f;
+		DiffuseTraceResolution = 0.5f;
+		DiffuseSPP = 4;
+		ColorPhiBias = 3.25f;
+	}
+
+	if (HardwareProfile == 3) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 1.0f;
+		ReflectionTraceResolution = 0.75f;
+		DiffuseTraceResolution = 0.5f;
+		DiffuseSPP = 6;
+		ColorPhiBias = 3.5f;
+		RTAOResolution = 0.75f;
+		RTAO = true;
 	}
 
 	// Initialize world, df generator etc 
