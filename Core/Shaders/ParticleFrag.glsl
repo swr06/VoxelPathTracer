@@ -42,10 +42,9 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 	return t1 > max(t0, 0.0);
 }
 
-vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
 {
-    float x = dot(shY.xyz, v);
-    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    float Y = max(0, 3.544905f * shY.w);
     Y = max(Y, 0.0);
 	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
     float T = Y - CoCg.y * 0.5f;
@@ -109,7 +108,7 @@ void main()
 	float Shadow = PlayerIntersect ? 1.0f : texture(u_ShadowTexture, SamplePosition).r;
 	vec4 DiffuseSample = texture(u_DiffuseTexture, SamplePosition).rgba;
 	vec2 YoCoCg = texture(u_DiffuseTextureYoCoCg, SamplePosition).rg;
-	vec3 Diffuse = SHToIrridiance(DiffuseSample, YoCoCg, vec3(0.0f, 1.0f, 0.0f));
+	vec3 Diffuse = SHToIrridiance(DiffuseSample, YoCoCg);
 	Diffuse *= 7.0f;
 	vec3 SUN_COLOR = Shadow > 0.01f ? Diffuse : SUN_COLOR_C;
 	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;

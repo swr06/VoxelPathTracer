@@ -1,16 +1,21 @@
 #version 330 core
+#define DENOISE
 
 layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
 
 uniform sampler2D u_CurrentColorTexture;
-uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
-uniform sampler2D u_PreviousFramePositionTexture;
+uniform sampler2D u_CurrentPositionData;
+uniform sampler2D u_PrevPositionData;
 
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
+uniform mat4 u_Projection;
+uniform mat4 u_View;
+uniform mat4 u_InverseProjection;
+uniform mat4 u_InverseView;
 
 uniform float u_MixModifier = 0.8;
 uniform float u_Time;
@@ -18,18 +23,19 @@ uniform float u_Time;
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
 
-vec2 View;
-vec2 Dimensions;
-vec2 TexCoord;
-
 vec2 Reprojection(vec3 pos) 
 {
 	vec3 WorldPos = pos;
-
 	vec4 ProjectedPosition = u_PrevProjection * u_PrevView * vec4(WorldPos, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
-	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+	return ProjectedPosition.xy;
+}
 
+vec2 ProjectCurrent(vec3 pos) 
+{
+	vec3 WorldPos = pos;
+	vec4 ProjectedPosition = u_Projection * u_View * vec4(WorldPos, 1.0f);
+	ProjectedPosition.xyz /= ProjectedPosition.w;
 	return ProjectedPosition.xy;
 }
 
@@ -43,84 +49,127 @@ float GetLuminance(vec3 color)
 	return dot(color, vec3(0.299f, 0.587f, 0.114f));
 }
 
-vec4 GetBestSample(vec2 reprojected, vec3 CurrPos)
+vec3 GetRayDirectionAt(vec2 screenspace)
 {
-	vec2 TexelSize = 1.0f / textureSize(u_PreviousColorTexture, 0).xy;
-	vec2 BestOffset = vec2(0.0f, 0.0f);
-	float BestDiff = 10000.0f;
-	vec4 minclr = vec4(10000.0f);
-	vec4 maxclr = vec4(-10000.0f);
-	const int BoxSampleSize = 2; 
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
 
-	// 4*4 = 16 sample box
-	for(int x = -BoxSampleSize; x <= BoxSampleSize; x++) 
-	{
-		for(int y = -BoxSampleSize; y <= BoxSampleSize; y++) 
-		{
-			vec4 SampledPosition = texture(u_PreviousFramePositionTexture, reprojected + (vec2(x, y) * TexelSize)).rgba;
-			vec4 Fetch = texture(u_CurrentColorTexture, v_TexCoords + (vec2(x,y) * TexelSize)).rgba; 
+vec4 GetBlurredColor() {
 
-			minclr = min(minclr, Fetch.xyzw); 
-			maxclr = max(maxclr, Fetch.xyzw); 
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
 
-			if (SampledPosition.w > 0.0f)
-			{
-				float Diff = abs(FastDist(CurrPos, SampledPosition.xyz));
+	vec4 TotalColor = vec4(0.0f);
+	float Samples = 0.0f;
 
-				if (Diff < BestDiff)
-				{
-					BestDiff = Diff;
-					BestOffset = vec2(x, y);
-				}
-			}	
+	// 6x6 taps
+	for (int x = -3 ; x <= 3; x++) {
+		for (int y = -3 ; y <= 3 ; y++) {
+			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
+			TotalColor += texture(u_CurrentColorTexture, SampleCoord);
+			Samples += 1.0f;
 		}
 	}
 
-	minclr -= 0.010f; 
-	maxclr += 0.010f; 
-
-	vec4 FinalColor = texture(u_PreviousColorTexture, reprojected + (BestOffset * TexelSize)).xyzw;
-	return clamp(FinalColor, minclr, maxclr);
+	TotalColor /= Samples;
+	return TotalColor;
 }
 
 
+vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
+
 void main()
 {
-	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
-	View = 1.0f / Dimensions;
+	vec4 CurrentColor = textureBicubic(u_CurrentColorTexture, v_TexCoords).rgba;
+	vec3 PlayerPosition = u_InverseView[3].xyz;
 
-	TexCoord = v_TexCoords;
-
-	vec4 CurrentPosition = texture(u_CurrentPositionTexture, v_TexCoords).rgba;
-
-	if (CurrentPosition.a != 0.0f)
+	if (CurrentColor.w > -0.5f)
 	{
-		vec3 CameraOffset = u_CurrentPosition - u_PreviousPosition;
-		CameraOffset *= 0.0;
-		vec2 PreviousCoord = Reprojection(CurrentPosition.xyz + CameraOffset); 
-		vec4 PrevColor = GetBestSample(PreviousCoord, CurrentPosition.xyz);
-		vec4 CurrentColor = texture(u_CurrentColorTexture, v_TexCoords).rgba;
-		vec4 PrevPosition = texture(u_PreviousFramePositionTexture, PreviousCoord).xyzw;
+		// Reproject clouds by assuming it lies in a plane some x units in front of the camera :
+		vec3 CurrentVirtualPosition = PlayerPosition + normalize(GetRayDirectionAt(v_TexCoords)) * 800.0f;
+		vec2 ProjectedCurrent = ProjectCurrent(CurrentVirtualPosition);
+		vec2 ProjectedPrevious = Reprojection(CurrentVirtualPosition.xyz);
+		
+		vec2 PreviousCoord = ProjectedPrevious * 0.5f + 0.5f;
+		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
+		vec4 PrevColor = textureBicubic(u_PreviousColorTexture, PreviousCoord).rgba;
 
-		vec3 AverageColor;
-		float ClosestDepth;
-		float error = distance(PrevPosition.xyz, CurrentPosition.xyz);
-		const float error_thresh = 0.41414f;
+		float T_Base = texture(u_CurrentPositionData, v_TexCoords).r;
+		float T_Prev = texture(u_PrevPositionData, PreviousCoord).r;
 
-		if(PreviousCoord.x > 0.0 && PreviousCoord.x < 1.0 && PreviousCoord.y > 0.0 && PreviousCoord.y < 1.0 && 
-		   error < error_thresh && PrevPosition.a != 0.0f)
+		bool OcclusionValidity = (T_Base > 0.0f) == (T_Prev > 0.0f);
+
+		float ReprojectBias = 0.003458f;
+		if(PreviousCoord.x > 0.0 + ReprojectBias && PreviousCoord.x < 1.0 - ReprojectBias
+			&& PreviousCoord.y > 0.0 + ReprojectBias && PreviousCoord.y < 1.0 - ReprojectBias && 
+			OcclusionValidity)
 		{
-			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.95f);
+			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.925f);
 		}
 
 		else 
 		{
-			o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgba;
+		#ifdef DENOISE
+			o_Color = GetBlurredColor();
+		#else 
+			o_Color = CurrentColor;
+		#endif
 		}
 	}
 
 	else 
 	{
-		o_Color = texture(u_CurrentColorTexture, v_TexCoords).rgba;
+		#ifdef DENOISE 
+			o_Color = GetBlurredColor();
+		#else 
+			o_Color = CurrentColor;
+		#endif
 	}
+}
+
+
+vec4 cubic(float v){
+    vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
+    vec4 s = n * n * n;
+    float x = s.x;
+    float y = s.y - 4.0 * s.x;
+    float z = s.z - 4.0 * s.y + 6.0 * s.x;
+    float w = 6.0 - x - y - z;
+    return vec4(x, y, z, w) * (1.0/6.0);
+}
+
+vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
+{
+
+   vec2 texSize = textureSize(sampler, 0);
+   vec2 invTexSize = 1.0 / texSize;
+
+   texCoords = texCoords * texSize - 0.5;
+
+
+    vec2 fxy = fract(texCoords);
+    texCoords -= fxy;
+
+    vec4 xcubic = cubic(fxy.x);
+    vec4 ycubic = cubic(fxy.y);
+
+    vec4 c = texCoords.xxyy + vec2 (-0.5, +1.5).xyxy;
+
+    vec4 s = vec4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
+    vec4 offset = c + vec4 (xcubic.yw, ycubic.yw) / s;
+
+    offset *= invTexSize.xxyy;
+
+    vec4 sample0 = texture(sampler, offset.xz);
+    vec4 sample1 = texture(sampler, offset.yz);
+    vec4 sample2 = texture(sampler, offset.xw);
+    vec4 sample3 = texture(sampler, offset.yw);
+
+    float sx = s.x / (s.x + s.y);
+    float sy = s.z / (s.z + s.w);
+
+    return mix(
+       mix(sample3, sample2, sx), mix(sample1, sample0, sx)
+    , sy);
 }

@@ -9,10 +9,13 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.135f;
+static float CloudCoverage = 0.095f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
+
+static float ColorPhiBias = 2.0f;
+static float CloudResolution = 0.5f;
 
 
 static float InitialTraceResolution = 0.500f;
@@ -112,6 +115,7 @@ public:
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled.) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
+			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::Checkbox("Alpha Test? ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? ", &ShouldAlphaTestShadows);
 			ImGui::NewLine();
@@ -150,6 +154,7 @@ public:
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::SliderFloat("Volumetric Cloud Coverage", &CloudCoverage, 0.01f, 0.6f);
 			ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
+			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.5f);
 
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
@@ -193,6 +198,55 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
+			ImGui::NewLine();
+			ImGui::Text("--- Spec Presets ---\n");
+
+			if (ImGui::Button("LOW") == true)
+			{
+				InitialTraceResolution = 0.5f;
+				ShadowTraceResolution = 0.5f;
+				DiffuseSPP = 3;
+				ColorPhiBias = 2.0f;
+				ReflectionTraceResolution = 0.25f;
+				DiffuseTraceResolution = 0.25f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("MEDIUM") == true)
+			{
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 0.75f;
+				DiffuseSPP = 8;
+				ColorPhiBias = 3.5f;
+				ReflectionTraceResolution = 0.25f;
+				DiffuseTraceResolution = 0.25f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("HIGH") == true) {
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 0.75f;
+				DiffuseSPP = 4;
+				ColorPhiBias = 3.25f;
+				ReflectionTraceResolution = 0.5f;
+				DiffuseTraceResolution = 0.5f;
+				RTAO = false;
+			}
+
+			if (ImGui::Button("INSANE") == true) {
+				InitialTraceResolution = 1.0f;
+				ShadowTraceResolution = 1.0f;
+				ReflectionTraceResolution = 0.75f;
+				DiffuseTraceResolution = 0.5f;
+				DiffuseSPP = 6;
+				ColorPhiBias = 3.5f;
+				RTAOResolution = 0.75f;
+				RTAO = true;
+			}
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
 			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
 			ImGui::Checkbox("VSync", &VSync);
@@ -223,7 +277,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 				ModifiedWorld = true;
 			}
 		}
@@ -232,7 +286,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 				ModifiedWorld = true;
 			}
 		}
@@ -241,7 +295,7 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(2, MainCamera.GetPosition(), MainCamera.GetFront());
+				world->Raycast(2, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
 			}
 		}
 
@@ -356,11 +410,48 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	if (!LoadWorld(world, world_name))
 	{
-		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, SIMPLEX FRACTAL = 1) : ";
+		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
 		std::cin >> gen_type;
 		std::cout << "\n\n";
 
 		GenerateWorld(world, gen_type);
+	}
+
+	int HardwareProfile = 0;
+
+	std::cout << "\nHardware Spec? (0 -> Low, 1 -> Medium, 2 -> High, 3 -> Insane) : ";
+	std::cin >> HardwareProfile;
+
+	if (HardwareProfile == 0)
+	{
+		// //
+	}
+
+	if (HardwareProfile == 1) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 0.75f;
+		DiffuseSPP = 8;
+		ColorPhiBias = 3.5f;
+	}
+
+	if (HardwareProfile == 2) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 0.75f;
+		ReflectionTraceResolution = 0.5f;
+		DiffuseTraceResolution = 0.5f;
+		DiffuseSPP = 4;
+		ColorPhiBias = 3.25f;
+	}
+
+	if (HardwareProfile == 3) {
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 1.0f;
+		ReflectionTraceResolution = 0.75f;
+		DiffuseTraceResolution = 0.5f;
+		DiffuseSPP = 6;
+		ColorPhiBias = 3.5f;
+		RTAOResolution = 0.75f;
+		RTAO = true;
 	}
 
 	// Initialize world, df generator etc 
@@ -929,6 +1020,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetMatrix4("u_InverseProjection", inv_projection);
 					SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
 					SVGF_Spatial.SetBool("DO_SPATIAL", DO_SVGF_SPATIAL);
+					SVGF_Spatial.SetFloat("u_ColorPhiBias", ColorPhiBias);
 
 					glActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -1604,13 +1696,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition);
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0));
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
 			Clouds::CloudRenderer::SetBayer(CloudBayer);
 			Clouds::CloudRenderer::SetDetailContribution(CloudDetailContribution);
 			Clouds::CloudRenderer::SetQuality(CloudHighQuality);
+			Clouds::CloudRenderer::SetResolution(CloudResolution);
 		}
 
 		// ---- COLOR PASS ----

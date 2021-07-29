@@ -350,13 +350,19 @@ vec3 GetFXAACustom()
 void main()
 {
 	vec3 BaseSample = texture(u_FramebufferTexture, v_TexCoords).rgb;
+	vec3 ViewerPos = u_InverseView[3].xyz;
+	vec3 BasePos = SamplePositionAt(v_TexCoords).xyz;
+
     vec3 Color = BaseSample;
 	const bool CustomFXAA = false;
+	bool fxaa = distance(BasePos, ViewerPos) < 80.0f ? true : false;
 
-	if (CustomFXAA) {
-		Color = GetFXAACustom();
-	} else {
-		FXAA311(Color);
+	if (fxaa) {
+		if (CustomFXAA) {
+			Color = GetFXAACustom();
+		} else {
+			FXAA311(Color);
+		}
 	}
 
 	o_Color = Color;

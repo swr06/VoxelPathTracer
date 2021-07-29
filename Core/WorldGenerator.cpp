@@ -53,7 +53,7 @@ void VoxelRT::GenerateWorld(World* world, bool gen_type)
 				float h;
 
 				h = (NoiseGenerator.GetNoise(real_x, real_z));
-				height = ((h + 1.0f) / 2.0f) * 60.0f;
+				height = ((h + 1.0f) / 2.0f) * 24.0f;
 
 				SetVerticalBlocks(world, x, z, height);
 			}

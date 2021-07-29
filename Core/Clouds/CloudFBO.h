@@ -32,11 +32,9 @@ namespace Clouds
 			m_Width = v.m_Width;
 			m_Height = v.m_Height;
 
-			m_PositionTexture = v.m_PositionTexture;
 			m_CloudData = v.m_CloudData;
 			m_FBO = v.m_FBO;
 
-			v.m_PositionTexture = 0;
 			v.m_CloudData = 0;
 			v.m_FBO = 0;
 		}
@@ -63,7 +61,6 @@ namespace Clouds
 		uint32_t GetHeight() { return m_Height; }
 
 		inline GLuint GetFramebufferID() const noexcept { return m_FBO; }
-		inline GLuint GetPositionTexture() const noexcept { return m_PositionTexture; }
 		inline GLuint GetCloudTexture() const noexcept { return m_CloudData; }
 		void GenerateFramebuffers();
 
@@ -71,7 +68,6 @@ namespace Clouds
 
 		void DeleteEverything();
 
-		GLuint m_PositionTexture = 0;
 		GLuint m_CloudData = 0;
 
 		GLuint m_FBO = 0;

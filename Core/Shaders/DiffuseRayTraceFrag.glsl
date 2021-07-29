@@ -335,16 +335,17 @@ void main()
 	HASH2SEED += fract(u_Time) * 100.0f;
 
 	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
+	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
 	o_Utility = GetLuminance(vec3(0.0f));
 
 	if (Position.w < 0.0f)
 	{
-		o_SphericalHarmonicData_1 = vec4(0.0f);
-		o_ColorData.xy = vec2(0.0f, 0.0f);
+		float SH[6] = IrridianceToSH(texture(u_Skymap, normalize(v_RayDirection)).xyz * 2.0f, Normal);
+		o_SphericalHarmonicData_1 = vec4(SH[0], SH[1], SH[2], SH[3]);
+		o_ColorData.xy = vec2(SH[4], SH[5]);
 		return;
 	}
 
-	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);

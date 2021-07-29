@@ -27,6 +27,9 @@ uniform bool DO_SPATIAL;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
+
+uniform float u_ColorPhiBias = 2.0f;
+
 const float POSITION_THRESH = 4.0f;
 
 vec3 GetRayDirectionAt(vec2 txc)
@@ -154,7 +157,7 @@ void main()
 	float TotalVariance = BaseVariance;
 	
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
-	PhiColor /= 2.0f; 
+	PhiColor /= max(u_ColorPhiBias, 0.4f); 
 
 	for (int x = -2 ; x <= 2 ; x++)
 	{

@@ -17,7 +17,7 @@ namespace Clouds
 				    const glm::mat4& PrevView, 
 					const glm::vec3& CurrentPosition, 
 					const glm::vec3& PrevPosition,
-					GLClasses::VertexArray& VAO, const glm::vec3& SunDirection, GLuint, int, int, int, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition);
+					GLClasses::VertexArray& VAO, const glm::vec3& SunDirection, GLuint, int, int, int, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev);
 		void RecompileShaders();
 		void SetChecker(bool v);
 		void SetCoverage(float v);
@@ -25,5 +25,6 @@ namespace Clouds
 		void SetDetailContribution(float v);
 		float GetBoxSize();
 		void SetQuality(bool v);
+		void SetResolution(float v);
 	}
 }
