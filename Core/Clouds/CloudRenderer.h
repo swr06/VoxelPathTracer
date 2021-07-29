@@ -25,5 +25,6 @@ namespace Clouds
 		void SetDetailContribution(float v);
 		float GetBoxSize();
 		void SetQuality(bool v);
+		void SetResolution(float v);
 	}
 }

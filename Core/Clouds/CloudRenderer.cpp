@@ -2,7 +2,7 @@
 
 static int NoiseSize = 128;
 static int NoiseSizeDetail = 48;
-static float CloudResolution = 0.5f;
+static float CloudResolution = 1.0f;
 static bool Checkerboard = true;
 static float Coverage = 0.128f;
 static float BoxSize = 220.0f;
@@ -227,4 +227,9 @@ float Clouds::CloudRenderer::GetBoxSize()
 void Clouds::CloudRenderer::SetQuality(bool v)
 {
 	HighQualityClouds = v;
+}
+
+void Clouds::CloudRenderer::SetResolution(float v)
+{
+	CloudResolution = v;
 }

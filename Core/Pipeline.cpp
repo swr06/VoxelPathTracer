@@ -14,6 +14,9 @@ static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
 
+static float ColorPhiBias = 2.0f;
+static float CloudResolution = 0.5f;
+
 
 static float InitialTraceResolution = 0.500f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -112,6 +115,7 @@ public:
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled.) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
+			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::Checkbox("Alpha Test? ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? ", &ShouldAlphaTestShadows);
 			ImGui::NewLine();
@@ -150,6 +154,7 @@ public:
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::SliderFloat("Volumetric Cloud Coverage", &CloudCoverage, 0.01f, 0.6f);
 			ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
+			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.5f);
 
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
@@ -929,6 +934,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetMatrix4("u_InverseProjection", inv_projection);
 					SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
 					SVGF_Spatial.SetBool("DO_SPATIAL", DO_SVGF_SPATIAL);
+					SVGF_Spatial.SetFloat("u_ColorPhiBias", ColorPhiBias);
 
 					glActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -1611,6 +1617,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			Clouds::CloudRenderer::SetBayer(CloudBayer);
 			Clouds::CloudRenderer::SetDetailContribution(CloudDetailContribution);
 			Clouds::CloudRenderer::SetQuality(CloudHighQuality);
+			Clouds::CloudRenderer::SetResolution(CloudResolution);
 		}
 
 		// ---- COLOR PASS ----

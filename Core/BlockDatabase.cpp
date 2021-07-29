@@ -71,7 +71,7 @@ namespace VoxelRT
 
 		Logger::Log("Creating Normal texture array!" + res_str);
 		BlockNormalTextureArray.CreateArray(normal_paths, texture_resolutions, false, true, GL_LINEAR, true);
-		Logger::Log("Successfully created Albedo texture array!");
+		Logger::Log("Successfully created Normal texture array!");
 
 		Logger::Log("Creating PBR texture array!" + res_str);
 		BlockPBRTextureArray.CreateArray(pbr_paths, texture_resolutions, false, true, GL_LINEAR, true);

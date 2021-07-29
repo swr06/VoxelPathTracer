@@ -370,7 +370,7 @@ void main()
 	vec3 SkyLight = vec3(0.0f);
 	vec3 Scattering = vec3(0.0f);
 	vec3 SunColor = vec3(1.0f);
-	float PreviousT = 0.0f;
+	float x = 0.0f;
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
@@ -384,10 +384,10 @@ void main()
 		}
 
 		DensitySample *= 10.75f / 2.0f;
-		float StepSize = Traversal - PreviousT; 
+		float StepSize = Traversal - x; 
 		Scattering += GetScatter(DensitySample, Phase2Lobes, CurrentPoint, SunColor, SkyLight) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
-		PreviousT = Traversal;
+		x = Traversal;
 	}
 	
 	// This is like the most non-physically based thing on earth but idc xD
