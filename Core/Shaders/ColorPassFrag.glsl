@@ -274,7 +274,7 @@ vec3 GetAtmosphereAndClouds(vec3 Sky)
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
     vec3 Scatter = SampledCloudData.xyz;
     float Transmittance = SampledCloudData.w;
-    return (Sky * 1.0f) * clamp(Transmittance, 0.1f, 1.0f) + (Scatter * 1.0f * M); // see ya pbr
+    return (Sky * 1.0f) * clamp(Transmittance, 0.95f, 1.0f) + (Scatter * 1.0f * M); // see ya pbr
 }
 
 float GetLuminance(vec3 color) {

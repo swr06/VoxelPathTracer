@@ -108,13 +108,12 @@ vec4 SampleNoise(in vec3 p)
 
 float SampleDensity(in vec3 point)
 {
+	point.x += 128.0f;
+	point.z += 128.0f;
 	vec4 sampled_noise;
-
 	vec3 time = vec3(u_Time, 0.0f, u_Time * 0.5f);
-	time *= 0.00550f; // 0.005f
-
+	time *= 0.00400f; 
 	sampled_noise = texture(u_CloudNoise, (point.xyz * 0.01759750f) + time).rgba;
-
 	float perlinWorley = sampled_noise.x * 1.0f;
 	vec3 worley = sampled_noise.yzw;
 	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 

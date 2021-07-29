@@ -37,6 +37,7 @@ Q/E -> Change current block
 F -> Toggle freefly
 C -> Toggle Collisions (only toggles IF on freefly mode) 
 ESC -> Save and quit
+V -> Toggle VSync
 F2 -> Recompile shaders
 ImGui Windows -> 
 	Window 1 : Various Other Settings (Resolution settings) 
