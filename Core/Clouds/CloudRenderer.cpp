@@ -48,7 +48,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -135,17 +135,13 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		CheckerUpscaler.SetInteger("u_CurrentFrame", CurrentFrame);
 		CheckerUpscaler.SetInteger("u_ColorTexture", 0);
-		CheckerUpscaler.SetInteger("u_CurrentPositionTexture", 1);
 		CheckerUpscaler.SetInteger("u_PreviousColorTexture", 2);
 		CheckerUpscaler.SetMatrix4("u_PreviousProjection", PrevProjection);
 		CheckerUpscaler.SetMatrix4("u_PreviousView", PrevView);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, CloudFBO.GetCloudTexture());
-
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, CloudFBO.GetPositionTexture());
-
+		
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevCloudFBO.GetCloudTexture());
 
@@ -161,10 +157,14 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		TemporalFilter.SetInteger("u_CurrentColorTexture", 0);
 		TemporalFilter.SetInteger("u_PreviousColorTexture", 1);
-		TemporalFilter.SetInteger("u_CurrentPositionTexture", 2);
-		TemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+		TemporalFilter.SetInteger("u_CurrentPositionData", 2);
+		TemporalFilter.SetInteger("u_PrevPositionData", 3);
 		TemporalFilter.SetMatrix4("u_PrevProjection", PrevProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PrevView);
+		TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
+		TemporalFilter.SetMatrix4("u_View", CurrentView);
+		TemporalFilter.SetMatrix4("u_InverseProjection", glm::inverse(CurrentProjection));
+		TemporalFilter.SetMatrix4("u_InverseView", glm::inverse(CurrentView));
 		TemporalFilter.SetFloat("u_Time", glfwGetTime());
 		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
@@ -179,10 +179,10 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		glBindTexture(GL_TEXTURE_2D, PrevCloudTemporalFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, CloudFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, pos_tex);
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, PrevCloudFBO.GetPositionTexture());
+		glBindTexture(GL_TEXTURE_2D, pos_tex_prev);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

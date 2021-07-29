@@ -9,7 +9,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.135f;
+static float CloudCoverage = 0.095f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
@@ -1604,7 +1604,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition);
+				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0));
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

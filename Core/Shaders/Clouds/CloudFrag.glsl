@@ -16,8 +16,7 @@
 #define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
-layout (location = 0) out vec4 o_Position;
-layout (location = 1) out vec4 o_Data;
+layout (location = 0) out vec4 o_Data;
 
 in vec2 v_TexCoords;
 
@@ -48,12 +47,10 @@ uniform vec2 u_WindowDimensions;
 uniform bool u_HighQualityClouds;
 
 
-
-/// temp ///
-//uniform vec4 u_Tweak;
-//uniform float SunAbsorbption = 0.16f;
-//uniform float LightCloudAbsorbption = 2.1f;
-/// ///
+const vec3 PlayerOrigin = vec3(0,6200,0); 
+const float PlanetRadius = 7773; 
+const float AtmosphereRadius = 19773; 
+const float Size = AtmosphereRadius - PlanetRadius; 
 
 struct Ray
 {
@@ -114,24 +111,14 @@ float SampleDensity(in vec3 point)
 	vec4 sampled_noise;
 
 	vec3 time = vec3(u_Time, 0.0f, u_Time * 0.5f);
-	time *= 0.00250f; // 0.005f
+	time *= 0.00550f; // 0.005f
 
-	sampled_noise = texture(u_CloudNoise, (point.xzy * 0.015750f) + time).rgba;
+	sampled_noise = texture(u_CloudNoise, (point.xyz * 0.01759750f) + time).rgba;
 
 	float perlinWorley = sampled_noise.x * 1.0f;
 	vec3 worley = sampled_noise.yzw;
 	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 
 	float cloud = remap(perlinWorley, wfbm - 1.0f, 1.0f, 0.0f, 1.0f);
-	
-	//#ifdef DETAIL
-	//vec4 detail = texture(u_CloudDetailedNoise, (point.xzy * 0.01f) + (time * 2.0f)).rgba;
-	//float detail_strength = u_DetailIntensity;
-	//cloud += remap(detail.x, 1.0f - (u_Coverage * 0.6524f), 1.0f, 0.0f, 1.0f) * (0.0354f * detail_strength);
-	//cloud += remap(detail.y, 1.0f - (u_Coverage * 0.666f), 1.0f, 0.0f, 1.0f) * (0.055f * detail_strength);
-	//cloud -= remap(detail.z, 1.0f - (u_Coverage * 0.672f), 1.0f, 0.0f, 1.0f) * (0.075f * detail_strength);
-	//cloud += remap(detail.w, 1.0f - (u_Coverage * 0.684f), 1.0f, 0.0f, 1.0f) * (0.085f * detail_strength);
-	//#endif
-
 	cloud = remap(cloud, 1.0f - u_Coverage, 1.0f, 0.0f, 1.0f); 
 	return clamp(cloud, 0.0f, 100.0f);
 }
@@ -217,21 +204,7 @@ float RaymarchLight(vec3 p)
 	int StepCount = u_HighQualityClouds ? 8 : 3;
 	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
 
-	//float tmin, tmax;
-	//vec3 origin = vec3(g_Origin.x, 0.0f, g_Origin.z);
-	//vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), p, 1.0f / ldir);
-	//bool Intersect = !(Dist.y == 0.0f);
-	//
-	//if (!Intersect)
-	//{
-	//	return 1.0f;
-	//}
-	//
-	//tmin = Dist.x;
-	//tmax = Dist.y;
-
-	float StepSize = 12.5f / float(StepCount);
-
+	float StepSize = 8.0f / float(StepCount);
 	float TotalDensity = 0.0f;
 	vec3 CurrentPoint = p + (ldir * StepSize * 0.5f);
 	float Dither;// = Bayer16(gl_FragCoord.xy);
@@ -239,13 +212,13 @@ float RaymarchLight(vec3 p)
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		float DensitySample = SampleDensity(CurrentPoint) * 1.5f;
+		float DensitySample = SampleDensity(CurrentPoint * 0.002f) * 8.6f;
 		TotalDensity += max(0.0f, DensitySample * StepSize);
 		CurrentPoint += ldir * (StepSize * Dither);
 	}
 
 	const float SunAbsorbption = 1.0f;
-	float LightTransmittance = exp2(-TotalDensity * SunAbsorbption); 
+	float LightTransmittance = exp(-TotalDensity * SunAbsorbption); 
 	return LightTransmittance;
 }
 
@@ -284,18 +257,6 @@ float hg2(float a, float g)
       return (1-g2) / (4*3.1415*pow(1+g2-2*g*(a), 1.5));
 }
 
-//float phase2(float a) 
-//{
-//	float x = u_Tweak.x;
-//	float y = u_Tweak.y;
-//	float z = u_Tweak.z;
-//	float w = u_Tweak.w;
-//
-//    float blend = .5;
-//    float hgBlend = hg(a,x) * (1-blend) + hg(a,-y) * blend;
-//    return z + hgBlend * w;
-//}
-
 // Credits : Robobo1221
 vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec3 SkyLight)
 {
@@ -305,68 +266,6 @@ vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec
 	float LightMarchResult = RaymarchLight(Point);
 	vec3 SunLight = (SunColor * LightMarchResult * BeersPowder) * Phase * HALF_PI * SunBrightness;
     return (SunLight) * Integral * PI;
-}
-
-vec4 RaymarchCloud(vec3 p, vec3 dir, float tmin, float tmax, out float Transmittance, vec3 RayDir)
-{
-	dir = normalize(dir);
-	int StepCount = u_HighQualityClouds ? 32 : 10;
-	float StepSize = tmax / float(StepCount);
-
-	vec3 CurrentPoint = p;
-	Transmittance = 1.0f;
-
-	float CosAngle = dot(normalize(u_SunDirection), normalize(RayDir));
-	float Phase2Lobes = phase2Lobes(CosAngle) * 0.7f;
-
-	float Dither;
-
-	if (u_UseBayer)
-	{
-		int Frame = u_CurrentFrame % 20;
-		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
-		Dither = Bayer256(gl_FragCoord.xy + BayerIncrement);
-	}
-
-	else 
-	{
-		Dither = nextFloat(RNG_SEED);
-	}
-
-	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
-	vec3 SkyLight = vec3(0.0f);
-	vec3 Scattering = vec3(0.0f);
-	vec3 SunColor = vec3(1.0f);
-
-	for (int i = 0 ; i < StepCount ; i++)
-	{
-		float DensitySample = SampleDensity(CurrentPoint) * 3.75f;
-		Scattering += GetScatter(DensitySample, Phase2Lobes, CurrentPoint, SunColor, SkyLight) * Transmittance;
-		Transmittance *= exp2(-DensitySample * StepSize);
-		CurrentPoint += dir * (StepSize * (Dither));
-	}
-	
-	Scattering = pow(Scattering, vec3(1.0f / 2.2f)); 
-	return vec4(Scattering, Transmittance);
-}
-
-vec4 ComputeCloudData(in Ray r)
-{
-	vec3 Output = vec3(0.0f);
-	vec3 origin = vec3(r.Origin.x, 0.0f, r.Origin.z);
-	vec2 Dist = RayBoxIntersect(origin + vec3(-BoxSize, CLOUD_HEIGHT, -BoxSize), origin + vec3(BoxSize, CLOUD_HEIGHT - 12, BoxSize), r.Origin, 1.0f / r.Direction);
-	bool Intersect = !(Dist.y == 0.0f);
-
-	if (Intersect)
-	{
-		vec3 IntersectionPosition = r.Origin + (r.Direction * Dist.x);
-		o_Position.xyz = IntersectionPosition;
-		o_Position.w = Dist.y;
-		float Transmittance = 1.0f;
-		return RaymarchCloud(IntersectionPosition, r.Direction, Dist.x, Dist.y, Transmittance, r.Direction);
-	}
-
-	return vec4(0.0f);
 }
 
 vec3 ComputeRayDirection()
@@ -411,7 +310,6 @@ bool SampleValid(in vec2 txc)
 
 void main()
 {
-	o_Position = vec4(0.0f);
 	o_Data = vec4(0.0f);
 	
 	// We dont need to ray cast the clouds if there is a hit at the current position
@@ -427,8 +325,72 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	
-    Ray r;
-    r.Origin = u_InverseView[3].xyz;
-    r.Direction = normalize(ComputeRayDirection());
-	o_Data = ComputeCloudData(r);
+	vec3 CameraPosition = u_InverseView[3].xyz;
+	vec3 Origin = PlayerOrigin + CameraPosition; 
+	vec3 Direction = normalize(ComputeRayDirection());
+	float Start = (PlanetRadius - Origin.y) / Direction.y;  
+	float End = (AtmosphereRadius - Origin.y) / Direction.y;  
+
+	if(Start > End) 
+	{
+		float temp = End; 
+		End = Start; 
+		Start = temp; 
+	}
+
+	if(End < 0.0)
+	{
+		return; 
+	}
+
+	Start = max(Start, 0.0); 
+
+	vec3 StartPosition = Origin + Direction * Start; 
+	vec3 EndPosition = Origin + Direction * End; 
+	int StepCount = u_HighQualityClouds ? 24 : 12;
+	
+	float Transmittance = 1.0f;
+	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
+	float Phase2Lobes = phase2Lobes(CosAngle) * 0.7f;
+	float Dither;
+
+	if (u_UseBayer)
+	{
+		int Frame = u_CurrentFrame % 20;
+		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
+		Dither = Bayer256(gl_FragCoord.xy + BayerIncrement);
+	}
+
+	else 
+	{
+		Dither = nextFloat(RNG_SEED);
+	}
+
+	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
+	vec3 SkyLight = vec3(0.0f);
+	vec3 Scattering = vec3(0.0f);
+	vec3 SunColor = vec3(1.0f);
+	float PreviousT = 0.0f;
+
+	for (int i = 0 ; i < StepCount ; i++)
+	{
+		float t = float(i + Dither) / float(StepCount); 
+		float Traversal = mix(0.0, End-Start, t); 
+		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
+		float DensitySample = SampleDensity(CurrentPoint * 0.002f) * 2.0f;
+		
+		if (DensitySample < 0.001f) {
+			continue;
+		}
+
+		DensitySample *= 10.75f / 2.0f;
+		float StepSize = Traversal - PreviousT; 
+		Scattering += GetScatter(DensitySample, Phase2Lobes, CurrentPoint, SunColor, SkyLight) * Transmittance;
+		Transmittance *= exp(-DensitySample * StepSize);
+		PreviousT = Traversal;
+	}
+	
+	// This is like the most non-physically based thing on earth but idc xD
+	Scattering = pow(Scattering, vec3(1.0f / 13.0f));
+	o_Data = vec4(Scattering, Transmittance);
 }
