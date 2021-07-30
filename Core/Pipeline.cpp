@@ -166,7 +166,7 @@ public:
 			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
-				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
+				The textures adapted from minecraft resource packs use a d ifferent parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
 
 		if (ImGui::Begin("Other Settings and properties"))
