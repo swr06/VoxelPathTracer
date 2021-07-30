@@ -348,6 +348,7 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+Saves/
 Ray-Tracer.exe
 log.txt
 imgui.ini
