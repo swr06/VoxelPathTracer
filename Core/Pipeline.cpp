@@ -116,8 +116,7 @@ public:
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
-			ImGui::Checkbox("Alpha Test? ", &ShouldAlphaTest);
-			ImGui::Checkbox("Alpha Test Shadows? ", &ShouldAlphaTestShadows);
+
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
@@ -164,6 +163,8 @@ public:
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
 			ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
+			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
+			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
