@@ -770,17 +770,6 @@
 }
 
 {
-	Name : EmeraldBlock
-	Albedo : Res/Block/EmeraldBlock/Albedo.png
-	Normal : Res/Block/EmeraldBlock/Normal.png
-	PBR : Res/Block/EmeraldBlock/PBR.png
-	
-	SND_STEP : Marble
-	SND_MODIFY : Stone
-}
-
-
-{
 	Name : CryingObsidian
 	Albedo : Res/Block/CryingObsidian/Albedo.png
 	Normal : Res/Block/CryingObsidian/Normal.png
@@ -858,6 +847,26 @@
 	
 	SND_STEP : Wood
 	SND_MODIFY : Wood
+}
+
+{
+	Name : Blackstone2
+	Albedo : Res/Block/Blackstone2/Albedo.png
+	Normal : Res/Block/Blackstone2/Normal.png
+	PBR : Res/Block/Blackstone2/PBR.png
+	
+	SND_STEP : Marble
+	SND_MODIFY : Stone
+}
+
+{
+	Name : Magma
+	Albedo : Res/Block/Magma/Albedo.png
+	Normal : Res/Block/Magma/Normal.png
+	PBR : Res/Block/Magma/PBR.png
+	
+	SND_STEP : Marble
+	SND_MODIFY : Stone
 }
 
 {
