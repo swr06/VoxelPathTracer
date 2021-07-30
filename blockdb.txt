@@ -851,6 +851,16 @@
 }
 
 {
+	Name : Planks3
+	Albedo : Res/Block/Planks3/Albedo.png
+	Normal : Res/Block/Planks3/Normal.png
+	PBR : Res/Block/Planks3/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png

@@ -9,7 +9,7 @@
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 20
+#define MAX_VOXEL_DIST 25
 #define MAX_BOUNCE_LIMIT 2
 #define APPLY_PLAYER_SHADOW
 
@@ -152,7 +152,7 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radian
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (12.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.8f; 
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 3.0f; 
 	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source
@@ -188,8 +188,13 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 {
 	float b = 0;
 
-	bool Intersect = voxel_traversal(r.Origin, r.Direction, b, out_n, pos, MAX_VOXEL_DIST);
+	//bool Intersect = voxel_traversal(r.Origin, r.Direction, b, out_n, pos, MAX_VOXEL_DIST);
+
+	// float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
+	float T = VoxelTraversalDF(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
 	int tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
+	bool Intersect = T > 0.0f;
+	pos = r.Origin + (r.Direction * T);
 
 	if (Intersect && b > 0) 
 	{ 
@@ -205,7 +210,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 
 vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir)
 {
-	float bias = 0.0f;
+	float bias = 0.045f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
 
 	vec3 total_color = vec3(0.0f);;
@@ -504,7 +509,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 120 ; itr++)
+	for (itr = 0 ; itr < dist ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
