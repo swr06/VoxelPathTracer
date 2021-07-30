@@ -622,7 +622,7 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
 
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 4.0f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.25f; 
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
 void main()
@@ -725,7 +725,7 @@ void main()
                 NormalMapped = normalize(NormalMapped);
             }
             
-            float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
+            float Emissivity = data.w > -0.5f ? textureLod(u_BlockEmissiveTextures, vec3(UV, data.w), 0.0f).r : 0.0f;
 
             //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);
             //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz);

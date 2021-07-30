@@ -563,16 +563,17 @@ void main()
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
 
-		Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
-		Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz;
-		Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz;
-		Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz;
+		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(1.0f / 2.2f));
+		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(1.0f / 2.2f));
+		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(1.0f / 2.2f));
+		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(1.0f / 2.2f));
 
-		const float bloom_multiplier = 2.0f;
-		vec3 TotalBloom = (Bloom[0] * 1.0f * bloom_multiplier) + 
-						  (Bloom[1] * 0.5f * bloom_multiplier) +
-						  (Bloom[2] * 0.125f * bloom_multiplier) +
-						  (Bloom[3] * 0.1f * bloom_multiplier);
+		vec3 TotalBloom = vec3(0.0f);
+
+		TotalBloom = pow(Bloom[0] ,vec3(2.2)) * 2.2 + TotalBloom;
+		TotalBloom = pow(Bloom[1] ,vec3(2.2)) * 0.5f + TotalBloom;
+		TotalBloom = pow(Bloom[2] ,vec3(2.2)) * 0.25 + TotalBloom;
+		TotalBloom = pow(Bloom[3] ,vec3(2.2)) * 0.1 + TotalBloom;
 
 		o_Color += TotalBloom;
 	}

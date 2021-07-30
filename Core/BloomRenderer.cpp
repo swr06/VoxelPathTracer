@@ -6,7 +6,7 @@ namespace VoxelRT
 	{
 		static std::unique_ptr<GLClasses::VertexBuffer> BloomFBOVBO;
 		static std::unique_ptr<GLClasses::VertexArray> BloomFBOVAO;
-		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO[4];
+		static std::unique_ptr<GLClasses::Framebuffer> BloomAlternateFBO;
 		static std::unique_ptr<GLClasses::Shader> BloomMaskShader;
 		static std::unique_ptr<GLClasses::Shader> BloomBlurShader;
 
@@ -14,14 +14,8 @@ namespace VoxelRT
 		{
 			BloomFBOVBO = std::unique_ptr<GLClasses::VertexBuffer>(new GLClasses::VertexBuffer);
 			BloomFBOVAO = std::unique_ptr<GLClasses::VertexArray>(new GLClasses::VertexArray);
-			BloomAlternateFBO[0] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
-			BloomAlternateFBO[0]->CreateFramebuffer();														 
-			BloomAlternateFBO[1] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
-			BloomAlternateFBO[1]->CreateFramebuffer();														 
-			BloomAlternateFBO[2] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
-			BloomAlternateFBO[2]->CreateFramebuffer();														 
-			BloomAlternateFBO[3] = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
-			BloomAlternateFBO[3]->CreateFramebuffer();
+			BloomAlternateFBO = std::unique_ptr<GLClasses::Framebuffer>(new GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false));
+			BloomAlternateFBO->CreateFramebuffer();														 
 
 			BloomBlurShader = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 			BloomMaskShader = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
@@ -49,19 +43,33 @@ namespace VoxelRT
 
 		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex, bool hq)
 		{
-			GLenum buffer;
-			int w = floor(bloomfbo.GetWidth() * bloomfbo.m_MipScales[mip_num]), h = floor(bloomfbo.GetHeight() * bloomfbo.m_MipScales[mip_num]);
-			std::unique_ptr<GLClasses::Framebuffer>* fbo = &BloomAlternateFBO[mip_num];
-
 			GLClasses::Shader& GaussianBlur = *BloomBlurShader;
+
+			GaussianBlur.Use();
+
+			bloomfbo.BindMip(mip_num);
+
+			GaussianBlur.SetInteger("u_Texture", 0);
+			GaussianBlur.SetInteger("u_Lod", mip_num);
+			GaussianBlur.SetBool("u_HQ", hq);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, bright_tex);
+
+			BloomFBOVAO->Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			BloomFBOVAO->Unbind();
+		}
+
+		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq)
+		{
+			// Render the bright parts to a texture
 			GLClasses::Shader& BloomBrightShader = *BloomMaskShader;
 
-
-			fbo->get()->SetSize(w, h);
+			BloomAlternateFBO->SetSize(bloom_fbo.GetWidth() * floor(bloom_fbo.m_MipScales[0] * 2.0f), bloom_fbo.GetHeight() * floor(bloom_fbo.m_MipScales[0] * 2.0f));
 
 			BloomBrightShader.Use();
-			fbo->get()->Bind();
-
+			BloomAlternateFBO->Bind();
 			BloomBrightShader.SetInteger("u_Texture", 0);
 			BloomBrightShader.SetInteger("u_EmissiveTexture", 1);
 
@@ -75,35 +83,20 @@ namespace VoxelRT
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			BloomFBOVAO->Unbind();
 
-			///////////////
-
-			GaussianBlur.Use();
-
-			bloomfbo.BindMip(mip_num);
-
-			GaussianBlur.SetInteger("u_Texture", 0);
-			GaussianBlur.SetBool("u_HQ", hq);
-
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, fbo->get()->GetTexture());
-
-			BloomFBOVAO->Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			BloomFBOVAO->Unbind();
-		}
-
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq)
-		{
-			// Render the bright parts to a texture
-
 			glDisable(GL_DEPTH_TEST);
 			glDisable(GL_CULL_FACE);
 
+			// mip gen
+
+			glBindTexture(GL_TEXTURE_2D, BloomAlternateFBO->GetTexture(0));
+			glGenerateMipmap(GL_TEXTURE_2D);
+			glBindTexture(GL_TEXTURE_2D, 0);
+
 			// Blur the mips					
-			BlurBloomMip(bloom_fbo, 0, source_tex, bright_tex, hq);
-			BlurBloomMip(bloom_fbo, 1, source_tex, bright_tex, hq);
-			BlurBloomMip(bloom_fbo, 2, source_tex, bright_tex, hq);
-			BlurBloomMip(bloom_fbo, 3, source_tex, bright_tex, hq);
+			BlurBloomMip(bloom_fbo, 0, source_tex, BloomAlternateFBO->GetTexture(0), hq);
+			BlurBloomMip(bloom_fbo, 1, source_tex, BloomAlternateFBO->GetTexture(0), hq);
+			BlurBloomMip(bloom_fbo, 2, source_tex, BloomAlternateFBO->GetTexture(0), hq);
+			BlurBloomMip(bloom_fbo, 3, source_tex, BloomAlternateFBO->GetTexture(0), hq);
 
 			return;
 		}
