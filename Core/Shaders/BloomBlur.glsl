@@ -34,7 +34,7 @@ void main()
             if (!InThresholdedScreenSpace(S)) { continue; }
             float CurrentWeight = pow(1.0 - length(vec2(i, j)) * 0.125f, 6.0);
             //float CurrentWeight = GaussianWeights[i + 5] * GaussianWeights[j + 5];
-            TotalBloom += texture(u_Texture, S, 0.0f).rgb * CurrentWeight;
+            TotalBloom += texture(u_Texture, S, clamp(float(u_LOD), 0.0f, 2.0f)).rgb * CurrentWeight;
             TotalWeight += CurrentWeight;
         }
     }
