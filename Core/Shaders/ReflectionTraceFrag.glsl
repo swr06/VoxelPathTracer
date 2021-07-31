@@ -466,8 +466,10 @@ void main()
 		//Xi = Hammersley(s, SPP);
 		//Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); 
 		Xi = vec2(hash2());
-		Xi = Xi * vec2(0.8f, 0.7f); // Reduce the variance and increase clarity
-		vec3 ReflectionNormal = u_RoughReflections ? (RoughnessAt > 0.075f ? ImportanceSampleGGX(NormalMappedInitial, RoughnessAt, Xi) : NormalMappedInitial) : NormalMappedInitial;
+		Xi = Xi * vec2(1.0f, 0.7f); // Reduce the variance and increase clarity
+		
+		// importance sample :
+		vec3 ReflectionNormal = u_RoughReflections ? (ImportanceSampleGGX(NormalMappedInitial, max(RoughnessAt, 0.095f - 0.01f), Xi)) : NormalMappedInitial;
 		
 		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
 

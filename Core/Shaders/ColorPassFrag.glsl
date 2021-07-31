@@ -732,8 +732,8 @@ void main()
             //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).xyz;
             //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
             
-            vec4 SHy = texture(u_DiffuseSHData1, v_TexCoords);
-            vec2 ShCoCg = texture(u_DiffuseSHData2, v_TexCoords).xy;
+            vec4 SHy = textureBicubic(u_DiffuseSHData1, v_TexCoords);
+            vec2 ShCoCg = textureBicubic(u_DiffuseSHData2, v_TexCoords).xy;
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
@@ -761,8 +761,8 @@ void main()
 
             // Compute Specular indirect from spherical harmonic 
 
-            vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
-            vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
+            vec4 SpecularSH = textureBicubic(u_ReflectionSHData, v_TexCoords);
+            vec2 SpecularCoCg = textureBicubic(u_ReflectionCoCgData, v_TexCoords).rg;
             vec3 SpecularIndirect = vec3(0.0f);
             
             if (InBiasedSS) {

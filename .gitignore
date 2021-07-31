@@ -349,9 +349,13 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 Saves/
+Saves/0
+Saves/1
 Ray-Tracer.exe
 log.txt
 imgui.ini
 ikpFlac.dll
 ikpMP3.dll
 irrKlang.dll
+Saves/0
+Saves/0
