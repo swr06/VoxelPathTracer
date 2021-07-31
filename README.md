@@ -6,27 +6,25 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Manhattan Distance Field acceleration (Distance fields are generated using compute shaders) 
 - Procedural Terrain Generation
 - Indirect Light Tracing 
-- Temporal Indirect Light Filtering
-- Parallax Occlusion Mapping (WIP!)
+- Temporal Indirect Light Filtering (Specular reprojection done using hit distance.) 
+- Parallax Occlusion Mapping (Buggy with materials adapted from minecraft texture packs!)
 - Normal mapping
 - PBR Texture support
 - Physically based lighting
-- Ray traced contact hardening soft shadows
+- Ray traced contact hardening soft shadows (with shadow denoising)
 - Flexible material system
 - Temporal Anti Aliasing
 - FXAA
 - Tonemapping, Gamma correction
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX)
-- Checkerboard raytracing 
 - Naive world saving and loading
 - Physically based atmosphere 
 - God Rays (Screen space) 
-- Emissive Materials
+- Per Pixel Emissive Materials
 - Spatial filtering (Atrous and SVGF)
 - Screen Space Ambient Occlusion
 - Ray Traced Ambient Occlusion
-- Lens Flare
 - Bloom (Mip based) 
 - Volumetric clouds
 - Particle system
