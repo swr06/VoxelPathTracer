@@ -1,5 +1,7 @@
 #version 330 core
 
+// Uses gbuffers as well! 
+
 #define INV_SQRT_OF_2PI 0.398942280 
 #define INV_PI 0.318309886
 
@@ -76,7 +78,7 @@ float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thre
             vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
             // Sample valiation : 
-            if (distance(SamplePosition.xyz, CenterPosition.xyz) > 0.6 ||
+            if (distance(SamplePosition.xyz, CenterPosition.xyz) > 0.75 ||
                 SampleNormal != CenterNormal)
             {
                 continue;
@@ -99,7 +101,7 @@ void main()
 {
     // High edge threshold because the color delta is HUGE! between areas of shadow and no shadow 
     // Doesnt matter at the end, the hard parts are NOT overblurred
-    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.1950f); 
+    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.28575f); 
 
 
     //o_Color = texture(u_InputTexture, v_TexCoords).r;

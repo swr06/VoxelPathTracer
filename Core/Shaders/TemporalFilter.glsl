@@ -15,6 +15,8 @@ uniform sampler2D u_PreviousFramePositionTexture;
 uniform sampler2D u_PreviousSH;
 uniform sampler2D u_CurrentSH;
 
+uniform sampler2D u_NormalTexture;
+
 uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform mat4 u_PrevProjection;
@@ -36,6 +38,23 @@ uniform float u_ClampBias = 0.025f;
 
 
 vec2 Dimensions;
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
 
 vec3 ProjectPositionPrevious(vec3 pos)
 {
@@ -165,6 +184,53 @@ vec4 GetClampedColor(vec2 reprojected, in vec3 worldpos)
 	}
 }
 
+bool InThresholdedScreenSpace(in vec2 v) 
+{
+	float b = 0.03f;
+	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
+}
+
+float ManhattanDistance(vec3 p1, vec3 p2) {
+	return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
+}
+
+vec4 GetShadowSpatial() {
+	
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+	vec4 Total = texture(u_CurrentColorTexture, v_TexCoords);
+	float Samples = 1.0f;
+
+	vec3 BasePosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
+
+	float Scale = 1.5f;
+
+	for (int x = -1 ; x <= 1 ; x++) 
+	{
+		for (int y = -2 ; y <= 2 ; y++) 
+		{
+			if (x == 0 && y == 0) { continue; }
+
+			vec2 SampleCoord = v_TexCoords + (vec2(x,y)*Scale) * TexelSize;
+
+			if (InThresholdedScreenSpace(SampleCoord)) {
+				
+				vec3 SamplePosition = GetPositionAt(u_CurrentPositionTexture, SampleCoord).xyz;
+				vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
+
+				if (SampleNormal == BaseNormal && ManhattanDistance(SamplePosition, BasePosition) < 1.414141414f)
+				{
+					Total += texture(u_CurrentColorTexture, v_TexCoords).xyzw;
+					Samples += 1.0f;
+				}
+			}
+		}
+	}
+
+	Total /= Samples;
+	return Total;
+}
+
 // I know i use a shitton of uniform branches but they are nearly free so i dont really care 
 void main()
 {
@@ -178,11 +244,11 @@ void main()
 		vec2 Reprojected;
 		Reprojected = Reprojection(CurrentPosition.xyz);
 
-		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
+		vec4 CurrentColor = u_ShadowTemporal ? GetShadowSpatial() : texture(u_CurrentColorTexture, CurrentCoord).rgba;
 		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 
-		float Bias = 0.01;
+		float Bias = u_ShadowTemporal ? 0.006f : 0.01;
 
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
@@ -236,7 +302,7 @@ void main()
 
 	else 
 	{
-		o_Color = texture(u_CurrentColorTexture, v_TexCoords);
+		o_Color = u_ShadowTemporal ? GetShadowSpatial() : texture(u_CurrentColorTexture, v_TexCoords);
 		if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
 				o_SH = CurrentSH;

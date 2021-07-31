@@ -372,7 +372,8 @@ GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }
 
 
 
-GLClasses::Framebuffer ReflectionTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
@@ -639,7 +640,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTemporalFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
 			ShadowFiltered.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
 
-			ReflectionTraceFBO.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+			ReflectionTraceFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
+			ReflectionTraceFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
 			ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 			ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
 			ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
@@ -676,6 +678,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLClasses::Framebuffer& PrevRTAOTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? RTAO_TemporalFBO_2 : RTAO_TemporalFBO_1;
 		GLClasses::Framebuffer& ShadowTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ShadowTemporalFBO_1 : ShadowTemporalFBO_2;
 		GLClasses::Framebuffer& PrevShadowTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ShadowTemporalFBO_2 : ShadowTemporalFBO_1;
+		
+		GLClasses::Framebuffer& ReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_1 : ReflectionTraceFBO_2;
+		GLClasses::Framebuffer& PrevReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_2 : ReflectionTraceFBO_1;
+
 
 
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
@@ -1067,6 +1073,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				MainTemporalFilter.SetInteger("u_CurrentSH", 4);
 				MainTemporalFilter.SetInteger("u_PreviousSH", 5);
+				MainTemporalFilter.SetInteger("u_NormalTexture", 8);
 				MainTemporalFilter.SetBool("u_DiffuseTemporal", true);
 				MainTemporalFilter.SetBool("u_ShadowTemporal", false);
 
@@ -1109,6 +1116,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				glActiveTexture(GL_TEXTURE5);
 				glBindTexture(GL_TEXTURE_2D, PrevDiffuseTemporalFBO.GetTexture(1));
+
+				glActiveTexture(GL_TEXTURE8);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1254,6 +1264,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
 			MainTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
 			MainTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+			MainTemporalFilter.SetInteger("u_NormalTexture", 8);
 
 			MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			MainTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -1284,6 +1295,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE8);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1445,6 +1459,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_CurrentCoCg", 5);
 			SpecularTemporalFilter.SetInteger("u_PrevCoCg", 6);
 
+			SpecularTemporalFilter.SetInteger("u_SpecularHitDist", 7);
+			SpecularTemporalFilter.SetInteger("u_PrevSpecularHitDist", 8);
+			SpecularTemporalFilter.SetInteger("u_NormalTexture", 9);
+
 
 			SpecularTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			SpecularTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -1485,7 +1503,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE6);
 			glBindTexture(GL_TEXTURE_2D, PrevReflectionTemporalFBO.GetTexture(1));
 
+			glActiveTexture(GL_TEXTURE7);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+			glActiveTexture(GL_TEXTURE8);
+			glBindTexture(GL_TEXTURE_2D, PrevReflectionTraceFBO.GetTexture(2));
 
+			glActiveTexture(GL_TEXTURE9);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1670,6 +1694,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetMatrix4("u_InverseView", inv_view);
 			MainTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 			MainTemporalFilter.SetFloat("u_ClampBias", 0.02f);
+			MainTemporalFilter.SetInteger("u_NormalTexture", 8);
+
+			glActiveTexture(GL_TEXTURE8);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, RTAO_FBO.GetTexture());

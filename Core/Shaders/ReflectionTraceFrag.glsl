@@ -15,6 +15,7 @@
 
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
+layout (location = 2) out float o_HitDistance;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -348,7 +349,7 @@ int GetBlockID(vec2 txc)
 
 bool InThresholdedScreenSpace(in vec2 v) 
 {
-	float b = 0.07593f;
+	float b = 0.032593f;
 	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
 }
 
@@ -448,12 +449,14 @@ void main()
 	//int MinSPP = clamp(SPP / 2, 2, 32);
 	//SPP = 4;
 
-	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 1.05f);  // Bias 
-
+	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.5f);  // Bias 
 
 	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
 	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
 	vec3 BaseIndirectDiffuse = SHToIrradianceA(DiffuseSH, DiffuseCoCg);
+
+	float AveragedHitDistance = 0.001f;
+	float TotalMeaningfulHits = 0.0f;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -618,6 +621,8 @@ void main()
 			float[6] SH = IrridianceToSH(Computed, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
 			TotalCoCg += vec2(SH[4], SH[5]);
+
+			AveragedHitDistance += T; TotalMeaningfulHits += 1.0f;
 		}
 
 		else
@@ -633,11 +638,15 @@ void main()
 
 		total_hits++;
 	}
+
+	// division by zero makes some gpus go insane
+	AveragedHitDistance /= max(TotalMeaningfulHits, 0.01f);
 	
 	TotalSH /= max(float(total_hits), 1.0f);
 	TotalCoCg /= max(float(total_hits), 1.0f);
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
+	o_HitDistance = TotalMeaningfulHits > 0.01f ? AveragedHitDistance : -1.0f;
 }
 
 bool IsInVolume(in vec3 pos)
