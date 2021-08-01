@@ -5,6 +5,7 @@
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Variance;
+layout (location = 3) out float o_AO;
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -18,6 +19,7 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTexture;
 uniform sampler2D u_VarianceTexture;
+uniform sampler2D u_AO;
 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
@@ -149,12 +151,14 @@ void main()
 	float BaseLuminance = SHToY(BaseSH);
 	float BaseVariance = 0.0f;
 	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
+	float BaseAO = texture(u_AO, v_TexCoords).r;
 
 	// Start with the base inputs, one iteration of the loop can then be skipped
 	vec4 TotalSH = BaseSH;
 	vec2 TotalCoCg = BaseCoCg;
 	float TotalWeight = 1.0f;
 	float TotalVariance = BaseVariance;
+	float TotalAO = BaseAO;
 	
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
@@ -199,6 +203,7 @@ void main()
 				TotalCoCg += SampleCoCg * Weight;
 				TotalVariance += sqr(Weight) * SampleVariance;
 				TotalWeight += Weight;
+				TotalAO += texture(u_AO, SampleCoord).x * Weight;
 			}
 		}
 	}
@@ -206,11 +211,13 @@ void main()
 	TotalSH /= TotalWeight;
 	TotalCoCg /= TotalWeight;
 	TotalVariance /= sqr(TotalWeight);
+	TotalAO /= TotalWeight;
 	
 	// Output : 
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
 	o_Variance = TotalVariance;
+	o_AO = TotalAO;
 
 	const bool DontFilter = false;
 
@@ -218,5 +225,6 @@ void main()
 		o_SH = BaseSH;
 		o_CoCg = BaseCoCg;
 		o_Variance = BaseVariance;
+		o_AO = BaseAO;
 	}
 }

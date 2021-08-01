@@ -27,6 +27,7 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 uniform samplerCube u_Skybox;
 uniform sampler2D u_CloudData;
 uniform sampler2D u_PreviousNormalTexture; 
+uniform sampler2D u_VXAO;
 
 uniform sampler2D u_DiffuseSHData1;
 uniform sampler2D u_DiffuseSHData2;
@@ -59,6 +60,9 @@ uniform bool u_HighQualityPOM = false;
 uniform bool u_RTAO;
 uniform bool u_ContactHardeningShadows;
 uniform bool u_AmplifyNormalMap;
+
+uniform bool u_DoVXAO = true;
+uniform bool u_SVGFEnabled = true;
 
 uniform float u_CloudBoxSize;
 
@@ -738,8 +742,21 @@ void main()
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
 
-            //float AO = texture(u_DiffuseTexture, v_TexCoords).w;
-            float AO = 1.0f;
+            // VXAO from indirect diffuse trace : 
+            // 
+
+            bool do_vxao = u_DoVXAO && u_SVGFEnabled;
+            if (do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 70)) // -> Causes artifacts if the AO is applied too far away
+            {
+                float bias = 0.00125f;
+                if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
+                    v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
+                {
+                    float ao = texture(u_VXAO, v_TexCoords).x;
+                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.5f), 0.0f, 1.0f));
+                }
+            }
+
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
@@ -807,17 +824,7 @@ void main()
 
 
 
-            // wip, I removed the ao when adding the spherical harmonics 
-            // will be done soon :/
-            if (!u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 80)) // -> Causes artifacts if the AO is applied too far away
-            {
-                float bias = 0.00125f;
-                if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
-                    v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
-                {
-                    o_Color *= vec3(clamp(pow(AO, 1.0f), 0.0f, 1.0f));
-                }
-            }
+           
 
             return;
         }

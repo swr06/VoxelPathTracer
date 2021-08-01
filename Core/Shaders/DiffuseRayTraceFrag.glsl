@@ -27,6 +27,7 @@
 layout (location = 0) out vec4 o_SphericalHarmonicData_1;
 layout (location = 1) out vec2 o_ColorData; // Stores the radiance color data in YCoCg
 layout (location = 2) out float o_Utility;
+layout (location = 3) out float o_AO; // VXAO
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -217,19 +218,23 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir
 
 	vec3 Position;
 	vec3 Normal;
-	float ao;
+	float ao = 1.0f;
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
 		vec3 tangent_normal;
 		total_color += GetBlockRayColor(new_ray, Position, Normal);
+		float T = distance(initial_origin, Position);
 
 		if (i == 0)
 		{
-			// Calculate ao on first bounce
-			float dist = distance(initial_origin, Position);
-			ao = 1.0f - float(dist*dist < 0.4f);
-			
+			if (T < 3.5f && T > 0.0f) 
+			{
+				// Calculate ao on first bounce
+				ao = 1.0f - float(T*T<0.225f);
+				//ao = T / 3.5f;
+			}
+
 			// store sh direction
 			dir = new_ray.Direction;
 		}
@@ -378,6 +383,7 @@ void main()
 	o_SphericalHarmonicData_1 = sh_data1;
 	o_ColorData.xy = color_data;
 	o_Utility = GetLuminance(radiance);
+	o_AO = AccumulatedAO;
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

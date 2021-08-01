@@ -97,11 +97,19 @@ namespace VoxelRT
 		// 
 		m_AABB.SetPosition(m_Position);
 
-		m_Velocity.x *= 0.825f;
-		m_Velocity.z *= 0.825f;
+		if (!Freefly) {
+			m_Velocity.x *= 0.825f;
+			m_Velocity.z *= 0.825f;
+		}
+		else {
+
+			m_Velocity.x *= 0.755f;
+			m_Velocity.z *= 0.755f;
+		}
+		
 
 		if (Freefly) {
-			m_Velocity.y *= 0.9f;
+			m_Velocity.y *= 0.765f;
 		}
 
 		Camera.SetPosition(m_Position);

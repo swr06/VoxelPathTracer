@@ -473,9 +473,10 @@ void main()
 
 		if (T > 0.0f)
 		{
-			Ao += float((T * T) < 1.0f);
+			Ao += float((T * T) < 0.25f);
 		}
 	}
 
-	o_AO = 1.0f - (Ao / float(MAX_RAYS));
+	o_AO = 1.0f - (Ao / float(MAX_RAYS)); // fu
+	o_AO = pow(o_AO, 2.5f);
 }

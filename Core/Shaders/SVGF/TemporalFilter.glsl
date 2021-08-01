@@ -3,6 +3,7 @@
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out vec3 o_Utility;
+layout (location = 3) out float o_AO;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -24,6 +25,9 @@ uniform sampler2D u_PreviousUtility;
 
 uniform sampler2D u_CurrentBlockIDTexture;
 uniform sampler2D u_PrevBlockIDTexture;
+
+uniform sampler2D u_CurrentAO;
+uniform sampler2D u_PreviousAO;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -107,12 +111,14 @@ void main()
 	vec3 BaseNormal = SampleNormal(u_CurrentNormalTexture, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_CurrentSH, v_TexCoords).rgba;
 	vec2 BaseCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+	float BaseAO = texture(u_CurrentAO, v_TexCoords).r;
 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentSH, 0);
 
 	float TotalWeight = 0.0f;
 	vec4 SumSH = vec4(0.0f); 
 	vec2 SumCoCg = vec2(0.0f);
+	float SumAO = 0.0f;
 	float SumLuminosity = 0.0f;
 	float SumSPP = 0.0f;
 	float SumMoment = 0.0f;
@@ -138,7 +144,6 @@ void main()
 	{
 		vec2 Offset = Offsets[i];
 		vec2 SampleCoord = ReprojectedCoord + vec2(Offset.x, Offset.y) * TexelSize;
-
 		if (!InThresholdedScreenSpace(SampleCoord)) { continue; }
 
 		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
@@ -162,6 +167,7 @@ void main()
 			SumSPP += PreviousUtility.x * CurrentWeight;
 			SumMoment += PreviousUtility.y * CurrentWeight;
 			SumLuminosity += PreviousUtility.z * CurrentWeight;
+			SumAO += texture(u_PreviousAO, SampleCoord).r * CurrentWeight;
 			TotalWeight += CurrentWeight;
 		}
 	}
@@ -172,6 +178,7 @@ void main()
 		SumMoment /= TotalWeight;
 		SumSPP /= TotalWeight;
 		SumLuminosity /= TotalWeight;
+		SumAO /= TotalWeight;
 	}
 
 	const bool AccumulateAll = false;
@@ -192,6 +199,7 @@ void main()
 
 	o_SH = mix(SumSH, BaseSH, BlendFactor);
 	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);
+	o_AO = mix(SumAO, BaseAO, BlendFactor);
 	o_Utility = vec3(UtilitySPP, UtilityMoment, StoreLuma);
 }
 
