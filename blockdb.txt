@@ -745,8 +745,8 @@
 	Normal : Res/Block/rPlanks/Normal.png
 	PBR : Res/Block/rPlanks/PBR.png
 	
-	SND_STEP : Stone
-	SND_MODIFY : Stone
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
