@@ -88,9 +88,13 @@ namespace VoxelRT
 
 			// mip gen
 
-			glBindTexture(GL_TEXTURE_2D, BloomAlternateFBO->GetTexture(0));
-			glGenerateMipmap(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, 0);
+			bool genmip = false;
+
+			if (genmip) {
+				glBindTexture(GL_TEXTURE_2D, BloomAlternateFBO->GetTexture(0));
+				glGenerateMipmap(GL_TEXTURE_2D);
+				glBindTexture(GL_TEXTURE_2D, 0);
+			}
 
 			// Blur the mips					
 			BlurBloomMip(bloom_fbo, 0, source_tex, BloomAlternateFBO->GetTexture(0), hq);
