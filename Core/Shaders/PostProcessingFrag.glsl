@@ -563,17 +563,17 @@ void main()
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
 
-		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(1.0f / 2.2f));
-		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(1.0f / 2.2f));
-		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(1.0f / 2.2f));
-		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(1.0f / 2.2f));
+		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
+		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f));
+		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f));
+		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f));
 
 		vec3 TotalBloom = vec3(0.0f);
-
-		TotalBloom = pow(Bloom[0] ,vec3(2.2)) * 2.2 + TotalBloom;
-		TotalBloom = pow(Bloom[1] ,vec3(2.2)) * 0.5f + TotalBloom;
-		TotalBloom = pow(Bloom[2] ,vec3(2.2)) * 0.25 + TotalBloom;
-		TotalBloom = pow(Bloom[3] ,vec3(2.2)) * 0.1 + TotalBloom;
+		float AmplificationFactor = 1.71270f;
+		TotalBloom = pow(Bloom[0] ,vec3(1.0f / AmplificationFactor)) * 2.2 + TotalBloom;
+		TotalBloom = pow(Bloom[1] ,vec3(1.0f / AmplificationFactor)) * 0.5f + TotalBloom;
+		TotalBloom = pow(Bloom[2] ,vec3(1.0f / AmplificationFactor)) * 0.25 + TotalBloom;
+		TotalBloom = pow(Bloom[3] ,vec3(1.0f / AmplificationFactor)) * 0.1 + TotalBloom;
 
 		o_Color += TotalBloom;
 	}
