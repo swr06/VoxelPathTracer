@@ -242,7 +242,7 @@ public:
 			if (ImGui::Button("HIGH") == true) {
 				InitialTraceResolution = 1.0f;
 				ShadowTraceResolution = 0.75f;
-				DiffuseSPP = 4;
+				DiffuseSPP = 2;
 				ColorPhiBias = 3.25f;
 				ReflectionTraceResolution = 0.5f;
 				DiffuseTraceResolution = 0.5f;
@@ -252,12 +252,11 @@ public:
 			if (ImGui::Button("INSANE") == true) {
 				InitialTraceResolution = 1.0f;
 				ShadowTraceResolution = 1.0f;
-				ReflectionTraceResolution = 0.75f;
+				ReflectionTraceResolution = 0.5f;
 				DiffuseTraceResolution = 0.5f;
-				DiffuseSPP = 6;
+				DiffuseSPP = 4;
 				ColorPhiBias = 3.5f;
-				RTAOResolution = 0.75f;
-				RTAO = true;
+				RTAO = false;
 			}
 
 			ImGui::NewLine();
@@ -444,31 +443,37 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// //
 	}
 
-	if (HardwareProfile == 1) {
+	if (HardwareProfile == 1)
+	{
 		InitialTraceResolution = 1.0f;
 		ShadowTraceResolution = 0.75f;
 		DiffuseSPP = 8;
 		ColorPhiBias = 3.5f;
+		ReflectionTraceResolution = 0.25f;
+		DiffuseTraceResolution = 0.25f;
+		RTAO = false;
 	}
 
-	if (HardwareProfile == 2) {
+	if (HardwareProfile == 2)
+	{
 		InitialTraceResolution = 1.0f;
 		ShadowTraceResolution = 0.75f;
+		DiffuseSPP = 2;
+		ColorPhiBias = 3.25f;
+		ReflectionTraceResolution = 0.5f;
+		DiffuseTraceResolution = 0.5f;
+		RTAO = false;
+	}
+
+	if (HardwareProfile == 3)
+	{
+		InitialTraceResolution = 1.0f;
+		ShadowTraceResolution = 1.0f;
 		ReflectionTraceResolution = 0.5f;
 		DiffuseTraceResolution = 0.5f;
 		DiffuseSPP = 4;
-		ColorPhiBias = 3.25f;
-	}
-
-	if (HardwareProfile == 3) {
-		InitialTraceResolution = 1.0f;
-		ShadowTraceResolution = 1.0f;
-		ReflectionTraceResolution = 0.75f;
-		DiffuseTraceResolution = 0.5f;
-		DiffuseSPP = 6;
 		ColorPhiBias = 3.5f;
-		RTAOResolution = 0.75f;
-		RTAO = true;
+		RTAO = false;
 	}
 
 	// Initialize world, df generator etc 
