@@ -2,15 +2,15 @@
 A Voxel Path Tracing Engine implemented using C++ and the modern opengl programmable pipeline
 
 # Features Implemented
-- Voxel Ray Casting
+- Voxel Ray Casting 
 - Manhattan Distance Field acceleration (Distance fields are generated using compute shaders) 
-- Procedural Terrain Generation
-- Indirect Light Tracing 
+- Procedural Terrain Generation (Plains, superflat) 
+- Indirect Light Tracing (Diffuse, Specular, AO)
 - Temporal Indirect Light Filtering (Specular reprojection done using hit distance.) 
 - Parallax Occlusion Mapping (Buggy with materials adapted from minecraft texture packs!)
 - Normal mapping
-- PBR Texture support
-- Physically based lighting
+- PBR Texture support 
+- Physically based lighting (Cook torrance BRDF)
 - Ray traced contact hardening soft shadows (with shadow denoising)
 - Flexible material system
 - Temporal Anti Aliasing
