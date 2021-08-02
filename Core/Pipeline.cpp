@@ -609,11 +609,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		// Player update flag
 		if (glfwGetWindowAttrib(app.GetWindow(), GLFW_FOCUSED) == 0) {
 			UpdatePlayerCollision = false;
 		}
 
 		else {
+			UpdatePlayerCollision = true;
+		}
+
+		if (app.GetCurrentFrame() < 5) {
 			UpdatePlayerCollision = true;
 		}
 
@@ -636,61 +641,68 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glfwSwapInterval((int)VSync);
 
+		float PADDED_WIDTH = app.GetWidth() + 16.0f;
+		float PADDED_HEIGHT = app.GetHeight() + 16.0f;
+
+
+
 		// Resize the framebuffers
 		{
-			InitialTraceFBO_1.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
-			InitialTraceFBO_2.SetSize(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution));
+			
+			
+			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 
 			float DiffuseResolution2 = DiffuseTraceResolution;
-			DiffuseTraceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-			DiffuseTemporalFBO1.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
-			DiffuseTemporalFBO2.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
-			DiffuseDenoiseFBO.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
-			DiffuseDenoisedFBO2.SetSize(app.GetWidth() * DiffuseResolution2, app.GetHeight() * DiffuseResolution2);
+			DiffuseTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
+			DiffuseTemporalFBO1.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
+			DiffuseTemporalFBO2.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
+			DiffuseDenoiseFBO.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
+			DiffuseDenoisedFBO2.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
 
 
 			if (TAA)
 			{
-				TAAFBO1.SetSize(app.GetWidth(), app.GetHeight());
-				TAAFBO2.SetSize(app.GetWidth(), app.GetHeight());
+				TAAFBO1.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
+				TAAFBO2.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
 			}
 
-			DownsampledFBO.SetSize(app.GetWidth() * 0.125f, app.GetHeight() * 0.125f);
-			BloomFBO.SetSize(app.GetWidth() * BloomQuality, app.GetHeight() * BloomQuality);
-			VarianceFBO.SetSize(app.GetWidth() * DiffuseTraceResolution, app.GetHeight() * DiffuseTraceResolution);
-			PostProcessingFBO.SetSize(app.GetWidth(), app.GetHeight());
-			ColoredFBO.SetDimensions(app.GetWidth(), app.GetHeight());
+			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
+			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
+			VarianceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
+			PostProcessingFBO.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
+			ColoredFBO.SetDimensions(PADDED_WIDTH, PADDED_HEIGHT);
 
-			ShadowRawTrace.SetSize(app.GetWidth() * ShadowTraceResolution, app.GetHeight() * ShadowTraceResolution);
-			ShadowTemporalFBO_1.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
-			ShadowTemporalFBO_2.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
-			ShadowFiltered.SetSize(app.GetWidth() * ShadowTraceResolution * 1.5f, app.GetHeight() * ShadowTraceResolution * 1.5f);
+			ShadowRawTrace.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
+			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
+			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
+			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
 
-			ReflectionTraceFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-			ReflectionTraceFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution, app.GetHeight() * ReflectionTraceResolution);
-			ReflectionTemporalFBO_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
-			ReflectionTemporalFBO_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
-			ReflectionDenoised_1.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
-			ReflectionDenoised_2.SetSize(app.GetWidth() * ReflectionTraceResolution * 2.0f, app.GetHeight() * ReflectionTraceResolution * 2.0f);
+			ReflectionTraceFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionTraceFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
+			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
+			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
+			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
 
 			if (GodRays)
 			{
-				VolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
-				BlurredVolumetricFBO.SetSize(app.GetWidth() * VolumetricResolution, app.GetHeight() * VolumetricResolution);
+				VolumetricFBO.SetSize(PADDED_WIDTH * VolumetricResolution, PADDED_HEIGHT * VolumetricResolution);
+				BlurredVolumetricFBO.SetSize(PADDED_WIDTH * VolumetricResolution, PADDED_HEIGHT * VolumetricResolution);
 			}
 
 			if (SSAO)
 			{
-				SSAOFBO.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
-				SSAOBlurred.SetSize(app.GetWidth() * SSAOResolution, app.GetHeight() * SSAOResolution);
+				SSAOFBO.SetSize(PADDED_WIDTH * SSAOResolution, PADDED_HEIGHT * SSAOResolution);
+				SSAOBlurred.SetSize(PADDED_WIDTH * SSAOResolution, PADDED_HEIGHT * SSAOResolution);
 			}
 
 			if (RTAO)
 			{
 				float RTAO_Res2 = glm::max(RTAOResolution, 0.5f);
-				RTAO_FBO.SetSize(app.GetWidth() * RTAOResolution, app.GetHeight() * RTAOResolution);
-				RTAO_TemporalFBO_1.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
-				RTAO_TemporalFBO_2.SetSize(app.GetWidth() * RTAO_Res2, app.GetHeight() * RTAO_Res2);
+				RTAO_FBO.SetSize(PADDED_WIDTH * RTAOResolution, PADDED_HEIGHT * RTAOResolution);
+				RTAO_TemporalFBO_1.SetSize(PADDED_WIDTH * RTAO_Res2, PADDED_HEIGHT * RTAO_Res2);
+				RTAO_TemporalFBO_2.SetSize(PADDED_WIDTH * RTAO_Res2, PADDED_HEIGHT * RTAO_Res2);
 			}
 		}
 
@@ -766,7 +778,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
-			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
 			
 			glActiveTexture(GL_TEXTURE0);
@@ -1851,7 +1863,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				app.GetWidth(), app.GetHeight(), app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0));
+				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0));
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
@@ -1901,7 +1913,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetMatrix4("u_ShadowView", ShadowView);
 		ColorShader.SetMatrix4("u_ReflectionProjection", ReflectionProjection);
 		ColorShader.SetMatrix4("u_ReflectionView", ReflectionView);
-		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
+		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution)));
 		ColorShader.SetVector3f("u_SunDirection", SunDirection);
 		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
 		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -1916,7 +1928,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
-		ColorShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 
@@ -2092,46 +2104,52 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ---- Auto Exposure ----
 
+
+		// This was to test auto exposure, it doesnt work very well
+
+
+
+
 		float ComputedExposure = 3.0f;
 
 		if (AutoExposure)
 		{
 #define SAMPLE_COUNT 9
-
-			int iWidth = app.GetWidth();
-			int iHeight = app.GetHeight();
+			int AutoExposureWidth = PADDED_WIDTH;
+			int AutoExposureHeight = PADDED_HEIGHT;
 			float AverageBrightness;
 
 			int Pixels[SAMPLE_COUNT][2] =
 			{
-				static_cast<int>(iWidth * 0.50), static_cast<int>(iHeight * 0.50),
-				static_cast<int>(iWidth * 0.25), static_cast<int>(iHeight * 0.50),
-				static_cast<int>(iWidth * 0.75), static_cast<int>(iHeight * 0.50),
-				static_cast<int>(iWidth * 0.50), static_cast<int>(iHeight * 0.25),
-				static_cast<int>(iWidth * 0.50), static_cast<int>(iHeight * 0.75),
-				static_cast<int>(iWidth * 0.25), static_cast<int>(iHeight * 0.25),
-				static_cast<int>(iWidth * 0.25), static_cast<int>(iHeight * 0.75),
-				static_cast<int>(iWidth * 0.75), static_cast<int>(iHeight * 0.25),
-				static_cast<int>(iWidth * 0.75), static_cast<int>(iHeight * 0.75)
+				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.50),
+				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.50),
+				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.50),
+				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.25),
+				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.75),
+				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.25),
+				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.75),
+				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.25),
+				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.75)
 			};
 
-			glm::vec3 kAveragedSamples;
+			glm::vec3 AveragedSamples;
 			unsigned char Samples[SAMPLE_COUNT][4];
 
-			for (unsigned int i = 0; i < SAMPLE_COUNT; i++)
+			for (int i = 0; i < SAMPLE_COUNT; i++)
 			{
 				glReadPixels(Pixels[i][0], Pixels[i][1], 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &Samples[i][0]);
-				kAveragedSamples += (glm::vec3(Samples[i][0], Samples[i][1], Samples[i][2]) / 255.0f) / float(SAMPLE_COUNT);
+				AveragedSamples += (glm::vec3(Samples[i][0], Samples[i][1], Samples[i][2]) / 255.0f) / float(SAMPLE_COUNT);
 			}
 
-			AverageBrightness = glm::max(glm::max(kAveragedSamples.x, kAveragedSamples.y), kAveragedSamples.z);
-
+			AverageBrightness = glm::max(glm::max(AveragedSamples.x, AveragedSamples.y), AveragedSamples.z);
 			CameraExposure = 0.5 / AverageBrightness;
 			CameraExposure = PrevCameraExposure + (CameraExposure - PrevCameraExposure) * 0.02;
 			PrevCameraExposure = CameraExposure;
-
 			ComputedExposure = CameraExposure * 3.0f;
 		}
+
+
+
 
 		// ---- Volumetric Scattering ----
 
@@ -2326,6 +2344,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
 		FinalShader.SetMatrix4("u_InverseView", inv_view);
 		FinalShader.SetMatrix4("u_InverseProjection", inv_projection);
+		FinalShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
@@ -2404,3 +2423,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	return;
 }
+
+
+
+
+
+
+
+
+// pipeline end.

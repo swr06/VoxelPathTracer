@@ -1,7 +1,6 @@
 #version 330 core
 
 layout(location = 0) out vec3 o_Color;
-in vec2 v_TexCoords;
 
 uniform sampler2D u_FramebufferTexture;
 uniform sampler2D u_PositionTexture;
@@ -11,6 +10,11 @@ uniform bool u_BrutalFXAA;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform vec2 u_Dimensions;
+
+
+vec2 TexCoords;
+
 
 bool CompareFloatNormal(float x, float y) {
     return abs(x - y) < 0.02f;
@@ -88,17 +92,17 @@ float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0,
 
 bool DetectEdge()
 {
-	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
-	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
-	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
+	vec3 BasePosition = SamplePositionAt(TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords).xyz;
+	vec3 BaseColor = texture(u_FramebufferTexture, TexCoords).xyz;
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
-	int BaseBlock = GetBlockAt(v_TexCoords);
+	int BaseBlock = GetBlockAt(TexCoords);
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
 		for (int y = -2 ; y <= 2 ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
+			vec2 SampleCoord = TexCoords + vec2(x, y) * TexelSize;
 			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 			float PositionError = distance(BasePosition, SamplePosition);
@@ -122,7 +126,7 @@ void FXAA311(inout vec3 color)
 	float edgeThresholdMax = 0.125;
 	float subpixelQuality = u_BrutalFXAA ? (DetectEdge() ? 3.0 : 1.0) : 0.8f; 
 	int iterations = 12;
-	vec2 texCoord = v_TexCoords;
+	vec2 texCoord = TexCoords;
 	
 	vec2 view = 1.0 / vec2(textureSize(u_FramebufferTexture, 0));
 	
@@ -277,11 +281,11 @@ vec3 GetFXAACustom()
 	vec3 BlurredColor = vec3(0.0f);
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
 
-	vec3 BasePosition = SamplePositionAt(v_TexCoords).xyz;
-	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
-	vec3 BaseColor = texture(u_FramebufferTexture, v_TexCoords).xyz;
+	vec3 BasePosition = SamplePositionAt(TexCoords).xyz;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords).xyz;
+	vec3 BaseColor = texture(u_FramebufferTexture, TexCoords).xyz;
 	float BaseLuma = GetLuminance(BaseColor);
-	int BaseBlock = GetBlockAt(v_TexCoords);
+	int BaseBlock = GetBlockAt(TexCoords);
 	float AverageLuminosity = 0.0f;
 	int AliasedSamples = 0;
 	int SamplesTaken = 0;
@@ -297,7 +301,7 @@ vec3 GetFXAACustom()
 			float x = xx * Step; 
 			float y = yy * Step;
 			float CurrentWeight = 1.0f;
-			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
+			vec2 SampleCoord = TexCoords + vec2(x,y) * TexelSize;
 			vec3 SampleColor = texture(u_FramebufferTexture, SampleCoord).xyz;
 			AverageLuminosity += GetLuminance(SampleColor) * float(x != 0 && y != 0) * CurrentWeight;
 			BlurredColor += SampleColor * CurrentWeight;
@@ -349,9 +353,14 @@ vec3 GetFXAACustom()
 
 void main()
 {
-	vec3 BaseSample = texture(u_FramebufferTexture, v_TexCoords).rgb;
+	// clip the screen 
+	TexCoords = vec2(gl_FragCoord.xy);
+	TexCoords += 8.0f;
+	TexCoords = TexCoords / vec2(u_Dimensions + 16.0f);
+
+	vec3 BaseSample = texture(u_FramebufferTexture, TexCoords).rgb;
 	vec3 ViewerPos = u_InverseView[3].xyz;
-	vec3 BasePos = SamplePositionAt(v_TexCoords).xyz;
+	vec3 BasePos = SamplePositionAt(TexCoords).xyz;
 
     vec3 Color = BaseSample;
 	const bool CustomFXAA = false;
