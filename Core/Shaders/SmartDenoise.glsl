@@ -14,7 +14,7 @@ uniform sampler2D u_Texture;
 uniform int u_Radius = 12;
 uniform float u_EdgeThreshold = 0.5; 
 
-// https://github.com/BrutPitt/glslSmartDeNoise/ //
+// smart denoiser by brudpitt
 vec4 smartDeNoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius = round(kSigma*sigma);

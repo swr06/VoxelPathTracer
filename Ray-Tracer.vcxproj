@@ -262,6 +262,7 @@
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
+    <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />
     <None Include="Core\Shaders\ReflectionDenoiser.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />
@@ -304,6 +305,8 @@
     <None Include="Core\Shaders\Spatial2x2Initial.glsl" />
     <None Include="Core\Shaders\SpecularCheckerReconstruct.glsl" />
     <None Include="Core\Shaders\SpecularTemporalFilter.glsl" />
+    <None Include="Core\Shaders\SSRT\RaytraceReflections.glsl" />
+    <None Include="Core\Shaders\SSRT\RaytraceRefractions.glsl" />
     <None Include="Core\Shaders\SVGF\SpatialFilter.glsl" />
     <None Include="Core\Shaders\SVGF\TemporalFilter.glsl" />
     <None Include="Core\Shaders\SVGF\VarianceEstimate.glsl" />

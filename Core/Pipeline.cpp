@@ -605,13 +605,24 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	Frametime = glfwGetTime();
 
-
+	bool UpdatePlayerCollision = true;
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		if (glfwGetWindowAttrib(app.GetWindow(), GLFW_FOCUSED) == 0) {
+			UpdatePlayerCollision = false;
+		}
+
+		else {
+			UpdatePlayerCollision = true;
+		}
+
+
 		// Sound update ->
 
 		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
+
+
 
 
 		// Tick the sun and moon
@@ -710,7 +721,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
+		if (UpdatePlayerCollision) {
+			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
+		}
+
 		app.OnUpdate();
 
 		glm::mat4 TempView = PreviousView;
@@ -2379,7 +2393,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		float CurrentTime = glfwGetTime();
 		DeltaTime = CurrentTime - Frametime;
 		Frametime = glfwGetTime();
-
 		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
 	}

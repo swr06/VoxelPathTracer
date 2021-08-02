@@ -57,6 +57,12 @@
     <Filter Include="Source Files\voxel-rt\Sound">
       <UniqueIdentifier>{fef0865a-5f92-4c9e-9c5b-e52c94b20caf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\SSRT">
+      <UniqueIdentifier>{f52c688b-47f9-4bc8-8021-9461cdc84e5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shaders\Reference">
+      <UniqueIdentifier>{5b168e15-08f6-4bf0-9417-c378dc65953e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -545,6 +551,15 @@
     </None>
     <None Include="Core\Shaders\SVGF\VarianceEstimate.glsl">
       <Filter>Source Files\Shaders\SVGF</Filter>
+    </None>
+    <None Include="Core\Shaders\SSRT\RaytraceReflections.glsl">
+      <Filter>Source Files\Shaders\SSRT</Filter>
+    </None>
+    <None Include="Core\Shaders\SSRT\RaytraceRefractions.glsl">
+      <Filter>Source Files\Shaders\SSRT</Filter>
+    </None>
+    <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl">
+      <Filter>Source Files\Shaders\Reference</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

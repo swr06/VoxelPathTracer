@@ -390,6 +390,6 @@ void main()
 	}
 	
 	// This is like the most non-physically based thing on earth but idc xD
-	Scattering = pow(Scattering, vec3(1.0f / 13.0f));
+	Scattering = pow(Scattering, vec3(1.0f / 16.0f));
 	o_Data = vec4(Scattering, Transmittance);
 }

@@ -1,0 +1,5 @@
+contains scripts to :
+1) Convert a group of textures(Roughness, Metalness, Displacement,AO) into a single PBR.png texture which can be loaded into the engine
+2) Convert specular textures from minecraft texture packs to a PBR.png image that can be loaded by the engine. 
+
+Contact me if you have any queries/doubts
