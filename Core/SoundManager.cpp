@@ -99,7 +99,7 @@ namespace VoxelRT
 		std::string Path = list[Type][rand_idx];
 
 		float v = type ? 6.0f : 6.0f; v *= VoxelRT_VolumeMultiplier;
-		PlaySound(Path, p, 2.5f, v, false);
+		PlaySound(Path, p, 0.8675f, v, false);
 
 		PreviousStepTime = type ? glfwGetTime() : PreviousStepTime;
 	}
