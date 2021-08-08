@@ -1,7 +1,5 @@
 #include "CloudRenderer.h"
 
-static int NoiseSize = 128;
-static int NoiseSizeDetail = 48;
 static float CloudResolution = 1.0f;
 static bool Checkerboard = true;
 static float Coverage = 0.128f;
@@ -14,7 +12,7 @@ static std::unique_ptr<GLClasses::Shader> CloudShaderPtr;
 static std::unique_ptr<GLClasses::Shader> CloudTemporalFilterPtr;
 static std::unique_ptr<GLClasses::Shader> CloudCheckerUpscalerPtr;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoise;
-//static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
+static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
 
 void Clouds::CloudRenderer::Initialize()
 {
@@ -22,7 +20,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudTemporalFilterPtr = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 	CloudCheckerUpscalerPtr = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 	CloudNoise = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
-	//CloudNoiseDetail = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
+	CloudNoiseDetail = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
 
 	CloudShaderPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/CloudVert.glsl", "Core/Shaders/Clouds/CloudFrag.glsl");
 	CloudShaderPtr->CompileShaders();
@@ -31,12 +29,12 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(NoiseSize, NoiseSize, NoiseSize, nullptr);
-	//CloudNoiseDetail->CreateTexture(NoiseSizeDetail, NoiseSizeDetail, NoiseSizeDetail, nullptr);
+	CloudNoise->CreateTexture(256, 128, 256, nullptr);
+	CloudNoiseDetail->CreateTexture(96, 64, 96, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
-	Clouds::RenderNoise(*CloudNoise, NoiseSize, false);
-	//Clouds::RenderNoise(*CloudNoiseDetail, NoiseSizeDetail, true);
+	Clouds::RenderNoise(*CloudNoise, 256, false);
+	Clouds::RenderNoise(*CloudNoiseDetail, 96, true);
 	std::cout << "\nRendered noise textures!\n";
 }
 
@@ -96,7 +94,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("BoxSize", BoxSize);
 		CloudShader.SetFloat("u_DetailIntensity", DetailStrength);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
-		CloudShader.SetInteger("u_SliceCount", NoiseSize);
+		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
@@ -115,7 +113,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		glBindTexture(GL_TEXTURE_2D, BlueNoise);
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_3D, 0);
+		glBindTexture(GL_TEXTURE_3D, CloudNoiseDetail->GetTextureID());
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, atmosphere);

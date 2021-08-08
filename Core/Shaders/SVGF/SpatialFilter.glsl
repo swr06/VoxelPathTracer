@@ -2,6 +2,9 @@
 
 #define ESTIMATE_WEIGHT_BASED_ON_NEIGHBOURS
 
+// Filters indirect diffuse lighting : 
+
+
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Variance;
@@ -143,6 +146,8 @@ void main()
 	vec2 TexelSize = 1.0f / u_Dimensions;
 	vec4 TotalColor = vec4(0.0f);
 
+	bool FilterAO = u_Step <= 6;
+
 	vec4 BasePosition = GetPositionAt(v_TexCoords);
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
@@ -159,6 +164,7 @@ void main()
 	float TotalWeight = 1.0f;
 	float TotalVariance = BaseVariance;
 	float TotalAO = BaseAO;
+	float TotalAOWeight = 1.0f;
 	
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
@@ -203,7 +209,11 @@ void main()
 				TotalCoCg += SampleCoCg * Weight;
 				TotalVariance += sqr(Weight) * SampleVariance;
 				TotalWeight += Weight;
-				TotalAO += texture(u_AO, SampleCoord).x * Weight;
+
+				if (FilterAO) {
+					TotalAO += texture(u_AO, SampleCoord).x * Weight;
+					TotalAOWeight += Weight;
+				}
 			}
 		}
 	}
@@ -211,7 +221,7 @@ void main()
 	TotalSH /= TotalWeight;
 	TotalCoCg /= TotalWeight;
 	TotalVariance /= sqr(TotalWeight);
-	TotalAO /= TotalWeight;
+	TotalAO /= TotalAOWeight;
 	
 	// Output : 
 	o_SH = TotalSH;

@@ -2,7 +2,7 @@
 
 //#define USE_PREVIOUS_FRAME
 
-layout (location = 0) out vec3 o_Color;
+layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
 
@@ -14,9 +14,9 @@ uniform sampler2D u_PreviousColorTexture;
 uniform mat4 u_PreviousView;
 uniform mat4 u_PreviousProjection;
 
-vec3 SamplePixel(vec2 px)
+vec4 SamplePixel(vec2 px)
 {
-	return texture(u_ColorTexture, px).rgb;
+	return texture(u_ColorTexture, px).rgba;
 }
 
 vec2 Reprojection(vec3 pos) 
@@ -41,7 +41,7 @@ void main()
 		
 		const ivec2 Offsets[4] = ivec2[](ivec2(1, 0), ivec2(0, 1), ivec2(-1, 0), ivec2(0, -1));
 		
-		vec3 Total = vec3(0.0f);
+		vec4 Total = vec4(0.0f);
 		Total += SamplePixel(v_TexCoords + (Offsets[0] * TexelSize));
 		Total += SamplePixel(v_TexCoords + (Offsets[1] * TexelSize));
 		Total += SamplePixel(v_TexCoords + (Offsets[2] * TexelSize));
@@ -49,23 +49,11 @@ void main()
 
 		Total /= 4.0f;
 
-		#ifdef USE_PREVIOUS_FRAME
-		vec3 FetchedPosition = texture(u_CurrentPositionTexture, v_TexCoords).rgb;
-		vec2 Reprojected = Reprojection(FetchedPosition);
-		
-		if(Reprojected.x > 0.05f && Reprojected.x < 0.95f && Reprojected.y > 0.05f && Reprojected.y < 0.95f)
-		{
-			vec3 PreviousColor = texture(u_PreviousColorTexture, Reprojected).rgb;
-			Total = mix(Total, PreviousColor, 0.6f);
-		}
-		#endif
-
 		o_Color = Total;
 	}	
 
 	else 
 	{
-		vec3 Fetch = SamplePixel(v_TexCoords);
-		o_Color = Fetch;
+		o_Color = SamplePixel(v_TexCoords);
 	}
 }

@@ -153,7 +153,7 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radian
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (12.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 3.0f; 
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 4.675f; 
 	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source

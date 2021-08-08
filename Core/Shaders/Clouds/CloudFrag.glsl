@@ -1,12 +1,12 @@
 #version 330 core
 
+
 #define CLOUD_HEIGHT 70
 #define PI 3.14159265359
 #define TAU (3.14159265359 * 2.0f)
 #define HALF_PI (3.14159265359 * 0.5f)
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-//#define DETAIL
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -22,11 +22,11 @@ in vec2 v_TexCoords;
 
 uniform float u_Time;
 uniform int u_CurrentFrame;
-uniform int u_SliceCount;
+uniform int u_SliceCount; // main noise slice count (256)
 uniform vec2 u_Dimensions;
 
 uniform sampler3D u_CloudNoise;
-//uniform sampler3D u_CloudDetailedNoise;
+uniform sampler3D u_CloudDetailedNoise;
 uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
@@ -106,20 +106,84 @@ vec4 SampleNoise(in vec3 p)
 	return sampled_noise;
 }
 
+const mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
+
+vec2 hash( vec2 p ) {
+	p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
+	return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+}
+
+float noise( in vec2 p ) {
+    const float K1 = 0.366025404; // (sqrt(3)-1)/2;
+    const float K2 = 0.211324865; // (3-sqrt(3))/6;
+	vec2 i = floor(p + (p.x+p.y)*K1);	
+    vec2 a = p - i + (i.x+i.y)*K2;
+    vec2 o = (a.x>a.y) ? vec2(1.0,0.0) : vec2(0.0,1.0); //vec2 of = 0.5 + 0.5*vec2(sign(a.x-a.y), sign(a.y-a.x));
+    vec2 b = a - o + K2;
+	vec2 c = a - 1.0 + 2.0*K2;
+    vec3 h = max(0.5-vec3(dot(a,a), dot(b,b), dot(c,c) ), 0.0 );
+	vec3 n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));
+    return dot(n, vec3(70.0));	
+}
+
+float fbm(vec2 n) {
+	float total = 0.0, amplitude = 0.1;
+	for (int i = 0; i < 7; i++) {
+		total += noise(n) * amplitude;
+		n = m * n;
+		amplitude *= 0.4;
+	}
+	return total;
+}
+
+#define DETAIL
+
 float SampleDensity(in vec3 point)
 {
-	point.x += 128.0f;
-	point.z += 128.0f;
+	// 
+	point.x += 650.0f;
+	point.z -= 250.0f;
+	point.y -= (7.0f*1000.0f)+(7*100.0f)+(73.0f); 
+
+	// sample noise :
 	vec4 sampled_noise;
-	vec3 time = vec3(u_Time, 0.0f, u_Time * 0.5f);
+	vec3 time = vec3(0.0f, 0.0f, u_Time);
 	time *= 0.00400f; 
-	sampled_noise = texture(u_CloudNoise, (point.xyz * 0.01759750f) + time).rgba;
+
+	vec3 sample_point = point.xyz * 0.02759750f;
+
+	//vec2 fractuv = fract(sample_point.xz);
+	//if (abs(fractuv.x-0.0f) <= 0.001f ||
+	//	abs(fractuv.y-0.0f) <= 0.001f ||
+	//	abs(fractuv.x-1.0f) <= 0.001f ||
+	//	abs(fractuv.y-1.0f) <= 0.001f) {
+	//	return 0.0f;
+	//}
+
+	sampled_noise = texture(u_CloudNoise, sample_point + time).rgba;
 	float perlinWorley = sampled_noise.x * 1.0f;
 	vec3 worley = sampled_noise.yzw;
 	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 
 	float cloud = remap(perlinWorley, wfbm - 1.0f, 1.0f, 0.0f, 1.0f);
 	cloud = remap(cloud, 1.0f - u_Coverage, 1.0f, 0.0f, 1.0f); 
-	return clamp(cloud, 0.0f, 100.0f);
+
+	#ifndef DETAIL
+	return cloud;
+	#endif
+
+	// basic algorithm : 
+	// sample detail -> subtract it from the base density and weight it by 1-density
+	// i dont know if this is the correct way to do this but w/e 
+
+	float densityat = cloud * 1.01f;
+	vec4 Detail = texture(u_CloudDetailedNoise, point* 0.01759750f);
+	vec3 Worleydetail = sampled_noise.yzw;
+	float Wfbmdetail = Worleydetail.x * 0.725f + Worleydetail.y * 0.225f + Worleydetail.z * 0.350f; 
+	float OneMinusShape = 1 - cloud;
+    float DetailErodeWeight = pow(OneMinusShape, 4.2f);
+	float DetailNoiseWeight = 0.6f;
+    float cloudDensity = densityat - (1 - Wfbmdetail) * DetailErodeWeight * DetailNoiseWeight;
+	return clamp(cloudDensity, 0.0f, 1.6f);
 }
 
 float hg(float a, float g) 
@@ -198,32 +262,76 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
-float RaymarchLight(vec3 p)
+float RaymarchAmbient(vec3 Point) 
 {
-	int StepCount = u_HighQualityClouds ? 8 : 3;
-	vec3 ldir = normalize(vec3(u_SunDirection.x, u_SunDirection.y, u_SunDirection.z));
+	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
+	float End = (AtmosphereRadius - Point.y) / Direction.y;  
+	End = min(End, 5000.0); 
+	vec3 StartPosition = Point; 
+	vec3 EndPosition = Point + Direction * End; 
+	float PreviousTraversal = 0.0; 
+	float ReturnTransmittance = 1.0;
+	float Accum = 0.0; 
+	float Dither = Bayer16(gl_FragCoord.xy);
+	int LightSteps = 4;
 
-	float StepSize = 8.0f / float(StepCount);
-	float TotalDensity = 0.0f;
-	vec3 CurrentPoint = p + (ldir * StepSize * 0.5f);
-	float Dither;// = Bayer16(gl_FragCoord.xy);
-	Dither = 1.0f;
+	for(int Step = 0; Step < LightSteps; Step++) {
 
-	for (int i = 0 ; i < StepCount ; i++)
-	{
-		float DensitySample = SampleDensity(CurrentPoint * 0.002f) * 8.6f;
-		TotalDensity += max(0.0f, DensitySample * StepSize);
-		CurrentPoint += ldir * (StepSize * Dither);
+		if(ReturnTransmittance < 0.0001) 
+		{
+			break; 
+		}
+
+		float t = float(Step + Dither) / float(LightSteps); 
+		vec3 Position = mix(StartPosition, EndPosition, t); 
+		float Traversal = mix(0.0, End, t); 
+		float StepSize = Traversal - PreviousTraversal; 
+		float Height = Traversal * Direction.y; 
+		Accum += SampleDensity(Position * 0.002f) * StepSize; 
+		PreviousTraversal = Traversal; 
 	}
 
 	const float SunAbsorbption = 1.0f;
-	float LightTransmittance = exp(-TotalDensity * SunAbsorbption); 
+	float LightTransmittance = exp(-Accum * SunAbsorbption); 
 	return LightTransmittance;
 }
 
-float powder(float od)
+float PowHalf(int n) {
+	return pow(0.5f, float(n));
+}
+
+float RaymarchLight(vec3 Point)
 {
-	return 1.0 - exp2(-od * 2.0);
+	vec3 Direction = normalize(u_SunDirection);
+	float End = (AtmosphereRadius - Point.y) / Direction.y;  
+	End = min(End, 5000.0); 
+	vec3 StartPosition = Point; 
+	vec3 EndPosition = Point + Direction * End; 
+	float x = 0.0; 
+	float ReturnTransmittance = 1.0;
+	float Accum = 0.0; 
+	float Dither = Bayer32(gl_FragCoord.xy);
+	int LightSteps = 16;
+
+	for(int Step = 0; Step < LightSteps; Step++) {
+
+		if(ReturnTransmittance < 0.0001) 
+			break; 
+	
+		float t = float(Step + Dither) / float(LightSteps); 
+		vec3 Position = mix(StartPosition, EndPosition, t); 
+		float Traversal = mix(0.0, End, t); 
+		float StepSize = Traversal - x; 
+
+		//Grab the density at this point 
+		float Height = Traversal * Direction.y; 
+		Accum += SampleDensity(Position * 0.002f) * StepSize; 
+		x = Traversal; 
+	}
+
+	const float SunAbsorbption = 1.0f;
+	//float LightTransmittance = exp(-Accum * SunAbsorbption); 
+	return Accum * 16.0f;
 }
 
 // Thanks to jess for suggesting this
@@ -252,19 +360,74 @@ float henyey_greenstein_phase_func(float mu)
 
 float hg2(float a, float g) 
 {
-      float g2 = g*g;
-      return (1-g2) / (4*3.1415*pow(1+g2-2*g*(a), 1.5));
+      float g2 = g * g;
+      return (1.0f - g2) / (4.0f * 3.1415f * pow(1.0f + g2 - 2.0f * g * (a), 1.5f));
 }
 
-// Credits : Robobo1221
-vec3 GetScatter(float DensitySample, float Phase, vec3 Point, vec3 SunColor, vec3 SkyLight)
+float powder(float od) 
+{
+    return 8.0f * (1.0f - 0.97f * exp(-10.0f * od));
+}
+
+float henyeyGreensteinPhase(float cosTheta, float g) 
+{
+	const float norm = 1.0f / TAU;
+	float gg = g * g;
+	return norm * ((1.0-gg) / pow(1.0+gg-2.0*g*cosTheta, 3.0/2.0));
+}
+
+float CloudPhaseFunction(float cosTheta, in float an, in float od) 
+{
+    float frontLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.45, od + 1.0));
+    float backLobe = henyeyGreensteinPhase(cosTheta * an, -pow(0.45, od + 1.0));
+    float peakLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.9, od + 1.0));
+    return mix(mix(frontLobe, backLobe, 0.25), peakLobe, 0.15);
+}
+
+float CloudAmbientPhase(float cosTheta, in float an, in float od) 
+{
+    float frontLobe = henyeyGreensteinPhase(cosTheta*an, pow(0.35, od + 1.0));
+    float backLobe  = henyeyGreensteinPhase(cosTheta*an, -pow(0.35, od + 1.0));
+    return mix(frontLobe, backLobe, 0.5);
+}
+
+// exponential dropoff : 
+// 1, 0.5, 0.25, 0.125 etc
+float[8] ScatterKernel = float[8](
+				pow(0.5f, float(0)),
+				pow(0.5f, float(1)),
+				pow(0.5f, float(2)),
+				pow(0.5f, float(3)),
+				pow(0.5f, float(4)),
+				pow(0.5f, float(5)),
+				pow(0.5f, float(6)),
+				pow(0.5f, float(7))
+);
+
+vec3 GetScatter(float DensitySample, float cosTheta, float CosThetaUp, float Phase, vec3 Point, vec3 SunColor, int CurrentStep)
 {
 	const float SunBrightness = 3.0f;
     float Integral = ScatterIntegral(DensitySample, 1.11);
-    float BeersPowder = powder(DensitySample * log(2.0));
+    float BeersPowderSample = powder(DensitySample);
+    float BeersPowder = mix(BeersPowderSample, 1.0, cosTheta * 0.5 + 0.5);
+	float BeersPowderSky = mix(BeersPowderSample, 1.0, CosThetaUp * 0.5f + 0.5f);
+	float AmbientMarchResult = RaymarchAmbient(Point);
 	float LightMarchResult = RaymarchLight(Point);
-	vec3 SunLight = (SunColor * LightMarchResult * BeersPowder) * Phase * HALF_PI * SunBrightness;
-    return (SunLight) * Integral * PI;
+
+	float CLOUD_EXTINC = 0.3585f;
+	vec2 Scatter = vec2(0.0f);
+
+	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
+	{
+		float PhaseSun = CloudPhaseFunction(cosTheta, ScatterKernel[ScatterStep], LightMarchResult);//*1.25;
+		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
+		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CLOUD_EXTINC *ScatterKernel[ScatterStep]),
+		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CLOUD_EXTINC * ScatterKernel[ScatterStep]));
+		Scatter += S * ScatterKernel[ScatterStep];
+   }
+
+	vec3 SunLight = SunColor * Scatter.x;
+    return (SunLight * (Scatter.y*Scatter.y*Scatter.y));
 }
 
 vec3 ComputeRayDirection()
@@ -346,11 +509,10 @@ void main()
 
 	vec3 StartPosition = Origin + Direction * Start; 
 	vec3 EndPosition = Origin + Direction * End; 
-	int StepCount = u_HighQualityClouds ? 24 : 12;
+	int StepCount = 16;
 	
 	float Transmittance = 1.0f;
 	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
-	float Phase2Lobes = phase2Lobes(CosAngle) * 0.7f;
 	float Dither;
 
 	if (u_UseBayer)
@@ -371,25 +533,33 @@ void main()
 	vec3 SunColor = vec3(1.0f);
 	float x = 0.0f;
 
+
+	float CosTheta = dot(Direction, normalize(u_SunDirection));
+	const vec3 NormalizedUp = normalize(vec3(0.0f, 1.0f, 0.0f));
+	float CosThetaUp = dot(Direction, NormalizedUp);
+
+	const float Phase2Lobes = 1.0f;
+
 	for (int i = 0 ; i < StepCount ; i++)
 	{
 		float t = float(i + Dither) / float(StepCount); 
 		float Traversal = mix(0.0, End-Start, t); 
 		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
-		float DensitySample = SampleDensity(CurrentPoint * 0.002f) * 2.0f;
-		
+		float DensitySample = SampleDensity(CurrentPoint * 0.002f);
 		if (DensitySample < 0.001f) {
 			continue;
 		}
 
-		DensitySample *= 10.75f / 2.0f;
+		DensitySample *= 16.0f;
 		float StepSize = Traversal - x; 
-		Scattering += GetScatter(DensitySample, Phase2Lobes, CurrentPoint, SunColor, SkyLight) * Transmittance;
+		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
 		x = Traversal;
 	}
 	
 	// This is like the most non-physically based thing on earth but idc xD
 	Scattering = pow(Scattering, vec3(1.0f / 16.0f));
+
+	// store it!
 	o_Data = vec4(Scattering, Transmittance);
 }

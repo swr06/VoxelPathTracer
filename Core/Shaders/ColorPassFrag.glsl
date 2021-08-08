@@ -276,9 +276,10 @@ vec3 GetAtmosphereAndClouds(vec3 Sky)
     S = mix(S, D, DuskVisibility);
     vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
-    vec3 Scatter = SampledCloudData.xyz;
     float Transmittance = SampledCloudData.w;
-    return (Sky * 1.0f) * clamp(Transmittance, 0.95f, 1.0f) + (Scatter * 1.0f * M); // see ya pbr
+    vec3 Scatter = SampledCloudData.xyz;
+    Sky = Sky * max(Transmittance, 0.9f);
+    return vec3(Sky + Scatter*M);
 }
 
 float GetLuminance(vec3 color) {

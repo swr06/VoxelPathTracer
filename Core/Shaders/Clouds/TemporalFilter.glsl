@@ -1,5 +1,6 @@
 #version 330 core
 #define DENOISE
+//#define BE_USELESS
 
 layout (location = 0) out vec4 o_Color;
 
@@ -82,6 +83,12 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 void main()
 {
 	vec4 CurrentColor = textureBicubic(u_CurrentColorTexture, v_TexCoords).rgba;
+
+	#ifdef BE_USELESS
+	o_Color = CurrentColor;
+	return;
+	#endif
+
 	vec3 PlayerPosition = u_InverseView[3].xyz;
 
 	if (CurrentColor.w > -0.5f)
@@ -100,7 +107,7 @@ void main()
 
 		bool OcclusionValidity = (T_Base > 0.0f) == (T_Prev > 0.0f);
 
-		float ReprojectBias = 0.003458f;
+		float ReprojectBias = 0.006458f;
 		if(PreviousCoord.x > 0.0 + ReprojectBias && PreviousCoord.x < 1.0 - ReprojectBias
 			&& PreviousCoord.y > 0.0 + ReprojectBias && PreviousCoord.y < 1.0 - ReprojectBias && 
 			OcclusionValidity)

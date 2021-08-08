@@ -120,45 +120,19 @@ float worleyFbm(vec3 p, float freq)
         	 worleyNoise(p*freq*4., freq*4.) * .125;
 }
 
-float GetDensity(in vec4 noise)
-{
-	vec4 sampled_noise = noise;
-
-	float perlinWorley = sampled_noise.x;
-	vec3 worley = sampled_noise.yzw;
-	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 
-	
-	float cloud = remap(perlinWorley, wfbm - 1.0f, 1.0f, 0.0f, 1.0f);
-	return clamp(cloud, 0.0f, 2.0f);
-}
 
 void main()
 {
     o_Noise = vec4(0.0f);
     
     vec2 uv = v_TexCoords;
-
     vec4 col = vec4(0.);
-    
-    float freq = 4.;
-    
-    float GeneratedDensities[4];
-
-    for (int i = 0 ; i < 4 ; i++)
-    {
-        float pfbm = mix(1., perlinfbm(vec3(uv * vec2(i * 2.0f, i * 12.0f), 0.0f), 4., 7 + (i*5+1)), .5);
-        pfbm = abs(pfbm * 2. - 1.); // billowy perlin noise
-
-        float Slice = u_CurrentSlice * (pow(i, 16));
-
-        col.g = worleyFbm(vec3(uv, Slice), freq);
-        col.b = worleyFbm(vec3(uv, Slice), freq * 3.0f);
-        col.a = worleyFbm(vec3(uv, Slice), freq * 16.0f);
-        col.r = remap(pfbm, 0., 1., col.g, 1.); 
-        GeneratedDensities[i] = GetDensity(col);
-
-        freq += 4.0f;
-    }
-    
-    o_Noise = vec4(GeneratedDensities[0], GeneratedDensities[1], GeneratedDensities[2], GeneratedDensities[3]);
+    float freq = 384.;
+    float pfbm= mix(1., perlinfbm(vec3(uv, 0.0f), 4., 7), .5);
+    pfbm = abs(pfbm * 2. - 1.); 
+    col.g += worleyFbm(vec3(uv, u_CurrentSlice), freq * 1.5f);
+    col.b += worleyFbm(vec3(uv, u_CurrentSlice), freq * 8.0f);
+    col.a += worleyFbm(vec3(uv, u_CurrentSlice), freq * 17.0f);
+    col.r += remap(pfbm, 0., 1., col.g, 1.);
+    o_Noise = vec4(col);
 }

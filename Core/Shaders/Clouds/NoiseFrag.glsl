@@ -136,8 +136,8 @@ void main()
     pfbm = abs(pfbm * 2. - 1.); // billowy perlin noise
     
     col.g += worleyFbm(vec3(uv, u_CurrentSlice), freq);
-    col.b += worleyFbm(vec3(uv, u_CurrentSlice), freq * 3.0f);
-    col.a += worleyFbm(vec3(uv, u_CurrentSlice), freq * 16.0f);
+    col.b += worleyFbm(vec3(uv, u_CurrentSlice), freq * 2.0f);
+    col.a += worleyFbm(vec3(uv, u_CurrentSlice), freq * 4.0f);
     col.r += remap(pfbm, 0., 1., col.g, 1.); // perlin-worley
     
     o_Noise = vec4(col);
