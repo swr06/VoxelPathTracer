@@ -414,15 +414,15 @@ vec3 GetScatter(float DensitySample, float cosTheta, float CosThetaUp, float Pha
 	float AmbientMarchResult = RaymarchAmbient(Point);
 	float LightMarchResult = RaymarchLight(Point);
 
-	float CLOUD_EXTINC = 0.3585f;
+	float CloudCoefficient = 0.3585f;
 	vec2 Scatter = vec2(0.0f);
 
 	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
 	{
 		float PhaseSun = CloudPhaseFunction(cosTheta, ScatterKernel[ScatterStep], LightMarchResult);//*1.25;
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
-		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CLOUD_EXTINC *ScatterKernel[ScatterStep]),
-		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CLOUD_EXTINC * ScatterKernel[ScatterStep]));
+		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudCoefficient *ScatterKernel[ScatterStep]),
+		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudCoefficient * ScatterKernel[ScatterStep]));
 		Scatter += S * ScatterKernel[ScatterStep];
    }
 
