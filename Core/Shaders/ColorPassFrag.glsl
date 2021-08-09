@@ -779,8 +779,8 @@ void main()
 
             // Compute Specular indirect from spherical harmonic 
 
-            vec4 SpecularSH = textureBicubic(u_ReflectionSHData, v_TexCoords);
-            vec2 SpecularCoCg = textureBicubic(u_ReflectionCoCgData, v_TexCoords).rg;
+            vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
+            vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
             vec3 SpecularIndirect = vec3(0.0f);
             
             if (InBiasedSS) {
