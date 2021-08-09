@@ -333,7 +333,7 @@ vec2 SampleBlueNoise2D()
 void main()
 {
     #ifdef ANIMATE_NOISE
-		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(u_Time * 1000);
+		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 1000);
 	#else
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 	#endif
@@ -350,7 +350,7 @@ void main()
 
 	if (Position.w < 0.0f)
 	{
-		float SH[6] = IrridianceToSH(texture(u_Skymap, normalize(v_RayDirection)).xyz * 2.0f, Normal);
+		float SH[6] = IrridianceToSH(texture(u_Skymap, normalize(v_RayDirection)).xyz * 2.66f, Normal);
 		o_SphericalHarmonicData_1 = vec4(SH[0], SH[1], SH[2], SH[3]);
 		o_ColorData.xy = vec2(SH[4], SH[5]);
 		return;

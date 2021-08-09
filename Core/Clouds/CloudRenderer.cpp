@@ -29,11 +29,11 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(256, 128, 256, nullptr);
+	CloudNoise->CreateTexture(128, 128, 128, nullptr);
 	CloudNoiseDetail->CreateTexture(96, 64, 96, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
-	Clouds::RenderNoise(*CloudNoise, 256, false);
+	Clouds::RenderNoise(*CloudNoise, 129, false);
 	Clouds::RenderNoise(*CloudNoiseDetail, 96, true);
 	std::cout << "\nRendered noise textures!\n";
 }

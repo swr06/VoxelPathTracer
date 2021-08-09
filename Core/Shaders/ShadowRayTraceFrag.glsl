@@ -416,7 +416,7 @@ void main()
 
 		// 0.98906604617 -> physically based
 		// 0.999825604617
-		const float CosTheta = 0.999835604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
+		const float CosTheta = 0.9998845604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
 		vec2 Xi = Hash;
 		vec3 ConeSample = TBN * SampleCone(Xi, CosTheta);
         JitteredLightDirection = ConeSample;

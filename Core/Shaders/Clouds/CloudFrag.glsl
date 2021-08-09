@@ -1,11 +1,12 @@
 #version 330 core
 
 
-#define CLOUD_HEIGHT 70
+#define CLOUD_HEIGHT 70 // temp
 #define PI 3.14159265359
 #define TAU (3.14159265359 * 2.0f)
 #define HALF_PI (3.14159265359 * 0.5f)
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
+#define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -113,6 +114,7 @@ vec2 hash( vec2 p ) {
 	return -1.0 + 2.0*fract(sin(p)*43758.5453123);
 }
 
+// basic fbm
 float noise( in vec2 p ) {
     const float K1 = 0.366025404; // (sqrt(3)-1)/2;
     const float K2 = 0.211324865; // (3-sqrt(3))/6;
@@ -262,6 +264,7 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
+// raymarches up to find the ambient denisty
 float RaymarchAmbient(vec3 Point) 
 {
 	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
@@ -273,7 +276,7 @@ float RaymarchAmbient(vec3 Point)
 	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
 	float Dither = Bayer16(gl_FragCoord.xy);
-	int LightSteps = 4;
+	int LightSteps = 8;
 
 	for(int Step = 0; Step < LightSteps; Step++) {
 
@@ -291,9 +294,7 @@ float RaymarchAmbient(vec3 Point)
 		PreviousTraversal = Traversal; 
 	}
 
-	const float SunAbsorbption = 1.0f;
-	float LightTransmittance = exp(-Accum * SunAbsorbption); 
-	return LightTransmittance;
+	return Accum * 8.0f;
 }
 
 float PowHalf(int n) {
@@ -404,30 +405,31 @@ float[8] ScatterKernel = float[8](
 				pow(0.5f, float(7))
 );
 
-vec3 GetScatter(float DensitySample, float cosTheta, float CosThetaUp, float Phase, vec3 Point, vec3 SunColor, int CurrentStep)
+vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Phase, vec3 Point, vec3 SunColor, int CurrentStep)
 {
 	const float SunBrightness = 3.0f;
-    float Integral = ScatterIntegral(DensitySample, 1.11);
     float BeersPowderSample = powder(DensitySample);
-    float BeersPowder = mix(BeersPowderSample, 1.0, cosTheta * 0.5 + 0.5);
+    float BeersPowder = mix(BeersPowderSample, 1.0, CosTheta * 0.5f + 0.5f);
 	float BeersPowderSky = mix(BeersPowderSample, 1.0, CosThetaUp * 0.5f + 0.5f);
 	float AmbientMarchResult = RaymarchAmbient(Point);
 	float LightMarchResult = RaymarchLight(Point);
 
-	float CloudCoefficient = 0.3585f;
+	float CloudShadowCoefficient = 0.30585f; // Increase to have a stronger shadow
 	vec2 Scatter = vec2(0.0f);
 
+	// fake second scatter :
 	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
 	{
-		float PhaseSun = CloudPhaseFunction(cosTheta, ScatterKernel[ScatterStep], LightMarchResult);//*1.25;
+		float PhaseSun = CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult);
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
-		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudCoefficient *ScatterKernel[ScatterStep]),
-		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudCoefficient * ScatterKernel[ScatterStep]));
+		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
+		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
 		Scatter += S * ScatterKernel[ScatterStep];
    }
 
 	vec3 SunLight = SunColor * Scatter.x;
-    return (SunLight * (Scatter.y*Scatter.y*Scatter.y));
+	float SkyShadow = Scatter.y * (PI * 0.85f);
+    return (SunLight * SkyShadow);
 }
 
 vec3 ComputeRayDirection()
