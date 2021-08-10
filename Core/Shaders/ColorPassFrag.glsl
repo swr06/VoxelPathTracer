@@ -150,11 +150,12 @@ float Noise2d( in vec2 x )
     return fract( 415.92653 * ( xhash + yhash ) );
 }
 
+// thresholded white noise :
 float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
 {
-    float StarVal = Noise2d( vSamplePos );
+    float StarVal = Noise2d(vSamplePos);
     if ( StarVal >= fThreshhold )
-        StarVal = pow( (StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
+        StarVal = pow((StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
     else
         StarVal = 0.0;
     return StarVal;
@@ -173,20 +174,18 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-// Original star shader by : https://www.shadertoy.com/view/Md2SR3
-float StableStarField( in vec2 vSamplePos, float fThreshhold )
+float StableStarField(in vec2 vSamplePos, float fThreshhold)
 {
-    float fractX = fract( vSamplePos.x );
-    float fractY = fract( vSamplePos.y );
+    float fractX = fract(vSamplePos.x);
+    float fractY = fract(vSamplePos.y);
     vec2 floorSample = floor( vSamplePos );
     float v1 = NoisyStarField( floorSample, fThreshhold );
-    float v2 = NoisyStarField( floorSample + vec2( 0.0, 1.0 ), fThreshhold );
-    float v3 = NoisyStarField( floorSample + vec2( 1.0, 0.0 ), fThreshhold );
-    float v4 = NoisyStarField( floorSample + vec2( 1.0, 1.0 ), fThreshhold );
-
-    float StarVal =   v1 * ( 1.0 - fractX ) * ( 1.0 - fractY )
-        			+ v2 * ( 1.0 - fractX ) * fractY
-        			+ v3 * fractX * ( 1.0 - fractY )
+    float v2 = NoisyStarField( floorSample + vec2(0.0, 1.0), fThreshhold );
+    float v3 = NoisyStarField( floorSample + vec2(1.0, 0.0), fThreshhold );
+    float v4 = NoisyStarField( floorSample + vec2(1.0, 1.0), fThreshhold );
+    float StarVal =   v1 * (1.0 - fractX) * (1.0 - fractY)
+        			+ v2 * (1.0 - fractX) * fractY
+        			+ v3 * fractX * (1.0 - fractY)
         			+ v4 * fractX * fractY;
 	return StarVal;
 }
@@ -200,11 +199,10 @@ float stars(vec3 fragpos)
     fragpos.y = abs(fragpos.y);
 	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	vec2 uv = fragpos.xz / (1.0f + elevation);
-
-    float star = StableStarField(uv * 700.0f, 0.999);
-    star *= 2.0f;
+    float star = StableStarField(uv * 700.0f, 0.99);
+    star *= 0.06f;
     float rand_val = rand(fragpos.xy);
-	return clamp(star, 0.0f, 100000.0f) * 30.0f;
+	return clamp(star, 0.0f, 100000.0f) * 4.46f;
 }
 
 vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
@@ -230,21 +228,28 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	return vec2(dstToBox, dstInsideBox);
 }
 
-bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
+bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transmittance)
 {
     vec3 sun_dir = normalize(u_SunDirection); 
     vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
 
     vec3 ray_dir = normalize(in_ray_dir);
     
-    if(dot(ray_dir, sun_dir) > 0.999825f)
-    {
-        atmosphere_color = ATMOSPHERE_SUN_COLOR; return true;
-    }
+    if (transmittance > 0.7f) {
 
-    if(dot(ray_dir, moon_dir) > 0.99986f)
-    {
-        atmosphere_color = ATMOSPHERE_MOON_COLOR; return true;
+        if(dot(ray_dir, sun_dir) > 0.999825f)
+        {
+            atmosphere_color = ATMOSPHERE_SUN_COLOR; 
+            o_PBR.w = float(2.6f);
+            return true;
+        }
+        
+        if(dot(ray_dir, moon_dir) > 0.99986f)
+        {
+            atmosphere_color = ATMOSPHERE_MOON_COLOR;
+            o_PBR.w = float(1.2f);
+            return true;
+        }
     }
 
     vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
@@ -255,20 +260,15 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
 
-    atmosphere += stars;
+    atmosphere += stars*transmittance;
 
     atmosphere_color = atmosphere;
 
     return false;
 }
 
-vec3 GetAtmosphereAndClouds(vec3 Sky)
+vec3 GetAtmosphereAndClouds()
 {
-    if (!u_CloudsEnabled)
-    {
-        return Sky;
-    }
-
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
     const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
     vec3 S = vec3(1.45f);
@@ -278,6 +278,8 @@ vec3 GetAtmosphereAndClouds(vec3 Sky)
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
     float Transmittance = SampledCloudData.w;
     vec3 Scatter = SampledCloudData.xyz;
+    vec3 Sky = vec3(0.0f);
+    bool v = GetAtmosphere(Sky, v_RayDirection, Transmittance*4.5f);
     Sky = Sky * max(Transmittance, 0.9f);
     return vec3(Sky + Scatter*M);
 }
@@ -645,10 +647,7 @@ void main()
 
     vec3 SampledNormals = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);
-
     o_Color = vec3(1.0f);
-    bool BodyIntersect = GetAtmosphere(AtmosphereAt, v_RayDirection);
-    o_PBR.w = float(BodyIntersect);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -832,21 +831,19 @@ void main()
 
         else 
         {   
-            vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt);
+            vec3 CloudAndSky = GetAtmosphereAndClouds();
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);
-            o_PBR.w = float(BodyIntersect) * 0.35f;
         }
     }
 
     else 
     {   
-        vec3 CloudAndSky = GetAtmosphereAndClouds(AtmosphereAt);
+        vec3 CloudAndSky = GetAtmosphereAndClouds();
         o_Color = (CloudAndSky);
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
-        o_PBR.w = float(BodyIntersect) * 0.35f;
     }
 }
 

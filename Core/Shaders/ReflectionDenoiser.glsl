@@ -268,7 +268,7 @@ void main()
 			m = RoughnessAt * 16.0f;
 			m = 1.0f - m;
 			m = m * m * m * m;
-			m = clamp(m, 0.01f, 0.999f);
+			m = clamp(m, 0.01f, 0.999f); 
 		}  
 
 		o_SpatialResult = mix(BaseSampled, BlurredSH, m);

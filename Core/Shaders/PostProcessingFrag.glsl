@@ -474,6 +474,29 @@ vec4 textureGood( sampler2D sam, vec2 uv )
                 mix( c, d, fuv.x), fuv.y );
 }
 
+float Brightness(vec3 c)
+{
+    return max(max(c.r, c.g), c.b);
+}
+
+vec3 HighQualityBloomUpsample(int lod) { 
+	vec2 t = textureSize(u_BloomMips[lod], 0);
+	float scale = 1.1f;
+	vec4 d = t.xyxy * vec4(1, 1, -1, 0) * scale;
+	vec2 uv = v_TexCoords;
+    vec3 s = vec3(0.0f);
+    s  = texture(u_BloomMips[lod], uv - d.xy).xyz;
+    s += texture(u_BloomMips[lod], uv - d.wy).xyz * 2;
+    s += texture(u_BloomMips[lod], uv - d.zy).xyz;
+    s += texture(u_BloomMips[lod], uv + d.zw).xyz * 2;
+    s += texture(u_BloomMips[lod], uv       ).xyz * 4;
+    s += texture(u_BloomMips[lod], uv + d.xw).xyz * 2;
+    s += texture(u_BloomMips[lod], uv + d.zy).xyz;
+    s += texture(u_BloomMips[lod], uv + d.wy).xyz * 2;
+    s += texture(u_BloomMips[lod], uv + d.xy).xyz;
+    return s * (1.0 / 16);
+}
+
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv);
 
 void main()
@@ -563,19 +586,28 @@ void main()
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
 
+		// 0.25
+		// bicubic upsampling because the bloom textures are super low res
 		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
 		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f));
 		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f));
 		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f));
 
-		vec3 TotalBloom = vec3(0.0f);
-		float AmplificationFactor = 1.71270f;
-		TotalBloom = pow(Bloom[0] ,vec3(1.0f / AmplificationFactor)) * 2.2 + TotalBloom;
-		TotalBloom = pow(Bloom[1] ,vec3(1.0f / AmplificationFactor)) * 0.5f + TotalBloom;
-		TotalBloom = pow(Bloom[2] ,vec3(1.0f / AmplificationFactor)) * 0.25 + TotalBloom;
-		TotalBloom = pow(Bloom[3] ,vec3(1.0f / AmplificationFactor)) * 0.1 + TotalBloom;
+		//Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
+		//Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f));
+		//Bloom[2] += pow(HighQualityBloomUpsample(2), vec3(2.2f));
+		//Bloom[3] += pow(HighQualityBloomUpsample(3), vec3(2.2f));
 
-		o_Color += TotalBloom;
+		vec3 TotalBloom = vec3(0.0f);
+		float AmplificationFactor = 1.32500f;
+
+		// fit the bloom to a curve --->
+		TotalBloom = pow(Bloom[0] ,vec3(1.0f / AmplificationFactor)) * 1 + TotalBloom;
+		TotalBloom = pow(Bloom[1] ,vec3(1.0f / AmplificationFactor)) * 1  + TotalBloom;
+		TotalBloom = pow(Bloom[2] ,vec3(1.0f / AmplificationFactor)) * 1  + TotalBloom;
+		TotalBloom = pow(Bloom[3] ,vec3(1.0f / AmplificationFactor)) * 1 + TotalBloom;
+		TotalBloom *= 0.325f;
+		o_Color += TotalBloom * 2.0f;
 	}
 
 	else 
