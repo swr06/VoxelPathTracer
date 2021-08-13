@@ -12,15 +12,8 @@ in vec3 v_RayDirection;
 
 uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_PositionTexture;
-
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousPositionTexture;
-
-uniform sampler2D u_CurrentNormalTexture;
-uniform sampler2D u_PreviousNormalTexture;
-
-uniform sampler2D u_CurrentBlockTexture;
-uniform sampler2D u_PreviousBlockTexture;
 
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
@@ -51,31 +44,6 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
 }
 
-bool CompareFloatNormal(float x, float y) {
-    return abs(x - y) < 0.02f;
-}
-
-vec3 GetNormalFromID(float n) {
-	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
-    int idx = int(round(n*10.0f));
-
-    if (idx > 5) {
-        return vec3(1.0f, 1.0f, 1.0f);
-    }
-
-    return Normals[idx];
-}
-
-vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
-	return GetNormalFromID(texture(samp, txc).x);
-}
-
-bool Vec3Equal(vec3 a, vec3 b) {
-	return (abs(a.x-b.x) < 0.01f) && (abs(a.y-b.y) < 0.01f) && (abs(a.z-b.z) < 0.01f);
-}
-
 vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor) 
 {
 	vec2 neighbourhoodOffsets[8] = vec2[8]
@@ -101,7 +69,7 @@ vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor)
 
 	}
 
-	return clamp(tempColor, minclr - 0.00945f, maxclr + 0.00945f);
+	return clamp(tempColor, minclr - 0.025f, maxclr + 0.025f);
 }
 
 
@@ -131,9 +99,6 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
 	float bias = 0.01f;
-	vec3 CurrentNormal = SampleNormalFromTex(u_CurrentNormalTexture, v_TexCoords).xyz;
-	int CurrentBlock = clamp(int(floor((texture(u_CurrentBlockTexture, v_TexCoords).r) * 255.0f)), 0, 127);
-
 	//PreviousCoord = texture(PreviousCoord, WorldPosition.xyz);
 
 	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
@@ -141,20 +106,16 @@ void main()
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
-		vec4 WorldPositionPrev = GetPositionAt(u_PreviousPositionTexture, PreviousCoord).rgba;
-		vec3 PreviousNormal = SampleNormalFromTex(u_PreviousNormalTexture, PreviousCoord).xyz;
-		float Error = distance(WorldPositionPrev.xyz, WorldPosition.xyz);
-		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
-		int PreviousBlock = clamp(int(floor((texture(u_PreviousBlockTexture, PreviousCoord).r) * 255.0f)), 0, 127);
+		vec4 WorldPositionPrev = GetPositionAt(u_PositionTexture, PreviousCoord).rgba;
 
-		PrevColor = NeighbourhoodClamping(CurrentColor, PrevColor);
-
-		if (WorldPositionPrev.w <= 0.0f || Error > 0.5f || !Vec3Equal(PreviousNormal, CurrentNormal) ||
-			PreviousBlock != CurrentBlock)
+		if (WorldPositionPrev.w <= 0.0f)
 		{
 			o_Color = CurrentColor;
 			return;
 		}
+
+		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
+		PrevColor = NeighbourhoodClamping(CurrentColor, PrevColor);
 
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;

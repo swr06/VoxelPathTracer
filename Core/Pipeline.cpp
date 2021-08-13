@@ -2026,12 +2026,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetInteger("u_PositionTexture", 1);
 		TemporalAAShader.SetInteger("u_PreviousColorTexture", 2);
 		TemporalAAShader.SetInteger("u_PreviousPositionTexture", 3);
-		TemporalAAShader.SetInteger("u_CurrentNormalTexture", 4);
-		TemporalAAShader.SetInteger("u_PreviousNormalTexture", 5);
-
-		TemporalAAShader.SetInteger("u_CurrentBlockTexture", 6);
-		TemporalAAShader.SetInteger("u_PreviousBlockTexture", 7);
-
 		TemporalAAShader.SetBool("u_Enabled", TAA);
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
@@ -2041,22 +2035,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
+
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevTAAFBO.GetTexture());
+
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(0));
-
-		glActiveTexture(GL_TEXTURE4);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
-		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(1));
-
-		glActiveTexture(GL_TEXTURE6);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
-		glActiveTexture(GL_TEXTURE7);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(2));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
