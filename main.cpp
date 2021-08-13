@@ -1,4 +1,4 @@
-/* VoxelRT - A Voxel Raytracing Engine
+   /* VoxelRT - A Voxel Raytracing Engine
 Written by : Samuel Rasquinha
 
 Contributors (In no particular order.) : 
