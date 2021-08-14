@@ -586,28 +586,25 @@ void main()
 	{
 		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
 
-		// 0.25
 		// bicubic upsampling because the bloom textures are super low res
+		// res : 0.25, 0.125, 0.0625, 0.03125
+		// 16 total samples
 		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
-		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f));
-		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f));
-		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f));
-
-		//Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
-		//Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f));
-		//Bloom[2] += pow(HighQualityBloomUpsample(2), vec3(2.2f));
-		//Bloom[3] += pow(HighQualityBloomUpsample(3), vec3(2.2f));
+		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f)); 
+		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f)); 
+		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f)); 
 
 		vec3 TotalBloom = vec3(0.0f);
-		float AmplificationFactor = 1.32500f;
+		float AmplificationFactor = 1.350f;
+		
+		// fit the bloom to a curve which amplifies it based on some factor --->
 
-		// fit the bloom to a curve --->
-		TotalBloom = pow(Bloom[0] ,vec3(1.0f / AmplificationFactor)) * 1 + TotalBloom;
-		TotalBloom = pow(Bloom[1] ,vec3(1.0f / AmplificationFactor)) * 1  + TotalBloom;
-		TotalBloom = pow(Bloom[2] ,vec3(1.0f / AmplificationFactor)) * 1  + TotalBloom;
-		TotalBloom = pow(Bloom[3] ,vec3(1.0f / AmplificationFactor)) * 1 + TotalBloom;
-		TotalBloom *= 0.325f;
-		o_Color += TotalBloom * 2.0f;
+		float Weights[4] = float[4](0.5f, 0.25f, 0.25f, 0.25f);
+		TotalBloom = (pow(Bloom[0] ,vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
+		TotalBloom = (pow(Bloom[1] ,vec3(1.0f / AmplificationFactor)) * Weights[1])  + TotalBloom;
+		TotalBloom = (pow(Bloom[2] ,vec3(1.0f / AmplificationFactor)) * Weights[2])  + TotalBloom;
+		TotalBloom = (pow(Bloom[3] ,vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+		o_Color += TotalBloom;
 	}
 
 	else 

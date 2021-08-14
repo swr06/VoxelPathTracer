@@ -98,9 +98,9 @@ namespace VoxelRT
 
 			// Blur the mips					
 			BlurBloomMip(bloom_fbo, 0, source_tex, BloomAlternateFBO->GetTexture(0), hq);
-			BlurBloomMip(bloom_fbo, 1, source_tex, BloomAlternateFBO->GetTexture(0), hq);
-			BlurBloomMip(bloom_fbo, 2, source_tex, BloomAlternateFBO->GetTexture(0), hq);
-			BlurBloomMip(bloom_fbo, 3, source_tex, BloomAlternateFBO->GetTexture(0), hq);
+			BlurBloomMip(bloom_fbo, 1, source_tex, bloom_fbo.m_Mips[0], hq);
+			BlurBloomMip(bloom_fbo, 2, source_tex, bloom_fbo.m_Mips[1], hq);
+			BlurBloomMip(bloom_fbo, 3, source_tex, bloom_fbo.m_Mips[2], hq);
 
 			return;
 		}

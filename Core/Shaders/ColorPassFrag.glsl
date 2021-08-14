@@ -803,7 +803,7 @@ void main()
             // Final combine : 
             // Use fresnel to get the amount of diffuse and reflected light 
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
-                      (SpecularFactor * SpecularIndirect * min((PBRMap.g + 1.0f), 1.3f))) 
+                      (SpecularFactor * SpecularIndirect)) 
                       * clamp(SampledAO, 0.2f, 1.01f);
             
             // Output utility : 

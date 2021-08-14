@@ -561,6 +561,9 @@
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl">
       <Filter>Source Files\Shaders\Reference</Filter>
     </None>
+    <None Include="Core\Shaders\Functions\FXAA.glsl">
+      <Filter>Source Files\Shaders\Reference</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

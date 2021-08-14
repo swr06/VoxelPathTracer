@@ -16,9 +16,7 @@ bool InThresholdedScreenSpace(vec2 x)
 
 void main()
 {
-    float EffectiveLOD = u_LOD + 0.5f;
     vec2 TexelSize = 1.0f / textureSize(u_Texture, 0);
-    vec2 Scale = exp2(EffectiveLOD) * TexelSize;
     vec3 TotalBloom = vec3(0.0f); 
     float TotalWeight = 0.0f;
 
@@ -30,11 +28,10 @@ void main()
     {
         for (int j = -KernelSize; j < KernelSize; j++)
         {
-            vec2 S = vec2(i, j) * Scale + exp2(EffectiveLOD) * TexelSize + v_TexCoords;
+            vec2 S = v_TexCoords + vec2(i,j) * TexelSize;
             if (!InThresholdedScreenSpace(S)) { continue; }
-            float CurrentWeight = pow(1.0 - length(vec2(i, j)) * 0.125f, 6.0);
-            //float CurrentWeight = GaussianWeights[i + 5] * GaussianWeights[j + 5];
-            TotalBloom += texture(u_Texture, S, clamp(float(u_LOD), 0.0f, 2.0f)).rgb * CurrentWeight;
+            float CurrentWeight = GaussianWeights[i + 5] * GaussianWeights[j + 5];
+            TotalBloom += textureLod(u_Texture, S, 0.0f).rgb * CurrentWeight;
             TotalWeight += CurrentWeight;
         }
     }
