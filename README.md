@@ -22,8 +22,8 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Physically based atmosphere 
 - God Rays (Screen space) 
 - Per Pixel Emissive Materials
-- Spatial filtering (Atrous and SVGF)
-- Screen Space Ambient Occlusion
+- Spatial filtering (Atrous and SVGF) and Spatial Upscaling
+- Screen Space Ambient Occlusion 
 - Ray Traced Ambient Occlusion
 - Bloom (Mip based) 
 - Volumetric clouds
@@ -48,6 +48,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - The path tracer has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
 - The path tracer is *not* guarenteed to work on ANY Intel GPUs
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version (OpenGL 4.5) 
+- I don't work on this project a lot anymore, newer features might be delayed.
 
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
