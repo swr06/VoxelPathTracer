@@ -608,6 +608,41 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
+void SpatialUpscale(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg)
+{
+	vec4 TotalSH = vec4(0.0f);
+	vec2 TotalCoCg = vec2(0.0f);
+	float TotalWeight = 0.0f;
+
+	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHData1, 0);
+	const float AtrousWeights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
+
+	for (int x = -2 ; x <= 2 ; x++) {
+		for (int y = -2 ; y <= 2 ; y++) {
+			
+			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
+			float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
+
+            if (LinearDepthAt <= 0.0f + 1e-2) { continue; }
+
+			vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+			float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
+			DepthWeight = pow(DepthWeight, 12.0f);
+            DepthWeight = clamp(DepthWeight, 0.0f, 0.99f);
+			float NormalWeight = pow(abs(dot(NormalAt, BaseNormal)), 8.0f);
+			float Kernel = AtrousWeights[x + 2] * AtrousWeights[y + 2];
+			float Weight = Kernel * NormalWeight * DepthWeight;
+			Weight = max(Weight, 0.01f);
+			TotalSH += texture(u_DiffuseSHData1, SampleCoord).xyzw * Weight;
+			TotalCoCg += texture(u_DiffuseSHData2, SampleCoord).xy * Weight;
+			TotalWeight += Weight;
+		}
+	}
+
+    SH = TotalSH;
+    CoCg = TotalCoCg;
+}
+
 vec3 saturate(vec3 x)
 {
     return clamp(x, 0.0f, 1.0f);
@@ -736,8 +771,10 @@ void main()
             //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).xyz;
             //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
             
-            vec4 SHy = textureBicubic(u_DiffuseSHData1, v_TexCoords);
-            vec2 ShCoCg = textureBicubic(u_DiffuseSHData2, v_TexCoords).xy;
+            vec4 SHy;
+            vec2 ShCoCg;
+
+            SpatialUpscale(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg);
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);

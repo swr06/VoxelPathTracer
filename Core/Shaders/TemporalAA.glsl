@@ -19,6 +19,7 @@ uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
 uniform bool u_Enabled;
+uniform bool u_BlockModified;
 
 vec2 View;
 vec2 Dimensions;
@@ -43,33 +44,38 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 	float Dist = texture(pos_tex, txc).r;
 	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
 }
-
-vec3 NeighbourhoodClamping(vec3 color, vec3 tempColor) 
+vec3 clipAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
 {
-	vec2 neighbourhoodOffsets[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
+    vec3 pClip = 0.5 * (maxColor + minColor); 
+    vec3 eClip = 0.5 * (maxColor - minColor); 
+    vec3 vClip = prevColor - pClip;
+    vec3 vUnit = vClip / eClip;
+    vec3 aUnit = abs(vUnit);
+    float denom = max(aUnit.x, max(aUnit.y, aUnit.z));
+    return denom > 1.0 ? pClip + vClip / denom : prevColor;
+}
 
-	vec3 minclr = color, maxclr = color;
+vec3 ClampColor(vec3 Color) 
+{
+    vec3 MinColor = vec3(100.0);
+	vec3 MaxColor = vec3(-100.0); 
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
 
-	for(int i = 0; i < 8; i++) 
+    for(int x = -2; x <= 2; x++) 
 	{
-		vec2 offset = neighbourhoodOffsets[i] * View;
-		vec3 clr = texture(u_CurrentColorTexture, TexCoord + offset, 0.0).rgb;
-		minclr = min(minclr, clr);
-		maxclr = max(maxclr, clr);
+        for(int y = -2; y <= 2; y++) 
+		{
+            vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
+			float DepthAt = texture(u_PositionTexture, v_TexCoords).x;
 
-	}
+			if (DepthAt <= 0.0f) { continue; }
 
-	return clamp(tempColor, minclr - 0.025f, maxclr + 0.025f);
+            MinColor = min(Sample, MinColor); 
+			MaxColor = max(Sample, MaxColor); 
+        }
+    }
+
+    return clipAABB(Color, MinColor, MaxColor);
 }
 
 
@@ -90,7 +96,7 @@ void main()
 
 	vec4 WorldPosition = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 
-	if (WorldPosition.w < 0.0f)
+	if (WorldPosition.w <= 0.0f)
 	{
 		o_Color = CurrentColor;
 		return;
@@ -99,28 +105,20 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
 	float bias = 0.01f;
-	//PreviousCoord = texture(PreviousCoord, WorldPosition.xyz);
 
 	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
 		PreviousCoord.y > bias && PreviousCoord.y < 1.0f-bias && 
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
-		vec4 WorldPositionPrev = GetPositionAt(u_PositionTexture, PreviousCoord).rgba;
-
-		if (WorldPositionPrev.w <= 0.0f)
-		{
-			o_Color = CurrentColor;
-			return;
-		}
-
 		vec3 PrevColor = texture(u_PreviousColorTexture, PreviousCoord).rgb;
-		PrevColor = NeighbourhoodClamping(CurrentColor, PrevColor);
+		PrevColor = ClampColor(PrevColor);
 
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(velocity)) * 0.2f + 0.6f;
-		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.025f, 0.925f));
+		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.325f;
+		BlendFactor = u_BlockModified ? 0.4f : BlendFactor;
+		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.001f, 0.95f));
 	}
 
 	else 

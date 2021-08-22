@@ -4,9 +4,11 @@
 #include "BlockDataSSBO.h"
 #include "BlueNoiseDataSSBO.h"
 #include "SoundManager.h"
+#include "TAAJitter.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
+static bool JitterSceneForTAA = false;
 
 static bool CloudsEnabled = true;
 static float CloudCoverage = 0.08650f;
@@ -21,7 +23,7 @@ static bool VXAO = true;
 static bool WiderSVGF = false;
 
 
-static float InitialTraceResolution = 0.500f;
+static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
 
 static float ShadowTraceResolution = 0.500f;
@@ -119,6 +121,7 @@ public:
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
+			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 
 			ImGui::NewLine();
@@ -138,7 +141,7 @@ public:
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
-			ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
+		//	ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
 			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
 			
 			//ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
@@ -219,7 +222,7 @@ public:
 
 			if (ImGui::Button("LOW") == true)
 			{
-				InitialTraceResolution = 0.5f;
+				InitialTraceResolution = 1.0f;
 				ShadowTraceResolution = 0.5f;
 				DiffuseSPP = 3;
 				ColorPhiBias = 2.0f;
@@ -612,6 +615,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	bool UpdatePlayerCollision = true;
 
+	GenerateJitterStuff();
+
+
+
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
 		// Player update flag
@@ -632,6 +639,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
 
+		// Jitter
 
 
 
@@ -649,7 +657,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		float PADDED_WIDTH = app.GetWidth() + 16.0f;
 		float PADDED_HEIGHT = app.GetHeight() + 16.0f;
 
-
+		
 
 		// Resize the framebuffers
 		{
@@ -763,7 +771,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
-			ModifiedWorld)
+			ModifiedWorld || JitterSceneForTAA)
 		{
 			// Swap the initial trace framebuffers
 			InitialTraceFBO = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
@@ -775,8 +783,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			InitialTraceShader.Use();
 
+			glm::mat4 JitterMatrix = GetTAAJitterMatrix(app.GetCurrentFrame(), glm::vec2(floor(app.GetWidth() * InitialTraceResolution), floor(app.GetHeight() * InitialTraceResolution)));
+			glm::vec2 TAAJitter = GetTAAJitter(app.GetCurrentFrame(), glm::vec2(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution)));
+
+
 			InitialTraceShader.SetMatrix4("u_InverseView", inv_view);
-			InitialTraceShader.SetMatrix4("u_InverseProjection", inv_projection);
+			InitialTraceShader.SetMatrix4("u_InverseProjection", JitterSceneForTAA ? glm::inverse(JitterMatrix * MainCamera.GetProjectionMatrix()) : 
+																 glm::inverse(MainCamera.GetProjectionMatrix()));
 			InitialTraceShader.SetInteger("u_VoxelDataTexture", 0);
 			InitialTraceShader.SetInteger("u_AlbedoTextures", 1);
 			InitialTraceShader.SetInteger("u_DistanceFieldTexture", 2);
@@ -784,6 +797,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
+			InitialTraceShader.SetVector2f("u_CurrentTAAJitter", glm::vec2(TAAJitter));
 			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
 			
 			glActiveTexture(GL_TEXTURE0);
@@ -953,7 +967,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Temporal.SetMatrix4("u_InverseProjection", inv_projection);
 				SVGF_Temporal.SetMatrix4("u_PrevInverseProjection", glm::inverse(PreviousProjection));
 				SVGF_Temporal.SetMatrix4("u_PrevInverseView", glm::inverse(PreviousView));
-
+				//uniform mat4 u_PrevInverseProjection;
+				//uniform mat4 u_PrevInverseView;
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
 				glActiveTexture(GL_TEXTURE1);
@@ -2027,6 +2042,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetInteger("u_PreviousColorTexture", 2);
 		TemporalAAShader.SetInteger("u_PreviousPositionTexture", 3);
 		TemporalAAShader.SetBool("u_Enabled", TAA);
+		TemporalAAShader.SetBool("u_BlockModified", ModifiedWorld);
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);

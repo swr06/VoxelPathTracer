@@ -215,6 +215,9 @@
     <ClCompile Include="Core\SoundManager.cpp">
       <Filter>Source Files\voxel-rt\Sound</Filter>
     </ClCompile>
+    <ClCompile Include="Core\TAAJitter.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dependencies\imgui\imconfig.h">
@@ -378,6 +381,9 @@
     </ClInclude>
     <ClInclude Include="Core\SoundManager.h">
       <Filter>Source Files\voxel-rt\Sound</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\TAAJitter.h">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

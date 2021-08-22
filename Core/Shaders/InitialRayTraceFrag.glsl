@@ -16,8 +16,6 @@ layout (location = 1) out float o_Normal;
 layout (location = 2) out float o_BlockID;
 
 in vec2 v_TexCoords;
-in vec3 v_RayDirection;
-in vec3 v_RayOrigin;
 
 uniform int u_CurrentFrame;
 
@@ -28,6 +26,11 @@ uniform sampler2DArray u_AlbedoTextures;
 
 uniform vec2 u_Dimensions;
 uniform bool u_ShouldAlphaTest;
+
+uniform mat4 u_InverseView;
+uniform mat4 u_InverseProjection;
+
+uniform vec2 u_CurrentTAAJitter;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -340,11 +343,25 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
+void GetRayStuff(out vec3 r0, out vec3 rD) {
+
+	vec2 screenspace = v_TexCoords;
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	//vec2 TexelSize = 1.0f / u_Dimensions;
+	//clip.x += (u_CurrentTAAJitter.x * 2.0f - 1.0f) * TexelSize.x;
+	//clip.y += (u_CurrentTAAJitter.y * 2.0f - 1.0f) * TexelSize.y;
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	rD = vec3(u_InverseView * eye);
+	r0 = u_InverseView[3].xyz;
+}
+
 void main()
 {
     Ray r;
-    r.Origin = v_RayOrigin;
-    r.Direction = normalize(v_RayDirection);
+	vec3 r0, rD;
+    GetRayStuff(r0, rD);
+	r.Origin = r0;
+    r.Direction = normalize(rD);
 
 	int normal_idx = 0;
 

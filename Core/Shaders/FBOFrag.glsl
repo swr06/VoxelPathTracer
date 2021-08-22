@@ -124,7 +124,7 @@ void FXAA311(inout vec3 color)
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = u_BrutalFXAA ? (DetectEdge() ? 3.0 : 1.0) : 0.8f; 
+	float subpixelQuality = 0.85250f; 
 	int iterations = 12;
 	vec2 texCoord = TexCoords;
 	
@@ -364,15 +364,9 @@ void main()
 
     vec3 Color = BaseSample;
 	const bool CustomFXAA = false;
-	bool fxaa = distance(BasePos, ViewerPos) < 80.0f ? true : false;
+	bool fxaa = false;
 
-	if (fxaa) {
-		if (CustomFXAA) {
-			Color = GetFXAACustom();
-		} else {
-			FXAA311(Color);
-		}
-	}
+	FXAA311(Color);
 
 	o_Color = Color;
 	o_Color = linear_to_srgb(Color); // Gamma correction
