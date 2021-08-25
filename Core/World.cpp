@@ -1,6 +1,24 @@
 #include "World.h"
 
+#include "VolumetricFloodFill.h"
 #include "BlockDatabase.h"
+
+glm::ivec3 Get3DIdx(int idx)
+{
+	int z = idx / (WORLD_SIZE_X * WORLD_SIZE_Y);
+	idx -= (z * WORLD_SIZE_X * WORLD_SIZE_Y);
+	int y = idx / WORLD_SIZE_X;
+	int x = idx % WORLD_SIZE_X;
+	return glm::ivec3(x, y, z);
+}
+
+void VoxelRT::World::InsertLightFloodFillNodes()
+{
+	for (auto& e : m_WorldData)
+	{
+
+	}
+}
 
 void VoxelRT::World::InitializeDistanceGenerator()
 {
@@ -209,9 +227,16 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 					uint8_t editblock = m_CurrentlyHeldBlock;
 
+					if (editblock == 12) {
+						std::cout << "\nLAMP PLACED";
+						VoxelRT::Volumetrics::AddLightToVolume(glm::ivec3((int)position.x, (int)position.y, (int)position.z));
+						VoxelRT::Volumetrics::PropogateVolume();
+						VoxelRT::Volumetrics::PropogateVolume();
+					}
+
 					SoundManager::PlayBlockSound(editblock, position, false);
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { editblock });
-					
+
 					if (m_Buffered)
 					{
 					

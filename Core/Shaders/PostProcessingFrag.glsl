@@ -81,6 +81,9 @@ uniform sampler2D u_PBRTexture;
 
 uniform sampler2D u_CloudData;
 
+
+uniform sampler2D u_VolumetricsCompute;
+
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
 uniform mat4 u_InverseView;
@@ -562,6 +565,9 @@ void main()
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
 		}
+
+		vec3 Volumetrics = texture(u_VolumetricsCompute, v_TexCoords).xyz;
+		InputColor += Volumetrics;
 
 		if (u_ExponentialFog)
 		{

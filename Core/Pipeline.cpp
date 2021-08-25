@@ -5,6 +5,7 @@
 #include "BlueNoiseDataSSBO.h"
 #include "SoundManager.h"
 #include "TAAJitter.h"
+#include "VolumetricFloodFill.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -322,6 +323,12 @@ public:
 			this->SetCursorLocked(!this->GetCursorLocked());
 		}
 
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F10)
+		{
+			std::cout << "\nReuploadeddd";
+			VoxelRT::Volumetrics::Reupload();
+		}
+
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
 		{
 			VSync = !VSync;
@@ -383,7 +390,7 @@ GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, 
 
 
 
-
+GLClasses::Framebuffer VolumetricsCompute(16, 16, { { GL_RGB, GL_RGB, GL_UNSIGNED_BYTE } }, false, false);
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -526,6 +533,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularCheckerboardReconstructor = ShaderManager::GetShader("SPECULAR_CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
+	GLClasses::Shader& PointVolumetrics = ShaderManager::GetShader("VOLUMETRICS_COMPUTE");
 	
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
@@ -618,6 +626,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GenerateJitterStuff();
 
 
+	// Volumetricssss 
+
+	Volumetrics::CreateVolume(world);
+
+
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -638,6 +651,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Sound update ->
 
 		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
+
+
+
+
+
 
 		// Jitter
 
@@ -665,6 +683,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+
+			float VolumetricsScale = 0.25f;
+			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * VolumetricsScale), floor(PADDED_HEIGHT * VolumetricsScale));
 
 			float DiffuseResolution2 = DiffuseTraceResolution;
 			DiffuseTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
@@ -2248,6 +2269,28 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VolumetricFBO.Unbind();
 		}
 
+		// ACTUAL WORLD SPACE VOLUMETRICS //
+
+		{
+			PointVolumetrics.Use();
+			VolumetricsCompute.Bind();
+
+			PointVolumetrics.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
+			PointVolumetrics.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
+			PointVolumetrics.SetMatrix4("u_InverseView", inv_view);
+			PointVolumetrics.SetMatrix4("u_InverseProjection", inv_projection);
+			PointVolumetrics.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+
+			PointVolumetrics.SetInteger("u_ParticipatingMedia", 0);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetVolume());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
+
 
 		// ---- POST PROCESSING ----
 
@@ -2265,6 +2308,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_NormalTexture", 12);
 		PostProcessingShader.SetInteger("u_PBRTexture", 13);
 		PostProcessingShader.SetInteger("u_CloudData", 15);
+		PostProcessingShader.SetInteger("u_VolumetricsCompute", 16);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -2342,6 +2386,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE15);
 		glBindTexture(GL_TEXTURE_2D, CloudData);
+
+		glActiveTexture(GL_TEXTURE16);
+		glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

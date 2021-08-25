@@ -63,6 +63,15 @@
     <Filter Include="Source Files\Shaders\Reference">
       <UniqueIdentifier>{5b168e15-08f6-4bf0-9417-c378dc65953e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\Misc">
+      <UniqueIdentifier>{8b6463e6-c4b5-4b34-8248-92edca0974ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\voxel-rt\Floodfill">
+      <UniqueIdentifier>{fddb7011-1402-4e01-ad37-fdfc4559f8a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shaders\Volumetrics">
+      <UniqueIdentifier>{c0d65f40-28fb-45c7-b239-7ed476f5e718}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -217,6 +226,9 @@
     </ClCompile>
     <ClCompile Include="Core\TAAJitter.cpp">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\VolumetricFloodFill.cpp">
+      <Filter>Source Files\voxel-rt\Floodfill</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -384,6 +396,9 @@
     </ClInclude>
     <ClInclude Include="Core\TAAJitter.h">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\VolumetricFloodFill.h">
+      <Filter>Source Files\voxel-rt\Floodfill</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -569,6 +584,12 @@
     </None>
     <None Include="Core\Shaders\Functions\FXAA.glsl">
       <Filter>Source Files\Shaders\Reference</Filter>
+    </None>
+    <None Include="Core\Shaders\ComputeUtility\ClearData.comp">
+      <Filter>Source Files\Shaders\Misc</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\ComputeVolumetrics.glsl">
+      <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
