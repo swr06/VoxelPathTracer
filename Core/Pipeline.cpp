@@ -423,6 +423,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	using std::chrono::duration;
 	using std::chrono::milliseconds;
 
+	std::vector<glm::ivec3> LightLocations;
+
 	RayTracerApp app;
 	app.Initialize();
 	VoxelRT::BlockDatabase::Initialize();
@@ -440,7 +442,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	world->m_Name = world_name;
 
-	if (!LoadWorld(world, world_name))
+	if (!LoadWorld(world, world_name, LightLocations))
 	{
 		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
 		std::cin >> gen_type;
@@ -635,9 +637,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 	// Volumetricssss 
-
-	Volumetrics::CreateVolume(world);
-
+	Volumetrics::CreateVolume(world, BlockDataStorageBuffer.GetSSBO(), BlockDatabase::GetTextureArray());
+	for (auto& e : LightLocations) {
+		uint8_t block_at = world->GetBlock(e).block;
+		Volumetrics::AddLightToVolume(e, block_at);
+	}
 
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
@@ -2296,14 +2300,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetVolume());
+			glBindImageTexture(0, VoxelRT::Volumetrics::GetVolume(), 0, true, 0, GL_READ_ONLY, GL_R16UI);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, VoxelRT::Volumetrics::GetAverageColorSSBO());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

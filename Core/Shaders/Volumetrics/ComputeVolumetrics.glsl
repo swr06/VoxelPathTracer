@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
@@ -18,7 +18,7 @@ layout (location = 0) out vec3 o_Volumetrics;
 
 in vec2 v_TexCoords;
 
-uniform sampler3D u_ParticipatingMedia;
+layout(r16ui, binding = 0) uniform uimage3D u_ParticipatingMedia;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_LinearDepthTexture;
 
@@ -29,6 +29,11 @@ uniform mat4 u_Projection;
 uniform mat4 u_View;
 uniform mat4 u_InverseProjection;
 uniform mat4 u_InverseView;
+
+layout (std430, binding = 2) buffer SSBO_BlockAverageData
+{
+    vec3 BlockAverageColorData[128];
+};
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -53,15 +58,14 @@ bool IsInVolume(in vec3 pos)
     return true;
 }
 
-float GetVoxel(vec3 loc)
+uint GetVoxel(ivec3 loc)
 {
     if (IsInVolume(loc))
     {
-		vec3 float_loc = vec3(loc) / vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z); // normalize
-        return texture(u_ParticipatingMedia, float_loc).r;
+        return imageLoad(u_ParticipatingMedia, loc).x;
     }
     
-    return 0.0f;
+    return 0;
 }
 
 float saturate(float x) {
@@ -100,7 +104,7 @@ void main()
 	vec3 BlueNoise = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).xyz;
 
 	vec3 rD = GetRayDirectionAt(v_TexCoords);
-	float TotalDensity = 0.0f;
+	vec3 TotalLighting = vec3(0.0f);
 
 	float BaseLinearDepth = texture(u_LinearDepthTexture, v_TexCoords).x;
 	BaseLinearDepth = BaseLinearDepth < 0.0f ? 10000.0f : BaseLinearDepth;
@@ -109,6 +113,8 @@ void main()
 	vec3 RayDirection = rD;
 	RayDirection = normalize(RayDirection);
 	int DensitySamples = 0;
+
+	bool Use3DNoiseForDensity = false;
 	
 	//Ray march through participating media and gather densities 
 	for (int x = 0; x < 60; x++)
@@ -127,16 +133,22 @@ void main()
 		// Dither
 		vec3 DitheredPosition = WorldPosition.xyz;
 		DitheredPosition += BlueNoise * vec3(0.5);
-		float InitialDistance = GetVoxel(DitheredPosition);
+		uint Sample = GetVoxel(ivec3(DitheredPosition));
+		uint Unpacked1 = Sample & 0xFF;
+		uint Unpacked2 = (Sample >> 8) & 0xFF;
+		int InitialDistance = int(Unpacked1);
+		int BlockType = int(Unpacked2);
 
-		if (InitialDistance < 1e-5f) 
+		if (InitialDistance == 0) 
 		{ 
 			WorldPosition += RayDirection * BlueNoise.x;
 			continue; 
 		}
 
+		vec3 Color = BlockAverageColorData[BlockType];
+
 		float Lighting = 0.0f; 
-		float DistSqr = InitialDistance * 255.0f;
+		float DistSqr = InitialDistance;
 		DistSqr = DistSqr * DistSqr;
 		Lighting = DistSqr;
 
@@ -146,13 +158,21 @@ void main()
 		Lighting = pow(Lighting, LightingPow);
 		
 		// Add variation using 3D noise
-		float Noise3D = noise(WorldPosition);
-		Lighting = Lighting * pow(Noise3D, Sqrt2); 
-		TotalDensity += Lighting * (1.0f + 0.1f) ;
-		WorldPosition += RayDirection * BlueNoise.x;
 
-		
+		if (Use3DNoiseForDensity) {
+			float Noise3D = noise(WorldPosition);
+			float NoiseFactor = pow(Noise3D, Sqrt2);
+			Lighting = Lighting * NoiseFactor; 
+		}
+
+		else {
+
+			Lighting *= 0.75750;
+		}
+
+		TotalLighting += Color * (Lighting * (1.0f + 0.1f));
+		WorldPosition += RayDirection * BlueNoise.x;
 	}
 
-	o_Volumetrics = vec3(TotalDensity / 60.0f);
+	o_Volumetrics = vec3(TotalLighting / 60.0f);
 }

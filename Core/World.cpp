@@ -227,9 +227,9 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 					uint8_t editblock = m_CurrentlyHeldBlock;
 
-					if (editblock == 12) {
+					if (BlockDatabase::GetBlockEmissiveTexture(editblock) >= 0) {
 						std::cout << "\nLAMP PLACED";
-						VoxelRT::Volumetrics::AddLightToVolume(glm::ivec3((int)position.x, (int)position.y, (int)position.z));
+						VoxelRT::Volumetrics::AddLightToVolume(glm::ivec3((int)position.x, (int)position.y, (int)position.z), editblock);
 						VoxelRT::Volumetrics::PropogateVolume();
 						VoxelRT::Volumetrics::PropogateVolume();
 					}

@@ -176,9 +176,6 @@
     <ClCompile Include="Core\ColorPassFBO.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
-    <ClCompile Include="Core\WorldFileHandler.cpp">
-      <Filter>Source Files\GLClasses</Filter>
-    </ClCompile>
     <ClCompile Include="Core\AORenderer.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
@@ -229,6 +226,9 @@
     </ClCompile>
     <ClCompile Include="Core\VolumetricFloodFill.cpp">
       <Filter>Source Files\voxel-rt\Floodfill</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\WorldFileHandler.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -334,9 +334,6 @@
     <ClInclude Include="Core\ColorPassFBO.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
-    <ClInclude Include="Core\WorldFileHandler.h">
-      <Filter>Source Files\GLClasses</Filter>
-    </ClInclude>
     <ClInclude Include="Core\AORenderer.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
@@ -399,6 +396,9 @@
     </ClInclude>
     <ClInclude Include="Core\VolumetricFloodFill.h">
       <Filter>Source Files\voxel-rt\Floodfill</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\WorldFileHandler.h">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -589,6 +589,12 @@
       <Filter>Source Files\Shaders\Misc</Filter>
     </None>
     <None Include="Core\Shaders\Volumetrics\ComputeVolumetrics.glsl">
+      <Filter>Source Files\Shaders\Volumetrics</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\ClearData.comp">
+      <Filter>Source Files\Shaders\Volumetrics</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\PrecomputeAverageBlockColor.comp">
       <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
   </ItemGroup>
