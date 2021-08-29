@@ -23,6 +23,7 @@ static float CloudResolution = 0.5f;
 static bool VXAO = true;
 static bool WiderSVGF = false;
 
+static bool PointVolumetricsToggled = true;
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -94,6 +95,8 @@ float VoxelRT_VolumeMultiplier = 1.0f;
 
 static float DeltaSum = 0.0f;
 
+static float PointVolumetricsScale = 0.1f; // 0.1 * 0.1 = 1/100th the pixels :p
+
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -123,12 +126,14 @@ public:
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			ImGui::Checkbox("Point Volumetrics? ", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::SliderFloat("VOL Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
@@ -325,7 +330,7 @@ public:
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F10)
 		{
-			std::cout << "\nReuploadeddd";
+			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n";
 			VoxelRT::Volumetrics::Reupload();
 		}
 
@@ -390,7 +395,8 @@ GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, 
 
 
 
-GLClasses::Framebuffer VolumetricsCompute(16, 16, { { GL_RGB, GL_RGB, GL_UNSIGNED_BYTE } }, false, false);
+GLClasses::Framebuffer VolumetricsCompute(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
+GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -534,6 +540,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
 	GLClasses::Shader& PointVolumetrics = ShaderManager::GetShader("VOLUMETRICS_COMPUTE");
+	GLClasses::Shader& Gaussian9TapOptimized = ShaderManager::GetShader("GAUSSIAN_9TAP_OPTIMIZED");
+	GLClasses::Shader& Gaussian5TapOptimized = ShaderManager::GetShader("GAUSSIAN_5TAP_OPTIMIZED");
 	
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
@@ -684,8 +692,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 
-			float VolumetricsScale = 0.25f;
-			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * VolumetricsScale), floor(PADDED_HEIGHT * VolumetricsScale));
+			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
+			VolumetricsComputeBlurred.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 
 			float DiffuseResolution2 = DiffuseTraceResolution;
 			DiffuseTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
@@ -2271,6 +2279,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ACTUAL WORLD SPACE VOLUMETRICS //
 
+		if (PointVolumetricsToggled)
 		{
 			PointVolumetrics.Use();
 			VolumetricsCompute.Bind();
@@ -2282,15 +2291,51 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 
 			PointVolumetrics.SetInteger("u_ParticipatingMedia", 0);
+			PointVolumetrics.SetInteger("u_BlueNoise", 1);
+			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
+
+			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetVolume());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			// Blur
+			VolumetricsComputeBlurred.Bind();
+			Gaussian9TapOptimized.Use();
+
+			Gaussian9TapOptimized.SetInteger("u_Texture", 0);
+			
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			// Blur 2
+
+			Gaussian5TapOptimized.Use();
+			VolumetricsCompute.Bind();
+
+			Gaussian5TapOptimized.SetInteger("u_Texture", 0);
+			
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 		}
-
 
 		// ---- POST PROCESSING ----
 
@@ -2325,6 +2370,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
+		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 
@@ -2379,7 +2425,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, RTAOTemporalFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE12);
-		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE13);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());

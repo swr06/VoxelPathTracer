@@ -59,6 +59,7 @@ uniform bool u_SSAO = false;
 uniform bool u_Bloom = false;
 uniform bool u_RTAO = false;
 uniform bool u_ExponentialFog = false;
+uniform bool u_PointVolumetricsToggled = false;
 
 uniform int u_GodRaysStepCount = 12;
 
@@ -91,6 +92,8 @@ uniform mat4 u_InverseProjection;
 
 uniform float u_LensFlareIntensity;
 uniform float u_Exposure;
+
+
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -172,6 +175,27 @@ vec4 ACESFitted(vec4 Color, float Exposure)
     Color.rgb = ACESOutputMat * Color.rgb;
 
     return Color;
+}
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormal(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
 }
 
 void Vignette(inout vec3 color) 
@@ -406,7 +430,7 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
 
     for (int i = 0; i < 4; i++) 
     {
-        vec3 sampled_normal = texture(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
+        vec3 sampled_normal = SampleNormal(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
         float nweight = pow(abs(dot(sampled_normal, base_normal)), 4);
 
         float sampled_depth = SamplePositionAt(u_PositionTexture, txc + Kernel[i] * texel_size).z; 
@@ -500,31 +524,76 @@ vec3 HighQualityBloomUpsample(int lod) {
     return s * (1.0 / 16);
 }
 
+//void SampleVolumetrics(float BaseLinearDepth, in vec3 BaseNormal, out vec3 TotalPointVL) 
+//{
+//	float TotalWeight = 0.0f;
+//	vec2 TexelSize = 1.0f / textureSize(u_VolumetricsCompute, 0);
+//	const float AtrousWeights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
+//
+//	TotalPointVL = vec3(0.0f);
+//	vec3 GodRays = vec3(0.0f);
+//
+//	for (int x = -2 ; x <= 2 ; x++) {
+//		for (int y = -2 ; y <= 2 ; y++) {
+//			
+//			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
+//			float LinearDepthAt = (texture(u_PositionTexture, SampleCoord).x);
+//            if (LinearDepthAt <= 0.0f + 1e-2) { continue; }
+//			vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+//			float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
+//			DepthWeight = pow(DepthWeight, 12.0f);
+//            DepthWeight = clamp(DepthWeight, 0.0f, 0.99f);
+//			float NormalWeight = pow(abs(dot(NormalAt, BaseNormal)), 8.0f);
+//			float Kernel = AtrousWeights[x + 2] * AtrousWeights[y + 2];
+//			float Weight = Kernel * NormalWeight * DepthWeight;
+//			Weight = max(Weight, 0.01f);
+//			TotalPointVL += texture(u_VolumetricsCompute, SampleCoord).xyz * Weight;
+//			TotalWeight += Weight;
+//		}
+//	}
+//
+//	TotalPointVL /= TotalWeight + 1e-4;
+//}
+
+vec4 textureSmooth(sampler2D t, vec2 x, vec2 textureSize)
+{
+    x *= vec2(textureSize);
+    vec2 p = floor(x);
+    vec2 f = fract(x);
+    vec4 a = texture(t, (p                 ) / vec2(textureSize));
+    vec4 b = texture(t, (p + vec2(1.0, 0.0)) / vec2(textureSize));
+    vec4 c = texture(t, (p + vec2(0.0, 1.0)) / vec2(textureSize));
+    vec4 d = texture(t, (p + vec2(1.0, 1.0)) / vec2(textureSize));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv);
+
+ #define VOLUMETRIC_BICUBIC
 
 void main()
 {
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = SamplePositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 NormalAt = texture(u_NormalTexture, v_TexCoords).rgb;
-
-	bool AtEdge = DetectAtEdge(v_TexCoords);
+	vec3 NormalAt = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
 	vec3 ClipSpaceAt = ToClipSpace(PositionAt.xyz);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+	float BayerDither = Bayer64(gl_FragCoord.xy);
+	vec2 InverseVolRes = 1.0f / textureSize(u_VolumetricsCompute,0);
+	vec3 PointVolumetrics = u_PointVolumetricsToggled ? textureBicubic(u_VolumetricsCompute, v_TexCoords).xyz : vec3(0.0f);
 
-	if (PositionAt.w > 0.0f && (!AtEdge))
+	if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
 	{
 		vec3 InputColor;
-		//vec3 Sharpened = sharpen(u_FramebufferTexture, v_TexCoords);
 		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
 
 		if (u_SSAO && (!u_RTAO))
 		{
+			// Use non linear projected depth to fade ssao :
 			float ssao_strength = 0.0f;
 			float max_ssao_strength = 2.5f;
 			ssao_strength = ((1.0f - ClipSpaceAt.z) * 100.0f) * max_ssao_strength;
 			ssao_strength = clamp(ssao_strength, 0.0f, max_ssao_strength);
-
 			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
 			float SSAO = pow(SampledSSAO, ssao_strength);
 			SSAO = clamp(SSAO, 0.00001, 1.0f);
@@ -566,8 +635,7 @@ void main()
 			InputColor += god_rays * ss_volumetric_color;
 		}
 
-		vec3 Volumetrics = texture(u_VolumetricsCompute, v_TexCoords).xyz;
-		InputColor += Volumetrics;
+		InputColor += PointVolumetrics;
 
 		if (u_ExponentialFog)
 		{
@@ -582,7 +650,7 @@ void main()
 
 	else 
 	{
-		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb);
+		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb) + PointVolumetrics;
 		o_Color = BasicTonemap(o_Color);
 	}
 

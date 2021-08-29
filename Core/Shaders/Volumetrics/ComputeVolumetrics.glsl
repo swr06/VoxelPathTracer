@@ -19,8 +19,11 @@ layout (location = 0) out vec3 o_Volumetrics;
 in vec2 v_TexCoords;
 
 uniform sampler3D u_ParticipatingMedia;
+uniform sampler2D u_BlueNoise;
+uniform sampler2D u_LinearDepthTexture;
 
 uniform vec3 u_ViewerPosition;
+uniform vec2 u_Dimensions;
 
 uniform mat4 u_Projection;
 uniform mat4 u_View;
@@ -50,7 +53,7 @@ bool IsInVolume(in vec3 pos)
     return true;
 }
 
-float GetVoxel(ivec3 loc)
+float GetVoxel(vec3 loc)
 {
     if (IsInVolume(loc))
     {
@@ -65,95 +68,91 @@ float saturate(float x) {
 	return clamp(x, 1e-5f, 1.0f);
 }
 
+// Used to create variation
+float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
+vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
+
+float noise(vec3 p)
+{
+    vec3 a = floor(p);
+    vec3 d = p - a;
+    d = d * d * (3.0 - 2.0 * d);
+    vec4 b = a.xxyy + vec4(0.0, 1.0, 0.0, 1.0);
+    vec4 k1 = perm(b.xyxy);
+    vec4 k2 = perm(k1.xyxy + b.zzww);
+    vec4 c = k2 + a.zzzz;
+    vec4 k3 = perm(c);
+    vec4 k4 = perm(c + 1.0);
+    vec4 o1 = fract(k3 * (1.0 / 41.0));
+    vec4 o2 = fract(k4 * (1.0 / 41.0));
+    vec4 o3 = o2 * d.z + o1 * (1.0 - d.z);
+    vec2 o4 = o3.yw * d.x + o3.xz * (1.0 - d.x);
+    return o4.y * d.y + o4.x * (1.0 - d.y);
+}
+
 void main() 
 {
 	// Ray properties
 	vec3 rO = u_ViewerPosition;
 
-	float Dither = bayer64(gl_FragCoord.xy);
+	// Dither
+	vec3 BlueNoise = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).xyz;
+
 	vec3 rD = GetRayDirectionAt(v_TexCoords);
-	rD = normalize(rD);
-
-
-	vec3 direction = rD;
-
 	float TotalDensity = 0.0f;
 
-	// Utility for DDA 
-	vec3 world_pos = rO;
-	vec3 Temp;
-	vec3 VoxelCoord; 
-	vec3 FractPosition;
-	Temp.x = rD.x > 0.0 ? 1.0 : 0.0;
-	Temp.y = rD.y > 0.0 ? 1.0 : 0.0;
-	Temp.z = rD.z > 0.0 ? 1.0 : 0.0;
-	vec3 plane = floor(world_pos + Temp);
+	float BaseLinearDepth = texture(u_LinearDepthTexture, v_TexCoords).x;
+	BaseLinearDepth = BaseLinearDepth < 0.0f ? 10000.0f : BaseLinearDepth;
 
-
-	for (int x = 0; x < 30; x++)
+	vec3 WorldPosition = rO;
+	vec3 RayDirection = rD;
+	RayDirection = normalize(RayDirection);
+	int DensitySamples = 0;
+	
+	//Ray march through participating media and gather densities 
+	for (int x = 0; x < 60; x++)
 	{
-		if (!IsInVolume(world_pos))
+		if (!IsInVolume(WorldPosition))
 		{
 			break;
 		}
 
-		vec3 Next = (plane - world_pos) / direction;
-		int side = 0;
+		// Depth test 
+		float DistanceFromCamera = distance(WorldPosition, u_ViewerPosition);
+		if (DistanceFromCamera >= BaseLinearDepth) {
+			break;
+		}
+		
+		// Dither
+		vec3 DitheredPosition = WorldPosition.xyz;
+		DitheredPosition += BlueNoise * vec3(0.5);
+		float InitialDistance = GetVoxel(DitheredPosition);
 
-		if (Next.x < min(Next.y, Next.z)) 
-		{
-			world_pos += direction * Next.x;
-			world_pos.x = plane.x;
-			plane.x += sign(direction.x);
-			side = 0;
+		if (InitialDistance < 1e-5f) 
+		{ 
+			WorldPosition += RayDirection * BlueNoise.x;
+			continue; 
 		}
 
-		else if (Next.y < Next.z) 
-		{
-			world_pos += direction * Next.y;
-			world_pos.y = plane.y;
-			plane.y += sign(direction.y);
-			side = 1;
-		}
+		float Lighting = 0.0f; 
+		float DistSqr = InitialDistance * 255.0f;
+		DistSqr = DistSqr * DistSqr;
+		Lighting = DistSqr;
 
-		else 
-		{
-			world_pos += direction * Next.z;
-			world_pos.z = plane.z;
-			plane.z += sign(direction.z);
-			side = 2;
-		}
+		const float LightingPow = 1.0f / (sqrt(2.0f));
+		const float Sqrt2 = sqrt(2.0f);
 
-		VoxelCoord = (plane - Temp);
+		Lighting = pow(Lighting, LightingPow);
+		
+		// Add variation using 3D noise
+		float Noise3D = noise(WorldPosition);
+		Lighting = Lighting * pow(Noise3D, Sqrt2); 
+		TotalDensity += Lighting * (1.0f + 0.1f) ;
+		WorldPosition += RayDirection * BlueNoise.x;
 
-		int Side = ((side + 1) * 2) - 1;
-
-		if (side == 0) 
-		{
-			if (world_pos.x - VoxelCoord.x > 0.5)
-			{
-				Side = 0;
-			}
-		}
-
-		else if (side == 1)
-		{
-			if (world_pos.y - VoxelCoord.y > 0.5)
-			{
-				Side = 2;
-			}
-		}
-
-		else 
-		{
-			if (world_pos.z - VoxelCoord.z > 0.5)
-			{
-				Side = 4;
-			}
-		}
-
-		TotalDensity += saturate(GetVoxel(ivec3(VoxelCoord.xyz)) * 3.0f );
+		
 	}
 
-	o_Volumetrics = vec3(TotalDensity);
+	o_Volumetrics = vec3(TotalDensity / 60.0f);
 }

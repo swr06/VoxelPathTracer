@@ -139,36 +139,6 @@ float cube_smooth(float x) {
     return (x * x) * (3.0 - 2.0 * x);
 }
 
-// CatmulRom sampling in about 5 texture lookups
-vec4 FastCatmulRom(sampler2D colorTex, vec2 texcoord, vec4 rtMetrics, float sharpenAmount) {
-    vec2 position = rtMetrics.zw * texcoord;
-    vec2 centerPosition = floor(position - 0.5) + 0.5;
-    vec2 f = position - centerPosition;
-    vec2 f2 = f * f;
-    vec2 f3 = f * f2;
-
-    float c = sharpenAmount;
-    vec2 w0 =        -c  * f3 +  2.0 * c         * f2 - c * f;
-    vec2 w1 =  (2.0 - c) * f3 - (3.0 - c)        * f2         + 1.0;
-    vec2 w2 = -(2.0 - c) * f3 + (3.0 -  2.0 * c) * f2 + c * f;
-    vec2 w3 =         c  * f3 -                c * f2;
-
-    vec2 w12 = max(w1 + w2, 0.0001);
-    vec2 tc12 = rtMetrics.xy * (centerPosition + w2 / w12);
-    vec4 centerColor = texture2D(colorTex, vec2(tc12.x, tc12.y));
-
-    vec2 tc0 = rtMetrics.xy * (centerPosition - 1.0);
-    vec2 tc3 = rtMetrics.xy * (centerPosition + 2.0);
-    float weightSum = (w12.x * w0.y) + (w0.x  * w12.y) + (w12.x * w12.y) + (w3.x  * w12.y) + (w12.x * w3.y);
-    vec4 color = texture2D(colorTex, vec2(tc12.x, tc0.y )) * (w12.x * w0.y) +
-                   texture2D(colorTex, vec2(tc0.x,  tc12.y)) * (w0.x  * w12.y) +
-                   centerColor                                * (w12.x * w12.y) +
-                   texture2D(colorTex, vec2(tc3.x,  tc12.y)) * (w3.x  * w12.y) +
-                   texture2D(colorTex, vec2(tc12.x, tc3.y )) * (w12.x * w3.y );
-	return color/max(weightSum, 0.0001);
-
-}
-
 // by inigo quilez
 vec4 smoothfilter(in sampler2D tex, in vec2 uv) {
     vec2 resolution = textureSize(tex, 0);
