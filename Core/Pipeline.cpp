@@ -643,6 +643,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		Volumetrics::AddLightToVolume(e, block_at);
 	}
 
+	for (int i = 0; i < 3; i++) {
+		Volumetrics::PropogateVolume();
+	}
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
