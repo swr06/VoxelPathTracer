@@ -173,6 +173,7 @@
     <ClCompile Include="Core\ShaderManager.cpp" />
     <ClCompile Include="Core\SoundManager.cpp" />
     <ClCompile Include="Core\TAAJitter.cpp" />
+    <ClCompile Include="Core\VolumetricFloodFill.cpp" />
     <ClCompile Include="Core\World.cpp" />
     <ClCompile Include="Core\FpsCamera.cpp" />
     <ClCompile Include="Core\GLClasses\ComputeShader.cpp" />
@@ -231,6 +232,7 @@
     <ClInclude Include="Core\ShaderManager.h" />
     <ClInclude Include="Core\SoundManager.h" />
     <ClInclude Include="Core\TAAJitter.h" />
+    <ClInclude Include="Core\VolumetricFloodFill.h" />
     <ClInclude Include="Core\World.h" />
     <ClInclude Include="Core\FpsCamera.h" />
     <ClInclude Include="Core\GLClasses\ComputeShader.h" />
@@ -264,6 +266,7 @@
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
+    <None Include="Core\Shaders\ComputeUtility\ClearData.comp" />
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />
     <None Include="Core\Shaders\Functions\FXAA.glsl" />
     <None Include="Core\Shaders\ReflectionDenoiser.glsl" />
@@ -318,6 +321,9 @@
     <None Include="Core\Shaders\SSAOBlur.glsl" />
     <None Include="Core\Shaders\TemporalAA.glsl" />
     <None Include="Core\Shaders\VolumetricLighting.glsl" />
+    <None Include="Core\Shaders\Volumetrics\ClearData.comp" />
+    <None Include="Core\Shaders\Volumetrics\ComputeVolumetrics.glsl" />
+    <None Include="Core\Shaders\Volumetrics\PrecomputeAverageBlockColor.comp" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />
   </ItemGroup>

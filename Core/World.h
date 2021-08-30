@@ -36,6 +36,28 @@ namespace VoxelRT
 			m_WorldData[x + y * WORLD_SIZE_X + z * WORLD_SIZE_X * WORLD_SIZE_Y] = block;
 		}
 
+		const Block& GetBlock(const glm::ivec3& p)
+		{
+			return m_WorldData[p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y];
+		}
+
+		void SetBlock(const glm::ivec3& p, Block block)
+		{
+			m_WorldData[p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y] = block;
+		}
+
+		void SetBlock(const glm::ivec3& p, uint8_t b)
+		{
+			Block block = { b };
+			m_WorldData[p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y] = block;
+		}
+
+
+		void InsertLightFloodFillNodes();
+
+
+
+
 		void Buffer()
 		{
 			m_DataTexture.CreateTexture(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z, m_WorldData.data());

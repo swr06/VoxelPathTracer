@@ -41,6 +41,11 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("SVGF_TEMPORAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SVGF/TemporalFilter.glsl");
 	AddShader("SVGF_SPATIAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SVGF/SpatialFilter.glsl");
 	AddShader("SVGF_VARIANCE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SVGF/VarianceEstimate.glsl");
+
+	// Volumetrics
+	AddShader("VOLUMETRICS_COMPUTE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/ComputeVolumetrics.glsl");
+	AddShader("GAUSSIAN_9TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian9TapSinglePass.glsl");
+	AddShader("GAUSSIAN_5TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian5TapSinglePass.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

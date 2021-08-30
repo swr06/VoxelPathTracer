@@ -5,6 +5,7 @@
 #include "BlueNoiseDataSSBO.h"
 #include "SoundManager.h"
 #include "TAAJitter.h"
+#include "VolumetricFloodFill.h"
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -22,6 +23,7 @@ static float CloudResolution = 0.5f;
 static bool VXAO = true;
 static bool WiderSVGF = false;
 
+static bool PointVolumetricsToggled = false;
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -93,6 +95,8 @@ float VoxelRT_VolumeMultiplier = 1.0f;
 
 static float DeltaSum = 0.0f;
 
+static float PointVolumetricsScale = 0.1f; // 0.1 * 0.1 = 1/100th the pixels :p
+
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -122,12 +126,14 @@ public:
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			ImGui::Checkbox("VERY VERY WIP! : Point Light Volumetrics?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::SliderFloat("VOL Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
@@ -322,6 +328,13 @@ public:
 			this->SetCursorLocked(!this->GetCursorLocked());
 		}
 
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F10)
+		{
+			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n\n";
+			VoxelRT::Volumetrics::Reupload();
+			PointVolumetricsToggled = !PointVolumetricsToggled;
+		}
+
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
 		{
 			VSync = !VSync;
@@ -383,7 +396,8 @@ GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, 
 
 
 
-
+GLClasses::Framebuffer VolumetricsCompute(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
+GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -410,6 +424,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	using std::chrono::duration;
 	using std::chrono::milliseconds;
 
+	std::vector<glm::ivec3> LightLocations;
+
 	RayTracerApp app;
 	app.Initialize();
 	VoxelRT::BlockDatabase::Initialize();
@@ -427,7 +443,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	world->m_Name = world_name;
 
-	if (!LoadWorld(world, world_name))
+	if (!LoadWorld(world, world_name, LightLocations))
 	{
 		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
 		std::cin >> gen_type;
@@ -526,6 +542,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SpecularCheckerboardReconstructor = ShaderManager::GetShader("SPECULAR_CHECKER_RECONSTRUCT");
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
+	GLClasses::Shader& PointVolumetrics = ShaderManager::GetShader("VOLUMETRICS_COMPUTE");
+	GLClasses::Shader& Gaussian9TapOptimized = ShaderManager::GetShader("GAUSSIAN_9TAP_OPTIMIZED");
+	GLClasses::Shader& Gaussian5TapOptimized = ShaderManager::GetShader("GAUSSIAN_5TAP_OPTIMIZED");
 	
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
@@ -618,6 +637,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GenerateJitterStuff();
 
 
+	// Volumetricssss 
+	Volumetrics::CreateVolume(world, BlockDataStorageBuffer.GetSSBO(), BlockDatabase::GetTextureArray());
+	for (auto& e : LightLocations) {
+		uint8_t block_at = world->GetBlock(e).block;
+		Volumetrics::AddLightToVolume(e, block_at);
+	}
+
+	for (int i = 0; i < 3; i++) {
+		Volumetrics::PropogateVolume();
+	}
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -638,6 +667,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Sound update ->
 
 		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
+
+
+
+
+
 
 		// Jitter
 
@@ -665,6 +699,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+
+			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
+			VolumetricsComputeBlurred.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 
 			float DiffuseResolution2 = DiffuseTraceResolution;
 			DiffuseTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
@@ -2248,6 +2285,66 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VolumetricFBO.Unbind();
 		}
 
+		// ACTUAL WORLD SPACE VOLUMETRICS //
+
+		if (PointVolumetricsToggled)
+		{
+			PointVolumetrics.Use();
+			VolumetricsCompute.Bind();
+
+			PointVolumetrics.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
+			PointVolumetrics.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
+			PointVolumetrics.SetMatrix4("u_InverseView", inv_view);
+			PointVolumetrics.SetMatrix4("u_InverseProjection", inv_projection);
+			PointVolumetrics.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+
+			PointVolumetrics.SetInteger("u_ParticipatingMedia", 0);
+			PointVolumetrics.SetInteger("u_BlueNoise", 1);
+			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
+
+			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
+
+			glBindImageTexture(0, VoxelRT::Volumetrics::GetVolume(), 0, true, 0, GL_READ_ONLY, GL_R16UI);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, VoxelRT::Volumetrics::GetAverageColorSSBO());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			// Blur
+			VolumetricsComputeBlurred.Bind();
+			Gaussian9TapOptimized.Use();
+
+			Gaussian9TapOptimized.SetInteger("u_Texture", 0);
+			
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			// Blur 2
+
+			Gaussian5TapOptimized.Use();
+			VolumetricsCompute.Bind();
+
+			Gaussian5TapOptimized.SetInteger("u_Texture", 0);
+			
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
 
 		// ---- POST PROCESSING ----
 
@@ -2265,6 +2362,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_NormalTexture", 12);
 		PostProcessingShader.SetInteger("u_PBRTexture", 13);
 		PostProcessingShader.SetInteger("u_CloudData", 15);
+		PostProcessingShader.SetInteger("u_VolumetricsCompute", 16);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -2281,6 +2379,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
+		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
 
@@ -2335,13 +2434,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, RTAOTemporalFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE12);
-		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE13);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
 		glActiveTexture(GL_TEXTURE15);
 		glBindTexture(GL_TEXTURE_2D, CloudData);
+
+		glActiveTexture(GL_TEXTURE16);
+		glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2413,6 +2515,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 			world->m_ParticleEmitter.CleanUpList();
 		}
 
+		if (app.GetCurrentFrame() % 107 == 0 && PointVolumetricsToggled) {
+			std::cout << "\n-- AUTO REUPLOADED VOLUMETRIC VOLUME DATA -- \n";
+			Volumetrics::Reupload();
+		}
+
 		world->Update(&MainCamera);
 
 		// Finish Frame
@@ -2439,10 +2546,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	SaveWorld(world, world_name);
 	SoundManager::Destroy();
-
 	delete world;
-
 	return;
+	exit(0);
 }
 
 
