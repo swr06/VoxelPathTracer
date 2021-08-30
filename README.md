@@ -13,7 +13,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Physically based lighting (Cook torrance BRDF)
 - Ray traced contact hardening soft shadows (with shadow denoising)
 - Flexible material system
-- Temporal Anti Aliasing
+- Temporal Anti Aliasing (And temporal supersampling)
 - FXAA
 - Tonemapping, Gamma correction
 - Ray traced reflections 
@@ -32,6 +32,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
 - Fully 3D Audio
 - Flood Fill Point Volumetrics (Slightly WIP)
+- Contrast Adaptive Sharpening
 
 # Features to implement
 - Foliage
@@ -46,10 +47,11 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 
 # Note
 - The path tracer is still HEAVILY WIP, the current state is not a representation of the final version.
-- The path tracer has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
-- The path tracer is *not* guarenteed to work on ANY Intel GPUs
-- It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version (OpenGL 4.5) 
+- It has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
+- It is *not* guarenteed to work on ANY Intel GPUs
+- It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
 - I don't work on this project a lot anymore, newer features might be delayed.
+- If you want to report an issue, then you can contact me on discord (swr#1337)
 
 # Resources used
 - https://github.com/BrutPitt/glslSmartDeNoise/
