@@ -13,7 +13,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Physically based lighting (Cook torrance BRDF)
 - Ray traced contact hardening soft shadows (with shadow denoising)
 - Flexible material system
-- Temporal Anti Aliasing
+- Temporal Anti Aliasing (And temporal supersampling)
 - FXAA
 - Tonemapping, Gamma correction
 - Ray traced reflections 
@@ -32,6 +32,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
 - Fully 3D Audio
 - Flood Fill Point Volumetrics (Slightly WIP)
+- Contrast Adaptive Sharpening
 
 # Features to implement
 - Foliage
