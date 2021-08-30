@@ -864,8 +864,38 @@
 	Albedo : Res/Block/Magma/Albedo.png
 	Normal : Res/Block/Magma/Normal.png
 	PBR : Res/Block/Magma/PBR.png
-	
+
 	SND_STEP : Marble
+	SND_MODIFY : Stone
+}
+
+{
+	Name : NewMetal0
+	Albedo : Res/Block/NewMetal0/Albedo.png
+	Normal : Res/Block/NewMetal0/Normal.png
+	PBR : Res/Block/NewMetal0/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
+}
+
+{
+	Name : NewMetal1
+	Albedo : Res/Block/NewMetal1/Albedo.png
+	Normal : Res/Block/NewMetal1/Normal.png
+	PBR : Res/Block/NewMetal1/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
+}
+
+{
+	Name : Concrete
+	Albedo : Res/Block/Concrete/Albedo.png
+	Normal : Res/Block/Concrete/Normal.png
+	PBR : Res/Block/Concrete/PBR.png
+	
+	SND_STEP : Stone
 	SND_MODIFY : Stone
 }
 
