@@ -23,7 +23,7 @@ static float CloudResolution = 0.5f;
 static bool VXAO = true;
 static bool WiderSVGF = false;
 
-static bool PointVolumetricsToggled = true;
+static bool PointVolumetricsToggled = false;
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -126,7 +126,7 @@ public:
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
-			ImGui::Checkbox("Point Volumetrics? ", &PointVolumetricsToggled);
+			ImGui::Checkbox("VERY VERY WIP! : Point Light Volumetrics?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 
 			ImGui::NewLine();
@@ -330,8 +330,9 @@ public:
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F10)
 		{
-			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n";
+			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n\n";
 			VoxelRT::Volumetrics::Reupload();
+			PointVolumetricsToggled = !PointVolumetricsToggled;
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
@@ -2514,6 +2515,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 			world->m_ParticleEmitter.CleanUpList();
 		}
 
+		if (app.GetCurrentFrame() % 107 == 0 && PointVolumetricsToggled) {
+			std::cout << "\n-- AUTO REUPLOADED VOLUMETRIC VOLUME DATA -- \n";
+			Volumetrics::Reupload();
+		}
+
 		world->Update(&MainCamera);
 
 		// Finish Frame
@@ -2540,10 +2546,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	SaveWorld(world, world_name);
 	SoundManager::Destroy();
-
 	delete world;
-
 	return;
+	exit(0);
 }
 
 

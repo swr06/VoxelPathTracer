@@ -5,6 +5,7 @@
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
 
+// Bayer dither
 #define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
@@ -95,6 +96,21 @@ float noise(vec3 p)
     return o4.y * d.y + o4.x * (1.0 - d.y);
 }
 
+// Random rotation matrices 
+const mat3 rot1 = mat3(-0.37, 0.36, 0.85,-0.14,-0.93, 0.34,0.92, 0.01,0.4);
+const mat3 rot2 = mat3(-0.55,-0.39, 0.74, 0.33,-0.91,-0.24,0.77, 0.12,0.63);
+const mat3 rot3 = mat3(-0.71, 0.52,-0.47,-0.08,-0.72,-0.68,-0.7,-0.45,0.56);
+
+// Random rotation to reduce banding 
+float simplex3d_fractal(vec3 m) 
+{
+	// weight * noise(m * rotation matrix) 
+    return   0.5333333 * noise(m*rot1)
+			+ 0.2666667 * noise(2.0*m*rot2)
+			+ 0.1333333 * noise(4.0*m*rot3)
+			+ 0.0666667 * noise(8.0*m);
+}
+
 void main() 
 {
 	// Ray properties
@@ -114,7 +130,7 @@ void main()
 	RayDirection = normalize(RayDirection);
 	int DensitySamples = 0;
 
-	bool Use3DNoiseForDensity = false;
+	bool Use3DNoiseForDensity = true;
 	
 	//Ray march through participating media and gather densities 
 	for (int x = 0; x < 60; x++)
@@ -161,7 +177,7 @@ void main()
 
 		if (Use3DNoiseForDensity) {
 			float Noise3D = noise(WorldPosition);
-			float NoiseFactor = pow(Noise3D, Sqrt2);
+			float NoiseFactor = pow(Noise3D, 2.0f);
 			Lighting = Lighting * NoiseFactor; 
 		}
 
@@ -174,5 +190,6 @@ void main()
 		WorldPosition += RayDirection * BlueNoise.x;
 	}
 
+	TotalLighting *= 2.0f;
 	o_Volumetrics = vec3(TotalLighting / 60.0f);
 }

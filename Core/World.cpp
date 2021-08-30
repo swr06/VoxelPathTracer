@@ -220,6 +220,56 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 				if (op == 1)
 				{
+					auto& LightRemovalBFS = Volumetrics::GetLightRemovalBFSQueue();
+
+					{
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y), floor(position.z)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x + 1),
+							floor(position.y),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x + 1), floor(position.y), floor(position.z)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x - 1),
+							floor(position.y),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x - 1), floor(position.y), floor(position.z)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y + 1),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y + 1), floor(position.z)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y - 1),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y - 1), floor(position.z)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z + 1)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y), floor(position.z + 1)))));
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z - 1)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y), floor(position.z - 1)))));
+
+					}
+
+
+
+
 					if (TestRayPlayerCollision(glm::vec3((position.x), (position.y), (position.z)), pos, acceleration, is_falling, dt))
 					{
 						return;
@@ -230,8 +280,6 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					if (BlockDatabase::GetBlockEmissiveTexture(editblock) >= 0) {
 						std::cout << "\nLAMP PLACED";
 						VoxelRT::Volumetrics::AddLightToVolume(glm::ivec3((int)position.x, (int)position.y, (int)position.z), editblock);
-						VoxelRT::Volumetrics::PropogateVolume();
-						VoxelRT::Volumetrics::PropogateVolume();
 					}
 
 					SoundManager::PlayBlockSound(editblock, position, false);
@@ -263,6 +311,52 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					SoundManager::PlayBlockSound(GetBlock((int)position.x, (int)position.y, (int)position.z).block, position, false);
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
 
+
+
+					uint8_t edited_block = GetBlock((int)position.x, (int)position.y, (int)position.z).block;
+					auto& LightRemovalBFS = Volumetrics::GetLightRemovalBFSQueue();
+					auto& LightPropogateBFS = Volumetrics::GetLightBFSQueue();
+
+					if (BlockDatabase::GetBlockEmissiveTexture(edited_block) >= 0) {
+
+						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z)),
+							Volumetrics::GetLightValue(glm::ivec3(floor(position.x), floor(position.y), floor(position.z)))));
+
+						Volumetrics::SetLightValue(glm::ivec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z)), 0, 0);
+					}
+
+					// Propogate!
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x + 1),
+						floor(position.y),
+						floor(position.z))));
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x - 1),
+						floor(position.y),
+						floor(position.z))));
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x),
+						floor(position.y + 1),
+						floor(position.z))));
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x),
+						floor(position.y - 1),
+						floor(position.z))));
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x),
+						floor(position.y),
+						floor(position.z + 1))));
+					LightPropogateBFS.push(LightNode(glm::vec3(
+						floor(position.x),
+						floor(position.y),
+						floor(position.z - 1))));
+
 					if (m_Buffered)
 					{
 						uint8_t editblock = 0;
@@ -287,6 +381,11 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 				glBindTexture(GL_TEXTURE_3D, 0);
 
+				for (int light = 0; light < 3; light++) {
+					Volumetrics::DepropogateVolume();
+					Volumetrics::PropogateVolume();
+				}
+
 				return;
 			}
 		}
@@ -297,3 +396,4 @@ void VoxelRT::World::UpdateParticles(FPSCamera* cam, GLuint pos_texture, GLuint 
 {
 	m_ParticleEmitter.OnUpdateAndRender(cam, m_WorldData, pos_texture, shadow_tex, diff, diff2, sdir, player_pos, dims, dt);
 }
+
