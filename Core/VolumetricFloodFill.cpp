@@ -79,7 +79,6 @@ void VoxelRT::Volumetrics::CreateVolume(World* world, GLuint SSBO_Blockdata, GLu
 	glDispatchCompute(1, 1, 1);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 	glFinish();
-	glFinish();
 }
 
 uint8_t VoxelRT::Volumetrics::GetLightValue(const glm::ivec3& p)

@@ -12,6 +12,8 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 uniform vec2 u_Dimensions;
 
+uniform bool u_CAS;
+
 
 vec2 TexCoords;
 
@@ -66,7 +68,6 @@ vec3 linear_to_srgb(vec3 x)
 {
     vec3 r;
   
-    // Adapted from cuda_utils.h in TwinkleBear's ChameleonRT
     if(x.x <= 0.0031308f) {
 	r.x = 12.92f * x.x;
     } else {
@@ -369,5 +370,12 @@ void main()
 	FXAA311(Color);
 
 	o_Color = Color;
-	o_Color = linear_to_srgb(Color); // Gamma correction
+
+	if (!u_CAS) {
+		o_Color = linear_to_srgb(Color); // Gamma correction
+	}
+
+	else {
+		o_Color = clamp(o_Color, 0.0f, 1.0f);
+	}
 }

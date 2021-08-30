@@ -46,6 +46,9 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("VOLUMETRICS_COMPUTE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/ComputeVolumetrics.glsl");
 	AddShader("GAUSSIAN_9TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian9TapSinglePass.glsl");
 	AddShader("GAUSSIAN_5TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian5TapSinglePass.glsl");
+	
+	// CAS
+	AddShader("CONTRAST_ADAPTIVE_SHARPENING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ContrastAdaptiveSharpening.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

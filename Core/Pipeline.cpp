@@ -11,6 +11,9 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
+static bool ContrastAdaptiveSharpening = true;
+static float CAS_SharpenAmount = 0.25f;
+
 static bool CloudsEnabled = true;
 static float CloudCoverage = 0.08650f;
 static bool CloudBayer = true;
@@ -125,6 +128,8 @@ public:
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
+			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
+			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("VERY VERY WIP! : Point Light Volumetrics?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
@@ -551,10 +556,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& SVGF_Spatial = ShaderManager::GetShader("SVGF_SPATIAL");
 	GLClasses::Shader& SVGF_Variance = ShaderManager::GetShader("SVGF_VARIANCE");
 
+
+	GLClasses::Shader& CAS_Shader = ShaderManager::GetShader("CONTRAST_ADAPTIVE_SHARPENING");
+
 	GLClasses::TextureArray BlueNoise;
 
 	
 	VoxelRT::ColorPassFBO ColoredFBO;
+
+	GLClasses::Framebuffer FXAA_Final(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
+
 	GLClasses::Framebuffer TAAFBO1(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
 	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
 	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
@@ -696,7 +707,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Resize the framebuffers
 		{
 			
-			
+			// Without padding!
+			FXAA_Final.SetSize(app.GetWidth(), app.GetHeight());
+
+
+
 			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
 
@@ -2363,6 +2378,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_PBRTexture", 13);
 		PostProcessingShader.SetInteger("u_CloudData", 15);
 		PostProcessingShader.SetInteger("u_VolumetricsCompute", 16);
+		PostProcessingShader.SetInteger("u_BlockIDTexture", 17);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -2445,6 +2461,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE16);
 		glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
 
+		glActiveTexture(GL_TEXTURE17);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
@@ -2456,8 +2475,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_DEPTH_TEST);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, app.GetWidth(), app.GetHeight());
+		if (ContrastAdaptiveSharpening) {
+			FXAA_Final.Bind();
+			glViewport(0, 0, app.GetWidth(), app.GetHeight());
+		}
+
+		else {
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, app.GetWidth(), app.GetHeight());
+		}
 
 		FinalShader.Use();
 		FinalShader.SetInteger("u_FramebufferTexture", 0);
@@ -2465,6 +2491,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetInteger("u_NormalTexture", 2);
 		FinalShader.SetInteger("u_BlockIDTex", 3);
 		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
+		FinalShader.SetBool("u_CAS", ContrastAdaptiveSharpening);
 		FinalShader.SetMatrix4("u_InverseView", inv_view);
 		FinalShader.SetMatrix4("u_InverseProjection", inv_projection);
 		FinalShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
@@ -2484,6 +2511,29 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
+
+		// CAS
+
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
+
+		if (ContrastAdaptiveSharpening) {
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, app.GetWidth(), app.GetHeight());
+
+			CAS_Shader.Use();
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, app.GetWidth(), app.GetHeight());
+			CAS_Shader.SetInteger("u_Texture", 0);
+			CAS_Shader.SetFloat("u_SharpenAmount", CAS_SharpenAmount);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, FXAA_Final.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
 
 		// Particles
 

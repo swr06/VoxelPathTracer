@@ -597,6 +597,9 @@
     <None Include="Core\Shaders\Volumetrics\PrecomputeAverageBlockColor.comp">
       <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
+    <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">
