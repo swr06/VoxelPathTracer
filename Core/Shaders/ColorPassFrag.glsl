@@ -6,6 +6,7 @@
 #define PI 3.14159265359
 #define THRESH 1.41414
 
+
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_PBR;
@@ -35,6 +36,8 @@ uniform sampler2D u_DiffuseSHData2;
 uniform sampler2D u_ReflectionSHData;
 uniform sampler2D u_ReflectionCoCgData;
 
+uniform sampler2D u_HighResBL;
+
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
@@ -63,6 +66,7 @@ uniform bool u_AmplifyNormalMap;
 
 uniform bool u_DoVXAO = true;
 uniform bool u_SVGFEnabled = true;
+uniform bool u_ShouldDitherUpscale = true;
 
 uniform float u_CloudBoxSize;
 
@@ -113,6 +117,19 @@ vec3 PoissonDisk3D[16] = vec3[](
     vec3(0.795679, 0.742149, 0.878201),
     vec3(0.180761, 0.585253, 0.245888)
 );
+
+
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
@@ -608,30 +625,41 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
-void SpatialUpscale(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg)
+#define SPATIAL_UPSCALE_INDIRECT_DIFFUSE
+
+void SpatialUpscaleIndirectDiffuse(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg)
 {
+#ifndef SPATIAL_UPSCALE_INDIRECT_DIFFUSE
+    SH = texture(u_DiffuseSHData1, v_TexCoords).xyzw ;
+	CoCg = texture(u_DiffuseSHData2, v_TexCoords).xy ;
+    return;
+
+#else 
+
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHData1, 0);
-	const float AtrousWeights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
+	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
+    float HighFreqBL = texture(u_HighResBL, v_TexCoords * (u_Dimensions / vec2(1024.0f))).r;
+    float SpatialDither = u_ShouldDitherUpscale ? bayer8(gl_FragCoord.xy) : 1.0f;
 
 	for (int x = -2 ; x <= 2 ; x++) {
 		for (int y = -2 ; y <= 2 ; y++) {
 			
-			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
+            vec2 SampleCoord = v_TexCoords + (vec2(x,y) * SpatialDither * 1.025f) * TexelSize;
 			float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
-
             if (LinearDepthAt <= 0.0f + 1e-2) { continue; }
-
-			vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+			
+            vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
 			float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
-			DepthWeight = pow(DepthWeight, 12.0f);
-            DepthWeight = clamp(DepthWeight, 0.0f, 0.99f);
+			DepthWeight = pow(DepthWeight, 16.0f);
+            DepthWeight = max(DepthWeight, 0.0f);
 			float NormalWeight = pow(abs(dot(NormalAt, BaseNormal)), 8.0f);
-			float Kernel = AtrousWeights[x + 2] * AtrousWeights[y + 2];
-			float Weight = Kernel * NormalWeight * DepthWeight;
+            NormalWeight = max(NormalWeight, 0.0f);
+			float Kernel = Weights[x + 2] * Weights[y + 2];
+			float Weight = Kernel * clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
 			Weight = max(Weight, 0.01f);
 			TotalSH += texture(u_DiffuseSHData1, SampleCoord).xyzw * Weight;
 			TotalCoCg += texture(u_DiffuseSHData2, SampleCoord).xy * Weight;
@@ -639,8 +667,9 @@ void SpatialUpscale(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec
 		}
 	}
 
-    SH = TotalSH;
-    CoCg = TotalCoCg;
+    SH = TotalSH / TotalWeight;
+    CoCg = TotalCoCg / TotalWeight;
+#endif
 }
 
 vec3 saturate(vec3 x)
@@ -773,8 +802,7 @@ void main()
             
             vec4 SHy;
             vec2 ShCoCg;
-
-            SpatialUpscale(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg);
+            SpatialUpscaleIndirectDiffuse(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg);
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
@@ -812,6 +840,7 @@ void main()
             DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
             float Roughness = PBRMap.r;
             vec3 DiffuseIndirect = (SampledIndirectDiffuse.xyz * AlbedoColor);
+            //vec3 DiffuseIndirect = (SampledIndirectDiffuse.xyz);
 
             // Compute Specular indirect from spherical harmonic 
 
@@ -839,9 +868,10 @@ void main()
             
             // Final combine : 
             // Use fresnel to get the amount of diffuse and reflected light 
+            DiffuseIndirect *= clamp(SampledAO, 0.2f, 1.01f);
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
-                      (SpecularFactor * SpecularIndirect)) 
-                      * clamp(SampledAO, 0.2f, 1.01f);
+                      (SpecularFactor * SpecularIndirect));
+
             
             // Output utility : 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
