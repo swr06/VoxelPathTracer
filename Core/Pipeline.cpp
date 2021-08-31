@@ -25,6 +25,7 @@ static float CloudResolution = 0.5f;
 
 static bool VXAO = true;
 static bool WiderSVGF = false;
+static bool DITHER_SPATIAL_UPSCALE = true;
 
 static bool PointVolumetricsToggled = false;
 
@@ -129,6 +130,7 @@ public:
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
+			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("VERY VERY WIP! : Point Light Volumetrics?", &PointVolumetricsToggled);
@@ -590,9 +592,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::Texture Crosshair;
 	GLClasses::Texture BluenoiseTexture;
+	GLClasses::Texture BluenoiseHighResTexture;
 	GLClasses::Texture PlayerSprite;
 	Crosshair.CreateTexture("Res/Misc/crosshair.png", false);
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
+	BluenoiseHighResTexture.CreateTexture("Res/Misc/BluenoiseHighRes.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 
 	BlockDataSSBO BlockDataStorageBuffer;
@@ -1976,6 +1980,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_ReflectionSHData", 16);
 		ColorShader.SetInteger("u_ReflectionCoCgData", 17);
 		ColorShader.SetInteger("u_VXAO", 18);
+		ColorShader.SetInteger("u_HighResBL", 19);
 		ColorShader.SetInteger("u_ContactHardeningShadows", true);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -2000,6 +2005,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
+		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -2075,6 +2081,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE18);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(3));
 
+		glActiveTexture(GL_TEXTURE19);
+		glBindTexture(GL_TEXTURE_2D, BluenoiseHighResTexture.GetTextureID());
 
 		BlockDataStorageBuffer.Bind(0);
 
