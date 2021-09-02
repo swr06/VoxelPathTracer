@@ -60,7 +60,7 @@ void VoxelRT::Volumetrics::CreateVolume(World* world, GLuint SSBO_Blockdata, GLu
 	// initialize data ssbo 
 	glGenBuffers(1, &AverageColorSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, AverageColorSSBO);
-	int TotalBufferSize = (sizeof(GLfloat) * 3) * 128;
+	int TotalBufferSize = (sizeof(GLfloat) * 4) * 128;
 	glBufferData(GL_SHADER_STORAGE_BUFFER, TotalBufferSize, nullptr, GL_STATIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
@@ -149,11 +149,11 @@ void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
 	VoxelRT::Volumetrics::SetLightValue(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 5, block); 
+		floor(p.z)), 6, block); 
 	VoxelRT::Volumetrics::UploadLight(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 5, block, true);
+		floor(p.z)), 6, block, true);
 	LightBFS.push(LightNode(glm::vec3(
 		floor(p.x),
 		floor(p.y),

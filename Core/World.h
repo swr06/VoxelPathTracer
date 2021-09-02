@@ -5,6 +5,8 @@
 #include <array>
 #include <glm/glm.hpp>
 
+#include <algorithm>
+
 #include "Block.h"
 #include "Texture3D.h"
 #include "Macros.h"
@@ -24,6 +26,7 @@ namespace VoxelRT
 		{
 			memset(&m_WorldData, 0, WORLD_SIZE_X * WORLD_SIZE_Y * WORLD_SIZE_Z);
 			m_Buffered = false;
+			
 		}
 
 		const Block& GetBlock(uint16_t x, uint16_t y, uint16_t z)
@@ -53,10 +56,19 @@ namespace VoxelRT
 		}
 
 
-		void InsertLightFloodFillNodes();
+		void InitializeLightList();
+		void RebufferLightList();
 
+		void InsertToLightList(const glm::vec3& x) {
+			m_LightPositions.push_back(glm::vec4(x, 0.0f));
+		}
 
-
+		void RemoveFromLightList(const glm::vec3& x) {
+			
+			std::vector<glm::vec4>::iterator position = std::find(m_LightPositions.begin(), m_LightPositions.end(), glm::vec4(x, 0.0f));
+			if (position != m_LightPositions.end()) // == myVector.end() means the element was not found
+				m_LightPositions.erase(position);
+		}
 
 		void Buffer()
 		{
@@ -82,6 +94,9 @@ namespace VoxelRT
 
 		Texture3D m_DistanceFieldTexture;
 		ParticleSystem::ParticleEmitter m_ParticleEmitter;
+
+		std::vector<glm::vec4> m_LightPositions;
+		GLuint m_LightPositionSSBO=0;
 
 	private :
 		bool m_Buffered = false;

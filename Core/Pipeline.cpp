@@ -133,7 +133,7 @@ public:
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
-			ImGui::Checkbox("VERY VERY WIP! : Point Light Volumetrics?", &PointVolumetricsToggled);
+			ImGui::Checkbox("Point Light Volumetrics?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 
 			ImGui::NewLine();
@@ -339,7 +339,7 @@ public:
 		{
 			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n\n";
 			VoxelRT::Volumetrics::Reupload();
-			PointVolumetricsToggled = !PointVolumetricsToggled;
+			world->RebufferLightList();
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
@@ -382,7 +382,7 @@ public:
 
 
 
-
+		world->RebufferLightList();
 		
 	}
 
@@ -653,10 +653,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 	// Volumetricssss 
+
+	world->InitializeLightList();
+
 	Volumetrics::CreateVolume(world, BlockDataStorageBuffer.GetSSBO(), BlockDatabase::GetTextureArray());
 	for (auto& e : LightLocations) {
 		uint8_t block_at = world->GetBlock(e).block;
 		Volumetrics::AddLightToVolume(e, block_at);
+		world->InsertToLightList(e);
 	}
 
 	for (int i = 0; i < 3; i++) {
@@ -2246,6 +2250,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VolumetricScattering.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 			VolumetricScattering.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
 
+
+
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
@@ -2324,11 +2330,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetInteger("u_ParticipatingMedia", 0);
 			PointVolumetrics.SetInteger("u_BlueNoise", 1);
 			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
+			PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
 			glBindImageTexture(0, VoxelRT::Volumetrics::GetVolume(), 0, true, 0, GL_READ_ONLY, GL_R16UI);
-
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
@@ -2336,6 +2342,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, VoxelRT::Volumetrics::GetAverageColorSSBO());
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->m_LightPositionSSBO);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2580,6 +2587,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		world->Update(&MainCamera);
 
+		if (app.GetCurrentFrame() % 6 == 0)
+		{
+			world->RebufferLightList();
+		}
+
 		// Finish Frame
 		glFinish();
 		app.FinishFrame();
@@ -2600,6 +2612,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		Frametime = glfwGetTime();
 		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
+
+		
 	}
 
 	SaveWorld(world, world_name);

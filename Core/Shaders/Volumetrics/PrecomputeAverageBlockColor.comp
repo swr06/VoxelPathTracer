@@ -13,7 +13,7 @@ layout (std430, binding = 0) buffer SSBO_BlockData
 
 layout (std430, binding = 1) buffer SSBO_BlockAverageData
 {
-    vec3 BlockAverageColorData[128];
+    vec4 BlockAverageColorData[128];
 };
 
 uniform sampler2DArray u_BlockAlbedo;
@@ -23,7 +23,8 @@ void main() {
     for (int CurrentTexture = 0 ; CurrentTexture < 128 ; CurrentTexture++) {
         
         int AlbedoTexture = BlockAlbedoData[CurrentTexture];
-        BlockAverageColorData[CurrentTexture] = vec3(0.0f);
+        BlockAverageColorData[CurrentTexture].xyz = vec3(0.0f);
+        BlockAverageColorData[CurrentTexture].w = 0.0f;
 
         if (AlbedoTexture >= 0)
         {
@@ -45,7 +46,8 @@ void main() {
             EstimatedAverageAlbedo *= 1.2f;
             EstimatedAverageAlbedo = pow(EstimatedAverageAlbedo, vec3(1.0f / 2.2f));
 
-            BlockAverageColorData[CurrentTexture] = EstimatedAverageAlbedo;
+            BlockAverageColorData[CurrentTexture].xyz = EstimatedAverageAlbedo;
+            BlockAverageColorData[CurrentTexture].w = 0.0f;
         }
     }
 }

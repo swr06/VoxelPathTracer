@@ -31,9 +31,16 @@ uniform mat4 u_View;
 uniform mat4 u_InverseProjection;
 uniform mat4 u_InverseView;
 
+uniform int u_LightCount;
+
 layout (std430, binding = 2) buffer SSBO_BlockAverageData
 {
-    vec3 BlockAverageColorData[128];
+    vec4 BlockAverageColorData[128];
+};
+
+layout (std430, binding = 4) buffer SSBO_LightData
+{
+    vec4 LightLocations[1024];
 };
 
 vec3 GetRayDirectionAt(vec2 screenspace)
@@ -111,6 +118,33 @@ float simplex3d_fractal(vec3 m)
 			+ 0.0666667 * noise(8.0*m);
 }
 
+float ManhattanDist(vec3 a, vec3 b) {
+	return abs(a.x - b.x) + abs(a.y - b.y) + abs(a.z - b.z);
+}
+
+vec3 GetVolumetricFog(vec3 p, vec3 c) {
+
+	float TotalFog = 0.0f;
+
+	for (int light = 0 ; light < u_LightCount ; light++) {
+		
+		vec3 LightAt = LightLocations[light].xyz;
+		LightAt += vec3(0.5f);
+		
+		if (ManhattanDist(LightAt, p) < 6.0f) 
+		{
+			float EuclideanDistance = pow(distance(p,LightAt)*8.0f, 1.0f);
+
+			if (EuclideanDistance < 4.0f * 4.0f) {
+
+				TotalFog += (1.0f / (EuclideanDistance*EuclideanDistance)) * 64.0f;
+			}
+		}
+	}
+
+	return TotalFog * c;
+}
+
 void main() 
 {
 	// Ray properties
@@ -146,50 +180,22 @@ void main()
 			break;
 		}
 		
-		// Dither
-		vec3 DitheredPosition = WorldPosition.xyz;
-		DitheredPosition += BlueNoise * vec3(0.5);
-		uint Sample = GetVoxel(ivec3(DitheredPosition));
+		uint Sample = GetVoxel(ivec3(WorldPosition));
 		uint Unpacked1 = Sample & 0xFF;
 		uint Unpacked2 = (Sample >> 8) & 0xFF;
 		int InitialDistance = int(Unpacked1);
 		int BlockType = int(Unpacked2);
 
-		if (InitialDistance == 0) 
-		{ 
+		if (InitialDistance == 0) {
 			WorldPosition += RayDirection * BlueNoise.x;
-			continue; 
+			continue;
 		}
 
-		vec3 Color = BlockAverageColorData[BlockType];
-
-		float Lighting = 0.0f; 
-		float DistSqr = InitialDistance;
-		DistSqr = DistSqr * DistSqr;
-		Lighting = DistSqr;
-
-		const float LightingPow = 1.0f / (sqrt(2.0f));
-		const float Sqrt2 = sqrt(2.0f);
-
-		Lighting = pow(Lighting, LightingPow);
-		
-		// Add variation using 3D noise
-
-		if (Use3DNoiseForDensity) {
-			float Noise3D = noise(WorldPosition);
-			float NoiseFactor = pow(Noise3D, 2.0f);
-			Lighting = Lighting * NoiseFactor; 
-		}
-
-		else {
-
-			Lighting *= 0.75750;
-		}
-
-		TotalLighting += Color * (Lighting * (1.0f + 0.1f));
+		vec3 Color = BlockAverageColorData[BlockType].xyz;
+		TotalLighting += GetVolumetricFog(WorldPosition,vec3(Color));
 		WorldPosition += RayDirection * BlueNoise.x;
 	}
 
-	TotalLighting *= 2.0f;
+	TotalLighting *= 2.7525f;
 	o_Volumetrics = vec3(TotalLighting / 60.0f);
 }

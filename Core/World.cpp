@@ -12,13 +12,20 @@ glm::ivec3 Get3DIdx(int idx)
 	return glm::ivec3(x, y, z);
 }
 
-void VoxelRT::World::InsertLightFloodFillNodes()
+void VoxelRT::World::InitializeLightList()
 {
-	for (auto& e : m_WorldData)
-	{
-
-	}
+	glGenBuffers(1, &m_LightPositionSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 1024 * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
+
+void VoxelRT::World::RebufferLightList()
+{
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}	
 
 void VoxelRT::World::InitializeDistanceGenerator()
 {
@@ -280,6 +287,11 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					if (BlockDatabase::GetBlockEmissiveTexture(editblock) >= 0) {
 						std::cout << "\nLAMP PLACED";
 						VoxelRT::Volumetrics::AddLightToVolume(glm::ivec3((int)position.x, (int)position.y, (int)position.z), editblock);
+					
+						this->InsertToLightList(glm::vec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z)));
 					}
 
 					SoundManager::PlayBlockSound(editblock, position, false);
@@ -365,6 +377,11 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 						glTexSubImage3D(GL_TEXTURE_3D, 0, (int)position.x, (int)position.y, (int)position.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &editblock);
 						GenerateDistanceField();
 					}
+
+					this->RemoveFromLightList(glm::vec3(
+						floor(position.x),
+						floor(position.y),
+						floor(position.z)));
 				}
 
 				else if (op == 2)
