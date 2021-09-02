@@ -144,9 +144,9 @@ float Bayer2(vec2 a)
 }
 
 // Simplified diffuse brdf
-vec3 CalculateDirectionalLight(in vec3 world_pos, in vec3 light_dir, vec3 radiance, in vec3 albedo, in vec3 normal, in float shadow)
+vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL)
 {
-	vec3 DiffuseBRDF = albedo * max(dot(normal, normalize(light_dir)), 0.0f) * (radiance * 1.5f);
+	vec3 DiffuseBRDF = albedo * NDotL * (radiance * 1.5f);
     return DiffuseBRDF * (1.0f - shadow);
 } 
 
@@ -179,9 +179,10 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 		Emmisivity = SampledEmmisivity * 20.0f * u_DiffuseLightIntensity;
 	}
 
+	float NDotL = max(dot(flatnormal, StrongerLightDirection), 0.0f);
 	vec3 bias = (flatnormal * 0.045);
-	float ShadowAt = GetShadowAt(world_pos + bias, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, normalize(StrongerLightDirection), LIGHT_COLOR, Albedo, flatnormal, ShadowAt);
+	float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(world_pos + bias, StrongerLightDirection);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, LIGHT_COLOR, Albedo, ShadowAt, NDotL);
 	return (Emmisivity * Albedo) + DirectLighting;
 }
 
