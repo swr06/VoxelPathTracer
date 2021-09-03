@@ -31,7 +31,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
 - Fully 3D Audio
-- Flood Fill Point Volumetrics 
+- Point Light Volumetrics 
 - Contrast Adaptive Sharpening
 
 # Features to implement
