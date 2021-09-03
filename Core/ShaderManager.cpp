@@ -16,6 +16,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	
 	AddShader("REFLECTION_TRACE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionTraceFrag.glsl");
 	AddShader("REFLECTION_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiser.glsl");
+	AddShader("REFLECTION_DENOISER_NEW", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ReflectionDenoiserNew.glsl");
 	AddShader("SPECULAR_TEMPORAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularTemporalFilter.glsl");
 
 	AddShader("RTAO", "Core/Shaders/FBOVert.glsl", "Core/Shaders/RaytracedAO.glsl");

@@ -26,6 +26,7 @@ static float CloudResolution = 0.5f;
 static bool VXAO = true;
 static bool WiderSVGF = false;
 static bool DITHER_SPATIAL_UPSCALE = true;
+static bool USE_NEW_SPECULAR_SPATIAL = true;
 
 static bool PointVolumetricsToggled = false;
 static float PointVolumetricStrength = 1.25f;
@@ -131,6 +132,8 @@ public:
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
+			ImGui::NewLine();
+			ImGui::Checkbox("USE_NEW_SPECULAR_SPATIAL", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::NewLine();
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
@@ -543,7 +546,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& LumaAverager = ShaderManager::GetShader("LUMA_AVERAGER");
 	GLClasses::Shader& VolumetricScattering = ShaderManager::GetShader("VOLUMETRIC_SCATTERING");
 	GLClasses::Shader& BilateralBlur = ShaderManager::GetShader("BILATERAL_BLUR");
-	GLClasses::Shader& ReflectionDenoiser = ShaderManager::GetShader("REFLECTION_DENOISER");
+	GLClasses::Shader& ReflectionDenoiserOld = ShaderManager::GetShader("REFLECTION_DENOISER");
+	GLClasses::Shader& ReflectionDenoiserNew = ShaderManager::GetShader("REFLECTION_DENOISER_NEW");
 	GLClasses::Shader& RTAOShader = ShaderManager::GetShader("RTAO");
 	GLClasses::Shader& GaussianSpatialFilter = ShaderManager::GetShader("GAUSSIAN_SPATIAL_FILTER");
 	GLClasses::Shader& AtrousSpatialFilter = ShaderManager::GetShader("ATROUS_SPATIAL_FILTER");
@@ -673,6 +677,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		auto& ReflectionDenoiser = USE_NEW_SPECULAR_SPATIAL ? ReflectionDenoiserNew : ReflectionDenoiserOld;
+
 		// Player update flag
 		if (glfwGetWindowAttrib(app.GetWindow(), GLFW_FOCUSED) == 0) {
 			UpdatePlayerCollision = false;
@@ -1755,6 +1761,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_PBRTex", 3);
 				ReflectionDenoiser.SetInteger("u_NormalMappedTexture", 4);
 				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
+				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
@@ -1764,6 +1771,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_InverseProjection", inv_projection);
 				ReflectionDenoiser.SetMatrix4("u_PrevProjection", PreviousProjection);
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
+				ReflectionDenoiser.SetMatrix4("u_View", MainCamera.GetViewMatrix());
+				ReflectionDenoiser.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
 
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
@@ -1794,6 +1803,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE7);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 
+				glActiveTexture(GL_TEXTURE10);
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 				VAO.Unbind();
@@ -1811,6 +1823,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
+				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
@@ -1841,6 +1854,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE7);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 				
+				glActiveTexture(GL_TEXTURE10);
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 				VAO.Unbind();
