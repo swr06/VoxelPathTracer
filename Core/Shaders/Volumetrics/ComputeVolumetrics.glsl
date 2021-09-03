@@ -32,6 +32,8 @@ uniform mat4 u_InverseProjection;
 uniform mat4 u_InverseView;
 
 uniform int u_LightCount;
+uniform float u_Time;
+uniform float u_Strength;
 
 layout (std430, binding = 2) buffer SSBO_BlockAverageData
 {
@@ -122,6 +124,39 @@ float ManhattanDist(vec3 a, vec3 b) {
 	return abs(a.x - b.x) + abs(a.y - b.y) + abs(a.z - b.z);
 }
 
+// 3D hash3d2 function
+float hash3d2(vec3 p)
+{
+    p  = fract( p*0.3183099+.1 );
+	p *= 17.0;
+    return fract( p.x*p.y*p.z*(p.x+p.y+p.z) );
+}
+
+// 3D precedural noise3d2
+float noise3d2( in vec3 x )
+{
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f*f*(3.0-2.0*f);
+	
+    // interpolate between hashes of adjacent grid points
+    return mix(mix(mix( hash3d2(p+vec3(0,0,0)), 
+                        hash3d2(p+vec3(1,0,0)),f.x),
+                   mix( hash3d2(p+vec3(0,1,0)), 
+                        hash3d2(p+vec3(1,1,0)),f.x),f.y),
+               mix(mix( hash3d2(p+vec3(0,0,1)), 
+                        hash3d2(p+vec3(1,0,1)),f.x),
+                   mix( hash3d2(p+vec3(0,1,1)), 
+                        hash3d2(p+vec3(1,1,1)),f.x),f.y),f.z);
+}
+
+// 3D noise3d2 layered in several octaves
+float layeredNoise(in vec3 x) {
+    x += vec3(10.0, 5.0, 6.0);
+    return 0.6*noise3d2(x*5.0) + 0.4*noise3d2(x*10.0) + 0.2*noise3d2(x*16.0) - 0.2;
+}
+
+
 vec3 GetVolumetricFog(vec3 p, vec3 c) {
 
 	float TotalFog = 0.0f;
@@ -133,11 +168,11 @@ vec3 GetVolumetricFog(vec3 p, vec3 c) {
 		
 		if (ManhattanDist(LightAt, p) < 6.0f) 
 		{
-			float EuclideanDistance = pow(distance(p,LightAt)*8.0f, 1.0f);
+			float EuclideanDistance = distance(p,LightAt);
 
-			if (EuclideanDistance < 4.0f * 4.0f) {
+			if (EuclideanDistance < 3.5f) {
 
-				TotalFog += (1.0f / (EuclideanDistance*EuclideanDistance)) * 64.0f;
+				TotalFog += 1.0f/(EuclideanDistance*EuclideanDistance) ;
 			}
 		}
 	}
@@ -147,12 +182,16 @@ vec3 GetVolumetricFog(vec3 p, vec3 c) {
 
 void main() 
 {
+	const int STEPS = 100;
+	const int HALF_STEPS = STEPS/2;
+
 	// Ray properties
 	vec3 rO = u_ViewerPosition;
 
 	// Dither
 	vec3 BlueNoise = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).xyz;
 
+	float Dither = BlueNoise.x;
 	vec3 rD = GetRayDirectionAt(v_TexCoords);
 	vec3 TotalLighting = vec3(0.0f);
 
@@ -164,10 +203,16 @@ void main()
 	RayDirection = normalize(RayDirection);
 	int DensitySamples = 0;
 
-	bool Use3DNoiseForDensity = true;
+	bool Use3DNoiseForOD = false;
+
+	vec3 CurrentTransmittance = vec3(1.0f);
+	vec3 Transmittance = vec3(1.0f);
+
+	// Increase the dither a tiiiny bit every step
+	float DitherIncrement = 1.0250f;
 	
 	//Ray march through participating media and gather densities 
-	for (int x = 0; x < 60; x++)
+	for (int x = 0; x < STEPS; x++)
 	{
 		if (!IsInVolume(WorldPosition))
 		{
@@ -187,15 +232,30 @@ void main()
 		int BlockType = int(Unpacked2);
 
 		if (InitialDistance == 0) {
-			WorldPosition += RayDirection * BlueNoise.x;
+			WorldPosition += RayDirection * Dither;
+			Dither *= mix(1.0f, DitherIncrement, float(x > HALF_STEPS));
 			continue;
 		}
 
+		float OpticalDepth = 1.0f;
+
+		if (Use3DNoiseForOD) {
+			const float OD_TimeMultiplier = 0.425f;
+			const vec3 OD_NoisePositionMultiplier = vec3(0.4f);
+			OpticalDepth = noise((WorldPosition * OD_NoisePositionMultiplier) - (u_Time * OD_TimeMultiplier)) * 0.5f;
+			OpticalDepth += noise((WorldPosition * OD_NoisePositionMultiplier) * 2.0 + (u_Time * OD_TimeMultiplier)) * 0.25f;
+			OpticalDepth += noise((WorldPosition * OD_NoisePositionMultiplier) * 4.0 - (u_Time * OD_TimeMultiplier)) * 0.125f;
+			OpticalDepth = (OpticalDepth * OpticalDepth * 4.0f + 0.25f) * 1.1f;
+		}
+
 		vec3 Color = BlockAverageColorData[BlockType].xyz;
-		TotalLighting += GetVolumetricFog(WorldPosition,vec3(Color));
-		WorldPosition += RayDirection * BlueNoise.x;
+		TotalLighting += GetVolumetricFog(WorldPosition,vec3(Color))*OpticalDepth;
+		WorldPosition += RayDirection * Dither;
+		Dither *= mix(1.0f, DitherIncrement, float(x > HALF_STEPS));
 	}
 
-	TotalLighting *= 2.7525f;
-	o_Volumetrics = vec3(TotalLighting / 60.0f);
+	TotalLighting *= clamp(u_Strength, 0.0f, 3.0f);
+	TotalLighting *= PI / 1.25f; 
+	const float Avg = float(STEPS) * 0.6f;
+	o_Volumetrics = vec3(TotalLighting / Avg);
 }

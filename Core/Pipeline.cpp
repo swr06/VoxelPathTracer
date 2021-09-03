@@ -28,6 +28,7 @@ static bool WiderSVGF = false;
 static bool DITHER_SPATIAL_UPSCALE = true;
 
 static bool PointVolumetricsToggled = false;
+static float PointVolumetricStrength = 1.25f;
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -129,13 +130,16 @@ public:
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
-			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
-			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
-			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
-			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
-			ImGui::Checkbox("Point Light Volumetrics?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
-
+			ImGui::NewLine();
+			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
+			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
+			ImGui::NewLine();
+			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
+			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			ImGui::NewLine();
+			ImGui::Checkbox("Point Volumetric Fog?", &PointVolumetricsToggled);
+			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
@@ -2331,6 +2335,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetInteger("u_BlueNoise", 1);
 			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
 			PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
+
+			PointVolumetrics.SetFloat("u_Time", glfwGetTime());
+			PointVolumetrics.SetFloat("u_Strength", PointVolumetricStrength);
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
