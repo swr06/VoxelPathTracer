@@ -63,7 +63,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - https://github.com/NVIDIA/Q2RTX
 - https://cg.ivd.kit.edu/publications/2017/svgf/svgf_preprint.pdf
 - https://teamwisp.github.io/research/svfg.html
-- Textures from "Realism Mats", "Umsoea", CC0 textures and Quixel Megascans 
+- Textures from "Umsoea", CC0 textures and Quixel Megascans 
 
 # Thanks
 - [Fuzdex](https://github.com/Shadax-stack)
