@@ -52,7 +52,7 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
 float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
 {
     float radius;
-    radius = 4;
+    radius = 2;
     float radQ = radius * radius;
     float invSigmaQx2 = 0.5f / (sigma * sigma);   
     float invSigmaQx2PI = INV_PI * invSigmaQx2;    

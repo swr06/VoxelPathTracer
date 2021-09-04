@@ -31,6 +31,8 @@ uniform int u_CurrentFrame;
 uniform bool u_ContactHardeningShadows;
 uniform bool u_ShouldAlphaTest;
 
+uniform vec2 u_Dimensions;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -400,14 +402,11 @@ void main()
 		vec3 RayPosition = RayOrigin.xyz;
 
 		vec2 Hash;
-
-		#ifdef USE_GOLD_NOISE
-		// possibly.. more uniform? Didnt make a difference.
-		Hash.x = gold_noise(gl_FragCoord.xy, fract(u_Time) + 1.0);
-		Hash.y = gold_noise(gl_FragCoord.xy, fract(u_Time) + 2.0);
-		#else
-		Hash = hash2(); // white noise
-		#endif
+		int n = u_CurrentFrame%1024;
+		vec2 off = fract(vec2(n*12664745, n*9560333)/16777216.0) * 1024.0;
+		ivec2 TextureSize = textureSize(u_BlueNoiseTexture, 0);
+		ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
+		Hash = texelFetch(u_BlueNoiseTexture, SampleTexelLoc, 0).xy;
 
 		vec3 L = JitteredLightDirection;
 		vec3 T = normalize(cross(L, vec3(0.0, 1.0, 1.0)));

@@ -1472,6 +1472,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			ShadowTraceShader.SetVector3f("u_LightDirection", StrongerLightDirection);
 			ShadowTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
+			ShadowTraceShader.SetVector2f("u_Dimensions", glm::vec2(ShadowFBO.GetWidth(), ShadowFBO.GetHeight()));
 			ShadowTraceShader.SetBool("u_DoFullTrace", true);
 			ShadowTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 			ShadowTraceShader.SetMatrix4("u_ShadowView", ShadowView);
@@ -1535,7 +1536,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetBool("u_ShadowTemporal", true);
 
 			MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.1f : 0.95f);
+			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.375250f : 0.95f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
 
