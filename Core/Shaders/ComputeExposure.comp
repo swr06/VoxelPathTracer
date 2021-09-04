@@ -7,7 +7,10 @@ layout (std430, binding = 1) buffer EyeAdaptation_SSBO
     float o_Exposure;
 };
 
-uniform sampler2D u_ColorTexture;
+layout (std430, binding = 2) buffer EyeAdaptation_PDF {
+	uint PDF[256];
+};
+
 uniform vec2 u_Resolution;
 uniform vec2 u_InverseResolution;
 uniform float u_DeltaTime;
@@ -15,34 +18,10 @@ uniform float u_DeltaTime;
 const uint TileSize = 64;
 uvec2 GridSize = uvec2(u_Resolution) / TileSize;
 uint TileCount = GridSize.x * GridSize.y;
-const uint TileLOD = int(log2(TileSize))/2;
 const float HistogramLogScale = 18.0f;
 const float HistogramLogZero = 220.0f;
 
-int GetBin(float L) 
-{
-	return clamp(int(log(L) * (HistogramLogScale) + (HistogramLogZero)), 0, 255);
-}
-
-float GetAverageLuminosity() 
-{
-	uint PDF[256];
-
-	for(uint X = 0; X < 256; X++) 
-	{
-		PDF[X] = 0;
-	}
-
-	for(uint tx = 0; tx <= GridSize.x; tx++) 
-	{
-		for(uint ty = 0; ty <= GridSize.y; ty++) 
-		{
-			vec2 SampleCoordinate = (vec2(tx, ty) * TileSize + TileSize / 2) * u_InverseResolution;
-			vec3 Sample = textureLod(u_ColorTexture, SampleCoordinate, TileLOD).rgb;
-			PDF[GetBin((dot(Sample, vec3(0.2722287168, 0.6740817658, 0.0536895174))))] += 1;
-		}
-	}
-
+void main() {
 	uint CumulativeDensity = 0;
 	uint ClosestBinToMedian = 0;
 	float ClosestDistToMedian = TileCount;
@@ -59,27 +38,15 @@ float GetAverageLuminosity()
 		}
 	}
 
-	return exp((float(ClosestBinToMedian) - HistogramLogZero) / HistogramLogScale);
-
-}
-
-float CalculateAutoExposure() 
-{
-    const float L_MIN  = 0.001f;
+	const float L_MIN  = 0.001f;
     const float L_MAX  = 5.0f;
     const float ExposureDecay = 0.025f;
 	const float ExposureGrowth = 0.01f;
 	const float EXPOSURE_SPEED = 0.1f;
 	float CurrentExposure = max(o_Exposure, 0.0f);
-	float AverageLuma = GetAverageLuminosity();
+	float AverageLuma = exp((float(ClosestBinToMedian) - HistogramLogZero) / HistogramLogScale);
 	float KeyVal = 1.03f - 2.0f / (2.0f + log10(AverageLuma + 1.0));
 	float TargetExposure = KeyVal * 2.15f / clamp(AverageLuma, L_MIN, L_MAX);
 	float Speed = TargetExposure < CurrentExposure ? ExposureDecay : ExposureGrowth;
-    return mix(CurrentExposure, TargetExposure, Speed * 2.0f * EXPOSURE_SPEED * (u_DeltaTime / 0.0033));
-}
-
-void main() 
-{ 
-	float result = CalculateAutoExposure();
-	o_Exposure = result;
+    o_Exposure = mix(CurrentExposure, TargetExposure, Speed * 2.0f * EXPOSURE_SPEED * (u_DeltaTime / 0.0033));
 }

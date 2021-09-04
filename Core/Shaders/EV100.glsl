@@ -1,3 +1,6 @@
+// implemented functions from the filament brdf docs.
+
+
 #version 330 core
 
 #define LENS_LENGTH 15.0

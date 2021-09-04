@@ -1,0 +1,37 @@
+#version 430 core
+
+// Dispatch : 2, 2, 1 -> global units to calculate the pdf 
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout (std430, binding = 2) buffer EyeAdaptation_OutputSSBO {
+	uint PDF[256];
+};
+
+uniform sampler2D u_ColorTexture;
+uniform vec2 u_Resolution;
+uniform vec2 u_InverseResolution;
+uniform float u_DeltaTime;
+
+const uint TileSize = 64;
+const float HistogramLogScale = 18.0f;
+const float HistogramLogZero = 220.0f;
+
+int GetBin(float L) 
+{
+	return clamp(int(log(L) * (HistogramLogScale) + (HistogramLogZero)), 0, 255);
+}
+
+void main() 
+{ 
+	vec2 S = vec2(gl_GlobalInvocationID.xy);
+
+	// Center sample on to tile
+
+	vec2 SampleCoordinate = (vec2(S) * TileSize + TileSize / 2) * u_InverseResolution; 
+
+	if (SampleCoordinate == clamp(SampleCoordinate, 0.0f, 1.0f)) 
+	{
+		vec3 Sample = texture(u_ColorTexture, SampleCoordinate).rgb;
+		atomicAdd(PDF[GetBin((dot(Sample, vec3(0.2722287168, 0.6740817658, 0.0536895174))))], 1);
+	}
+}

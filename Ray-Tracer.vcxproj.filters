@@ -606,7 +606,13 @@
     <None Include="Core\Shaders\ReflectionDenoiserNew.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\EyeAdaptation\CalculateEyeAdaptation.comp">
+    <None Include="Core\Shaders\CalculateAverageLuminance.comp">
+      <Filter>Source Files\Shaders\EyeAdaptation</Filter>
+    </None>
+    <None Include="Core\Shaders\ComputeExposure.comp">
+      <Filter>Source Files\Shaders\EyeAdaptation</Filter>
+    </None>
+    <None Include="Core\Shaders\EV100.glsl">
       <Filter>Source Files\Shaders\EyeAdaptation</Filter>
     </None>
   </ItemGroup>

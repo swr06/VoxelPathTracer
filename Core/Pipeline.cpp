@@ -133,7 +133,7 @@ public:
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::NewLine();
-			ImGui::Checkbox("USE_NEW_SPECULAR_SPATIAL", &USE_NEW_SPECULAR_SPATIAL);
+			ImGui::Checkbox("Use new specular spatial filter? (Doesn't overblur. Might produce more noise.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::NewLine();
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
@@ -144,7 +144,7 @@ public:
 			ImGui::Checkbox("Point Volumetric Fog?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
-			ImGui::Checkbox("Auto Exposure (WIP.) ?", &AutoExposure);
+			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
@@ -571,10 +571,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::TextureArray BlueNoise;
 
-	// Compute :
-	GLClasses::ComputeShader AutoExposureCompute;
-	AutoExposureCompute.CreateComputeShader("Core/Shaders/EyeAdaptation/CalculateEyeAdaptation.comp");
-	AutoExposureCompute.Compile();
+
 	
 	VoxelRT::ColorPassFBO ColoredFBO;
 
@@ -680,16 +677,35 @@ void VoxelRT::MainPipeline::StartPipeline()
 	}
 
 
-
+	/////////////
 
 	// Auto exposure!
 
 	const float ZeroFloat = 0.0f;
-	GLuint AutoExposureSSBO = 0;
+	GLuint AutoExposureSSBO = 0, AutoExposurePDF;
+	GLuint Zero256UINT[256];
+	memset(&Zero256UINT, 0, 256 * sizeof(GLuint));
+
 	glGenBuffers(1, &AutoExposureSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposureSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float), &ZeroFloat, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	glGenBuffers(1, &AutoExposurePDF);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposurePDF);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint) * 256, &Zero256UINT, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	// Create Compute Shaders!
+	GLClasses::ComputeShader AutoExposureComputePDF;
+	AutoExposureComputePDF.CreateComputeShader("Core/Shaders/CalculateAverageLuminance.comp");
+	AutoExposureComputePDF.Compile();
+
+	GLClasses::ComputeShader ComputeAutoExposure;
+	ComputeAutoExposure.CreateComputeShader("Core/Shaders/ComputeExposure.comp");
+	ComputeAutoExposure.Compile();
+	
+	////////////
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -2230,35 +2246,63 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		if (AutoExposure)
 		{
-			// Generate Mips
-			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
-			glGenerateMipmap(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposurePDF);
+			glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint) * 256, &Zero256UINT);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-			//AutoExposureSSBO
-			AutoExposureCompute.Use();
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, AutoExposureSSBO);
-			AutoExposureCompute.SetInteger("u_ColorTexture", 0);
-			AutoExposureCompute.SetVector2f("u_Resolution", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
-			AutoExposureCompute.SetVector2f("u_InverseResolution", glm::vec2(1.0f/ColoredFBO.GetWidth(), 1.0f/ColoredFBO.GetHeight()));
-			AutoExposureCompute.SetFloat("u_DeltaTime", DeltaTime);
+			AutoExposureComputePDF.Use();
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, AutoExposurePDF);
+			AutoExposureComputePDF.SetInteger("u_ColorTexture", 0);
+			AutoExposureComputePDF.SetVector2f("u_Resolution", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
+			AutoExposureComputePDF.SetVector2f("u_InverseResolution", glm::vec2(1.0f/ColoredFBO.GetWidth(), 1.0f/ColoredFBO.GetHeight()));
+			AutoExposureComputePDF.SetFloat("u_DeltaTime", DeltaTime);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
+			glDispatchCompute(2, 2, 1);
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+			glUseProgram(0);
+
+			ComputeAutoExposure.Use();
+			ComputeAutoExposure.SetVector2f("u_Resolution", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
+			ComputeAutoExposure.SetVector2f("u_InverseResolution", glm::vec2(1.0f / ColoredFBO.GetWidth(), 1.0f / ColoredFBO.GetHeight()));
+			ComputeAutoExposure.SetFloat("u_DeltaTime", DeltaTime);
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, AutoExposureSSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, AutoExposurePDF);
+
 			glDispatchCompute(1, 1, 1);
 			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+			glUseProgram(0);
 
 			float DownloadedExposure = 0.0f;
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposureSSBO);
 			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float), &DownloadedExposure);;
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 			DownloadedExposure = DownloadedExposure * DownloadedExposure;
-			ComputedExposure = glm::clamp((DownloadedExposure * 5.0f), 3.0f, 20.0f);
+
+			float AE_BoundsMin = 3.0f;
+			float AE_BoundsMax = 20.0f;
+			float ExposureMultiplier = 5.0f;
+
+			glm::vec3 AE_NormalizedSunDir = glm::normalize(SunDirection);
+			float AE_SunVisibility = glm::clamp(glm::dot(AE_NormalizedSunDir, glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0;
+			AE_SunVisibility = 1.0f - AE_SunVisibility;
+
+			AE_BoundsMin = glm::mix(AE_BoundsMin, 2.35f, AE_SunVisibility);
+			AE_BoundsMax = glm::mix(AE_BoundsMax, 3.01f, AE_SunVisibility);
+			ExposureMultiplier = glm::mix(ExposureMultiplier, 1.0f, AE_SunVisibility);
+			
+			ComputedExposure = glm::clamp((DownloadedExposure * ExposureMultiplier), AE_BoundsMin, AE_BoundsMax);
 			
 			if (app.GetCurrentFrame() % 6 == 0) {
 				std::cout << "\n AUTO EXPOSURE COMPUTED : " << ComputedExposure << "\n";
 			}
+
+			
 		}
 
 		// ---- Volumetric Scattering ----
@@ -2576,7 +2620,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
-		}
+		} 
 
 		// Particles
 
