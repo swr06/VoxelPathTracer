@@ -144,6 +144,7 @@ public:
 			ImGui::Checkbox("Point Volumetric Fog?", &PointVolumetricsToggled);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
+			ImGui::Checkbox("Auto Exposure (WIP.) ?", &AutoExposure);
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
@@ -200,7 +201,6 @@ public:
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended)", &SSAO);
-			ImGui::Checkbox("Auto Exposure (Very very WIP!) ?", &AutoExposure);
 			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
@@ -571,6 +571,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::TextureArray BlueNoise;
 
+	// Compute :
+	GLClasses::ComputeShader AutoExposureCompute;
+	AutoExposureCompute.CreateComputeShader("Core/Shaders/EyeAdaptation/CalculateEyeAdaptation.comp");
+	AutoExposureCompute.Compile();
 	
 	VoxelRT::ColorPassFBO ColoredFBO;
 
@@ -674,6 +678,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 	for (int i = 0; i < 3; i++) {
 		Volumetrics::PropogateVolume();
 	}
+
+
+
+
+	// Auto exposure!
+
+	const float ZeroFloat = 0.0f;
+	GLuint AutoExposureSSBO = 0;
+	glGenBuffers(1, &AutoExposureSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposureSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float), &ZeroFloat, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -2210,51 +2226,40 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// ---- Auto Exposure ----
 
 
-		// This was to test auto exposure, it doesnt work very well
-
-
-
-
-		float ComputedExposure = 3.0f;
-
+		float ComputedExposure = 3.25f;
+		
 		if (AutoExposure)
 		{
-#define SAMPLE_COUNT 9
-			int AutoExposureWidth = PADDED_WIDTH;
-			int AutoExposureHeight = PADDED_HEIGHT;
-			float AverageBrightness;
+			// Generate Mips
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
+			glGenerateMipmap(GL_TEXTURE_2D);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
-			int Pixels[SAMPLE_COUNT][2] =
-			{
-				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.50),
-				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.50),
-				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.50),
-				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.25),
-				static_cast<int>(AutoExposureWidth * 0.50), static_cast<int>(AutoExposureHeight * 0.75),
-				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.25),
-				static_cast<int>(AutoExposureWidth * 0.25), static_cast<int>(AutoExposureHeight * 0.75),
-				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.25),
-				static_cast<int>(AutoExposureWidth * 0.75), static_cast<int>(AutoExposureHeight * 0.75)
-			};
+			//AutoExposureSSBO
+			AutoExposureCompute.Use();
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, AutoExposureSSBO);
+			AutoExposureCompute.SetInteger("u_ColorTexture", 0);
+			AutoExposureCompute.SetVector2f("u_Resolution", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
+			AutoExposureCompute.SetVector2f("u_InverseResolution", glm::vec2(1.0f/ColoredFBO.GetWidth(), 1.0f/ColoredFBO.GetHeight()));
+			AutoExposureCompute.SetFloat("u_DeltaTime", DeltaTime);
 
-			glm::vec3 AveragedSamples;
-			unsigned char Samples[SAMPLE_COUNT][4];
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
-			for (int i = 0; i < SAMPLE_COUNT; i++)
-			{
-				glReadPixels(Pixels[i][0], Pixels[i][1], 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &Samples[i][0]);
-				AveragedSamples += (glm::vec3(Samples[i][0], Samples[i][1], Samples[i][2]) / 255.0f) / float(SAMPLE_COUNT);
+			glDispatchCompute(1, 1, 1);
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+			float DownloadedExposure = 0.0f;
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposureSSBO);
+			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float), &DownloadedExposure);;
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+			DownloadedExposure = DownloadedExposure * DownloadedExposure;
+			ComputedExposure = glm::clamp((DownloadedExposure * 5.0f), 3.0f, 20.0f);
+			
+			if (app.GetCurrentFrame() % 6 == 0) {
+				std::cout << "\n AUTO EXPOSURE COMPUTED : " << ComputedExposure << "\n";
 			}
-
-			AverageBrightness = glm::max(glm::max(AveragedSamples.x, AveragedSamples.y), AveragedSamples.z);
-			CameraExposure = 0.5 / AverageBrightness;
-			CameraExposure = PrevCameraExposure + (CameraExposure - PrevCameraExposure) * 0.02;
-			PrevCameraExposure = CameraExposure;
-			ComputedExposure = CameraExposure * 3.0f;
 		}
-
-
-
 
 		// ---- Volumetric Scattering ----
 

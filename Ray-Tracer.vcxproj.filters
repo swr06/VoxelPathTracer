@@ -72,6 +72,9 @@
     <Filter Include="Source Files\Shaders\Volumetrics">
       <UniqueIdentifier>{c0d65f40-28fb-45c7-b239-7ed476f5e718}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\EyeAdaptation">
+      <UniqueIdentifier>{5c852b26-5fda-4aa9-a3ff-f98f63e596a9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -602,6 +605,9 @@
     </None>
     <None Include="Core\Shaders\ReflectionDenoiserNew.glsl">
       <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\EyeAdaptation\CalculateEyeAdaptation.comp">
+      <Filter>Source Files\Shaders\EyeAdaptation</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

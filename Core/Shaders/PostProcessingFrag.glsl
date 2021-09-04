@@ -651,6 +651,7 @@ void main()
 	else 
 	{
 		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb) + PointVolumetrics;
+		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		o_Color = BasicTonemap(o_Color);
 	}
 
