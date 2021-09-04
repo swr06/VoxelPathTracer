@@ -1,9 +1,6 @@
 #version 330 core
 
-#define ESTIMATE_WEIGHT_BASED_ON_NEIGHBOURS
-
-// Filters indirect diffuse lighting : 
-
+#define ESTIMATE_VARIANCE_BASED_ON_NEIGHBOURS
 
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
@@ -34,6 +31,8 @@ uniform mat4 u_InverseProjection;
 
 
 uniform float u_ColorPhiBias = 2.0f;
+uniform float u_DeltaTime;
+uniform float u_Time;
 
 const float POSITION_THRESH = 4.0f;
 
@@ -78,7 +77,7 @@ vec3 Saturate(vec3 x)
 
 float GetVarianceEstimate(out float BaseVariance)
 {
-#ifdef ESTIMATE_WEIGHT_BASED_ON_NEIGHBOURS
+#ifdef ESTIMATE_VARIANCE_BASED_ON_NEIGHBOURS
 	vec2 TexelSize = 1.0f / textureSize(u_SH, 0);
 	float VarianceSum = 0.0f;
 
@@ -138,6 +137,13 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
 float sqr(float x) { return x * x; }
 float GetSaturation(in vec3 v) { return length(v); }
 
+float GradientNoise()
+{
+	vec2 coord = gl_FragCoord.xy + mod(u_Time * 100.493850275f, 500.0f);
+	float noise = fract(52.9829189f * fract(0.06711056f * coord.x + 0.00583715f * coord.y));
+	return noise;
+}
+
 void main()
 {
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
@@ -169,11 +175,13 @@ void main()
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
 
+	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 1.1f));
+
 	for (int x = -2 ; x <= 2 ; x++)
 	{
 		for (int y = -2 ; y <= 2 ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + (vec2(x, y) * float(u_Step)) * TexelSize;
+			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + vec2(Jitter)) * TexelSize;
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 

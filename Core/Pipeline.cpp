@@ -1075,6 +1075,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Temporal.SetMatrix4("u_InverseProjection", inv_projection);
 				SVGF_Temporal.SetMatrix4("u_PrevInverseProjection", glm::inverse(PreviousProjection));
 				SVGF_Temporal.SetMatrix4("u_PrevInverseView", glm::inverse(PreviousView));
+
+				SVGF_Temporal.SetFloat("u_Time", glfwGetTime());
+				SVGF_Temporal.SetFloat("u_DeltaTime", DeltaTime);
+
 				//uniform mat4 u_PrevInverseProjection;
 				//uniform mat4 u_PrevInverseView;
 				glActiveTexture(GL_TEXTURE0);
@@ -1254,6 +1258,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
 					SVGF_Spatial.SetBool("DO_SPATIAL", DO_SVGF_SPATIAL);
 					SVGF_Spatial.SetFloat("u_ColorPhiBias", ColorPhiBias);
+					SVGF_Spatial.SetFloat("u_Time", glfwGetTime());
+					SVGF_Spatial.SetFloat("u_DeltaTime", DeltaTime);
 
 					glActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -1824,6 +1830,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
+				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -1881,6 +1888,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_InverseProjection", inv_projection);
 				ReflectionDenoiser.SetMatrix4("u_PrevProjection", PreviousProjection);
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
+				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 
 				BlockDataStorageBuffer.Bind(0);
 

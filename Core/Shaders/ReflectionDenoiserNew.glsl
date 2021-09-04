@@ -27,6 +27,8 @@ uniform mat4 u_PrevView;
 uniform mat4 u_View;
 uniform mat4 u_Projection;
 
+uniform float u_Time;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -128,6 +130,13 @@ int GetBlockID(vec2 txc)
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
 
+float GradientNoise()
+{
+	vec2 coord = gl_FragCoord.xy + mod(u_Time * 100.493850275f, 500.0f);
+	float noise = fract(52.9829189f * fract(0.06711056f * coord.x + 0.00583715f * coord.y));
+	return noise;
+}
+
 void main()
 {
 	vec4 BlurredSH = vec4(0.0f);
@@ -154,12 +163,13 @@ void main()
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), (1.0f-RoughnessAt)*4.0f), 0.0f, 1.0f);
 	int EffectiveRadius = int(floor(Radius * 16.0f));
 	EffectiveRadius = clamp(EffectiveRadius, 1, 16);
+	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
-		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
+		float SampleOffset = Jitter + Sample;
+		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * TexelSize));
 		
-		// Solves clamp issues : 
 		float bias = 0.01f;
 		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 
 		{
@@ -170,10 +180,8 @@ void main()
 			if (PositionError > 0.8f || SamplePosition.w < 0.0f) { 
 				continue;
 			}
-
 			
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-
 			float NormalWeight = pow(abs(dot(SampleNormal, BaseNormal)), 12.0f);
 			int BlockAt = GetBlockID(SampleCoord);
 			vec2 SampleUV = CalculateUV(SamplePosition.xyz, SampleNormal);

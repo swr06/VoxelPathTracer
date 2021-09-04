@@ -1,5 +1,13 @@
 #version 330 core
 
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
+
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out vec3 o_Utility;
@@ -40,6 +48,14 @@ uniform float u_MinimumMix = 0.25f;
 uniform float u_MaximumMix = 0.975f;
 uniform vec3 u_PrevCameraPos;
 uniform vec3 u_CurrentCameraPos;
+
+uniform float u_DeltaTime;
+uniform float u_Time;
+
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
 
 vec3 ProjectPositionPrevious(vec3 pos)
 {
@@ -105,6 +121,13 @@ vec3 SampleNormal(sampler2D samp, vec2 txc) {
 	return GetNormalFromID(texture(samp, txc).x);
 }
 
+float GradientNoise()
+{
+	vec2 coord = gl_FragCoord.xy + mod(u_Time * 100.493850275f, 500.0f);
+	float noise = fract(52.9829189f * fract(0.06711056f * coord.x + 0.00583715f * coord.y));
+	return noise;
+}
+
 void main()
 {
 	vec4 BasePosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords);
@@ -138,12 +161,13 @@ void main()
 	const vec2 Offsets[5] = vec2[5](vec2(1, 0), vec2(0, 1), vec2(0.0f), vec2(-1, 0), vec2(0, -1));
 
 	int BaseBlock = clamp(int(floor((texture(u_CurrentBlockIDTexture, v_TexCoords).r) * 255.0f)), 0, 127);
+	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.5f));
 
 	// Sample neighbours and hope to find a good sample : 
 	for (int i = 0 ; i < 5 ; i++)
 	{
 		vec2 Offset = Offsets[i];
-		vec2 SampleCoord = ReprojectedCoord + vec2(Offset.x, Offset.y) * TexelSize;
+		vec2 SampleCoord = ReprojectedCoord + (vec2(Offset.x, Offset.y) + vec2(Jitter)) * TexelSize;
 		if (!InThresholdedScreenSpace(SampleCoord)) { continue; }
 
 		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
