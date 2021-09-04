@@ -17,6 +17,8 @@ uniform sampler2D u_PreviousFramePositionTexture;
 uniform sampler2D u_CurrentCoCg;
 uniform sampler2D u_PrevCoCg;
 
+uniform sampler2D u_PreviousNormalTexture;
+
 
 uniform sampler2D u_PBRTex;
 uniform sampler2D u_SpecularHitDist;
@@ -181,9 +183,11 @@ void main()
 
 		float ReprojectBias = 0.01f;
 
+		vec3 PrevNormal = SampleNormal(u_PreviousNormalTexture, Reprojected.xy);
+
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && 
-		 d < 0.64f)
+		 d < 0.75f && PrevNormal==InitialNormal)
 		{
 			vec4 PrevSH;
 			vec2 PrevCoCg;

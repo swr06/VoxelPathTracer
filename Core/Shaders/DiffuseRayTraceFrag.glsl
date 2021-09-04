@@ -50,6 +50,8 @@ uniform float u_Time;
 uniform int u_SPP;
 uniform int u_CurrentFrame;
 uniform int u_CurrentFrameMod512;
+uniform int u_CurrentFrameMod128;
+uniform bool u_UseBlueNoise;
 
 uniform vec3 u_ViewerPosition;
 uniform vec3 u_SunDirection;
@@ -321,13 +323,12 @@ float SampleBlueNoise1D(ivec2 Pixel, int Index, int Dimension) {
 
 int CurrentBLSample = 0;
 
-vec2 SampleBlueNoise2D() 
+vec2 SampleBlueNoise2D(int Index) 
 {
 	vec2 Noise;
-	Noise.x = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), u_CurrentFrameMod512, CurrentBLSample + 1);
-	Noise.y = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), u_CurrentFrameMod512, CurrentBLSample + 2);
+	Noise.x = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), Index, 1+CurrentBLSample);
+	Noise.y = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), Index, 2+CurrentBLSample);
 	CurrentBLSample += 2;
-	CurrentBLSample = CurrentBLSample % 12;
 	return Noise;
 }
 
@@ -430,9 +431,15 @@ float nextFloat(inout int seed, in float min, in float max)
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
-  	vec2 r = vec2(hash2());
-	//vec2 r = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED));
-    //vec2 r = SampleBlueNoise2D();
+  	vec2 r = vec2(0.0f);
+
+	if (!u_UseBlueNoise) {
+		r = vec2(hash2());
+	} 
+	
+	else {
+		r = SampleBlueNoise2D(u_CurrentFrameMod128);
+	}
 
 	float PI2 = 2.0f * PI;
 	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));

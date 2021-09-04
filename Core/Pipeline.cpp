@@ -27,6 +27,7 @@ static bool VXAO = true;
 static bool WiderSVGF = false;
 static bool DITHER_SPATIAL_UPSCALE = true;
 static bool USE_NEW_SPECULAR_SPATIAL = true;
+static bool USE_BLUE_NOISE_FOR_TRACING = true;
 
 static bool PointVolumetricsToggled = false;
 static float PointVolumetricStrength = 1.25f;
@@ -133,6 +134,7 @@ public:
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::NewLine();
+			ImGui::Checkbox("Use Blue noise for tracing?", &USE_BLUE_NOISE_FOR_TRACING);
 			ImGui::Checkbox("Use new specular spatial filter? (Doesn't overblur. Might produce more noise.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::NewLine();
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
@@ -962,6 +964,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetInteger("u_CurrentFrameMod512", glm::clamp((int)app.GetCurrentFrame() % 512, 0, 524));
 
+		DiffuseTraceShader.SetInteger("u_CurrentFrameMod128", (int)app.GetCurrentFrame() % 128);
+		DiffuseTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
+
+
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
@@ -1627,6 +1633,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
 			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 			ReflectionTraceShader.SetBool("u_RoughReflections", RoughReflections);
+			ReflectionTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -1641,6 +1648,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+			ReflectionTraceShader.SetInteger("u_CurrentFrameMod128", app.GetCurrentFrame()%128);
 
 			ReflectionTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 			ReflectionTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -1697,6 +1705,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE16);
 			glBindTexture(GL_TEXTURE_2D, SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture());
+			
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -1723,6 +1733,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_SpecularHitDist", 7);
 			SpecularTemporalFilter.SetInteger("u_PrevSpecularHitDist", 8);
 			SpecularTemporalFilter.SetInteger("u_NormalTexture", 9);
+			SpecularTemporalFilter.SetInteger("u_PreviousNormalTexture", 10);
 
 
 			SpecularTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
@@ -1771,6 +1782,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE9);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE10);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(1));
+
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

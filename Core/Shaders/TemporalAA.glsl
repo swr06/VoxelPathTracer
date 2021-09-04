@@ -117,7 +117,7 @@ void main()
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.325f;
-		BlendFactor = u_BlockModified ? 0.4f : BlendFactor;
+		BlendFactor = u_BlockModified ? 0.075f : BlendFactor;
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.001f, 0.95f));
 	}
 

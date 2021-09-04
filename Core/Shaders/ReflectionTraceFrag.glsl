@@ -67,6 +67,9 @@ uniform mat4 u_View;
 uniform mat4 u_Projection;
 
 uniform bool u_ReprojectToScreenSpace;
+uniform bool u_UseBlueNoise;
+
+uniform int u_CurrentFrameMod128;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -76,6 +79,40 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
 };
+
+layout (std430, binding = 2) buffer BlueNoise_Data
+{
+	int sobol_256spp_256d[256*256];
+	int scramblingTile[128*128*8];
+	int rankingTile[128*128*8];
+};
+
+
+float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
+{
+	int pixel_i = px.x;
+	int pixel_j = px.y;
+	
+	// wrap arguments
+	pixel_i = pixel_i & 127;
+	pixel_j = pixel_j & 127;
+	sampleIndex = sampleIndex & 255;
+	sampleDimension = sampleDimension & 255;
+
+	// xor index based on optimized ranking
+	int rankedSampleIndex = sampleIndex ^ rankingTile[sampleDimension + (pixel_i + pixel_j*128)*8];
+
+	// fetch value in sequence
+	int value = sobol_256spp_256d[sampleDimension + rankedSampleIndex*256];
+
+	// If the dimension is optimized, xor sequence value based on optimized scrambling
+	value = value ^ scramblingTile[(sampleDimension%8) + (pixel_i + pixel_j*128)*8];
+
+	// convert to float and return
+	float v = (0.5f+value)/256.0f;
+	return v;
+}
+
 		
 // Function prototypes
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
@@ -393,6 +430,43 @@ vec2 hash2()
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
+float SampleBlueNoise1D(ivec2 Pixel, int Index, int Dimension) {
+	return samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(Pixel, Index, Dimension);
+}
+
+int CurrentBLSample = 0;
+
+vec2 SampleBlueNoise2D(int Index) 
+{
+	vec2 Noise;
+	Noise.x = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), Index, 1+CurrentBLSample);
+	Noise.y = SampleBlueNoise1D(ivec2(gl_FragCoord.xy), Index, 2+CurrentBLSample);
+	CurrentBLSample += 2;
+	CurrentBLSample = CurrentBLSample % 128;
+	return Noise;
+}
+
+vec3 GetReflectionDirection(vec3 N, float R) {
+
+	// Gets a reflection vector that is closest to the normal
+	R = max(R, 0.05f);
+	float NearestDot = -100.0f;
+	vec3 BestDirection;
+
+	for (int i = 0 ; i < 4 ; i++) {
+		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(u_CurrentFrameMod128) : hash2();
+		Xi = Xi * vec2(1.0f, 0.9f);
+		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
+		float d = dot(ImportanceSampled,N);
+		if (d > NearestDot) {
+			BestDirection = ImportanceSampled;
+			NearestDot = d;
+		}
+	}
+
+	return BestDirection;
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(u_Time) * 200));
@@ -435,6 +509,10 @@ void main()
 	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04500f; // Apply bias.
+	NormalMappedInitial.x *= 1.64f;
+    NormalMappedInitial.z *= 1.85f;
+    NormalMappedInitial += 1e-4f;
+    NormalMappedInitial = normalize(NormalMappedInitial);
 
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;
@@ -465,16 +543,9 @@ void main()
 		//	continue;
 		//}
 
-		vec2 Xi;
-		//Xi = Hammersley(s, SPP);
-		//Xi = vec2(nextFloat(RNG_SEED), nextFloat(RNG_SEED)); 
-		Xi = vec2(hash2());
-		Xi = Xi * vec2(1.0f, 0.7f); // Reduce the variance and increase clarity
-		
 		// importance sample :
-		vec3 ReflectionNormal = u_RoughReflections ? (ImportanceSampleGGX(NormalMappedInitial, max(RoughnessAt, 0.095f - 0.01f), Xi)) : NormalMappedInitial;
-		
-		vec3 R = normalize(reflect(I, ReflectionNormal)); ReflectionVector = R;
+		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,RoughnessAt) : NormalMappedInitial;
+		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 
 		#ifdef DERIVE_FROM_DIFFUSE_SH
 		if (RoughnessAt >= 0.85f) { 
@@ -551,7 +622,7 @@ void main()
 			}
 
 			mat3 TBN;
-			TBN = mat3(normalize(Tangent), normalize(Bitangent), normalize(Normal));
+			TBN = mat3((Tangent), (Bitangent), (Normal));
 
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
 			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
