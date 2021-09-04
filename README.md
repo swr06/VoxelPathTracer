@@ -33,6 +33,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Fully 3D Audio
 - Point Light Volumetrics 
 - Contrast Adaptive Sharpening
+- Auto exposure based on a luminance histogram
 
 # Features to implement
 - Foliage
