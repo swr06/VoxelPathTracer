@@ -11,6 +11,8 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
+static float GLOBAL_RESOLUTION_SCALE = 1.0f;
+
 static bool ContrastAdaptiveSharpening = true;
 static float CAS_SharpenAmount = 0.25f;
 
@@ -139,6 +141,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
+			ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
 			ImGui::NewLine();
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
@@ -753,7 +756,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		float PADDED_WIDTH = app.GetWidth() + 16.0f;
 		float PADDED_HEIGHT = app.GetHeight() + 16.0f;
-
+		float TRUE_PADDED_WIDTH = app.GetWidth() + 16.0f;
+		float TRUE_PADDED_HEIGHT = app.GetHeight() + 16.0f;
+		PADDED_WIDTH *= GLOBAL_RESOLUTION_SCALE;
+		PADDED_HEIGHT *= GLOBAL_RESOLUTION_SCALE;
 		
 
 		// Resize the framebuffers
@@ -764,8 +770,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 
-			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
-			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+			InitialTraceFBO_1.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
+			InitialTraceFBO_2.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
 
 			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 			VolumetricsComputeBlurred.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
@@ -780,15 +786,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			if (TAA)
 			{
-				TAAFBO1.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
-				TAAFBO2.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
+				TAAFBO1.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+				TAAFBO2.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			}
 
 			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
 			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
 			VarianceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
-			PostProcessingFBO.SetSize(PADDED_WIDTH, PADDED_HEIGHT);
-			ColoredFBO.SetDimensions(PADDED_WIDTH, PADDED_HEIGHT);
+			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			ColoredFBO.SetDimensions(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
 			ShadowRawTrace.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
