@@ -170,14 +170,14 @@ vec3 GetVolumetricFog(vec3 p, vec3 c) {
 		{
 			float EuclideanDistance = distance(p,LightAt);
 
-			if (EuclideanDistance < 3.5f) {
+			if (EuclideanDistance < 3.0f) {
 
-				TotalFog += 1.0f/(EuclideanDistance*EuclideanDistance) ;
+				TotalFog += pow(1.0f/(EuclideanDistance*EuclideanDistance), 1.1f) ;
 			}
 		}
 	}
 
-	return TotalFog * c;
+	return TotalFog * vec3(c);
 }
 
 void main() 

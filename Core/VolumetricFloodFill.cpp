@@ -149,11 +149,11 @@ void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
 	VoxelRT::Volumetrics::SetLightValue(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 6, block); 
+		floor(p.z)), 7, block); 
 	VoxelRT::Volumetrics::UploadLight(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 6, block, true);
+		floor(p.z)), 7, block, true);
 	LightBFS.push(LightNode(glm::vec3(
 		floor(p.x),
 		floor(p.y),
