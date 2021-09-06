@@ -426,20 +426,20 @@
 }
 
 {
-	Name : Redstone
-	Albedo : Res/Block/Redstone/Albedo.png
-	Normal : Res/Block/Redstone/Normal.png
-	PBR : Res/Block/Redstone/PBR.png
+	Name : Endstone
+	Albedo : Res/Block/Endstone/Albedo.png
+	Normal : Res/Block/Endstone/Normal.png
+	PBR : Res/Block/Endstone/PBR.png
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
 }
 
 {
-	Name : Rock2
-	Albedo : Res/Block/Rock2/Albedo.png
-	Normal : Res/Block/Rock2/Normal.png
-	PBR : Res/Block/Rock2/PBR.png
+	Name : EndBricks
+	Albedo : Res/Block/EndBricks/Albedo.png
+	Normal : Res/Block/EndBricks/Normal.png
+	PBR : Res/Block/EndBricks/PBR.png
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
@@ -897,6 +897,16 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+}
+
+{
+	Name : Table
+	Albedo : Res/Block/Table/Albedo.png
+	Normal : Res/Block/Table/Normal.png
+	PBR : Res/Block/Table/PBR.png
+	
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
 
 {
