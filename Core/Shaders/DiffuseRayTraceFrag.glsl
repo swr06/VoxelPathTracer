@@ -39,6 +39,8 @@ uniform sampler2D u_NormalTexture;
 uniform sampler2D u_PositionTexture;
 uniform samplerCube u_Skymap;
 
+uniform bool CHECKERBOARD_SPP;
+
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockPBRTextures;
@@ -361,6 +363,13 @@ void main()
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
+	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == u_CurrentFrame % 2;
+	
+	if (CHECKERBOARD_SPP) {
+		SPP = int(mix(SPP, SPP/2, float(CheckerStep)));
+	}
+
+	SPP = clamp(SPP, 1, 32);
 
 	vec4 sh_data1 = vec4(0.0f);
 	vec2 color_data = vec2(0.0f);

@@ -11,6 +11,8 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
+static bool CHECKERBOARD_SPP = true;
+
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
@@ -52,7 +54,7 @@ static bool SoftShadows = true;
 
 static bool ReprojectReflectionsToScreenSpace = true;
 
-static int DiffuseSPP = 3; 
+static int DiffuseSPP = 4; 
 static int ReflectionSPP = 2;
 
 // Alpha test : 
@@ -130,6 +132,7 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
+			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
@@ -971,6 +974,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		DiffuseTraceShader.SetInteger("u_CurrentFrameMod128", (int)app.GetCurrentFrame() % 128);
 		DiffuseTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
+		DiffuseTraceShader.SetBool("CHECKERBOARD_SPP", CHECKERBOARD_SPP);
 
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
