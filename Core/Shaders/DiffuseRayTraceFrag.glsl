@@ -24,8 +24,8 @@
 
 // Outputs diffuse indirect
 // Specular indirect is handled separately and in a higher resolution
-layout (location = 0) out vec4 o_SphericalHarmonicData_1;
-layout (location = 1) out vec2 o_ColorData; // Stores the radiance color data in YCoCg
+layout (location = 0) out vec4 o_SH;
+layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
 layout (location = 2) out float o_Utility;
 layout (location = 3) out float o_AO; // VXAO
 
@@ -353,8 +353,8 @@ void main()
 	if (Position.w < 0.0f)
 	{
 		float SH[6] = IrridianceToSH(texture(u_Skymap, normalize(v_RayDirection)).xyz * 2.66f, Normal);
-		o_SphericalHarmonicData_1 = vec4(SH[0], SH[1], SH[2], SH[3]);
-		o_ColorData.xy = vec2(SH[4], SH[5]);
+		o_SH = vec4(SH[0], SH[1], SH[2], SH[3]);
+		o_CoCg.xy = vec2(SH[4], SH[5]);
 		return;
 	}
 
@@ -382,8 +382,8 @@ void main()
 	sh_data1 /= SPP;
 	color_data /= SPP;
 	radiance /= SPP;
-	o_SphericalHarmonicData_1 = sh_data1;
-	o_ColorData.xy = color_data;
+	o_SH = sh_data1;
+	o_CoCg.xy = color_data;
 	o_Utility = GetLuminance(radiance);
 	o_AO = AccumulatedAO;
 }

@@ -543,7 +543,7 @@
     <None Include="Core\Shaders\SpatialFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\Spatial2x2Initial.glsl">
+    <None Include="Core\Shaders\Spatial3x3Initial.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\SpecularTemporalFilter.glsl">
