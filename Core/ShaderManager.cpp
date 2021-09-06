@@ -34,7 +34,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("LUMA_AVERAGER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
 	AddShader("VOLUMETRIC_SCATTERING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/VolumetricLighting.glsl");
 	AddShader("SSAO_BLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SSAOBlur.glsl");
-	AddShader("SPATIAL_INITIAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Spatial2x2Initial.glsl");
+	AddShader("SPATIAL_INITIAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Spatial3x3Initial.glsl");
 	AddShader("CHECKER_RECONSTRUCT", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CheckerboardReconstruct.glsl");
 	AddShader("SPECULAR_CHECKER_RECONSTRUCT", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SpecularCheckerReconstruct.glsl");
 

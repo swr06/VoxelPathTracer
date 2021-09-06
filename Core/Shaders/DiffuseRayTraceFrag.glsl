@@ -24,8 +24,8 @@
 
 // Outputs diffuse indirect
 // Specular indirect is handled separately and in a higher resolution
-layout (location = 0) out vec4 o_SphericalHarmonicData_1;
-layout (location = 1) out vec2 o_ColorData; // Stores the radiance color data in YCoCg
+layout (location = 0) out vec4 o_SH;
+layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
 layout (location = 2) out float o_Utility;
 layout (location = 3) out float o_AO; // VXAO
 
@@ -38,6 +38,8 @@ uniform sampler3D u_DistanceFieldTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_PositionTexture;
 uniform samplerCube u_Skymap;
+
+uniform bool CHECKERBOARD_SPP;
 
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockAlbedoTextures;
@@ -353,14 +355,21 @@ void main()
 	if (Position.w < 0.0f)
 	{
 		float SH[6] = IrridianceToSH(texture(u_Skymap, normalize(v_RayDirection)).xyz * 2.66f, Normal);
-		o_SphericalHarmonicData_1 = vec4(SH[0], SH[1], SH[2], SH[3]);
-		o_ColorData.xy = vec2(SH[4], SH[5]);
+		o_SH = vec4(SH[0], SH[1], SH[2], SH[3]);
+		o_CoCg.xy = vec2(SH[4], SH[5]);
 		return;
 	}
 
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
+	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == u_CurrentFrame % 2;
+	
+	if (CHECKERBOARD_SPP) {
+		SPP = int(mix(SPP, SPP/2, float(CheckerStep)));
+	}
+
+	SPP = clamp(SPP, 1, 32);
 
 	vec4 sh_data1 = vec4(0.0f);
 	vec2 color_data = vec2(0.0f);
@@ -382,8 +391,8 @@ void main()
 	sh_data1 /= SPP;
 	color_data /= SPP;
 	radiance /= SPP;
-	o_SphericalHarmonicData_1 = sh_data1;
-	o_ColorData.xy = color_data;
+	o_SH = sh_data1;
+	o_CoCg.xy = color_data;
 	o_Utility = GetLuminance(radiance);
 	o_AO = AccumulatedAO;
 }
