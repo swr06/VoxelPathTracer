@@ -615,6 +615,9 @@
     <None Include="Core\Shaders\EV100.glsl">
       <Filter>Source Files\Shaders\EyeAdaptation</Filter>
     </None>
+    <None Include="Core\Shaders\Spatial3x3Initial_Gaussian.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

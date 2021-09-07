@@ -312,6 +312,7 @@
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
+    <None Include="Core\Shaders\Spatial3x3Initial_Gaussian.glsl" />
     <None Include="Core\Shaders\SpatialFilter.glsl" />
     <None Include="Core\Shaders\Spatial3x3Initial.glsl" />
     <None Include="Core\Shaders\SpecularCheckerReconstruct.glsl" />
