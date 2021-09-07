@@ -64,7 +64,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - https://github.com/NVIDIA/Q2RTX
 - https://cg.ivd.kit.edu/publications/2017/svgf/svgf_preprint.pdf
 - https://teamwisp.github.io/research/svfg.html
-- Textures from CC0 textures and Quixel Megascans
+- Textures from CC0 textures (or AmbientCG), Quixel Megascans and textures.com
 - Exactly 5 block textures are taken from the realism mats texture pack and 5 more from the umsoea texture pack. And 3 from the patrix texture pack. (If you want them removed, I will happily do so)
 
 # Thanks
