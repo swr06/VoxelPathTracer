@@ -14,6 +14,10 @@ static std::unique_ptr<GLClasses::Shader> CloudCheckerUpscalerPtr;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoise;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
 
+namespace Clouds {
+	GLClasses::Framebuffer CurlCloudNoise(128, 128, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
+}
+
 void Clouds::CloudRenderer::Initialize()
 {
 	CloudShaderPtr = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
@@ -29,12 +33,15 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(128, 128, 128, nullptr);
-	CloudNoiseDetail->CreateTexture(96, 64, 96, nullptr);
+	CloudNoise->CreateTexture(96, 96, 96, nullptr);
+	CloudNoiseDetail->CreateTexture(64, 64, 64, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
-	Clouds::RenderNoise(*CloudNoise, 129, false);
-	Clouds::RenderNoise(*CloudNoiseDetail, 96, true);
+	CurlCloudNoise.CreateFramebuffer();
+	CurlCloudNoise.SetSize(128, 128);
+	Clouds::RenderNoise(*CloudNoise, 96, false);
+	Clouds::RenderNoise(*CloudNoiseDetail, 64, true);
+	Clouds::RenderCurlNoise(CurlCloudNoise);
 	std::cout << "\nRendered noise textures!\n";
 }
 
@@ -46,7 +53,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -62,8 +69,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	Clouds::CloudFBO& CloudFBO = (CurrentFrame % 2 == 0) ? CloudFBO_1 : CloudFBO_2;
 	Clouds::CloudFBO& PrevCloudFBO = (CurrentFrame % 2 == 0) ? CloudFBO_2 : CloudFBO_1;
 
-	CloudTemporalFBO1.SetSize(AppWidth, AppHeight);
-	CloudTemporalFBO2.SetSize(AppWidth, AppHeight);
+	CloudTemporalFBO1.SetSize(AppWidth * 0.75f, AppHeight * 0.75f);
+	CloudTemporalFBO2.SetSize(AppWidth * 0.75f, AppHeight * 0.75f);
 	float HalfCloudRes = Checkerboard ? (CloudResolution * 0.5f) : CloudResolution;
 	CloudFBO.SetDimensions(AppWidth * HalfCloudRes, AppHeight * HalfCloudRes);
 	PrevCloudFBO.SetDimensions(AppWidth * HalfCloudRes, AppHeight * HalfCloudRes);
@@ -89,6 +96,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetInteger("u_CloudNoise", 1);
 		CloudShader.SetInteger("u_BlueNoise", 2);
 		CloudShader.SetInteger("u_CloudDetailedNoise", 3);
+		CloudShader.SetInteger("u_CurlNoise", 6);
 		CloudShader.SetFloat("u_Time", glfwGetTime());
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
@@ -97,6 +105,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
+		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
@@ -120,6 +129,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_2D, pos_tex);
+
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, CurlCloudNoise.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -166,6 +178,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetFloat("u_Time", glfwGetTime());
 		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
+		TemporalFilter.SetBool("u_Clamp", Clamp);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);

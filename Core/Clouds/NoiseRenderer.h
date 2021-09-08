@@ -14,4 +14,5 @@
 namespace Clouds
 {
 	void RenderNoise(NoiseTexture3D& tex, int slices, bool detail = false);
+	void RenderCurlNoise(GLClasses::Framebuffer& fbo);
 }

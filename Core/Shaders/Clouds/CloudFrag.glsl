@@ -31,6 +31,7 @@ uniform sampler3D u_CloudDetailedNoise;
 uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
+uniform sampler2D u_CurlNoise;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
@@ -39,6 +40,8 @@ uniform float u_DetailIntensity;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+
+uniform vec2 u_Modifiers;
 
 uniform bool u_Checker;
 uniform bool u_UseBayer;
@@ -140,52 +143,34 @@ float fbm(vec2 n) {
 
 #define DETAIL
 
-float SampleDensity(in vec3 point)
+float saturate(float x) {
+	return clamp(x,0.0f,1.0f);
+}
+
+vec3 DecodeCurlNoise(vec3 c)
 {
-	// 
-	point.x += 650.0f;
-	point.z -= 250.0f;
-	point.y -= (7.0f*1000.0f)+(7*100.0f)+(73.0f); 
+    return (c - 0.5) * 2.0;
+}
 
-	// sample noise :
-	vec4 sampled_noise;
-	vec3 time = vec3(0.0f, 0.0f, u_Time);
-	time *= 0.00400f; 
-
-	vec3 sample_point = point.xyz * 0.02759750f;
-
-	//vec2 fractuv = fract(sample_point.xz);
-	//if (abs(fractuv.x-0.0f) <= 0.001f ||
-	//	abs(fractuv.y-0.0f) <= 0.001f ||
-	//	abs(fractuv.x-1.0f) <= 0.001f ||
-	//	abs(fractuv.y-1.0f) <= 0.001f) {
-	//	return 0.0f;
-	//}
-
-	sampled_noise = texture(u_CloudNoise, sample_point + time).rgba;
-	float perlinWorley = sampled_noise.x * 1.0f;
-	vec3 worley = sampled_noise.yzw;
-	float wfbm = worley.x * 0.625f + worley.y * 0.125f + worley.z * 0.250f; 
-	float cloud = remap(perlinWorley, wfbm - 1.0f, 1.0f, 0.0f, 1.0f);
-	cloud = remap(cloud, 1.0f - u_Coverage, 1.0f, 0.0f, 1.0f); 
-
-	#ifndef DETAIL
-	return cloud;
-	#endif
-
-	// basic algorithm : 
-	// sample detail -> subtract it from the base density and weight it by 1-density
-	// i dont know if this is the correct way to do this but w/e 
-
-	float densityat = cloud * 1.01f;
-	vec4 Detail = texture(u_CloudDetailedNoise, point* 0.01759750f);
-	vec3 Worleydetail = sampled_noise.yzw;
-	float Wfbmdetail = Worleydetail.x * 0.725f + Worleydetail.y * 0.225f + Worleydetail.z * 0.350f; 
-	float OneMinusShape = 1 - cloud;
-    float DetailErodeWeight = pow(OneMinusShape, 4.2f);
-	float DetailNoiseWeight = 0.6f;
-    float cloudDensity = densityat - (1 - Wfbmdetail) * DetailErodeWeight * DetailNoiseWeight;
-	return clamp(cloudDensity, 0.0f, 1.6f);
+float SampleDensity(vec3 p)
+{
+	p.xyz *= 75.0f;
+	vec3 windOffset = vec3(u_Time * 12.6942069420f, 0.0f, 0.0f);
+    vec3 pos = p + windOffset;
+	float SCALE = 1.0f;
+    float noiseScale = max(SCALE * 0.0004f, 0.00001f);
+    vec4 LowFreqNoise = texture(u_CloudNoise, pos * noiseScale);
+    float LowFreqFBM = (LowFreqNoise.g * 0.625) +
+                       (LowFreqNoise.b * 0.25)  +
+                       (LowFreqNoise.a * 0.125);
+	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
+	float heightFraction = 1.0f;
+	vec2 ShapeNoiseMinMax = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
+	float Sample = remap(LowFreqNoise.r * pow(1.2 - heightFraction, 0.1), LowFreqFBM * ShapeNoiseMinMax.x, ShapeNoiseMinMax.y, 0.0, 1.0);
+    float cloudCoverage = u_Coverage * 0.7;
+    Sample = saturate(remap(Sample, 0.0f, 1.0, 0.0, 1.0));
+    Sample *= cloudCoverage;
+	return clamp(Sample*1.1f, 0.0, 10.0f);
 }
 
 float hg(float a, float g) 
@@ -294,7 +279,7 @@ float RaymarchAmbient(vec3 Point)
 		PreviousTraversal = Traversal; 
 	}
 
-	return Accum * 8.0f;
+	return Accum * 10.0f;
 }
 
 float PowHalf(int n) {
@@ -374,27 +359,27 @@ float henyeyGreensteinPhase(float cosTheta, float g)
 {
 	const float norm = 1.0f / TAU;
 	float gg = g * g;
-	return norm * ((1.0-gg) / pow(1.0+gg-2.0*g*cosTheta, 3.0/2.0));
+	return norm * ((1.0f - gg) / pow(1.0f + gg - 2.0f * g * cosTheta, 3.0f / 2.0f));
 }
 
 float CloudPhaseFunction(float cosTheta, in float an, in float od) 
 {
-    float frontLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.45, od + 1.0));
-    float backLobe = henyeyGreensteinPhase(cosTheta * an, -pow(0.45, od + 1.0));
-    float peakLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.9, od + 1.0));
-    return mix(mix(frontLobe, backLobe, 0.25), peakLobe, 0.15);
+    float frontLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.45f, od + 1.0f));
+    float backLobe = henyeyGreensteinPhase(cosTheta * an, -pow(0.45f, od + 1.0f));
+    float peakLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.9f, od + 1.0f));
+    return mix(mix(frontLobe, backLobe, 0.25f), peakLobe, 0.15f);
 }
 
 float CloudAmbientPhase(float cosTheta, in float an, in float od) 
 {
-    float frontLobe = henyeyGreensteinPhase(cosTheta*an, pow(0.35, od + 1.0));
-    float backLobe  = henyeyGreensteinPhase(cosTheta*an, -pow(0.35, od + 1.0));
-    return mix(frontLobe, backLobe, 0.5);
+    float frontLobe = henyeyGreensteinPhase(cosTheta*an, pow(0.35f, od + 1.0f));
+    float backLobe  = henyeyGreensteinPhase(cosTheta*an, -pow(0.35f, od + 1.0f));
+    return mix(frontLobe, backLobe, 0.5f);
 }
 
 // exponential dropoff : 
 // 1, 0.5, 0.25, 0.125 etc
-float[8] ScatterKernel = float[8](
+const float[8] ScatterKernel = float[8](
 				pow(0.5f, float(0)),
 				pow(0.5f, float(1)),
 				pow(0.5f, float(2)),
@@ -424,12 +409,14 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
 		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
 		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
+		//vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),0.0f);
+		
 		Scatter += S * ScatterKernel[ScatterStep];
    }
 
 	vec3 SunLight = SunColor * Scatter.x;
 	float SkyShadow = Scatter.y * (PI * 0.85f);
-    return (SunLight * SkyShadow);
+    return (SunLight*SkyShadow);
 }
 
 vec3 ComputeRayDirection()
@@ -559,8 +546,7 @@ void main()
 		x = Traversal;
 	}
 	
-	// This is like the most non-physically based thing on earth but idc xD
-	Scattering = pow(Scattering, vec3(1.0f / 16.0f));
+	Scattering = pow(Scattering, vec3(0.33333333333f));
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);

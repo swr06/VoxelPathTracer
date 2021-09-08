@@ -292,7 +292,7 @@ vec3 GetAtmosphereAndClouds()
     float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
     S = mix(S, D, DuskVisibility);
     vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
-	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba;
+	vec4 SampledCloudData = textureBicubic(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
     float Transmittance = SampledCloudData.w;
     vec3 Scatter = SampledCloudData.xyz;
     vec3 Sky = vec3(0.0f);
