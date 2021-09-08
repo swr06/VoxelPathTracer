@@ -154,23 +154,23 @@ vec3 DecodeCurlNoise(vec3 c)
 
 float SampleDensity(vec3 p)
 {
-	p.xyz *= 75.0f;
+	p.xyz *= 76.0f;
 	vec3 windOffset = vec3(u_Time * 12.6942069420f, 0.0f, 0.0f);
     vec3 pos = p + windOffset;
 	float SCALE = 1.0f;
     float noiseScale = max(SCALE * 0.0004f, 0.00001f);
     vec4 LowFreqNoise = texture(u_CloudNoise, pos * noiseScale);
-    float LowFreqFBM = (LowFreqNoise.g * 0.625) +
-                       (LowFreqNoise.b * 0.25)  +
-                       (LowFreqNoise.a * 0.125);
+    float LowFreqFBM = (LowFreqNoise.g * 0.625f) +
+                       (LowFreqNoise.b * 0.25f)  +
+                       (LowFreqNoise.a * 0.125f);
 	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
-	float heightFraction = 1.0f;
-	vec2 ShapeNoiseMinMax = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
-	float Sample = remap(LowFreqNoise.r * pow(1.2 - heightFraction, 0.1), LowFreqFBM * ShapeNoiseMinMax.x, ShapeNoiseMinMax.y, 0.0, 1.0);
-    float cloudCoverage = u_Coverage * 0.7;
-    Sample = saturate(remap(Sample, 0.0f, 1.0, 0.0, 1.0));
+	float X = 1.0f; // idk
+	vec2 ShapeNoiseModifier = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
+	float Sample = remap(LowFreqNoise.r * pow(1.2f - X, 0.1f), LowFreqFBM * ShapeNoiseModifier.x, ShapeNoiseModifier.y, 0.00000001f, 1.0f);
+    float cloudCoverage = u_Coverage * 0.7f;
+    Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
     Sample *= cloudCoverage;
-	return clamp(Sample*1.1f, 0.0, 10.0f);
+	return clamp(Sample*1.1f, 0.0f, 10.0f);
 }
 
 float hg(float a, float g) 

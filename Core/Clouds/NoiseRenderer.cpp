@@ -83,7 +83,8 @@ namespace Clouds
 		VAO.Unbind();
 
 		NoiseShader.CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CurlNoise.glsl");
-		
+		NoiseShader.CompileShaders();
+
 		glDisable(GL_BLEND);
 		glDisable(GL_CULL_FACE);
 
