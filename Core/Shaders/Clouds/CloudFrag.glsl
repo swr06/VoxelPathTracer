@@ -171,7 +171,7 @@ float SampleDensity(vec3 p)
     Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
     Sample *= cloudCoverage;
 	return clamp(Sample*1.1f, 0.0f, 10.0f);
-}
+} 
 
 float hg(float a, float g) 
 {
