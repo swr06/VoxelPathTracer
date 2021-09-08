@@ -1,12 +1,8 @@
-#version 330 core
+#version 450 core
 
-layout (location = 0) out vec4 o_Noise;
+layout (location = 0) out vec3 o_CurlNoise;
 
 in vec2 v_TexCoords;
-
-uniform float u_CurrentSlice;
-uniform float u_CurrentSliceINT;
-uniform vec2 u_Dims;
 
 float saturate(float x) {
     return clamp(x,0.0f,1.0f);
@@ -357,42 +353,25 @@ float DilatePerlinWorley(float p, float w, float x)
     }
 }
 
-void main()
+vec3 Remap01Unsaturated(vec3 values, float low, float high)
 {
-    o_Noise = vec4(0.0f);
-    
-    vec2 UV = v_TexCoords;
-    vec3 pos = vec3(v_TexCoords, u_CurrentSlice);
-    vec3 TexelPosition = vec3(vec2(gl_FragCoord.xy), float(u_CurrentSliceINT));
+    return (values - low) / (high - low);
+}
 
-    const float perlinWorleyDifference = 0.3;
-    const float perlinDilateLowRemap = 0.3;
-    const float perlinDilateHighRemap = 1.4;
-    
-    const float worleyDilateLowRemap = -0.3;
-    const float worleyDilateHighRemap = 1.3;
-    
-    const float totalWorleyLowRemap = -0.4;
-    const float totalWorleyHighRemap = 1.0;
-    const float totalSize = 1.0;
-    
-    // Generate Noises
-    float perlinDilateNoise = GetPerlin_7_Octaves(pos, 4.0 * totalSize, true);
-    float worleyDilateNoise = GetWorley_3_Octaves(pos, 6.0 * totalSize);
-    
-    float worleyLarge = GetWorley_3_Octaves(pos, 6.0 * totalSize);
-    float worleyMedium = GetWorley_3_Octaves(pos, 12.0 * totalSize);
-    float worleySmall = GetWorley_3_Octaves(pos, 24.0 * totalSize);
+void main() {
+    const float totalCurlSize = 4.0;
+    const float curlNoiseRemapLow = -0.5;
+    const float curlNoiseRemapHigh = 3.0;
+    vec2 pos = v_TexCoords;
 
-    // Remap Noises    
-    perlinDilateNoise = Remap01(perlinDilateNoise, perlinDilateLowRemap, perlinDilateHighRemap);
-    worleyDilateNoise = Remap01(worleyDilateNoise, worleyDilateLowRemap, worleyDilateHighRemap);
+    // Generate noise
+    vec3 noise = CurlNoise(vec3(pos * totalCurlSize, 0));
     
-    worleyLarge = Remap01(worleyLarge, totalWorleyLowRemap, totalWorleyHighRemap);
-    worleyMedium = Remap01(worleyMedium, totalWorleyLowRemap, totalWorleyHighRemap);
-    worleySmall = Remap01(worleySmall, totalWorleyLowRemap, totalWorleyHighRemap);
+    // Remap
+    noise = Remap01Unsaturated(noise, curlNoiseRemapLow, curlNoiseRemapHigh);
+    
+    // Encode
+    noise = EncodeCurlNoise(noise);
 
-    // Dilate blend perlin and worley main
-    float perlinWorleyNoise = DilatePerlinWorley(perlinDilateNoise, worleyDilateNoise, perlinWorleyDifference);
-    o_Noise = vec4(perlinWorleyNoise, worleyLarge, worleyMedium, worleySmall);
+    o_CurlNoise = noise;
 }

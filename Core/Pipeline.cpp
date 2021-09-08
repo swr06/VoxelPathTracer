@@ -19,10 +19,12 @@ static bool ContrastAdaptiveSharpening = true;
 static float CAS_SharpenAmount = 0.25f;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.08650f;
+static float CloudCoverage = 0.01f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.01f;
 static bool CloudHighQuality = false;
+static bool ClampCloudTemporal = false;
+static glm::vec2 CloudModifiers = glm::vec2(0.1000238f, 0.013f); // magic 
 
 static float ColorPhiBias = 2.125f;
 static float CloudResolution = 0.5f;
@@ -185,17 +187,17 @@ public:
 			ImGui::Checkbox("RTAO_1?", &VXAO);
 			ImGui::Checkbox("Do RTAO (RTAO_1 not availible when SVGF filtering is disabled!)", &RTAO);
 
-
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
-			ImGui::SliderFloat("Volumetric Cloud Coverage", &CloudCoverage, 0.01f, 0.6f);
+			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.6f);
 			//ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
-
+			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.2f, 0.2);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
+			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
 			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
@@ -2072,7 +2074,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0));
+				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
+				CloudModifiers, ClampCloudTemporal);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

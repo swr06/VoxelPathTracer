@@ -618,6 +618,12 @@
     <None Include="Core\Shaders\Spatial3x3Initial_Gaussian.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
+    <None Include="Core\Shaders\Clouds\NoiseUtil.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Clouds\CurlNoise.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

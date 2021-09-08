@@ -21,6 +21,8 @@ uniform mat4 u_InverseView;
 uniform float u_MixModifier = 0.8;
 uniform float u_Time;
 
+uniform bool u_Clamp;
+
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
 
@@ -77,6 +79,37 @@ vec4 GetBlurredColor() {
 	return TotalColor;
 }
 
+vec3 clipAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
+{
+    vec3 pClip = 0.5 * (maxColor + minColor); 
+    vec3 eClip = 0.5 * (maxColor - minColor); 
+    vec3 vClip = prevColor - pClip;
+    vec3 vUnit = vClip / eClip;
+    vec3 aUnit = abs(vUnit);
+    float denom = max(aUnit.x, max(aUnit.y, aUnit.z));
+    return denom > 1.0 ? pClip + vClip / denom : prevColor;
+}
+
+vec3 ClampColor(vec3 Color) 
+{
+    vec3 MinColor = vec3(100.0);
+	vec3 MaxColor = vec3(-100.0); 
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
+
+    for(int x = -3; x <= 3; x++) 
+	{
+        for(int y = -3; y <= 3; y++) 
+		{
+            vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
+            MinColor = min(Sample, MinColor); 
+			MaxColor = max(Sample, MaxColor); 
+        }
+    }
+
+    return clipAABB(Color, MinColor, MaxColor);
+}
+
+
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -102,6 +135,9 @@ void main()
 		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
 		vec4 PrevColor = textureBicubic(u_PreviousColorTexture, PreviousCoord).rgba;
 
+		if (u_Clamp) {
+			PrevColor.xyz = ClampColor(PrevColor.xyz);
+		}
 		float T_Base = texture(u_CurrentPositionData, v_TexCoords).r;
 		float T_Prev = texture(u_PrevPositionData, PreviousCoord).r;
 
