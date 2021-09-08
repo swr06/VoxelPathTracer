@@ -63,6 +63,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
 - https://github.com/NVIDIA/Q2RTX
 - https://cg.ivd.kit.edu/publications/2017/svgf/svgf_preprint.pdf
+- https://www.youtube.com/watch?v=2XXS5UyNjjU (A Talk on TAA, from Inside.)
 - https://teamwisp.github.io/research/svfg.html
 - http://magnuswrenninge.com/wp-content/uploads/2010/03/Wrenninge-OzTheGreatAndVolumetric.pdf
 - https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
