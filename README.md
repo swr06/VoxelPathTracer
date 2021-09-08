@@ -26,7 +26,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Screen Space Ambient Occlusion 
 - Ray Traced Ambient Occlusion
 - Bloom (Mip based) 
-- Volumetric clouds
+- Volumetric 3D clouds
 - Particle system
 - Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
