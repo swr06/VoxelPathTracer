@@ -53,7 +53,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -101,11 +101,13 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
 		CloudShader.SetFloat("u_DetailIntensity", DetailStrength);
+		CloudShader.SetFloat("u_TimeScale", TimeScale);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
+		CloudShader.SetVector3f("u_DetailParams", glm::vec3(DetailParams));
 		CloudShader.SetVector3f("u_SunDirection", SunDirection);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);

@@ -21,10 +21,13 @@ static float CAS_SharpenAmount = 0.25f;
 static bool CloudsEnabled = true;
 static float CloudCoverage = 0.01f;
 static bool CloudBayer = true;
-static float CloudDetailContribution = 0.01f;
+static float CloudDetailContribution = 0.0f;
+static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
+static float CloudErosionWeightExponent = 6.9f;
 static glm::vec2 CloudModifiers = glm::vec2(0.1000238f, 0.013f); // magic 
+static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 2.125f;
 static float CloudResolution = 0.5f;
@@ -189,15 +192,27 @@ public:
 
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("Volumetric clouds : ");
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.6f);
-			//ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.2f, 0.2);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
+			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
+			ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
+			ImGui::Checkbox("Should Detail Weight Clouds? (Weights detail fbm by 1 - shape)", &CloudDetailWeightEnabled);
+			ImGui::SliderFloat("Detail Weight Exponent (6.9 default, nice.) :", &CloudErosionWeightExponent, 0.01f, 20.0f);
+			ImGui::NewLine();
+			ImGui::NewLine();
+
+
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
 			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
@@ -2075,7 +2090,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
-				CloudModifiers, ClampCloudTemporal);
+				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailContribution,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

@@ -42,10 +42,12 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
 uniform vec2 u_Modifiers;
+uniform vec3 u_DetailParams;
 
 uniform bool u_Checker;
 uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
+uniform float u_TimeScale = 1.0f;
 
 
 uniform bool u_HighQualityClouds;
@@ -152,25 +154,41 @@ vec3 DecodeCurlNoise(vec3 c)
     return (c - 0.5) * 2.0;
 }
 
+
+
 float SampleDensity(vec3 p)
 {
 	p.xyz *= 76.0f;
-	vec3 windOffset = vec3(u_Time * 12.6942069420f, 0.0f, 0.0f);
-    vec3 pos = p + windOffset;
+	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 18.694206942069420694206942069420f, 0.0f, 0.0f);
+    vec3 pos = p + TimeOffset;
 	float SCALE = 1.0f;
-    float noiseScale = max(SCALE * 0.0004f, 0.00001f);
-    vec4 LowFreqNoise = texture(u_CloudNoise, pos * noiseScale);
+    float NOISE_SCALE = max(SCALE * 0.0004f, 0.00001f);
+    vec4 LowFreqNoise = texture(u_CloudNoise, pos * NOISE_SCALE);
     float LowFreqFBM = (LowFreqNoise.g * 0.625f) +
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
 	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
-	float X = 1.0f; // idk
+	float X = 1.0f; // idfk
 	vec2 ShapeNoiseModifier = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
 	float Sample = remap(LowFreqNoise.r * pow(1.2f - X, 0.1f), LowFreqFBM * ShapeNoiseModifier.x, ShapeNoiseModifier.y, 0.00000001f, 1.0f);
-    float cloudCoverage = u_Coverage * 0.7f;
+    float EffectiveCoverage = u_Coverage * 0.7f;
     Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
-    Sample *= cloudCoverage;
-	return clamp(Sample*1.1f, 0.0f, 10.0f);
+    Sample *= EffectiveCoverage;
+
+	// u_DetailParams.y > 0.025 if the detail contribution is enabled
+	if (u_DetailParams.y < 0.025f) {
+		return Sample;
+	}
+
+	// todo : improve this shit
+	vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * NOISE_SCALE * 1.66f);
+    float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
+                       (LowFreqNoise.b * 0.25f)  +
+                       (LowFreqNoise.a * 0.125f);
+	float OneMinusBaseFBM = 1.0f - LowFreqFBM;
+    float ErodeWeight = pow(OneMinusBaseFBM, u_DetailParams.z);
+    float FinalDensity = Sample - (1.0f - HighFreqFBM) * ErodeWeight * u_DetailParams.x;
+	return clamp(FinalDensity * 1.1f, 0.0f, 10.0f);
 } 
 
 float hg(float a, float g) 
@@ -260,7 +278,7 @@ float RaymarchAmbient(vec3 Point)
 	float PreviousTraversal = 0.0; 
 	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
-	float Dither = Bayer16(gl_FragCoord.xy);
+	float Dither = Bayer8(gl_FragCoord.xy);
 	int LightSteps = 8;
 
 	for(int Step = 0; Step < LightSteps; Step++) {
@@ -296,7 +314,7 @@ float RaymarchLight(vec3 Point)
 	float x = 0.0; 
 	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
-	float Dither = Bayer32(gl_FragCoord.xy);
+	float Dither = Bayer8(gl_FragCoord.xy);
 	int LightSteps = 16;
 
 	for(int Step = 0; Step < LightSteps; Step++) {
@@ -508,7 +526,7 @@ void main()
 	{
 		int Frame = u_CurrentFrame % 20;
 		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
-		Dither = Bayer256(gl_FragCoord.xy + BayerIncrement);
+		Dither = Bayer8(gl_FragCoord.xy + BayerIncrement);
 	}
 
 	else 
@@ -532,21 +550,24 @@ void main()
 	for (int i = 0 ; i < StepCount ; i++)
 	{
 		float t = float(i + Dither) / float(StepCount); 
-		float Traversal = mix(0.0, End-Start, t); 
+		float Traversal = mix(0.0, End - Start, t); 
 		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
 		float DensitySample = SampleDensity(CurrentPoint * 0.002f);
 		if (DensitySample < 0.001f) {
 			continue;
 		}
 
-		DensitySample *= 16.0f;
+		DensitySample *= 22.0f;
 		float StepSize = Traversal - x; 
 		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
 		x = Traversal;
 	}
 	
-	Scattering = pow(Scattering, vec3(0.33333333333f));
+	const float IsotropicScatter = 0.25f / 3.1415926535; 
+	const float Magic = 3.45826;
+	const float IsotropicExponent = IsotropicScatter * Magic;
+	Scattering = pow(Scattering, vec3(IsotropicExponent));
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);

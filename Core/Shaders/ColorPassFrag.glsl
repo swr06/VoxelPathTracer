@@ -286,17 +286,22 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
 vec3 GetAtmosphereAndClouds()
 {
+    vec3 NormalizedDir = normalize(v_RayDirection);
+    float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
+    CloudFade = pow(CloudFade * 3.2f, 3.25f);
+    CloudFade = clamp(CloudFade, 0.0f, 1.0f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
     const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
     vec3 S = vec3(1.45f);
     float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
     S = mix(S, D, DuskVisibility);
     vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
-	vec4 SampledCloudData = textureBicubic(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
+	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
+    SampledCloudData.xyz *= CloudFade;
     float Transmittance = SampledCloudData.w;
     vec3 Scatter = SampledCloudData.xyz;
     vec3 Sky = vec3(0.0f);
-    bool v = GetAtmosphere(Sky, v_RayDirection, Transmittance*4.5f);
+    bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f);
     Sky = Sky * max(Transmittance, 0.9f);
     return vec3(Sky + Scatter*M);
 }
