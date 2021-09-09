@@ -33,15 +33,20 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(96, 96, 96, nullptr);
+	CloudNoise->CreateTexture(224, 224, 224, nullptr); // 32*7
 	CloudNoiseDetail->CreateTexture(64, 64, 64, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
-	Clouds::RenderNoise(*CloudNoise, 96, false);
+	Clouds::RenderNoise(*CloudNoise, 224, false);
 	Clouds::RenderNoise(*CloudNoiseDetail, 64, true);
 	Clouds::RenderCurlNoise(CurlCloudNoise);
+
+	glBindTexture(GL_TEXTURE_3D, CloudNoise->GetTextureID());
+	glGenerateMipmap(GL_TEXTURE_3D);
+	glBindTexture(GL_TEXTURE_3D, 0);
+
 	std::cout << "\nRendered noise textures!\n";
 }
 
@@ -57,9 +62,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
-	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
 
 	glm::mat4 CurrentProjection = MainCamera.GetProjectionMatrix();
 	glm::mat4 CurrentView = MainCamera.GetViewMatrix();

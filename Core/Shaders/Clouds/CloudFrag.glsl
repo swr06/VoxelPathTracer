@@ -1,6 +1,5 @@
 #version 330 core
 
-
 #define CLOUD_HEIGHT 70 // temp
 #define PI 3.14159265359
 #define TAU (3.14159265359 * 2.0f)
@@ -8,6 +7,8 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
+#define LIGHT_LOD 2.5f 
+#define BASE_LOD 0.0f
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -57,6 +58,16 @@ const vec3 PlayerOrigin = vec3(0,6200,0);
 const float PlanetRadius = 7773; 
 const float AtmosphereRadius = 19773; 
 const float Size = AtmosphereRadius - PlanetRadius; 
+
+vec3 NoiseKernel[6] = vec3[] 
+(
+	vec3( 0.38051305,  0.92453449, -0.02111345),
+	vec3(-0.50625799, -0.03590792, -0.86163418),
+	vec3(-0.32509218, -0.94557439,  0.01428793),
+	vec3( 0.09026238, -0.27376545,  0.95755165),
+	vec3( 0.28128598,  0.42443639, -0.86065785),
+	vec3(-0.16852403,  0.14748697,  0.97460106)
+);
 
 struct Ray
 {
@@ -156,14 +167,14 @@ vec3 DecodeCurlNoise(vec3 c)
 
 
 
-float SampleDensity(vec3 p)
+float SampleDensity(vec3 p, float lod)
 {
 	p.xyz *= 76.0f;
 	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 18.694206942069420694206942069420f, 0.0f, 0.0f);
     vec3 pos = p + TimeOffset;
 	float SCALE = 1.0f;
     float NOISE_SCALE = max(SCALE * 0.0004f, 0.00001f);
-    vec4 LowFreqNoise = texture(u_CloudNoise, pos * NOISE_SCALE);
+    vec4 LowFreqNoise = textureLod(u_CloudNoise, pos * NOISE_SCALE, lod);
     float LowFreqFBM = (LowFreqNoise.g * 0.625f) +
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
@@ -279,7 +290,7 @@ float RaymarchAmbient(vec3 Point)
 	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = 8;
+	int LightSteps = u_HighQualityClouds ? 12 : 7;
 
 	for(int Step = 0; Step < LightSteps; Step++) {
 
@@ -293,7 +304,7 @@ float RaymarchAmbient(vec3 Point)
 		float Traversal = mix(0.0, End, t); 
 		float StepSize = Traversal - PreviousTraversal; 
 		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f) * StepSize; 
+		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD + 0.5f) * StepSize; 
 		PreviousTraversal = Traversal; 
 	}
 
@@ -315,7 +326,7 @@ float RaymarchLight(vec3 Point)
 	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = 16;
+	int LightSteps = u_HighQualityClouds ? 12 : 10;
 
 	for(int Step = 0; Step < LightSteps; Step++) {
 
@@ -329,7 +340,7 @@ float RaymarchLight(vec3 Point)
 
 		//Grab the density at this point 
 		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f) * StepSize; 
+		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD) * StepSize; 
 		x = Traversal; 
 	}
 
@@ -518,7 +529,9 @@ void main()
 
 	vec3 StartPosition = Origin + Direction * Start; 
 	vec3 EndPosition = Origin + Direction * End; 
-	int StepCount = 16;
+
+	bool CheckerSecond = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2);
+	const int StepCount = u_HighQualityClouds ? 32 : 16;
 	
 	float Transmittance = 1.0f;
 	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
@@ -526,9 +539,9 @@ void main()
 
 	if (u_UseBayer)
 	{
-		int Frame = u_CurrentFrame % 20;
+		int Frame = u_CurrentFrame % 30;
 		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
-		Dither = Bayer8(gl_FragCoord.xy + BayerIncrement);
+		Dither = Bayer16(gl_FragCoord.xy + BayerIncrement);
 	}
 
 	else 
@@ -554,7 +567,7 @@ void main()
 		float t = float(i + Dither) / float(StepCount); 
 		float Traversal = mix(0.0, End - Start, t); 
 		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
-		float DensitySample = SampleDensity(CurrentPoint * 0.002f);
+		float DensitySample = SampleDensity(CurrentPoint * 0.002f, BASE_LOD);
 		if (DensitySample < 0.001f) {
 			continue;
 		}
@@ -566,7 +579,7 @@ void main()
 		x = Traversal;
 	}
 	
-	Scattering = pow(Scattering, vec3(1.0f / 2.75f));
+	Scattering = pow(Scattering, vec3(1.0f / PI * 1.16f)); 
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);

@@ -190,8 +190,6 @@ void main()
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
-	vec3 BaseNormalMapped = vec3(0.0f);
-	bool BaseNormalMappedValid = SampleNormalMappedAt(BasePosition, BaseNormalMapped);
 
 	for (int s = 0 ; s < GAUSS_KERNEL; s++)
 	{
@@ -233,16 +231,7 @@ void main()
 			float CurrentKernelWeight = GaussianWeightsNormalized[s];
 
 			float CurrentWeight = 1.0f;
-			//CurrentWeight *= clamp(LuminanceWeight, 0.1f, 1.0f);
 
-			if (BaseNormalMappedValid) 
-			{
-				vec3 NormalMappedAt;
-				bool nmv = SampleNormalMappedAt(SamplePosition, NormalMappedAt);
-				float NormalWeight = 1.0f;
-				NormalWeight = pow(dot(NormalMappedAt, BaseNormalMapped), 16.0f);
-				CurrentKernelWeight *= mix(1.0f, NormalWeight, float(nmv));
-			}
 
 			CurrentWeight = CurrentKernelWeight * CurrentWeight;
 			BlurredSH += SampleSH * CurrentWeight;

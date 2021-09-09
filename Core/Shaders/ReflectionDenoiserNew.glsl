@@ -163,6 +163,10 @@ void main()
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), (1.0f-RoughnessAt)*4.0f), 0.0f, 1.0f);
 	int EffectiveRadius = int(floor(Radius * 16.0f));
 	EffectiveRadius = clamp(EffectiveRadius, 1, 16);
+
+	// reduce noise on too rough objects 
+	bool BaseTooRough = RoughnessAt > 0.897511f;
+	EffectiveRadius = BaseTooRough ? 16 : EffectiveRadius;
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
@@ -201,7 +205,13 @@ void main()
 			float CurrentKernelWeight = GaussianWeightsNormalized[clamp(16+Sample,0,32)];
 
 			float CurrentWeight = 1.0f;
-			CurrentWeight *= clamp(LuminanceWeight, 0.0f, 1.0f);
+
+			// dont weight by luminance error if the material smoothness < threshold 
+			bool SampleTooRough = SampleRoughness > 0.897511f;
+			if (!SampleTooRough) {
+				CurrentWeight *= clamp(LuminanceWeight, 0.0f, 1.0f);
+			}
+
 			CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
 			CurrentWeight = CurrentKernelWeight * CurrentWeight;
 			BlurredSH += SampleSH * CurrentWeight;
@@ -221,7 +231,7 @@ void main()
 
 		float m = 1.0f;
 		
-		// Preserve a few more details in smoother materials
+		// Preserve a few more details in "too" smooth materials
 		if (RoughnessAt <= 0.10550f)
 		{
 			m = RoughnessAt * 16.0f;
