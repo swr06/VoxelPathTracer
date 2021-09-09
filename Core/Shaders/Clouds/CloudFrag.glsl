@@ -477,6 +477,8 @@ bool SampleValid(in vec2 txc)
     return false;
 }
 
+const float IsotropicScatter = 0.25f / PI;
+
 void main()
 {
 	o_Data = vec4(0.0f);
@@ -564,10 +566,7 @@ void main()
 		x = Traversal;
 	}
 	
-	const float IsotropicScatter = 0.25f / 3.1415926535; 
-	const float Magic = 3.45826;
-	const float IsotropicExponent = IsotropicScatter * Magic;
-	Scattering = pow(Scattering, vec3(IsotropicExponent));
+	Scattering = pow(Scattering, vec3(1.0f / 2.75f));
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);
