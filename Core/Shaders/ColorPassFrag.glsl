@@ -580,7 +580,10 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
-	return F0 + (max(vec3(pow(1.0f - roughness, 3.0f)) - F0, vec3(0.0f))) * pow(max(1.0 - clamp(dot(Eye, norm), 0.0f, 1.0f), 0.0f), 5.0f);
+    float cosTheta = max(dot(norm, Eye), 0.0);
+    const float magic = 1.71100;
+    // 1.0 - roughness -> smoothness -> amplified by magic 
+    return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
 }
 
 vec4 GetTextureIDs(int BlockID) 
@@ -790,7 +793,8 @@ void main()
             vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
             vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
             vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
-            
+            vec3 NonAmplifiedNormal = NormalMapped;
+
             if (u_AmplifyNormalMap) {
                 NormalMapped.x *= 1.64f;
                 NormalMapped.z *= 1.85f;
@@ -854,8 +858,7 @@ void main()
             vec3 SpecularIndirect = vec3(0.0f);
             
             if (InBiasedSS) {
-                vec3 LowerFreqNormal = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y), 2.5f).rgb * 2.0f - 1.0f); // Sample at a lower lod
-                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, LowerFreqNormal);
+                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, NonAmplifiedNormal); 
             }
 
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
@@ -877,6 +880,16 @@ void main()
             o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect));
 
+
+            ///if (PBRMap.x > 0.897511) 
+            ///{
+            ///    o_Color = vec3(1.0f, 0.0f, 0.0f);
+            ///}
+            ///
+            ///else 
+            ///{
+            ///    o_Color = vec3(0.0f, 1.0f, 0.0f);
+            ///}
             
             // Output utility : 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
