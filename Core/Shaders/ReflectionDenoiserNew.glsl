@@ -161,18 +161,19 @@ void main()
 	float d = length(ViewSpaceBase);
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 1e-6f);
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), (1.0f-RoughnessAt)*4.0f), 0.0f, 1.0f);
-	int EffectiveRadius = int(floor(Radius * 16.0f));
-	EffectiveRadius = clamp(EffectiveRadius, 1, 16);
+	int EffectiveRadius = int(floor(Radius * 12.0f));
+	EffectiveRadius = clamp(EffectiveRadius, 1, 12);
 
 	// reduce noise on too rough objects 
 	bool BaseTooRough = RoughnessAt > 0.897511f;
-	EffectiveRadius = BaseTooRough ? 16 : EffectiveRadius;
+	EffectiveRadius = BaseTooRough ? 12 : EffectiveRadius;
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
+	float Scale = 1.125f;
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
 		float SampleOffset = Jitter + Sample;
-		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * TexelSize));
+		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * TexelSize));
 		
 		float bias = 0.01f;
 		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 

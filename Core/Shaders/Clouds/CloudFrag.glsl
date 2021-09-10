@@ -7,7 +7,7 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 2.5f 
+#define LIGHT_LOD 3.0f 
 #define BASE_LOD 0.0f
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
