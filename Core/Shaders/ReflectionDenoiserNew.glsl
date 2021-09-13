@@ -170,6 +170,8 @@ void main()
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 	float Scale = 1.125f;
 
+	EffectiveRadius = clamp(EffectiveRadius,1,12);
+
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
 		float SampleOffset = Jitter + Sample;
@@ -198,11 +200,17 @@ void main()
 			vec2 SampleCoCg = texture(u_InputCoCgTexture, SampleCoord).rg;
 
 			// Luminosity weights
+			//float LumaAt = SHToY(SampleSH);
+			//float LuminanceError = 1.0f - abs(LumaAt - BaseLuminance);
+			//float LumaWeightExponent = 1.0f;
+			//LumaWeightExponent = mix(0.1f, 8.0f, pow(SampleRoughness, 16.0f));
+			//float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent+0.75f);
+
 			float LumaAt = SHToY(SampleSH);
-			float LuminanceError = 1.0f - abs(LumaAt - BaseLuminance);
+			float LuminanceError =  1.0f - clamp(abs(LumaAt - BaseLuminance) / 4.0f, 0.0f, 1.0f);
 			float LumaWeightExponent = 1.0f;
-			LumaWeightExponent = mix(0.1f, 8.0f, pow(SampleRoughness, 16.0f));
-			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent+0.75f);
+			LumaWeightExponent = mix(0.01f, 8.0f, pow(SampleRoughness, 16.0f));
+			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent+0.752525f);
 			float CurrentKernelWeight = GaussianWeightsNormalized[clamp(16+Sample,0,32)];
 
 			float CurrentWeight = 1.0f;
