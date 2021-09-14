@@ -1,4 +1,5 @@
 #version 330 core
+#define EPSILON 0.01f
 
 layout (location = 0) out vec3 o_Color;
 
@@ -30,16 +31,42 @@ vec3 LinearToSRGB(vec3 x)
     return r;
 }
 
+float Luminance(vec3 x) {
+    return dot(x, vec3(0.2722287168, 0.6740817658, 0.0536895174));
+}
+
+float GetSat(vec3 x) { 
+    return length(x); 
+}
+
+float CASWeight(vec3 x) {
+    //return GetSat(x);
+    //return Luminance(x);
+    return max(x.g, EPSILON);
+}
+
 vec3 ContrastAdaptiveSharpening(sampler2D Texture, ivec2 Pixel, float SharpeningAmount)
 {
-    vec3 a = texelFetch(Texture, Pixel + ivec2(0.0, -1.0), 0).rgb;
-    vec3 b = texelFetch(Texture, Pixel + ivec2(-1.0, 0.0), 0).rgb;
-    vec3 c = texelFetch(Texture, Pixel + ivec2(0.0, 0.0), 0).rgb;
-    vec3 d = texelFetch(Texture, Pixel + ivec2(1.0, 0.0), 0).rgb;
-    vec3 e = texelFetch(Texture, Pixel + ivec2(0.0, 1.0), 0).rgb;
-    float MinGreen = min(a.g, min(b.g, min(c.g, min(d.g, e.g))));
-    float MaxGreen = max(a.g, max(b.g, max(c.g, max(d.g, e.g))));
-    float FinalSharpenAmount = sqrt(min(1.0f - MaxGreen, MinGreen) / MaxGreen);
+    // Samples 
+    vec3 a = texelFetch(Texture, Pixel + ivec2(0, -1), 0).rgb;
+    vec3 b = texelFetch(Texture, Pixel + ivec2(-1, 0), 0).rgb;
+    vec3 c = texelFetch(Texture, Pixel + ivec2(0, 0), 0).rgb;
+    vec3 d = texelFetch(Texture, Pixel + ivec2(1, 0), 0).rgb;
+    vec3 e = texelFetch(Texture, Pixel + ivec2(0, 1), 0).rgb;
+
+    // Weight by luminance 
+    float WeightA = CASWeight(a.xyz);
+    float WeightB = CASWeight(b.xyz);
+    float WeightC = CASWeight(c.xyz);
+    float WeightD = CASWeight(d.xyz);
+    float WeightE = CASWeight(e.xyz);
+
+    // Calculate bounds :
+    float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
+    float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
+
+    // Apply weights :
+    float FinalSharpenAmount = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
     float w = FinalSharpenAmount * mix(-0.125f, -0.2f, SharpeningAmount);
     return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
 }

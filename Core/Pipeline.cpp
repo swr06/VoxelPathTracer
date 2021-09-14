@@ -16,7 +16,7 @@ static bool CHECKERBOARD_SPP = true;
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
-static float CAS_SharpenAmount = 0.25f;
+static float CAS_SharpenAmount = 0.3f;
 
 static bool CloudsEnabled = true;
 static float CloudCoverage = 0.01f;
