@@ -80,7 +80,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - [Moonsheep](https://github.com/jlagarespo)
 
 # License
-- MIT
+- MIT (See LICENSE)
 
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
