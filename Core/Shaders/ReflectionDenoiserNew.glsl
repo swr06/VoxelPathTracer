@@ -210,7 +210,7 @@ void main()
 			float LuminanceError =  1.0f - clamp(abs(LumaAt - BaseLuminance) / 4.0f, 0.0f, 1.0f);
 			float LumaWeightExponent = 1.0f;
 			LumaWeightExponent = mix(0.01f, 8.0f, pow(SampleRoughness, 16.0f));
-			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent+0.752525f);
+			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent + 0.5525250f);
 			float CurrentKernelWeight = GaussianWeightsNormalized[clamp(16+Sample,0,32)];
 
 			float CurrentWeight = 1.0f;

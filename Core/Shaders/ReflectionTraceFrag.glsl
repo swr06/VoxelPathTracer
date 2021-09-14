@@ -455,7 +455,7 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 
 	for (int i = 0 ; i < 4 ; i++) {
 		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(u_CurrentFrameMod128) : hash2();
-		Xi = Xi * vec2(1.0f, 0.9f);
+		Xi = Xi * vec2(1.0f, 0.75f);
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
 		float d = dot(ImportanceSampled,N);
 		if (d > NearestDot) {
