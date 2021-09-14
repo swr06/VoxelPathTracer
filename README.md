@@ -52,7 +52,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - It is *not* guarenteed to work on ANY Intel GPUs
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
 - I don't work on this project a lot anymore, newer features might be delayed.
-- If you want to report an issue, then you can contact me on discord (swr#1337)
+- If you want to report an issue, then you can contact me on discord (swr#1793)
 
 # Resource List
 - https://github.com/BrutPitt/glslSmartDeNoise/
