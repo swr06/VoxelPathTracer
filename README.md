@@ -17,9 +17,9 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - FXAA
 - Tonemapping, Gamma correction
 - Ray traced reflections 
-- Ray traced rough reflections (Importance Sampled GGX)
+- Ray traced rough reflections (Importance Sampled GGX with specialized specular denoiser)
 - Naive world saving and loading
-- Physically based atmosphere 
+- Physically based atmosphere
 - God Rays (Screen space) 
 - Per Pixel Emissive Materials
 - Spatial filtering (Atrous and SVGF) and Spatial Upscaling
