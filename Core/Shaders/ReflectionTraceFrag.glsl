@@ -506,8 +506,8 @@ void main()
 	float RoughnessAt = PBRMap.r;
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
-	mat3 tbn = mat3(normalize(iTan), normalize(iBitan), normalize(InitialTraceNormal));
-	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(iUV, data.g)).rgb * 2.0f - 1.0f);
+	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal));
+	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(vec2(iUV.x, 1.0f-iUV.y), data.g)).rgb * 2.0f - 1.0f);
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04500f; // Apply bias.
 	NormalMappedInitial.x *= 1.64f;
     NormalMappedInitial.z *= 1.85f;

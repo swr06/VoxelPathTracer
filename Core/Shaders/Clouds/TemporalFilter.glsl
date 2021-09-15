@@ -96,9 +96,9 @@ vec3 ClampColor(vec3 Color)
 	vec3 MaxColor = vec3(-100.0); 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
 
-    for(int x = -3; x <= 3; x++) 
+    for(int x = -1; x <= 1; x++) 
 	{
-        for(int y = -3; y <= 3; y++) 
+        for(int y = -2; y <= 2; y++) 
 		{
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
             MinColor = min(Sample, MinColor); 
@@ -106,13 +106,15 @@ vec3 ClampColor(vec3 Color)
         }
     }
 
-    return clipAABB(Color, MinColor, MaxColor);
+    float Bias = 0.08f;
+    return clamp(Color, MinColor-Bias , MaxColor+Bias);
 }
 
 
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv, vec2 texSize );
+vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
 void main()
 {
@@ -138,6 +140,7 @@ void main()
 		vec2 PreviousCoord = ProjectedPrevious * 0.5f + 0.5f;
 		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
 		vec4 PrevColor = SampleTextureCatmullRom(u_PreviousColorTexture, PreviousCoord, textureSize(u_PreviousColorTexture,0)).rgba;
+		//vec4 PrevColor = texture_catmullrom(u_PreviousColorTexture, PreviousCoord).rgba;
 
 		if (u_Clamp) {
 			PrevColor.xyz = ClampColor(PrevColor.xyz);
@@ -222,6 +225,9 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     , sy);
 }
 
+float sqr(float x) { return x*x; }
+vec2 sqr(vec2 x) { return x*x; }
+
 vec4 sampleLevel0(sampler2D tex, vec2 uv )
 {
     return texture( tex, uv, -10.0 );
@@ -255,4 +261,45 @@ vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv, vec2 texSize )
     result += sampleLevel0(tex, vec2(texPos12.x, texPos3.y)) * w12.x * w3.y;
     result += sampleLevel0(tex, vec2(texPos3.x,  texPos3.y)) * w3.x * w3.y;
     return result;
+}
+
+vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
+    vec2 res    = textureSize(tex, 0);
+	vec2 pixelSize = 1.0f / res;
+
+    vec2 coord  = uv*res;
+    vec2 coord1 = floor(coord - 0.5) + 0.5;
+
+    vec2 f      = coord-coord1;
+
+    vec2 w0     = f*(-0.5 + f*(1.0-0.5*f));
+    vec2 w1     = 1.0 + sqr(f)*(-2.5+1.5*f);
+    vec2 w2     = f*(0.5 + f*(2.0-1.5*f));
+    vec2 w3     = sqr(f)*(-0.5+0.5*f);
+
+    vec2 w12    = w1+w2;
+    vec2 delta12 = w2/w12;
+
+    vec2 uv0    = coord1 - vec2(1.0);
+    vec2 uv3    = coord1 + vec2(1.0);
+    vec2 uv12   = coord1 + delta12;
+
+        uv0    *= pixelSize;
+        uv3    *= pixelSize;
+        uv12   *= pixelSize;
+
+    vec4 col    = vec4(0.0);
+        col    += textureLod(tex, vec2(uv0.x, uv0.y), 0)*w0.x*w0.y;
+        col    += textureLod(tex, vec2(uv12.x, uv0.y), 0)*w12.x*w0.y;
+        col    += textureLod(tex, vec2(uv3.x, uv0.y), 0)*w3.x*w0.y;
+
+        col    += textureLod(tex, vec2(uv0.x, uv12.y), 0)*w0.x*w12.y;
+        col    += textureLod(tex, vec2(uv12.x, uv12.y), 0)*w12.x*w12.y;
+        col    += textureLod(tex, vec2(uv3.x, uv12.y), 0)*w3.x*w12.y;
+
+        col    += textureLod(tex, vec2(uv0.x, uv3.y), 0)*w0.x*w3.y;
+        col    += textureLod(tex, vec2(uv12.x, uv3.y), 0)*w12.x*w3.y;
+        col    += textureLod(tex, vec2(uv3.x, uv3.y), 0)*w3.x*w3.y;
+
+    return clamp(col, 0.0, 65535.0);
 }
