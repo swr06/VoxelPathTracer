@@ -75,6 +75,9 @@
     <Filter Include="Source Files\Shaders\EyeAdaptation">
       <UniqueIdentifier>{5c852b26-5fda-4aa9-a3ff-f98f63e596a9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\util">
+      <UniqueIdentifier>{d0b57557-2560-4369-856d-4b9da47c1f42}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -623,6 +626,15 @@
     </None>
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl">
       <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
+    <None Include="Core\Shaders\Utility\Noise.glsl">
+      <Filter>Source Files\Shaders\util</Filter>
+    </None>
+    <None Include="Core\Shaders\Utility\Offsets.glsl">
+      <Filter>Source Files\Shaders\util</Filter>
+    </None>
+    <None Include="Core\Shaders\Utility\SphericalHarmonics.glsl">
+      <Filter>Source Files\Shaders\util</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
