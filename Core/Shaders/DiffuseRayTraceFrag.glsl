@@ -363,10 +363,10 @@ void main()
 	float AccumulatedAO = 0.0f;
 
 	int SPP = clamp(u_SPP, 1, 32);
-	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == u_CurrentFrame % 2;
-	
+
 	if (CHECKERBOARD_SPP) {
-		SPP = int(mix(SPP, SPP/2, float(CheckerStep)));
+		bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == u_CurrentFrame % 2;
+		SPP = int(mix(u_SPP, int(floor(float(u_SPP)/2.0f)+0.001f), float(CheckerStep)));
 	}
 
 	SPP = clamp(SPP, 1, 32);

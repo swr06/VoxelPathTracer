@@ -35,6 +35,8 @@ namespace VoxelRT
 		bool m_isOnGround;
 		bool DisableCollisions = false;
 
+		void ClampVelocity();
+
 	private :
 
 

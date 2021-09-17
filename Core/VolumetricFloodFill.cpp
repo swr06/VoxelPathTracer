@@ -87,7 +87,8 @@ uint8_t VoxelRT::Volumetrics::GetLightValue(const glm::ivec3& p)
 	std::cout << "GetLightValue() Called";
 #endif
 	if (!VoxelRT::InVoxelVolume(p)) {
-		throw "wtf";
+		//throw "wtf";
+		return 0;
 	}
 
 	int idx = p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y;
@@ -102,7 +103,8 @@ uint8_t VoxelRT::Volumetrics::GetBlockTypeLightValue(const glm::ivec3& p)
 #endif
 
 	if (!VoxelRT::InVoxelVolume(p)) {
-		throw "wtf";
+		return 0;
+		//throw "wtf";
 	}
 
 	int idx = p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y;
@@ -117,7 +119,8 @@ void VoxelRT::Volumetrics::SetLightValue(const glm::ivec3& p, uint8_t v, uint8_t
 #endif
 
 	if (!VoxelRT::InVoxelVolume(p)) {
-		throw "wtf";
+		return;
+		//throw "wtf";
 	}
 
 	auto& arr = *LightWorldData;
@@ -132,7 +135,8 @@ void VoxelRT::Volumetrics::UploadLight(const glm::ivec3& p, uint8_t v, uint8_t b
 #endif
 
 	if (!VoxelRT::InVoxelVolume(p)) {
-		throw "wtf";
+		return;
+		//throw "wtf";
 	}
 
 	uint16_t data = PACK_U16(v, block);
@@ -203,46 +207,70 @@ void VoxelRT::Volumetrics::PropogateVolume()
 		uint8_t current_block_type = VoxelRT::Volumetrics::GetBlockTypeLightValue(pos);
 		glm::ivec3 temp_pos = glm::vec3(0.0f);
 
-		if (temp_pos = glm::vec3(pos.x + 1, pos.y, pos.z); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+		temp_pos = glm::vec3(pos.x + 1, pos.y, pos.z);
+		if (VoxelRT::InVoxelVolume(temp_pos))
 		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
-		if (temp_pos = glm::vec3(pos.x - 1, pos.y, pos.z); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+		
+		temp_pos = glm::vec3(pos.x - 1, pos.y, pos.z);
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
-		if (temp_pos = glm::vec3(pos.x, pos.y + 1, pos.z); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+
+
+		temp_pos = glm::vec3(pos.x, pos.y + 1, pos.z);
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
-		if (temp_pos = glm::vec3(pos.x, pos.y - 1, pos.z); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+
+		temp_pos = glm::vec3(pos.x, pos.y - 1, pos.z);
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
-		if (temp_pos = glm::vec3(pos.x, pos.y, pos.z - 1); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+
+		temp_pos = glm::vec3(pos.x, pos.y, pos.z - 1);
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
-		if (temp_pos = glm::vec3(pos.x, pos.y, pos.z + 1); world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
-			Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
-			LightBFS.push(LightNode(temp_pos));
+		temp_pos = glm::vec3(pos.x, pos.y, pos.z + 1);
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, current_light - 1, current_block_type);
+				Volumetrics::UploadLight(temp_pos, current_light - 1, current_block_type, false);
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 	}
 }
@@ -260,112 +288,136 @@ void VoxelRT::Volumetrics::DepropogateVolume()
 		uint8_t current_light = node.m_LightValue;
 		glm::ivec3 temp_pos = glm::vec3(0.0f);
 		uint8_t neighbouring_light;
+		uint8_t CurrentBlock;
 
 		// x + 1
 		temp_pos = glm::vec3(pos.x + 1, pos.y, pos.z);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		uint8_t CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
 		// x - 1
 
 		temp_pos = glm::vec3(pos.x - 1, pos.y, pos.z);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
+
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
 		// y + 1
 
 		temp_pos = glm::vec3(pos.x, pos.y + 1, pos.z);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
+
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
 		// y - 1
 
 		temp_pos = glm::vec3(pos.x, pos.y - 1, pos.z);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
+
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
 		// z + 1
 
 		temp_pos = glm::vec3(pos.x, pos.y, pos.z + 1);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
+
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 
 		// z - 1
 
 		temp_pos = glm::vec3(pos.x, pos.y, pos.z - 1);
-		neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
-		CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
 
-		if (neighbouring_light != 0 && neighbouring_light < current_light)
-		{
-			Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
-			Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
-			LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
-		}
+		if (VoxelRT::InVoxelVolume(temp_pos)) {
 
-		else if (neighbouring_light >= current_light)
-		{
-			LightBFS.push(LightNode(temp_pos));
+			neighbouring_light = VoxelRT::Volumetrics::GetLightValue(temp_pos);
+			CurrentBlock = VoxelRT::Volumetrics::GetBlockTypeLightValue(temp_pos);
+
+			if (neighbouring_light != 0 && neighbouring_light < current_light)
+			{
+				Volumetrics::SetLightValue(temp_pos, 0, CurrentBlock);
+				Volumetrics::UploadLight(temp_pos, 0, CurrentBlock, false);
+				LightRemovalBFS.push(LightRemovalNode(temp_pos, neighbouring_light));
+			}
+
+			else if (neighbouring_light >= current_light)
+			{
+				LightBFS.push(LightNode(temp_pos));
+			}
 		}
 	}
 }

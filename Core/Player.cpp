@@ -216,4 +216,10 @@ namespace VoxelRT
 	{
 		return;
 	}
+
+	void Player::ClampVelocity()
+	{
+		m_Velocity = glm::clamp(m_Velocity, glm::vec3(-3.0f), glm::vec3(3.0f));
+		m_Acceleration = glm::clamp(m_Acceleration, glm::vec3(-3.0f), glm::vec3(3.0f));
+	}
 }

@@ -39,6 +39,7 @@ uniform sampler2D u_ShadowTrace;
 
 
 uniform bool u_RoughReflections;
+uniform bool CHECKERBOARD_SPEC_SPP;
 
 uniform samplerCube u_Skymap;
 
@@ -476,7 +477,15 @@ void main()
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 100.0f;
 
+	// checker spp
+	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame % 2);
 	int SPP = clamp(u_SPP, 1, 16);
+	if (CHECKERBOARD_SPEC_SPP) {
+		SPP = int(mix(u_SPP, u_SPP/3, float(CheckerStep)));
+	}
+
+	SPP = clamp(SPP, 1, 16);
+
 	int total_hits = 0;
 
 	vec4 TotalSH = vec4(0.0f);

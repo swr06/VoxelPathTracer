@@ -30,6 +30,9 @@ uniform sampler2D u_CloudData;
 uniform sampler2D u_PreviousNormalTexture; 
 uniform sampler2D u_VXAO;
 
+uniform bool u_UseDFG;
+uniform bool u_RemoveTiling;
+
 uniform sampler2D u_DiffuseSHData1;
 uniform sampler2D u_DiffuseSHData2;
 
@@ -699,10 +702,33 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
+// from unreal
+vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness) 
+{
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 r = roughness * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+    vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
+    return F0 * AB.x + AB.y;
+}
+
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 4.0f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
+
+
+float sum( vec3 v ) { return v.x+v.y+v.z; }
+
+
+vec4 hash4( vec2 p ) { return fract(sin(vec4( 1.0+dot(p,vec2(37.0,17.0)), 
+                                              2.0+dot(p,vec2(11.0,47.0)),
+                                              3.0+dot(p,vec2(41.0,29.0)),
+                                              4.0+dot(p,vec2(23.0,31.0))))*103.0); }
+
+
+
 
 void main()
 {
@@ -877,11 +903,26 @@ void main()
             // Final combine : 
             // Use fresnel to get the amount of diffuse and reflected light 
             DiffuseIndirect *= clamp(SampledAO, 0.2f, 1.01f);
-            o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
+
+            bool dfg = u_UseDFG;
+
+            if (!dfg) {
+                o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect));
+            }
+
+            else {
+                float NDotV = clamp(dot(NonAmplifiedNormal, Lo), 0.0f, 1.0f);
+                vec3 Tint = mix(vec3(1.0f), AlbedoColor, float(PBRMap.g > 0.0125f));
+                vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
+                vec3 IndirectSpecularBRDF = DFG * clamp(Tint, 0.0f, 1.0f);
+
+                o_Color = DirectLighting + DiffuseIndirect;
+                o_Color += SpecularIndirect * IndirectSpecularBRDF;
+            }
 
 
-            ///if (PBRMap.x > 0.897511) 
+             ///if (PBRMap.x > 0.897511) 
             ///{
             ///    o_Color = vec3(1.0f, 0.0f, 0.0f);
             ///}
@@ -1036,4 +1077,41 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     return mix(
        mix(sample3, sample2, sx), mix(sample1, sample0, sx)
     , sy);
+}
+
+
+vec4 TilelessTexture(sampler2DArray samp, vec3 uvt, float v)
+{
+    vec2 uv = uvt.xy;
+    vec2 iuv = floor( uv );
+    vec2 fuv = fract( uv );
+
+    // generate per-tile transform
+    vec4 ofa = hash4( iuv + vec2(0.0,0.0) );
+    vec4 ofb = hash4( iuv + vec2(1.0,0.0) );
+    vec4 ofc = hash4( iuv + vec2(0.0,1.0) );
+    vec4 ofd = hash4( iuv + vec2(1.0,1.0) );
+    
+    vec2 ddx = dFdx( uv );
+    vec2 ddy = dFdy( uv );
+
+    // transform per-tile uvs
+    ofa.zw = sign(ofa.zw-0.5);
+    ofb.zw = sign(ofb.zw-0.5);
+    ofc.zw = sign(ofc.zw-0.5);
+    ofd.zw = sign(ofd.zw-0.5);
+    
+    // uv's, and derivarives (for correct mipmapping)
+    vec2 uva = uv*ofa.zw + ofa.xy; vec2 ddxa = ddx*ofa.zw; vec2 ddya = ddy*ofa.zw;
+    vec2 uvb = uv*ofb.zw + ofb.xy; vec2 ddxb = ddx*ofb.zw; vec2 ddyb = ddy*ofb.zw;
+    vec2 uvc = uv*ofc.zw + ofc.xy; vec2 ddxc = ddx*ofc.zw; vec2 ddyc = ddy*ofc.zw;
+    vec2 uvd = uv*ofd.zw + ofd.xy; vec2 ddxd = ddx*ofd.zw; vec2 ddyd = ddy*ofd.zw;
+        
+    // fetch and blend
+    vec2 b = smoothstep(0.25,0.75,fuv);
+
+    return mix( mix( textureGrad( samp, vec3(uva,uvt.z), ddxa, ddya ), 
+                     textureGrad( samp, vec3(uvb,uvt.z), ddxb, ddyb ), b.x ), 
+                mix( textureGrad( samp, vec3(uvc,uvt.z), ddxc, ddyc ),
+                     textureGrad( samp, vec3(uvd,uvt.z), ddxd, ddyd ), b.x), b.y );
 }

@@ -1,3 +1,40 @@
+// Main program pipeline
+
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////
+//    																					 //
+//    MIT License																		 //
+//    																					 //
+//    Copyright (c) 2021 Samuel Rasquinha												 //
+//    																					 //
+//    Permission is hereby granted, free of charge, to any person obtaining a copy		 //
+//    of this software and associated documentation files (the "Software"), to deal		 //
+//    in the Software without restriction, including without limitation the rights		 //
+//    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell			 //
+//    copies of the Software, and to permit persons to whom the Software is				 //
+//    furnished to do so, subject to the following conditions:							 //
+//    																					 //
+//    The above copyright notice and this permission notice shall be included in all	 //
+//    copies or substantial portions of the Software.									 //
+//    																					 //
+//    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR		 //
+//    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,			 //
+//    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE		 //
+//    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER			 //
+//    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,		 //
+//    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE		 //
+//    SOFTWARE.																			 //
+//    																		             //
+///////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+// includes 
+
 #include "Pipeline.h"
 #include <chrono>
 #include "ShaderManager.h"
@@ -11,12 +48,22 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
+
+// pixel padding
+static int PIXEL_PADDING = 20;
+
+
+
 static bool CHECKERBOARD_SPP = true;
+static bool CHECKERBOARD_SPEC_SPP = false;
 
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
 static float CAS_SharpenAmount = 0.3f;
+
+static bool UseDFG = false;
+static bool RemoveTiling = false;
 
 static bool CloudsEnabled = true;
 static float CloudCoverage = 0.01f;
@@ -59,7 +106,7 @@ static bool SoftShadows = true;
 
 static bool ReprojectReflectionsToScreenSpace = true;
 
-static int DiffuseSPP = 4; 
+static int DiffuseSPP = 3; 
 static int ReflectionSPP = 2;
 
 // Alpha test : 
@@ -138,6 +185,7 @@ public:
 		if (ImGui::Begin("Settings"))
 		{
 			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
+			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
@@ -151,6 +199,8 @@ public:
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
 			ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
 			ImGui::NewLine();
+			ImGui::Checkbox("Use DFG Polynomial ", &UseDFG);
+			ImGui::NewLine();
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
@@ -161,6 +211,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::SliderInt("PIXEL_PADDING", &PIXEL_PADDING, 0, 128);
 			ImGui::SliderFloat("VOL Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
@@ -661,7 +712,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	glDisable(GL_BLEND);
 
-	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X / 2, 70, WORLD_SIZE_Z / 2));
+	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X / 2, 75, WORLD_SIZE_Z / 2));
 
 	BloomRenderer::Initialize();
 	AverageLumaFBO.SetSize(1, 1);
@@ -773,11 +824,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		StrongerLightDirection = -SunDirection.y < 0.01f ? SunDirection : MoonDirection;
 
 		glfwSwapInterval((int)VSync);
-
-		float PADDED_WIDTH = app.GetWidth() + 16.0f;
-		float PADDED_HEIGHT = app.GetHeight() + 16.0f;
-		float TRUE_PADDED_WIDTH = app.GetWidth() + 16.0f;
-		float TRUE_PADDED_HEIGHT = app.GetHeight() + 16.0f;
+		
+		float PADDED_WIDTH = app.GetWidth() + PIXEL_PADDING;
+		float PADDED_HEIGHT = app.GetHeight() + PIXEL_PADDING;
+		float TRUE_PADDED_WIDTH = app.GetWidth() + PIXEL_PADDING;
+		float TRUE_PADDED_HEIGHT = app.GetHeight() + PIXEL_PADDING;
 		PADDED_WIDTH *= GLOBAL_RESOLUTION_SCALE;
 		PADDED_HEIGHT *= GLOBAL_RESOLUTION_SCALE;
 		
@@ -879,6 +930,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		if (UpdatePlayerCollision) {
 			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
 		}
+
+		MainPlayer.ClampVelocity();
 
 		app.OnUpdate();
 
@@ -1733,6 +1786,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetMatrix4("u_View", MainCamera.GetViewMatrix());
 			ReflectionTraceShader.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
 			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
+			ReflectionTraceShader.SetBool("CHECKERBOARD_SPEC_SPP", CHECKERBOARD_SPEC_SPP);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -2152,11 +2206,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
+		ColorShader.SetBool("u_RemoveTiling", RemoveTiling);
 		ColorShader.SetBool("u_RTAO", RTAO);
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
+		ColorShader.SetBool("u_UseDFG", UseDFG);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -2672,6 +2728,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetInteger("u_PositionTexture", 1);
 		FinalShader.SetInteger("u_NormalTexture", 2);
 		FinalShader.SetInteger("u_BlockIDTex", 3);
+		FinalShader.SetInteger("u_Padding", PIXEL_PADDING);
 		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
 		FinalShader.SetBool("u_CAS", ContrastAdaptiveSharpening);
 		FinalShader.SetMatrix4("u_InverseView", inv_view);
@@ -2754,7 +2811,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		world->Update(&MainCamera);
 
-		if (app.GetCurrentFrame() % 6 == 0)
+		if (app.GetCurrentFrame() % 15 == 0)
 		{
 			world->RebufferLightList();
 		}
@@ -2780,7 +2837,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
 
+		if (MainCamera.GetPosition().y <= 2.0f) 
+		{
+			MainCamera.SetPosition(glm::vec3(MainCamera.GetPosition().x, 75, MainCamera.GetPosition().z));
+			MainPlayer.m_Position = MainCamera.GetPosition();
+		}
+
+		// velocity clamp
+		MainPlayer.ClampVelocity();
 		
+		// make sure padding is divisible by 2
+		if (PIXEL_PADDING % 2 != 0) { PIXEL_PADDING += 1; }
 	}
 
 	SaveWorld(world, world_name);

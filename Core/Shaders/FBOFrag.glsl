@@ -12,6 +12,8 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 uniform vec2 u_Dimensions;
 
+uniform int u_Padding;
+
 uniform bool u_CAS;
 
 
@@ -356,8 +358,8 @@ void main()
 {
 	// clip the screen 
 	TexCoords = vec2(gl_FragCoord.xy);
-	TexCoords += 8.0f;
-	TexCoords = TexCoords / vec2(u_Dimensions + 16.0f);
+	TexCoords += u_Padding/2;
+	TexCoords = TexCoords / vec2(u_Dimensions + float(u_Padding));
 
 	vec3 BaseSample = texture(u_FramebufferTexture, TexCoords).rgb;
 	vec3 ViewerPos = u_InverseView[3].xyz;
