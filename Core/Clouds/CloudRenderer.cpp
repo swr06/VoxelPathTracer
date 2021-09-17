@@ -113,7 +113,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
 		CloudShader.SetVector3f("u_DetailParams", glm::vec3(DetailParams));
-		CloudShader.SetVector3f("u_SunDirection", SunDirection);
+		CloudShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetInteger("u_PositionTex", 5);

@@ -1,13 +1,16 @@
 #version 330 core
 
-#define CLOUD_HEIGHT 70 // temp
+#define CLOUD_THICKNESS 1750.0
+#define CLOUD_HEIGHT 1500.0
+#define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
+
 #define PI 3.14159265359
 #define TAU (3.14159265359 * 2.0f)
 #define HALF_PI (3.14159265359 * 0.5f)
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 3.0f 
+#define LIGHT_LOD 4.0f 
 #define BASE_LOD 0.0f
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -54,11 +57,6 @@ uniform float u_TimeScale = 1.0f;
 uniform bool u_HighQualityClouds;
 
 
-const vec3 PlayerOrigin = vec3(0,6200,0); 
-const float PlanetRadius = 7773; 
-const float AtmosphereRadius = 19773; 
-const float Size = AtmosphereRadius - PlanetRadius; 
-
 vec3 NoiseKernel[6] = vec3[] 
 (
 	vec3( 0.38051305,  0.92453449, -0.02111345),
@@ -95,22 +93,25 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
 	vec3 tmin = min(t0, t1);
 	vec3 tmax = max(t0, t1);
-	
 	float dstA = max(max(tmin.x, tmin.y), tmin.z);
 	float dstB = min(tmax.x, min(tmax.y, tmax.z));
-	
-	// CASE 1: ray intersects box from outside (0 <= dstA <= dstB)
-	// dstA is dst to nearest intersection, dstB dst to far intersection
-	
-	// CASE 2: ray intersects box from inside (dstA < 0 < dstB) 
-	// dstA is the dst to intersection behind the ray, dstB is dst to forward intersection
-	
-	// CASE 3: ray misses box (dstA > dstB)
-	
 	float dstToBox = max(0, dstA);
 	float dstInsideBox = max(0, dstB - dstToBox);
 	return vec2(dstToBox, dstInsideBox);
 }
+
+float intersetCloudPlane(vec3 r0, vec3 rd) {
+    // vechitNormal = -normal*sign(dot(normal, direction));
+    vec3 point = vec3(0.0, CLOUD_HEIGHT, 0.0);
+    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+}
+
+float intersetCloudPlaneTop(vec3 r0, vec3 rd) {
+    // vechitNormal = -normal*sign(dot(normal, direction));
+    vec3 point = vec3(0.0, CLOUD_TOP, 0.0);
+    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+}
+
 
 float remap(float x, float a, float b, float c, float d)
 {
@@ -169,8 +170,9 @@ vec3 DecodeCurlNoise(vec3 c)
 
 float SampleDensity(vec3 p, float lod)
 {
-	p.xyz *= 76.0f;
-	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 18.694206942069420694206942069420f, 0.0f, 0.0f);
+	p.xyz *= 345.0f;
+
+	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
     vec3 pos = p + TimeOffset;
 	float SCALE = 1.0f;
     float NOISE_SCALE = max(SCALE * 0.0004f, 0.00001f);
@@ -279,36 +281,26 @@ float nextFloat(inout int seed, in float min, in float max)
 }
 
 // raymarches up to find the ambient denisty
-float RaymarchAmbient(vec3 Point) 
+float RaymarchAmbient(vec3 Point)
 {
-	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
-	float End = (AtmosphereRadius - Point.y) / Direction.y;  
-	End = min(End, 5000.0); 
-	vec3 StartPosition = Point; 
-	vec3 EndPosition = Point + Direction * End; 
-	float PreviousTraversal = 0.0; 
-	float ReturnTransmittance = 1.0;
+	vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = u_HighQualityClouds ? 12 : 7;
+	int LightSteps = 4;
+	float Increment = 24.0f;
+    vec3 RayStep = Direction;
+	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+    vec3 CurrentPoint = Point + RayStep * 22.0f * Dither;
 
-	for(int Step = 0; Step < LightSteps; Step++) {
-
-		if(ReturnTransmittance < 0.0001) 
-		{
-			break; 
-		}
-
-		float t = float(Step + Dither) / float(LightSteps); 
-		vec3 Position = mix(StartPosition, EndPosition, t); 
-		float Traversal = mix(0.0, End, t); 
-		float StepSize = Traversal - PreviousTraversal; 
-		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD + 0.5f) * StepSize; 
-		PreviousTraversal = Traversal; 
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
+		CurrentPoint += RayStep * Increment;
 	}
 
-	return Accum * 10.0f;
+	const float SunAbsorbption = 1.0f;
+	return Accum * 30.0f;
 }
 
 float PowHalf(int n) {
@@ -318,35 +310,24 @@ float PowHalf(int n) {
 float RaymarchLight(vec3 Point)
 {
 	vec3 Direction = normalize(u_SunDirection);
-	float End = (AtmosphereRadius - Point.y) / Direction.y;  
-	End = min(End, 5000.0); 
-	vec3 StartPosition = Point; 
-	vec3 EndPosition = Point + Direction * End; 
-	float x = 0.0; 
-	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = u_HighQualityClouds ? 12 : 10;
+	int LightSteps = 6;
+	float Increment = 24.0f;
+    vec3 RayStep = Direction;
+	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+    vec3 CurrentPoint = Point + RayStep * 22.0f * Dither;
 
-	for(int Step = 0; Step < LightSteps; Step++) {
-
-		if(ReturnTransmittance < 0.0001) 
-			break; 
-	
-		float t = float(Step + Dither) / float(LightSteps); 
-		vec3 Position = mix(StartPosition, EndPosition, t); 
-		float Traversal = mix(0.0, End, t); 
-		float StepSize = Traversal - x; 
-
-		//Grab the density at this point 
-		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD) * StepSize; 
-		x = Traversal; 
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
+		CurrentPoint += RayStep * Increment;
 	}
 
 	const float SunAbsorbption = 1.0f;
 	//float LightTransmittance = exp(-Accum * SunAbsorbption); 
-	return Accum * 16.0f;
+	return Accum * 42.0f;
 }
 
 // Thanks to jess for suggesting this
@@ -434,7 +415,7 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 	// fake second scatter :
 	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
 	{
-		float PhaseSun = CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult);
+		float PhaseSun = pow(CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult), 1.0f);
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
 		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
 		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
@@ -502,58 +483,38 @@ void main()
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
 
+	const int StepCount = u_HighQualityClouds ? 16 : 8;
+
+
 	// xorshift once : 
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec3 CameraPosition = u_InverseView[3].xyz;
-	vec3 Origin = PlayerOrigin + CameraPosition; 
 	vec3 Direction = normalize(ComputeRayDirection());
-	float Start = (PlanetRadius - Origin.y) / Direction.y;  
-	float End = (AtmosphereRadius - Origin.y) / Direction.y;  
 
-	if(Start > End) 
-	{
-		float temp = End; 
-		End = Start; 
-		Start = temp; 
-	}
+	float startDist = intersetCloudPlane(CameraPosition, Direction);
+    vec3 startPos = CameraPosition + Direction*startDist;
+    float endDist = intersetCloudPlaneTop(CameraPosition, Direction);
+    vec3 endPos = CameraPosition + Direction*endDist;
+    vec3 rayStep = (endPos - startPos) / float(StepCount);
+	int Frame = u_CurrentFrame % 30;
+	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
+	float dither = Bayer32(gl_FragCoord.xy+BayerIncrement);
+	vec3 CurrentPoint = startPos + rayStep*dither;
+	float StepSize = length(rayStep);
 
-	if(End < 0.0)
-	{
-		return; 
-	}
 
-	Start = max(Start, 0.0); 
-
-	vec3 StartPosition = Origin + Direction * Start; 
-	vec3 EndPosition = Origin + Direction * End; 
-
-	bool CheckerSecond = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2);
-	const int StepCount = u_HighQualityClouds ? 32 : 16;
 	
 	float Transmittance = 1.0f;
 	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
-	float Dither;
 
-	if (u_UseBayer)
-	{
-		int Frame = u_CurrentFrame % 30;
-		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
-		Dither = Bayer16(gl_FragCoord.xy + BayerIncrement);
-	}
-
-	else 
-	{
-		Dither = nextFloat(RNG_SEED);
-	}
 
 	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
 	vec3 SkyLight = vec3(0.0f);
 	vec3 Scattering = vec3(0.0f);
 	vec3 SunColor = vec3(1.0f);
-	float x = 0.0f;
 
 
 	float CosTheta = dot(Direction, normalize(u_SunDirection));
@@ -564,23 +525,20 @@ void main()
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		float t = float(i + Dither) / float(StepCount); 
-		float Traversal = mix(0.0, End - Start, t); 
-		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
 		float DensitySample = SampleDensity(CurrentPoint * 0.002f, BASE_LOD);
 		if (DensitySample < 0.001f) {
 			continue;
 		}
 
-		DensitySample *= 22.0f;
-		float StepSize = Traversal - x; 
+		DensitySample *= 37.0f;
 		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
-		x = Traversal;
+		CurrentPoint += rayStep;
 	}
 	
-	Scattering = pow(Scattering, vec3(1.0f / PI * 1.16f)); 
+	Scattering = pow(Scattering, vec3(1.0f / 1.4)); 
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);
+	o_Data.xyz = clamp(o_Data.xyz, 0.0f, 1.0f);
 }

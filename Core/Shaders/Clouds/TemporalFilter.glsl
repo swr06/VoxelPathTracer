@@ -156,7 +156,7 @@ void main()
 			&& PreviousCoord.y > 0.0 + ReprojectBias && PreviousCoord.y < 1.0 - ReprojectBias && 
 			OcclusionValidity)
 		{
-			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.93750f);
+			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.94750f);
 		}
 
 		else 
