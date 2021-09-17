@@ -100,14 +100,14 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	return vec2(dstToBox, dstInsideBox);
 }
 
-float intersetCloudPlane(vec3 r0, vec3 rd) {
-    // vechitNormal = -normal*sign(dot(normal, direction));
+float RayBasePlaneIntersection(vec3 r0, vec3 rd) 
+{
     vec3 point = vec3(0.0, CLOUD_HEIGHT, 0.0);
     return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
 }
 
-float intersetCloudPlaneTop(vec3 r0, vec3 rd) {
-    // vechitNormal = -normal*sign(dot(normal, direction));
+float RayBasePlaneIntersectionTop(vec3 r0, vec3 rd)
+{
     vec3 point = vec3(0.0, CLOUD_TOP, 0.0);
     return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
 }
@@ -280,7 +280,6 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
-// raymarches up to find the ambient denisty
 float RaymarchAmbient(vec3 Point)
 {
 	vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
@@ -300,10 +299,11 @@ float RaymarchAmbient(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 30.0f;
+	return Accum * 35.0f;
 }
 
-float PowHalf(int n) {
+float PowHalf(int n) 
+{
 	return pow(0.5f, float(n));
 }
 
@@ -326,7 +326,6 @@ float RaymarchLight(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	//float LightTransmittance = exp(-Accum * SunAbsorbption); 
 	return Accum * 42.0f;
 }
 
@@ -494,18 +493,16 @@ void main()
 	vec3 CameraPosition = u_InverseView[3].xyz;
 	vec3 Direction = normalize(ComputeRayDirection());
 
-	float startDist = intersetCloudPlane(CameraPosition, Direction);
-    vec3 startPos = CameraPosition + Direction*startDist;
-    float endDist = intersetCloudPlaneTop(CameraPosition, Direction);
-    vec3 endPos = CameraPosition + Direction*endDist;
-    vec3 rayStep = (endPos - startPos) / float(StepCount);
+	float T1 = RayBasePlaneIntersection(CameraPosition, Direction);
+    vec3 StartPosition = CameraPosition + Direction * T1;
+    float T2 = RayBasePlaneIntersectionTop(CameraPosition, Direction);
+    vec3 EndPosition = CameraPosition + Direction * T2;
+    vec3 RayStep = (EndPosition - StartPosition) / float(StepCount);
 	int Frame = u_CurrentFrame % 30;
 	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
 	float dither = Bayer32(gl_FragCoord.xy+BayerIncrement);
-	vec3 CurrentPoint = startPos + rayStep*dither;
-	float StepSize = length(rayStep);
-
-
+	vec3 CurrentPoint = StartPosition + RayStep * dither;
+	float StepSize = length(RayStep);
 	
 	float Transmittance = 1.0f;
 	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
@@ -526,14 +523,16 @@ void main()
 	for (int i = 0 ; i < StepCount ; i++)
 	{
 		float DensitySample = SampleDensity(CurrentPoint * 0.002f, BASE_LOD);
-		if (DensitySample < 0.001f) {
+
+		if (DensitySample < 0.001f)
+		{
 			continue;
 		}
 
 		DensitySample *= 37.0f;
 		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
-		CurrentPoint += rayStep;
+		CurrentPoint += RayStep;
 	}
 	
 	Scattering = pow(Scattering, vec3(1.0f / 1.4)); 

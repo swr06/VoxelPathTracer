@@ -291,7 +291,7 @@ vec3 GetAtmosphereAndClouds()
 {
     vec3 NormalizedDir = normalize(v_RayDirection);
     float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
-    CloudFade = pow(CloudFade * 3.2f, 3.25f);
+    CloudFade = pow(CloudFade * 2.75f, 3.25f);
     CloudFade = clamp(CloudFade, 0.0f, 1.0f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
     const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;

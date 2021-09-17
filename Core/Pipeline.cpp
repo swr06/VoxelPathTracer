@@ -44,6 +44,14 @@
 #include "TAAJitter.h"
 #include "VolumetricFloodFill.h"
 
+// 
+
+
+
+
+
+// vars
+
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
@@ -73,7 +81,7 @@ static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
 static float CloudErosionWeightExponent = 6.9f;
-static glm::vec2 CloudModifiers = glm::vec2(-0.050, 0.1250f); // magic kek
+static glm::vec2 CloudModifiers = glm::vec2(-0.100, 0.1250f); // magic kek
 static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 2.125f;
