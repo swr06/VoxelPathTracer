@@ -41,6 +41,7 @@ uniform vec3 u_PrevCameraPos;
 uniform vec3 u_CurrentCameraPos;
 
 uniform bool u_ReflectionTemporal = false;
+uniform bool TEMPORAL_SPEC = false;
 
 vec2 Dimensions;
 
@@ -136,7 +137,7 @@ void main()
 	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = SampleNormal(u_NormalTexture, v_TexCoords);
 
-	if (CurrentPosition.a > 0.0f)
+	if (CurrentPosition.a > 0.0f&&TEMPORAL_SPEC)
 	{
 		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
 
@@ -148,7 +149,7 @@ void main()
 
 		const bool UseNewReprojection = bool(USE_NEW_REPROJECTION);
 		
-		if (RoughnessAt < 0.25f && HitDistanceCurrent > 0.0f && UseNewReprojection)
+		if (RoughnessAt < 0.35f && HitDistanceCurrent > 0.0f && UseNewReprojection)
 		{
 			// Reconstruct the reflected position to properly reproject
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);

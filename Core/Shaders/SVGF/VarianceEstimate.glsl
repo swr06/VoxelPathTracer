@@ -126,7 +126,7 @@ void main()
                     float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
                     float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
                     float Weight = exp(-LuminosityWeight - NormalWeight);
-                    float Weight_2 = NormalWeight;
+                    float Weight_2 = Weight;
 
                     Weight = max(Weight, 0.015f);
                     Weight_2 = max(Weight_2, 0.015f);

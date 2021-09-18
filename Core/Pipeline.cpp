@@ -60,6 +60,8 @@ static bool JitterSceneForTAA = false;
 // pixel padding
 static int PIXEL_PADDING = 20;
 
+static bool TEMPORAL_SPEC = true;
+
 
 
 static bool CHECKERBOARD_SPP = true;
@@ -194,6 +196,7 @@ public:
 		{
 			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			ImGui::Checkbox("TEMPORAL_SPEC", &TEMPORAL_SPEC);
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
@@ -1796,6 +1799,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
 			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
 			ReflectionTraceShader.SetBool("CHECKERBOARD_SPEC_SPP", CHECKERBOARD_SPEC_SPP);
+			ReflectionTraceShader.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -1884,6 +1888,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetFloat("u_MaximumMix", 0.95f);
 			SpecularTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			SpecularTemporalFilter.SetBool("u_ReflectionTemporal", true);
+			SpecularTemporalFilter.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -1951,6 +1956,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
+				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -2014,6 +2020,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
+				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);

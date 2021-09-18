@@ -1,5 +1,12 @@
 #version 330 core
 
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 #define ESTIMATE_VARIANCE_BASED_ON_NEIGHBOURS
 
 layout (location = 0) out vec4 o_SH;
@@ -35,6 +42,11 @@ uniform float u_DeltaTime;
 uniform float u_Time;
 
 const float POSITION_THRESH = 4.0f;
+
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
 
 vec3 GetRayDirectionAt(vec2 txc)
 {
@@ -82,6 +94,8 @@ float GetVarianceEstimate(out float BaseVariance)
 	float VarianceSum = 0.0f;
 
 	const float Kernel[3] = float[3](1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0);
+	const float Gaussian[2] = float[2](0.60283f, 0.198585f);
+	float TotalKernel = 0.0f;
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
@@ -91,16 +105,18 @@ float GetVarianceEstimate(out float BaseVariance)
 			
 			if (!InScreenSpace(SampleCoord)) { continue ; }
 
-			float KernelValue = Kernel[abs(x) + abs(y)]; 
+			//float KernelValue = Kernel[abs(x) + abs(y)]; 
+			float KernelValue = Gaussian[abs(x)] * Gaussian[abs(y)];
 			float V = texture(u_VarianceTexture, SampleCoord).r;
 
 			if (x == 0 && y == 0) { BaseVariance = V; }
 
 			VarianceSum += V * KernelValue;
+			TotalKernel += KernelValue;
 		}
 	}
 
-	return VarianceSum;
+	return VarianceSum / max(TotalKernel, 0.01f);
 #else 
 	float x = texture(u_VarianceTexture, v_TexCoords).r;
 	BaseVariance = x;
@@ -175,24 +191,30 @@ void main()
 	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
 
-	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 1.1f));
+	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 0.8f));
+	//float Bayer = bayer2(gl_FragCoord.xy);
 
 	// 9 samples, with 6 passes and 1 initial pass
 	for (int x = -1 ; x <= 1 ; x++)
 	{
 		for (int y = -1 ; y <= 1 ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + vec2(Jitter)) * TexelSize;
+			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + (vec2(Jitter)*1.05f)) * TexelSize ;
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 
-			vec3 SamplePosition = GetPositionAt(SampleCoord).xyz;
+			vec4 SamplePosition = GetPositionAt(SampleCoord).xyzw;
 
 			// Weights : 
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
             float DistSqr = dot(PositionDifference, PositionDifference);
 
-			if (DistSqr < 1.2f) {
+			if (DistSqr < 1.2f) 
+			{
+				//float DepthDiff = abs(BasePosition.w-SamplePosition.w);
+				//float DepthWeight =  clamp(exp(-DepthDiff), 0.001f, 1.0f);
+				//DepthWeight = pow(DepthWeight, 1.0f);
+				//DepthWeight = clamp(DepthWeight, 0.001f, 1.0f);
 
 				// Samples :
 				vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;
@@ -203,9 +225,10 @@ void main()
 
 				// :D
 				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
+				NormalWeight = clamp(NormalWeight, 0.001f, 1.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
-				float Weight = exp(-LuminosityWeight - NormalWeight);
-				Weight = max(Weight, 0.0f);
+				float Weight = exp(-LuminosityWeight - NormalWeight); // * DepthWeight;
+				Weight = clamp(Weight, 0.001f, 1.0f);
 
 				// Kernel Weights : 
 				float XWeight = AtrousWeights[abs(x)];
@@ -219,9 +242,13 @@ void main()
 				TotalVariance += sqr(Weight) * SampleVariance;
 				TotalWeight += Weight;
 
-				if (FilterAO) {
-					TotalAO += texture(u_AO, SampleCoord).x * Weight;
-					TotalAOWeight += Weight;
+				if (FilterAO) 
+				{
+					float CurrAOWeight = 1.0f;
+					const float aopow = pow(2.0f, 6.0f);
+					CurrAOWeight = clamp((XWeight * YWeight)*NormalWeight*clamp(pow(1.0f/abs(SamplePosition.w-BasePosition.w),aopow),0.001f,1.0f),0.001f,1.0f);
+					TotalAO += texture(u_AO, SampleCoord).x * CurrAOWeight;
+					TotalAOWeight += CurrAOWeight;
 				}
 			}
 		}

@@ -853,7 +853,7 @@ void main()
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
                     float ao = texture(u_VXAO, v_TexCoords).x;
-                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.5f), 0.0f, 1.0f));
+                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.85f), 0.0f, 1.0f));
                 }
             }
 
