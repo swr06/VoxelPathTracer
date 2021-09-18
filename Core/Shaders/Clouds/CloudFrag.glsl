@@ -316,7 +316,7 @@ float RaymarchLight(vec3 Point)
 	float Increment = 24.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
-    vec3 CurrentPoint = Point + RayStep * 22.0f * Dither;
+    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
 	for(int Step = 0; Step < LightSteps; Step++)
 	{
