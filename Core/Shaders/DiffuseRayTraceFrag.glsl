@@ -50,6 +50,7 @@ uniform vec2 u_Dimensions;
 uniform float u_Time;
 
 uniform int u_SPP;
+uniform int u_CheckerSPP;
 uniform int u_CurrentFrame;
 uniform int u_CurrentFrameMod512;
 uniform int u_CurrentFrameMod128;
@@ -366,7 +367,7 @@ void main()
 
 	if (CHECKERBOARD_SPP) {
 		bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == u_CurrentFrame % 2;
-		SPP = int(mix(u_SPP, int(floor(float(u_SPP)/2.0f)+0.001f), float(CheckerStep)));
+		SPP = int(mix(u_SPP, u_CheckerSPP, float(CheckerStep)));
 	}
 
 	SPP = clamp(SPP, 1, 32);

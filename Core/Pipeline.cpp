@@ -1045,6 +1045,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
 		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
+		DiffuseTraceShader.SetInteger("u_CheckerSPP", (DiffuseSPP + DiffuseSPP % 2) / 2); 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());

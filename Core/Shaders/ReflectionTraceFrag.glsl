@@ -481,7 +481,7 @@ void main()
 	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame % 2);
 	int SPP = clamp(u_SPP, 1, 16);
 	if (CHECKERBOARD_SPEC_SPP) {
-		SPP = int(mix(u_SPP, u_SPP/3, float(CheckerStep)));
+		SPP = int(mix(u_SPP, (u_SPP + u_SPP % 2) / 2, float(CheckerStep)));
 	}
 
 	SPP = clamp(SPP, 1, 16);
