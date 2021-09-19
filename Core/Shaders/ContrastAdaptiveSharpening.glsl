@@ -6,29 +6,32 @@ layout (location = 0) out vec3 o_Color;
 uniform sampler2D u_Texture;
 uniform float u_SharpenAmount;
 
-vec3 LinearToSRGB(vec3 x) 
-{
-    vec3 r;
-  
-    if(x.x <= 0.0031308f) {
-	r.x = 12.92f * x.x;
-    } else {
-	r.x = 1.055f * pow(x.x, 1.f/2.4f) - 0.055f;
-    }
+float linearToSrgb(float linear){
+    float SRGBLo = linear * 12.92;
+    float SRGBHi = (pow(abs(linear), 1.0/2.4) * 1.055) - 0.055;
+    float SRGB = mix(SRGBHi, SRGBLo, step(linear, 0.0031308));
+    return SRGB;
+}
 
-    if(x.y <= 0.0031308f) {
-	r.y = 12.92f * x.y;
-    } else {
-	r.y = 1.055f * pow(x.y, 1.f/2.4f) - 0.055f;
-    }
+float srgbToLinear(float color) {
+    float linearRGBLo = color / 12.92;
+    float linearRGBHi = pow((color + 0.055) / 1.055, 2.4);
+    float linearRGB = mix(linearRGBHi, linearRGBLo, step(color, 0.04045));
+    return linearRGB;
+}
 
-    if(x.z <= 0.0031308f) {
-	r.z = 12.92f * x.z;
-    } else {
-	r.z = 1.055f * pow(x.z, 1.f/2.4f) - 0.055f;
-    }
-  
-    return r;
+vec3 linearToSrgb(vec3 linear) {
+    vec3 SRGBLo = linear * 12.92;
+    vec3 SRGBHi = (pow(abs(linear), vec3(1.0/2.4)) * 1.055) - 0.055;
+    vec3 SRGB = mix(SRGBHi, SRGBLo, step(linear, vec3(0.0031308)));
+    return SRGB;
+}
+
+vec3 srgbToLinear(vec3 color) {
+    vec3 linearRGBLo = color / 12.92;
+    vec3 linearRGBHi = pow((color + 0.055) / 1.055, vec3(2.4));
+    vec3 linearRGB = mix(linearRGBHi, linearRGBLo, step(color, vec3(0.04045)));
+    return linearRGB;
 }
 
 float Luminance(vec3 x) {
@@ -76,5 +79,5 @@ void main() {
     vec3 OriginalColor = texelFetch(u_Texture, Pixel, 0).xyz;
     float SharpeningAmount = u_SharpenAmount;
     vec3 SharpenedColor = ContrastAdaptiveSharpening(u_Texture, Pixel, SharpeningAmount);
-    o_Color = LinearToSRGB(SharpenedColor);
+    o_Color = linearToSrgb(SharpenedColor);
 }

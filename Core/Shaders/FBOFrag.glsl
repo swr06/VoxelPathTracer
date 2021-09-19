@@ -66,29 +66,32 @@ float GetLuminance(vec3 color)
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-vec3 linear_to_srgb(vec3 x) 
-{
-    vec3 r;
-  
-    if(x.x <= 0.0031308f) {
-	r.x = 12.92f * x.x;
-    } else {
-	r.x = 1.055f * pow(x.x, 1.f/2.4f) - 0.055f;
-    }
+float linearToSrgb(float linear){
+    float SRGBLo = linear * 12.92;
+    float SRGBHi = (pow(abs(linear), 1.0/2.4) * 1.055) - 0.055;
+    float SRGB = mix(SRGBHi, SRGBLo, step(linear, 0.0031308));
+    return SRGB;
+}
 
-    if(x.y <= 0.0031308f) {
-	r.y = 12.92f * x.y;
-    } else {
-	r.y = 1.055f * pow(x.y, 1.f/2.4f) - 0.055f;
-    }
+float srgbToLinear(float color) {
+    float linearRGBLo = color / 12.92;
+    float linearRGBHi = pow((color + 0.055) / 1.055, 2.4);
+    float linearRGB = mix(linearRGBHi, linearRGBLo, step(color, 0.04045));
+    return linearRGB;
+}
 
-    if(x.z <= 0.0031308f) {
-	r.z = 12.92f * x.z;
-    } else {
-	r.z = 1.055f * pow(x.z, 1.f/2.4f) - 0.055f;
-    }
-  
-    return r;
+vec3 linearToSrgb(vec3 linear) {
+    vec3 SRGBLo = linear * 12.92;
+    vec3 SRGBHi = (pow(abs(linear), vec3(1.0/2.4)) * 1.055) - 0.055;
+    vec3 SRGB = mix(SRGBHi, SRGBLo, step(linear, vec3(0.0031308)));
+    return SRGB;
+}
+
+vec3 srgbToLinear(vec3 color) {
+    vec3 linearRGBLo = color / 12.92;
+    vec3 linearRGBHi = pow((color + 0.055) / 1.055, vec3(2.4));
+    vec3 linearRGB = mix(linearRGBHi, linearRGBLo, step(color, vec3(0.04045)));
+    return linearRGB;
 }
 
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
@@ -374,7 +377,7 @@ void main()
 	o_Color = Color;
 
 	if (!u_CAS) {
-		o_Color = linear_to_srgb(Color); // Gamma correction
+		o_Color = linearToSrgb(Color); // Gamma correction
 	}
 
 	else {
