@@ -33,6 +33,9 @@
 
 
 
+
+
+
 // includes 
 
 #include "Pipeline.h"
@@ -44,6 +47,14 @@
 #include "TAAJitter.h"
 #include "VolumetricFloodFill.h"
 
+// 
+
+
+
+
+
+// vars
+
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
@@ -51,6 +62,9 @@ static bool JitterSceneForTAA = false;
 
 // pixel padding
 static int PIXEL_PADDING = 20;
+
+static bool TEMPORAL_SPEC = true;
+//static bool ANTI_FLICKER = true;
 
 
 
@@ -66,14 +80,14 @@ static bool UseDFG = false;
 static bool RemoveTiling = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.01f;
+static float CloudCoverage = 0.05f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.0f;
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
 static float CloudErosionWeightExponent = 6.9f;
-static glm::vec2 CloudModifiers = glm::vec2(0.1000238f, 0.013f); // magic 
+static glm::vec2 CloudModifiers = glm::vec2(-0.100, 0.1250f); // magic kek
 static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 2.125f;
@@ -184,8 +198,11 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
+			//ImGui::Checkbox("ANTI_FLICKER", &ANTI_FLICKER);
 			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
+			ImGui::NewLine();
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
@@ -251,7 +268,7 @@ public:
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
-			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.6f);
+			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.125f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.2f, 0.2);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
@@ -489,8 +506,26 @@ GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, 
 GLClasses::Framebuffer VolumetricsCompute(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
 GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
 
+//GLClasses::Framebuffer PostProcessingFBO_History[4] = {
+//	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false),
+//	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false),
+//	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false),
+//	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false) };
+
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
+//GLClasses::Framebuffer AntiFlickerFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+
+
+
+// lut
+// (x % y) + (t % y) 
+const glm::ivec3 HistoryLUT[4] = {
+	glm::ivec3(1, 2, 3),
+	glm::ivec3(2, 3, 0),
+	glm::ivec3(3, 0, 1),
+	glm::ivec3(0, 1, 2)
+};
 
 
 GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
@@ -644,6 +679,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 	GLClasses::Shader& CAS_Shader = ShaderManager::GetShader("CONTRAST_ADAPTIVE_SHARPENING");
+	GLClasses::Shader& AntiFlickerShader = ShaderManager::GetShader("ANTI_FLICKER");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -864,20 +900,29 @@ void VoxelRT::MainPipeline::StartPipeline()
 			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
 			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
 			VarianceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
+			
+			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+
+			//PostProcessingFBO_History[0].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			//PostProcessingFBO_History[1].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			//PostProcessingFBO_History[2].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			//PostProcessingFBO_History[3].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			//AntiFlickerFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+
 			ColoredFBO.SetDimensions(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
 			ShadowRawTrace.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
-			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
-			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
-			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowTraceResolution * 1.5f, PADDED_HEIGHT * ShadowTraceResolution * 1.5f);
+			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
+			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
+			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 
 			ReflectionTraceFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionTraceFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
-			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
-			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
-			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
-			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution * 2.0f, PADDED_HEIGHT * ReflectionTraceResolution * 2.0f);
+			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 
 			if (GodRays)
 			{
@@ -913,6 +958,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		GLClasses::Framebuffer& ReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_1 : ReflectionTraceFBO_2;
 		GLClasses::Framebuffer& PrevReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_2 : ReflectionTraceFBO_1;
+
+
+		/////// history for anti flicker // unused.
+		int framemod4 = app.GetCurrentFrame() % 4; // not true mathematical modulo, not needed since this wont be negative!
+		//GLClasses::Framebuffer& PostProcessingFBO = PostProcessingFBO_History[framemod4];
+		//GLClasses::Framebuffer& PostProcessingHistory0 = PostProcessingFBO_History[(framemod4+1)%4];
+		//GLClasses::Framebuffer& PostProcessingHistory1 = PostProcessingFBO_History[(framemod4+2)%4];
+		//GLClasses::Framebuffer& PostProcessingHistory2 = PostProcessingFBO_History[(framemod4+3)%4];
 
 
 
@@ -1037,6 +1090,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_ShadowMap", 9);
 		DiffuseTraceShader.SetInteger("u_BlueNoiseTexture", 10);
 		DiffuseTraceShader.SetInteger("u_SPP", DiffuseSPP);
+		DiffuseTraceShader.SetInteger("u_CheckerSPP", (DiffuseSPP + DiffuseSPP % 2) / 2); 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
@@ -1787,6 +1841,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
 			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
 			ReflectionTraceShader.SetBool("CHECKERBOARD_SPEC_SPP", CHECKERBOARD_SPEC_SPP);
+			ReflectionTraceShader.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -1875,6 +1930,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetFloat("u_MaximumMix", 0.95f);
 			SpecularTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			SpecularTemporalFilter.SetBool("u_ReflectionTemporal", true);
+			SpecularTemporalFilter.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -1942,6 +1998,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
+				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -2005,6 +2062,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
+				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -2707,6 +2765,39 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		PostProcessingFBO.Unbind();
+
+		//if (ANTI_FLICKER)
+		//{
+		//	AntiFlickerFBO.Bind();
+		//	AntiFlickerShader.Use();
+		//
+		//
+		//	//uniform sampler2D u_CurrentTexture;
+		//	//uniform sampler2D u_History[3];
+		//
+		//	AntiFlickerShader.SetInteger("u_CurrentTexture", 0);
+		//	AntiFlickerShader.SetInteger("u_History[0]", 1);
+		//	AntiFlickerShader.SetInteger("u_History[1]", 2);
+		//	AntiFlickerShader.SetInteger("u_History[2]", 3);
+		//
+		//	glActiveTexture(GL_TEXTURE0);
+		//	glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+		//
+		//	glActiveTexture(GL_TEXTURE1);
+		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory0.GetTexture());
+		//
+		//	glActiveTexture(GL_TEXTURE2);
+		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory1.GetTexture());
+		//
+		//	glActiveTexture(GL_TEXTURE3);
+		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory2.GetTexture());
+		//
+		//	VAO.Bind();
+		//	glDrawArrays(GL_TRIANGLES, 0, 6);
+		//	VAO.Unbind();
+		//
+		//	AntiFlickerFBO.Unbind();
+		//}
 
 		// ---- FINAL ----
 

@@ -1,13 +1,17 @@
 #version 330 core
 
-#define CLOUD_HEIGHT 70 // temp
+#define CLOUD_THICKNESS 1750.0
+#define CLOUD_HEIGHT 1500.0
+#define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
+
 #define PI 3.14159265359
 #define TAU (3.14159265359 * 2.0f)
 #define HALF_PI (3.14159265359 * 0.5f)
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 3.0f 
+#define LIGHT_LOD 2.0f 
+#define AMBIENT_LOD 2.5f 
 #define BASE_LOD 0.0f
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -33,6 +37,7 @@ uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
 uniform sampler2D u_CurlNoise;
+uniform sampler2D u_CloudWeatherMap;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
@@ -53,11 +58,6 @@ uniform float u_TimeScale = 1.0f;
 
 uniform bool u_HighQualityClouds;
 
-
-const vec3 PlayerOrigin = vec3(0,6200,0); 
-const float PlanetRadius = 7773; 
-const float AtmosphereRadius = 19773; 
-const float Size = AtmosphereRadius - PlanetRadius; 
 
 vec3 NoiseKernel[6] = vec3[] 
 (
@@ -95,22 +95,25 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
 	vec3 tmin = min(t0, t1);
 	vec3 tmax = max(t0, t1);
-	
 	float dstA = max(max(tmin.x, tmin.y), tmin.z);
 	float dstB = min(tmax.x, min(tmax.y, tmax.z));
-	
-	// CASE 1: ray intersects box from outside (0 <= dstA <= dstB)
-	// dstA is dst to nearest intersection, dstB dst to far intersection
-	
-	// CASE 2: ray intersects box from inside (dstA < 0 < dstB) 
-	// dstA is the dst to intersection behind the ray, dstB is dst to forward intersection
-	
-	// CASE 3: ray misses box (dstA > dstB)
-	
 	float dstToBox = max(0, dstA);
 	float dstInsideBox = max(0, dstB - dstToBox);
 	return vec2(dstToBox, dstInsideBox);
 }
+
+float RayBasePlaneIntersection(vec3 r0, vec3 rd) 
+{
+    vec3 point = vec3(0.0, CLOUD_HEIGHT, 0.0);
+    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+}
+
+float RayBasePlaneIntersectionTop(vec3 r0, vec3 rd)
+{
+    vec3 point = vec3(0.0, CLOUD_TOP, 0.0);
+    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+}
+
 
 float remap(float x, float a, float b, float c, float d)
 {
@@ -165,12 +168,38 @@ vec3 DecodeCurlNoise(vec3 c)
     return (c - 0.5) * 2.0;
 }
 
+float RemapClamped(float original_value, float original_min, float original_max, float new_min, float new_max)
+{
+    return new_min + (saturate((original_value - original_min) / (original_max - original_min)) * (new_max - new_min));
+}
 
+vec3 SampleWeather(vec3 pos)
+{
+	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
+	pos.xyz *= 1.0f;
+	pos.xyz += TimeOffset;
+	float WeatherScale = 1.0f;
+	vec4 weatherData = texture(u_CloudWeatherMap, (pos.xz) * WeatherScale, 0);
+	float AnvilHeight = 1000.0f;
+	float AnvilAmount = 1.0f;
+	float HeightFactor = (pos.y - CLOUD_HEIGHT) / CLOUD_THICKNESS;
+	float HeightDensityMultiplier = HeightFactor;
+	float CoverageAmount = u_Coverage;
+	const float CoverageMinimum = 0.0f;
+	const float TypeAmount = 0.4f;
+	const float TypeOverall = 0.6f;
+	weatherData.r = pow(abs(weatherData.r), RemapClamped(HeightDensityMultiplier * AnvilHeight, 0.7, 0.8, 1.0, mix(1.0, 0.5, AnvilAmount)));
+	weatherData.r = RemapClamped(weatherData.r * CoverageAmount, 0.0, 1.0, saturate(CoverageMinimum - 1.0), 1.0);
+	weatherData.g = RemapClamped(weatherData.g * TypeAmount, 0.0, 1.0, TypeOverall, 1.0);
+	return weatherData.rgb;
+}
 
 float SampleDensity(vec3 p, float lod)
 {
-	p.xyz *= 76.0f;
-	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 18.694206942069420694206942069420f, 0.0f, 0.0f);
+	vec3 OriginalP=p;
+	p.xyz *= 375.0f;
+
+	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
     vec3 pos = p + TimeOffset;
 	float SCALE = 1.0f;
     float NOISE_SCALE = max(SCALE * 0.0004f, 0.00001f);
@@ -179,27 +208,36 @@ float SampleDensity(vec3 p, float lod)
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
 	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
-	float X = 1.0f; // idfk
+	float X = 1.0f; 
 	vec2 ShapeNoiseModifier = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
 	float Sample = remap(LowFreqNoise.r * pow(1.2f - X, 0.1f), LowFreqFBM * ShapeNoiseModifier.x, ShapeNoiseModifier.y, 0.00000001f, 1.0f);
-    float EffectiveCoverage = u_Coverage * 0.7f;
     Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
-    Sample *= EffectiveCoverage;
+	
+	///if (u_Coverage < -500.0f) {
+	///	vec3 WeatherData = SampleWeather(OriginalP);f
+	///	p+=WeatherData;
+	///}
 
-	// u_DetailParams.y > 0.025 if the detail contribution is enabled
-	if (u_DetailParams.y < 0.025f) {
-		return Sample;
+    float EffectiveCoverage = u_Coverage; //WeatherData.x;
+
+	if (Sample > 0.01f)
+	{ 
+		float HeightFraction = -1.0f;
+		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,p.xz).xyz);
+		pos += CurlNoise;
+		vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * 1.0f);
+		float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
+						   (LowFreqNoise.b * 0.25f)  +
+						   (LowFreqNoise.a * 0.125f);
+		float DetailNoiseModifier = 1.0f;
+		float OneMinusFBM = 1.0f - HighFreqFBM;
+		float RemapAmount = mix(OneMinusFBM, HighFreqFBM, clamp(HeightFraction * 1.0f, 0.0f, 1.0f));
+		Sample = remap(Sample, RemapAmount * 500.0f, 2.0, 0.0, 1.0);
 	}
 
-	// todo : improve this shit
-	vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * NOISE_SCALE * 1.66f);
-    float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
-                       (LowFreqNoise.b * 0.25f)  +
-                       (LowFreqNoise.a * 0.125f);
-	float OneMinusBaseFBM = 1.0f - LowFreqFBM;
-    float ErodeWeight = pow(OneMinusBaseFBM, u_DetailParams.z);
-    float FinalDensity = Sample - (1.0f - HighFreqFBM) * ErodeWeight * u_DetailParams.x;
-	return clamp(FinalDensity * 1.1f, 0.0f, 10.0f);
+	Sample *= EffectiveCoverage;
+
+	return clamp(Sample, 0.0f, 10.0f);
 } 
 
 float hg(float a, float g) 
@@ -278,75 +316,53 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
-// raymarches up to find the ambient denisty
-float RaymarchAmbient(vec3 Point) 
+float RaymarchAmbient(vec3 Point)
 {
-	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
-	float End = (AtmosphereRadius - Point.y) / Direction.y;  
-	End = min(End, 5000.0); 
-	vec3 StartPosition = Point; 
-	vec3 EndPosition = Point + Direction * End; 
-	float PreviousTraversal = 0.0; 
-	float ReturnTransmittance = 1.0;
+	vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = u_HighQualityClouds ? 12 : 7;
+	int LightSteps = 4;
+	float Increment = 24.0f;
+    vec3 RayStep = Direction;
+	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
-	for(int Step = 0; Step < LightSteps; Step++) {
-
-		if(ReturnTransmittance < 0.0001) 
-		{
-			break; 
-		}
-
-		float t = float(Step + Dither) / float(LightSteps); 
-		vec3 Position = mix(StartPosition, EndPosition, t); 
-		float Traversal = mix(0.0, End, t); 
-		float StepSize = Traversal - PreviousTraversal; 
-		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD + 0.5f) * StepSize; 
-		PreviousTraversal = Traversal; 
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
+		CurrentPoint += RayStep * Increment;
 	}
 
-	return Accum * 10.0f;
+	const float SunAbsorbption = 1.0f;
+	return Accum * 35.0f;
 }
 
-float PowHalf(int n) {
+float PowHalf(int n) 
+{
 	return pow(0.5f, float(n));
 }
 
 float RaymarchLight(vec3 Point)
 {
 	vec3 Direction = normalize(u_SunDirection);
-	float End = (AtmosphereRadius - Point.y) / Direction.y;  
-	End = min(End, 5000.0); 
-	vec3 StartPosition = Point; 
-	vec3 EndPosition = Point + Direction * End; 
-	float x = 0.0; 
-	float ReturnTransmittance = 1.0;
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = u_HighQualityClouds ? 12 : 10;
+	int LightSteps = 6;
+	float Increment = 24.0f;
+    vec3 RayStep = Direction;
+	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
-	for(int Step = 0; Step < LightSteps; Step++) {
-
-		if(ReturnTransmittance < 0.0001) 
-			break; 
-	
-		float t = float(Step + Dither) / float(LightSteps); 
-		vec3 Position = mix(StartPosition, EndPosition, t); 
-		float Traversal = mix(0.0, End, t); 
-		float StepSize = Traversal - x; 
-
-		//Grab the density at this point 
-		float Height = Traversal * Direction.y; 
-		Accum += SampleDensity(Position * 0.002f, LIGHT_LOD) * StepSize; 
-		x = Traversal; 
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
+		CurrentPoint += RayStep * Increment;
 	}
 
 	const float SunAbsorbption = 1.0f;
-	//float LightTransmittance = exp(-Accum * SunAbsorbption); 
-	return Accum * 16.0f;
+	return Accum * 50.0f;
 }
 
 // Thanks to jess for suggesting this
@@ -434,7 +450,7 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 	// fake second scatter :
 	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
 	{
-		float PhaseSun = CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult);
+		float PhaseSun = pow(CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult)*1.05f, 1.0f);
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
 		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
 		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
@@ -462,24 +478,25 @@ vec3 ComputeRayDirection()
 
 bool SampleValid(in vec2 txc)
 {
-    vec2 TexelSize = 1.0f / textureSize(u_PositionTex, 0);
-    //vec2 TexelSize = 1.0f / u_Dimensions;
-
-    const vec2 Kernel[8] = vec2[8]
+    const ivec2 Kernel[8] = ivec2[8]
 	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
+		ivec2(-1.0, -1.0),
+		ivec2( 0.0, -1.0),
+		ivec2( 1.0, -1.0),
+		ivec2(-1.0,  0.0),
+		ivec2( 1.0,  0.0),
+		ivec2(-1.0,  1.0),
+		ivec2( 0.0,  1.0),
+		ivec2( 1.0,  1.0)
 	);
+
+	ivec2 basecoord = ivec2(floor(txc*textureSize(u_PositionTex,0).xy));
 
     for (int i = 0 ; i < 8 ; i++)
     {
-        if (texture(u_PositionTex, txc + Kernel[i] * TexelSize).r <= 0.0f)
+		ivec2 samplecoord = basecoord+Kernel[i];
+        //if (texture(u_PositionTex, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
+		if (texelFetch(u_PositionTex, samplecoord,0).x <= 0.0f)
         {
             return true;
         }
@@ -502,58 +519,36 @@ void main()
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
 
+	const int StepCount = u_HighQualityClouds ? 16 : 8;
+
+
 	// xorshift once : 
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec3 CameraPosition = u_InverseView[3].xyz;
-	vec3 Origin = PlayerOrigin + CameraPosition; 
 	vec3 Direction = normalize(ComputeRayDirection());
-	float Start = (PlanetRadius - Origin.y) / Direction.y;  
-	float End = (AtmosphereRadius - Origin.y) / Direction.y;  
 
-	if(Start > End) 
-	{
-		float temp = End; 
-		End = Start; 
-		Start = temp; 
-	}
-
-	if(End < 0.0)
-	{
-		return; 
-	}
-
-	Start = max(Start, 0.0); 
-
-	vec3 StartPosition = Origin + Direction * Start; 
-	vec3 EndPosition = Origin + Direction * End; 
-
-	bool CheckerSecond = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2);
-	const int StepCount = u_HighQualityClouds ? 32 : 16;
+	float T1 = RayBasePlaneIntersection(CameraPosition, Direction);
+    vec3 StartPosition = CameraPosition + Direction * T1;
+    float T2 = RayBasePlaneIntersectionTop(CameraPosition, Direction);
+    vec3 EndPosition = CameraPosition + Direction * T2;
+    vec3 RayStep = (EndPosition - StartPosition) / float(StepCount);
+	int Frame = u_CurrentFrame % 30;
+	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
+	float dither = Bayer32(gl_FragCoord.xy+BayerIncrement);
+	vec3 CurrentPoint = StartPosition + RayStep * dither;
+	float StepSize = length(RayStep);
 	
 	float Transmittance = 1.0f;
 	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
-	float Dither;
 
-	if (u_UseBayer)
-	{
-		int Frame = u_CurrentFrame % 30;
-		vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
-		Dither = Bayer16(gl_FragCoord.xy + BayerIncrement);
-	}
-
-	else 
-	{
-		Dither = nextFloat(RNG_SEED);
-	}
 
 	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
 	vec3 SkyLight = vec3(0.0f);
 	vec3 Scattering = vec3(0.0f);
 	vec3 SunColor = vec3(1.0f);
-	float x = 0.0f;
 
 
 	float CosTheta = dot(Direction, normalize(u_SunDirection));
@@ -564,23 +559,24 @@ void main()
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		float t = float(i + Dither) / float(StepCount); 
-		float Traversal = mix(0.0, End - Start, t); 
-		vec3 CurrentPoint = mix(StartPosition, EndPosition, t); 
 		float DensitySample = SampleDensity(CurrentPoint * 0.002f, BASE_LOD);
-		if (DensitySample < 0.001f) {
+
+		if (DensitySample < 0.001f)
+		{
 			continue;
 		}
 
-		DensitySample *= 22.0f;
-		float StepSize = Traversal - x; 
+		DensitySample *= 37.0f;
 		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
 		Transmittance *= exp(-DensitySample * StepSize);
-		x = Traversal;
+		CurrentPoint += RayStep;
 	}
 	
-	Scattering = pow(Scattering, vec3(1.0f / PI * 1.16f)); 
+	// scatter boost
+	Scattering = pow(Scattering, vec3(1.0f / 1.6)); 
+	Scattering = clamp(Scattering, 0.0f, 1.0f);
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);
+	o_Data.xyz = clamp(o_Data.xyz, 0.0f, 1.0f);
 }

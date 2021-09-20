@@ -50,6 +50,9 @@ void VoxelRT::ShaderManager::CreateShaders()
 	
 	// CAS
 	AddShader("CONTRAST_ADAPTIVE_SHARPENING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ContrastAdaptiveSharpening.glsl");
+
+	// anti flicker
+	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

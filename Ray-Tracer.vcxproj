@@ -269,12 +269,14 @@
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl" />
     <None Include="Core\Shaders\Clouds\NoiseUtil.glsl" />
+    <None Include="Core\Shaders\Clouds\WeatherMapGenerator.glsl" />
     <None Include="Core\Shaders\ComputeExposure.comp" />
     <None Include="Core\Shaders\ComputeUtility\ClearData.comp" />
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\EV100.glsl" />
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />
     <None Include="Core\Shaders\Functions\FXAA.glsl" />
+    <None Include="Core\Shaders\HandleFlicker.glsl" />
     <None Include="Core\Shaders\ReflectionDenoiser.glsl" />
     <None Include="Core\Shaders\AtmosphereFrag.glsl" />
     <None Include="Core\Shaders\AtmosphereVertex.glsl" />

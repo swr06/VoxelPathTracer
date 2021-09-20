@@ -72,6 +72,10 @@ uniform bool u_UseBlueNoise;
 
 uniform int u_CurrentFrameMod128;
 
+
+uniform bool TEMPORAL_SPEC=false;
+
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -455,7 +459,7 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 	vec3 BestDirection;
 
 	for (int i = 0 ; i < 4 ; i++) {
-		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(u_CurrentFrameMod128) : hash2();
+		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(TEMPORAL_SPEC?u_CurrentFrameMod128:100) : hash2();
 		Xi = Xi * vec2(1.0f, 0.75f);
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
 		float d = dot(ImportanceSampled,N);
@@ -470,18 +474,19 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(u_Time) * 200));
+	float TIME = TEMPORAL_SPEC ? u_Time : 1.0f;
+	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(TIME) * 200));
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
-	HASH2SEED += fract(u_Time) * 100.0f;
+	HASH2SEED += fract(TIME) * 100.0f;
 
 	// checker spp
 	bool CheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame % 2);
 	int SPP = clamp(u_SPP, 1, 16);
 	if (CHECKERBOARD_SPEC_SPP) {
-		SPP = int(mix(u_SPP, u_SPP/3, float(CheckerStep)));
+		SPP = int(mix(u_SPP, (u_SPP + u_SPP % 2) / 2, float(CheckerStep)));
 	}
 
 	SPP = clamp(SPP, 1, 16);

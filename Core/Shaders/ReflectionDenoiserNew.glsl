@@ -170,7 +170,7 @@ void main()
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 	float Scale = 1.125f;
 
-	EffectiveRadius = clamp(EffectiveRadius,1,12);
+	EffectiveRadius = clamp(EffectiveRadius,1,14);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
@@ -184,7 +184,7 @@ void main()
 			vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
 			float PositionError = dot(PositionDifference, PositionDifference);
-			if (PositionError > 0.8f || SamplePosition.w < 0.0f) { 
+			if (PositionError > 1.069420f || SamplePosition.w < 0.0f) { 
 				continue;
 			}
 			
@@ -222,7 +222,9 @@ void main()
 			}
 
 			CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
+			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
 			CurrentWeight = CurrentKernelWeight * CurrentWeight;
+			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
 			BlurredSH += SampleSH * CurrentWeight;
 			BlurredCoCg += SampleCoCg * CurrentWeight;
 			TotalWeight += CurrentWeight;

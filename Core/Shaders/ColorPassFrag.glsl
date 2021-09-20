@@ -219,7 +219,7 @@ float stars(vec3 fragpos)
     fragpos.y = abs(fragpos.y);
 	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	vec2 uv = fragpos.xz / (1.0f + elevation);
-    float star = StableStarField(uv * 700.0f, 0.99);
+    float star = StableStarField(uv * 700.0f, 0.98);
     star *= 0.06f;
     float rand_val = rand(fragpos.xy);
 	return clamp(star, 0.0f, 100000.0f) * 4.46f;
@@ -231,24 +231,14 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
 	vec3 tmin = min(t0, t1);
 	vec3 tmax = max(t0, t1);
-	
 	float dstA = max(max(tmin.x, tmin.y), tmin.z);
 	float dstB = min(tmax.x, min(tmax.y, tmax.z));
-	
-	// CASE 1: ray intersects box from outside (0 <= dstA <= dstB)
-	// dstA is dst to nearest intersection, dstB dst to far intersection
-	
-	// CASE 2: ray intersects box from inside (dstA < 0 < dstB) 
-	// dstA is the dst to intersection behind the ray, dstB is dst to forward intersection
-	
-	// CASE 3: ray misses box (dstA > dstB)
-	
 	float dstToBox = max(0, dstA);
 	float dstInsideBox = max(0, dstB - dstToBox);
 	return vec2(dstToBox, dstInsideBox);
 }
 
-bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transmittance)
+bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transmittance, float true_transmittance)
 {
     vec3 sun_dir = normalize(u_SunDirection); 
     vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
@@ -280,7 +270,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
 
-    atmosphere += stars*transmittance;
+    atmosphere += stars*4.0f*true_transmittance;
 
     atmosphere_color = atmosphere;
 
@@ -291,7 +281,7 @@ vec3 GetAtmosphereAndClouds()
 {
     vec3 NormalizedDir = normalize(v_RayDirection);
     float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
-    CloudFade = pow(CloudFade * 3.2f, 3.25f);
+    CloudFade = pow(CloudFade * 2.75f, 3.25f);
     CloudFade = clamp(CloudFade, 0.0f, 1.0f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
     const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
@@ -302,9 +292,9 @@ vec3 GetAtmosphereAndClouds()
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
     SampledCloudData.xyz *= CloudFade;
     float Transmittance = SampledCloudData.w;
-    vec3 Scatter = SampledCloudData.xyz;
+    vec3 Scatter = SampledCloudData.xyz*1.2f ;
     vec3 Sky = vec3(0.0f);
-    bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f);
+    bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f, Transmittance);
     Sky = Sky * max(Transmittance, 0.9f);
     return vec3(Sky + Scatter*M);
 }
@@ -853,7 +843,7 @@ void main()
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
                     float ao = texture(u_VXAO, v_TexCoords).x;
-                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.5f), 0.0f, 1.0f));
+                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.85f), 0.0f, 1.0f));
                 }
             }
 
@@ -977,9 +967,8 @@ void main()
 
 float ndfGGX(float cosLh, float roughness)
 {
-	float alpha   = roughness * roughness;
+	float alpha = roughness * roughness;
 	float alphaSq = alpha * alpha;
-
 	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
 	return alphaSq / (PI * denom * denom);
 }
@@ -1003,6 +992,7 @@ vec3 fresnelSchlick(vec3 F0, float cosTheta)
 
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
+    const float DIELECTRIC = 0.04f;
     const float Epsilon = 0.00001;
     float Shadow = min(shadow, 1.0f);
 
@@ -1011,7 +1001,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	vec3 N = normal;
 	float cosLo = max(0.0, dot(N, Lo));
 	vec3 Lr = 2.0 * cosLo * N - Lo;
-	vec3 F0 = mix(vec3(0.04), albedo, pbr.g);
+	vec3 F0 = mix(vec3(DIELECTRIC), albedo, pbr.g);
 
     vec3 Li = light_dir;
 	vec3 Lradiance = radiance;
