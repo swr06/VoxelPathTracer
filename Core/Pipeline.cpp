@@ -80,7 +80,7 @@ static bool UseDFG = false;
 static bool RemoveTiling = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.336f;
+static float CloudCoverage = 0.05f;
 static bool CloudBayer = true;
 static float CloudDetailContribution = 0.0f;
 static bool CloudDetailWeightEnabled = false;
@@ -268,7 +268,7 @@ public:
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
-			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 1.5f);
+			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.125f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.2f, 0.2);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);

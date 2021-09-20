@@ -16,6 +16,7 @@ static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
 
 namespace Clouds {
 	GLClasses::Framebuffer CurlCloudNoise(128, 128, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
+	GLClasses::Framebuffer CloudWeatherMap(1024, 1024, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false, false);
 }
 
 void Clouds::CloudRenderer::Initialize()
@@ -37,15 +38,23 @@ void Clouds::CloudRenderer::Initialize()
 	CloudNoiseDetail->CreateTexture(64, 64, 64, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
+	CloudWeatherMap.CreateFramebuffer();
+	CloudWeatherMap.SetSize(1024, 1024);
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
 	Clouds::RenderNoise(*CloudNoise, 160, false);
 	Clouds::RenderNoise(*CloudNoiseDetail, 64, true);
 	Clouds::RenderCurlNoise(CurlCloudNoise);
+	Clouds::RenderWeatherMap(CloudWeatherMap);
 
 	glBindTexture(GL_TEXTURE_3D, CloudNoise->GetTextureID());
 	glGenerateMipmap(GL_TEXTURE_3D);
 	glBindTexture(GL_TEXTURE_3D, 0);
+
+	// unbind
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glUseProgram(0);
 
 	std::cout << "\nRendered noise textures!\n";
 }
@@ -102,6 +111,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetInteger("u_BlueNoise", 2);
 		CloudShader.SetInteger("u_CloudDetailedNoise", 3);
 		CloudShader.SetInteger("u_CurlNoise", 6);
+		CloudShader.SetInteger("u_CloudWeatherMap", 8);
 		CloudShader.SetFloat("u_Time", glfwGetTime());
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
@@ -139,6 +149,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE6);
 		glBindTexture(GL_TEXTURE_2D, CurlCloudNoise.GetTexture());
+
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, CloudWeatherMap.GetTexture());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

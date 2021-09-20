@@ -639,6 +639,9 @@
     <None Include="Core\Shaders\HandleFlicker.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
+    <None Include="Core\Shaders\Clouds\WeatherMapGenerator.glsl">
+      <Filter>Source Files\Shaders\Clouds</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

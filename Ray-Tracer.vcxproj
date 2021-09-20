@@ -269,6 +269,7 @@
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl" />
     <None Include="Core\Shaders\Clouds\NoiseUtil.glsl" />
+    <None Include="Core\Shaders\Clouds\WeatherMapGenerator.glsl" />
     <None Include="Core\Shaders\ComputeExposure.comp" />
     <None Include="Core\Shaders\ComputeUtility\ClearData.comp" />
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />

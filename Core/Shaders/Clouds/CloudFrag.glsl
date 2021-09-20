@@ -10,7 +10,8 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 4.0f 
+#define LIGHT_LOD 2.0f 
+#define AMBIENT_LOD 2.5f 
 #define BASE_LOD 0.0f
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -36,6 +37,7 @@ uniform samplerCube u_Atmosphere;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
 uniform sampler2D u_CurlNoise;
+uniform sampler2D u_CloudWeatherMap;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
@@ -166,11 +168,36 @@ vec3 DecodeCurlNoise(vec3 c)
     return (c - 0.5) * 2.0;
 }
 
+float RemapClamped(float original_value, float original_min, float original_max, float new_min, float new_max)
+{
+    return new_min + (saturate((original_value - original_min) / (original_max - original_min)) * (new_max - new_min));
+}
 
+vec3 SampleWeather(vec3 pos)
+{
+	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
+	pos.xyz *= 1.0f;
+	pos.xyz += TimeOffset;
+	float WeatherScale = 1.0f;
+	vec4 weatherData = texture(u_CloudWeatherMap, (pos.xz) * WeatherScale, 0);
+	float AnvilHeight = 1000.0f;
+	float AnvilAmount = 1.0f;
+	float HeightFactor = (pos.y - CLOUD_HEIGHT) / CLOUD_THICKNESS;
+	float HeightDensityMultiplier = HeightFactor;
+	float CoverageAmount = u_Coverage;
+	const float CoverageMinimum = 0.0f;
+	const float TypeAmount = 0.4f;
+	const float TypeOverall = 0.6f;
+	weatherData.r = pow(abs(weatherData.r), RemapClamped(HeightDensityMultiplier * AnvilHeight, 0.7, 0.8, 1.0, mix(1.0, 0.5, AnvilAmount)));
+	weatherData.r = RemapClamped(weatherData.r * CoverageAmount, 0.0, 1.0, saturate(CoverageMinimum - 1.0), 1.0);
+	weatherData.g = RemapClamped(weatherData.g * TypeAmount, 0.0, 1.0, TypeOverall, 1.0);
+	return weatherData.rgb;
+}
 
 float SampleDensity(vec3 p, float lod)
 {
-	p.xyz *= 345.0f;
+	vec3 OriginalP=p;
+	p.xyz *= 375.0f;
 
 	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
     vec3 pos = p + TimeOffset;
@@ -181,27 +208,36 @@ float SampleDensity(vec3 p, float lod)
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
 	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
-	float X = 1.0f; // idfk
+	float X = 1.0f; 
 	vec2 ShapeNoiseModifier = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
 	float Sample = remap(LowFreqNoise.r * pow(1.2f - X, 0.1f), LowFreqFBM * ShapeNoiseModifier.x, ShapeNoiseModifier.y, 0.00000001f, 1.0f);
-    float EffectiveCoverage = u_Coverage * 0.7f;
     Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
-    Sample *= EffectiveCoverage;
+	
+	///if (u_Coverage < -500.0f) {
+	///	vec3 WeatherData = SampleWeather(OriginalP);f
+	///	p+=WeatherData;
+	///}
 
-	// u_DetailParams.y > 0.025 if the detail contribution is enabled
-	if (u_DetailParams.y < 0.025f) {
-		return Sample;
+    float EffectiveCoverage = u_Coverage; //WeatherData.x;
+
+	if (Sample > 0.01f)
+	{ 
+		float HeightFraction = -1.0f;
+		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,p.xz).xyz);
+		pos += CurlNoise;
+		vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * 1.0f);
+		float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
+						   (LowFreqNoise.b * 0.25f)  +
+						   (LowFreqNoise.a * 0.125f);
+		float DetailNoiseModifier = 1.0f;
+		float OneMinusFBM = 1.0f - HighFreqFBM;
+		float RemapAmount = mix(OneMinusFBM, HighFreqFBM, clamp(HeightFraction * 1.0f, 0.0f, 1.0f));
+		Sample = remap(Sample, RemapAmount * 500.0f, 2.0, 0.0, 1.0);
 	}
 
-	// todo : improve this shit
-	vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * NOISE_SCALE * 1.66f);
-    float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
-                       (LowFreqNoise.b * 0.25f)  +
-                       (LowFreqNoise.a * 0.125f);
-	float OneMinusBaseFBM = 1.0f - LowFreqFBM;
-    float ErodeWeight = pow(OneMinusBaseFBM, u_DetailParams.z);
-    float FinalDensity = Sample - (1.0f - HighFreqFBM) * ErodeWeight * u_DetailParams.x;
-	return clamp(FinalDensity * 1.1f, 0.0f, 10.0f);
+	Sample *= EffectiveCoverage;
+
+	return clamp(Sample, 0.0f, 10.0f);
 } 
 
 float hg(float a, float g) 
@@ -289,7 +325,7 @@ float RaymarchAmbient(vec3 Point)
 	float Increment = 24.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
-    vec3 CurrentPoint = Point + RayStep * 22.0f * Dither;
+    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
 	for(int Step = 0; Step < LightSteps; Step++)
 	{
@@ -326,7 +362,7 @@ float RaymarchLight(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 42.0f;
+	return Accum * 50.0f;
 }
 
 // Thanks to jess for suggesting this
@@ -414,7 +450,7 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 	// fake second scatter :
 	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
 	{
-		float PhaseSun = pow(CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult), 1.0f);
+		float PhaseSun = pow(CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult)*1.05f, 1.0f);
 		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
 		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
 		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
@@ -442,24 +478,25 @@ vec3 ComputeRayDirection()
 
 bool SampleValid(in vec2 txc)
 {
-    vec2 TexelSize = 1.0f / textureSize(u_PositionTex, 0);
-    //vec2 TexelSize = 1.0f / u_Dimensions;
-
-    const vec2 Kernel[8] = vec2[8]
+    const ivec2 Kernel[8] = ivec2[8]
 	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
+		ivec2(-1.0, -1.0),
+		ivec2( 0.0, -1.0),
+		ivec2( 1.0, -1.0),
+		ivec2(-1.0,  0.0),
+		ivec2( 1.0,  0.0),
+		ivec2(-1.0,  1.0),
+		ivec2( 0.0,  1.0),
+		ivec2( 1.0,  1.0)
 	);
+
+	ivec2 basecoord = ivec2(floor(txc*textureSize(u_PositionTex,0).xy));
 
     for (int i = 0 ; i < 8 ; i++)
     {
-        if (texture(u_PositionTex, txc + Kernel[i] * TexelSize).r <= 0.0f)
+		ivec2 samplecoord = basecoord+Kernel[i];
+        //if (texture(u_PositionTex, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
+		if (texelFetch(u_PositionTex, samplecoord,0).x <= 0.0f)
         {
             return true;
         }
@@ -535,7 +572,9 @@ void main()
 		CurrentPoint += RayStep;
 	}
 	
-	Scattering = pow(Scattering, vec3(1.0f / 1.4)); 
+	// scatter boost
+	Scattering = pow(Scattering, vec3(1.0f / 1.5)); 
+	Scattering = clamp(Scattering, 0.0f, 1.0f);
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);

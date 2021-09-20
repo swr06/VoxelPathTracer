@@ -64,8 +64,8 @@ namespace GLClasses
             glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, m_Format[i].InternalFormat, type, NULL);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min ? GL_LINEAR : GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag ? GL_LINEAR : GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, m_Format[i].ClampToBorder ? GL_CLAMP_TO_BORDER:GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, m_Format[i].ClampToBorder ? GL_CLAMP_TO_BORDER:GL_REPEAT);
             float BorderColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
             glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, BorderColor);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, m_TextureAttachments.at(i), 0);
