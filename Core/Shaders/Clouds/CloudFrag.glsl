@@ -1,7 +1,7 @@
 #version 330 core
 
-#define CLOUD_THICKNESS 1750.0
-#define CLOUD_HEIGHT 1500.0
+#define CLOUD_THICKNESS 650.0
+#define CLOUD_HEIGHT 1000.0
 #define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
 
 #define PI 3.14159265359
@@ -13,6 +13,7 @@
 #define LIGHT_LOD 2.0f 
 #define AMBIENT_LOD 2.5f 
 #define BASE_LOD 0.0f
+//#define DITHER_POS_WITH_CURL_NOISE
 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -104,14 +105,14 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 
 float RayBasePlaneIntersection(vec3 r0, vec3 rd) 
 {
-    vec3 point = vec3(0.0, CLOUD_HEIGHT, 0.0);
-    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+    const vec3 P = vec3(0.0, CLOUD_HEIGHT, 0.0);
+    return clamp(dot(P - r0, vec3(0.0f, -1.0f ,0.0f)) / dot(rd, vec3(0.0f, -1.0f, 0.0f)), -1.0f, 9991999.0f);
 }
 
 float RayBasePlaneIntersectionTop(vec3 r0, vec3 rd)
 {
-    vec3 point = vec3(0.0, CLOUD_TOP, 0.0);
-    return clamp(dot(point - r0, vec3(0,-1,0)) / dot(rd, vec3(0,-1,0)), -1.0, 9991999.0);
+    const vec3 P = vec3(0.0, CLOUD_TOP, 0.0);
+    return clamp(dot(P - r0, vec3(0.0f, -1.0f ,0.0f)) / dot(rd, vec3(0.0f, -1.0f, 0.0f)), -1.0f, 9991999.0f);
 }
 
 
@@ -197,7 +198,7 @@ vec3 SampleWeather(vec3 pos)
 float SampleDensity(vec3 p, float lod)
 {
 	vec3 OriginalP=p;
-	p.xyz *= 375.0f;
+	p.xyz *= 425.0f;
 
 	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
     vec3 pos = p + TimeOffset;
@@ -222,17 +223,23 @@ float SampleDensity(vec3 p, float lod)
 
 	if (Sample > 0.01f)
 	{ 
-		float HeightFraction = -1.0f;
+		const float HeightFraction = -1.0f; // supposed to be a height value but whatever
+
+		#ifdef DITHER_POS_WITH_CURL_NOISE
 		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,p.xz).xyz);
 		pos += CurlNoise;
+		#endif 
+
 		vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * 1.0f);
+
 		float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
 						   (LowFreqNoise.b * 0.25f)  +
 						   (LowFreqNoise.a * 0.125f);
+
 		float DetailNoiseModifier = 1.0f;
 		float OneMinusFBM = 1.0f - HighFreqFBM;
 		float RemapAmount = mix(OneMinusFBM, HighFreqFBM, clamp(HeightFraction * 1.0f, 0.0f, 1.0f));
-		Sample = remap(Sample, RemapAmount * 500.0f, 2.0, 0.0, 1.0);
+		Sample = remap(Sample, RemapAmount * 700.0f, 1.0f+1.0f, 0.0f, 1.0f);
 	}
 
 	Sample *= EffectiveCoverage;
@@ -322,7 +329,7 @@ float RaymarchAmbient(vec3 Point)
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
 	int LightSteps = 4;
-	float Increment = 24.0f;
+	float Increment = 16.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;
@@ -349,7 +356,7 @@ float RaymarchLight(vec3 Point)
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy);
 	int LightSteps = 6;
-	float Increment = 24.0f;
+	float Increment = 16.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;

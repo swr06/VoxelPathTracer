@@ -151,7 +151,7 @@ void main()
 		const float Thresh = sqrt(2.0f) * 6.942069420f;
 		bool OcclusionValidity = (T_Base > 0.0f) == (T_Prev > 0.0f);
 
-		float ReprojectBias = 0.0075f;
+		float ReprojectBias = 0.011f;
 		if(PreviousCoord.x > 0.0 + ReprojectBias && PreviousCoord.x < 1.0 - ReprojectBias
 			&& PreviousCoord.y > 0.0 + ReprojectBias && PreviousCoord.y < 1.0 - ReprojectBias && 
 			OcclusionValidity)
