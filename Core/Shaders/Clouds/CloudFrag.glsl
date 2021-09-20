@@ -573,7 +573,7 @@ void main()
 	}
 	
 	// scatter boost
-	Scattering = pow(Scattering, vec3(1.0f / 1.5)); 
+	Scattering = pow(Scattering, vec3(1.0f / 1.6)); 
 	Scattering = clamp(Scattering, 0.0f, 1.0f);
 
 	// store it!
