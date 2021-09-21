@@ -22,6 +22,7 @@ uniform float u_MixModifier = 0.8;
 uniform float u_Time;
 
 uniform bool u_Clamp;
+uniform bool u_Bicubic;
 
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
@@ -118,7 +119,15 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
 void main()
 {
-	vec4 CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).rgba;
+	vec4 CurrentColor;
+
+    if (u_Bicubic) {
+        CurrentColor = textureBicubic(u_CurrentColorTexture, v_TexCoords).xyzw;
+    } 
+    
+    else {
+        CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).xyzw;
+    }
 	//vec4 CurrentColor = texture(u_CurrentColorTexture, v_TexCoords).rgba;
 	//vec4 CurrentColor = SampleTextureCatmullRom(u_CurrentColorTexture, v_TexCoords, textureSize(u_CurrentColorTexture,0)).rgba;
 

@@ -59,6 +59,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
+static bool BicubicCloudTemporal = false;
 
 // pixel padding
 static int PIXEL_PADDING = 20;
@@ -272,8 +273,9 @@ public:
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
+			ImGui::Checkbox("Use Bicubic for cloud temporal? (slightly blurrier but more smooth. Uses CatmullRom by default.)?", &BicubicCloudTemporal);
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 2.0f);
-			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
+			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.750f, 0.5);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
@@ -2205,7 +2207,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
-				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset);
+				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset, BicubicCloudTemporal);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
