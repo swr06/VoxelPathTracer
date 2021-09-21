@@ -80,14 +80,17 @@ static bool UseDFG = false;
 static bool RemoveTiling = false;
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 0.05f;
+static float CloudCoverage = 1.0f;
 static bool CloudBayer = true;
-static float CloudDetailContribution = 0.0f;
+
+static float CloudDetailScale = 1.0f;
+static float CloudErosionWeightExponent = 1.350f;
+
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
-static float CloudErosionWeightExponent = 6.9f;
-static glm::vec2 CloudModifiers = glm::vec2(-0.100, 0.1250f); // magic kek
+static glm::vec2 CloudModifiers = glm::vec2(-0.435, 0.1250f); // magic kek
+static bool CurlNoiseOffset = false;
 static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 2.125f;
@@ -268,15 +271,15 @@ public:
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
-			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.005f, 0.125f);
+			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
+			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 2.0f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 0.5f);
-			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.2f, 0.2);
+			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.750f, 0.5);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
 			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
-			ImGui::SliderFloat("Volumetric Cloud Detail Contribution", &CloudDetailContribution, 0.0f, 1.5f);
-			ImGui::Checkbox("Should Detail Weight Clouds? (Weights detail fbm by 1 - shape)", &CloudDetailWeightEnabled);
-			ImGui::SliderFloat("Detail Weight Exponent (6.9 default, nice.) :", &CloudErosionWeightExponent, 0.01f, 20.0f);
+			ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
+			ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 
@@ -2202,12 +2205,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
-				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailContribution,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale);
+				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
 			Clouds::CloudRenderer::SetBayer(CloudBayer);
-			Clouds::CloudRenderer::SetDetailContribution(CloudDetailContribution);
+			Clouds::CloudRenderer::SetDetailContribution(CloudDetailScale);
 			Clouds::CloudRenderer::SetQuality(CloudHighQuality);
 			Clouds::CloudRenderer::SetResolution(CloudResolution);
 		}

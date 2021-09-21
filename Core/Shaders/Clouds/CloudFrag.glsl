@@ -1,6 +1,6 @@
 #version 330 core
 
-#define CLOUD_THICKNESS 650.0
+#define CLOUD_THICKNESS 900.0f
 #define CLOUD_HEIGHT 1000.0
 #define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
 
@@ -10,8 +10,8 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 2.0f 
-#define AMBIENT_LOD 2.5f 
+#define LIGHT_LOD 2.0f // 96
+#define AMBIENT_LOD 2.0f 
 #define BASE_LOD 0.0f
 //#define DITHER_POS_WITH_CURL_NOISE
 
@@ -49,7 +49,7 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
 uniform vec2 u_Modifiers;
-uniform vec3 u_DetailParams;
+uniform vec3 u_DetailParams; // scale, enabled, exponent
 
 uniform bool u_Checker;
 uniform bool u_UseBayer;
@@ -58,9 +58,10 @@ uniform float u_TimeScale = 1.0f;
 
 
 uniform bool u_HighQualityClouds;
+uniform bool u_CurlNoiseOffset;
 
 
-vec3 NoiseKernel[6] = vec3[] 
+const vec3 NoiseKernel[6] = vec3[] 
 (
 	vec3( 0.38051305,  0.92453449, -0.02111345),
 	vec3(-0.50625799, -0.03590792, -0.86163418),
@@ -75,6 +76,8 @@ struct Ray
 	vec3 Origin;
 	vec3 Direction;
 };
+
+vec2 g_BayerIncrement;
 
 vec3 GetSkyColorAt(vec3 rd) 
 {
@@ -176,23 +179,7 @@ float RemapClamped(float original_value, float original_min, float original_max,
 
 vec3 SampleWeather(vec3 pos)
 {
-	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
-	pos.xyz *= 1.0f;
-	pos.xyz += TimeOffset;
-	float WeatherScale = 1.0f;
-	vec4 weatherData = texture(u_CloudWeatherMap, (pos.xz) * WeatherScale, 0);
-	float AnvilHeight = 1000.0f;
-	float AnvilAmount = 1.0f;
-	float HeightFactor = (pos.y - CLOUD_HEIGHT) / CLOUD_THICKNESS;
-	float HeightDensityMultiplier = HeightFactor;
-	float CoverageAmount = u_Coverage;
-	const float CoverageMinimum = 0.0f;
-	const float TypeAmount = 0.4f;
-	const float TypeOverall = 0.6f;
-	weatherData.r = pow(abs(weatherData.r), RemapClamped(HeightDensityMultiplier * AnvilHeight, 0.7, 0.8, 1.0, mix(1.0, 0.5, AnvilAmount)));
-	weatherData.r = RemapClamped(weatherData.r * CoverageAmount, 0.0, 1.0, saturate(CoverageMinimum - 1.0), 1.0);
-	weatherData.g = RemapClamped(weatherData.g * TypeAmount, 0.0, 1.0, TypeOverall, 1.0);
-	return weatherData.rgb;
+	return texture(u_CloudWeatherMap, pos.xz).xyz;
 }
 
 float SampleDensity(vec3 p, float lod)
@@ -200,51 +187,33 @@ float SampleDensity(vec3 p, float lod)
 	vec3 OriginalP=p;
 	p.xyz *= 425.0f;
 
-	vec3 TimeOffset = vec3(u_Time * u_TimeScale * 15.694206942069420694206942069420f, 0.0f, 0.0f);
+	vec3 TimeOffset = vec3((u_Time*u_TimeScale) * 24.694206942069420694206942069420f, 0.0f, (u_Time*u_TimeScale) * 4.694206942069420694206942069420f);
     vec3 pos = p + TimeOffset;
-	float SCALE = 1.0f;
-    float NOISE_SCALE = max(SCALE * 0.0004f, 0.00001f);
+    float NOISE_SCALE = max(1.0f * 0.0004f, 0.00001f);
     vec4 LowFreqNoise = textureLod(u_CloudNoise, pos * NOISE_SCALE, lod);
     float LowFreqFBM = (LowFreqNoise.g * 0.625f) +
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
-	LowFreqFBM = clamp(LowFreqFBM, 0.00000001f, 1.0f);
-	float X = 1.0f; 
-	vec2 ShapeNoiseModifier = vec2(0.8f + u_Modifiers.x, 1.1f + u_Modifiers.y);
-	float Sample = remap(LowFreqNoise.r * pow(1.2f - X, 0.1f), LowFreqFBM * ShapeNoiseModifier.x, ShapeNoiseModifier.y, 0.00000001f, 1.0f);
-    Sample = saturate(remap(Sample, 0.0f, 1.0f, 0.0f, 1.0f));
 	
-	///if (u_Coverage < -500.0f) {
-	///	vec3 WeatherData = SampleWeather(OriginalP);f
-	///	p+=WeatherData;
-	///}
+	// trial and error took over from here :')
+	float BaseShape = remap(LowFreqNoise.r, (-(1.0f - LowFreqFBM)) * u_Modifiers.x, 1.0f, 0.0f, 1.0f);
+	vec3 Weather = SampleWeather(p*0.0008f);
+	float CloudCoverage = Weather.x / 8.0f;
+	float RemappedToCoverage = remap(BaseShape, CloudCoverage, 1.0, 0.0, 1.0);
 
-    float EffectiveCoverage = u_Coverage; //WeatherData.x;
-
-	if (Sample > 0.01f)
-	{ 
-		const float HeightFraction = -1.0f; // supposed to be a height value but whatever
-
-		#ifdef DITHER_POS_WITH_CURL_NOISE
-		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,p.xz).xyz);
-		pos += CurlNoise;
-		#endif 
-
-		vec4 DetailNoise = texture(u_CloudDetailedNoise, pos * 1.0f);
-
-		float HighFreqFBM = (LowFreqNoise.g * 0.625f) +
-						   (LowFreqNoise.b * 0.25f)  +
-						   (LowFreqNoise.a * 0.125f);
-
-		float DetailNoiseModifier = 1.0f;
-		float OneMinusFBM = 1.0f - HighFreqFBM;
-		float RemapAmount = mix(OneMinusFBM, HighFreqFBM, clamp(HeightFraction * 1.0f, 0.0f, 1.0f));
-		Sample = remap(Sample, RemapAmount * 700.0f, 1.0f+1.0f, 0.0f, 1.0f);
+	if (u_CurlNoiseOffset) {
+		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,pos.xz).xyz);
+		p += CurlNoise*2.0f;
 	}
+	
+	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, 1.0f).xyzw;
+	float HighFreqFBM = (DetailNoise.g * 0.625f) +
+                       (DetailNoise.b * 0.25f)  +
+                       (DetailNoise.a * 0.125f);
 
-	Sample *= EffectiveCoverage;
-
-	return clamp(Sample, 0.0f, 10.0f);
+	RemappedToCoverage = RemappedToCoverage - (HighFreqFBM) * pow((1.0f - RemappedToCoverage), u_DetailParams.z);
+	RemappedToCoverage = remap(RemappedToCoverage / 0.5f, (HighFreqFBM) * 0.2f, 1.0f, 0.0f, 1.0f);
+	return clamp(RemappedToCoverage*u_Coverage, 0.0f, 1.0f);
 } 
 
 float hg(float a, float g) 
@@ -327,9 +296,9 @@ float RaymarchAmbient(vec3 Point)
 {
 	vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
 	float Accum = 0.0; 
-	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = 4;
-	float Increment = 16.0f;
+	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
+	int LightSteps = u_HighQualityClouds ? 8 : 4;
+	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;
@@ -337,12 +306,12 @@ float RaymarchAmbient(vec3 Point)
 	for(int Step = 0; Step < LightSteps; Step++)
 	{
 		Increment *= 1.5f;
-		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
+		Accum += SampleDensity(CurrentPoint * 0.002f, AMBIENT_LOD) * StepSize; 
 		CurrentPoint += RayStep * Increment;
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 35.0f;
+	return Accum * 42.0f;
 }
 
 float PowHalf(int n) 
@@ -354,9 +323,9 @@ float RaymarchLight(vec3 Point)
 {
 	vec3 Direction = normalize(u_SunDirection);
 	float Accum = 0.0; 
-	float Dither = Bayer8(gl_FragCoord.xy);
-	int LightSteps = 6;
-	float Increment = 16.0f;
+	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
+	int LightSteps = u_HighQualityClouds ? 12 : 6;
+	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
     vec3 RayStep = Direction;
 	float StepSize = 1.0f / float(LightSteps) * 12.0f;
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;
@@ -524,6 +493,10 @@ void main()
 		return;
 	}
 
+	int Frame = u_CurrentFrame % 30;
+	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
+	g_BayerIncrement=BayerIncrement;
+
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
 
 	const int StepCount = u_HighQualityClouds ? 16 : 8;
@@ -542,8 +515,6 @@ void main()
     float T2 = RayBasePlaneIntersectionTop(CameraPosition, Direction);
     vec3 EndPosition = CameraPosition + Direction * T2;
     vec3 RayStep = (EndPosition - StartPosition) / float(StepCount);
-	int Frame = u_CurrentFrame % 30;
-	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
 	float dither = Bayer32(gl_FragCoord.xy+BayerIncrement);
 	vec3 CurrentPoint = StartPosition + RayStep * dither;
 	float StepSize = length(RayStep);
@@ -580,10 +551,10 @@ void main()
 	}
 	
 	// scatter boost
-	Scattering = pow(Scattering, vec3(1.0f / 1.6)); 
+	Scattering = pow(Scattering, vec3(1.0f/5.0f)); 
 	Scattering = clamp(Scattering, 0.0f, 1.0f);
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);
-	o_Data.xyz = clamp(o_Data.xyz, 0.0f, 1.0f);
+	o_Data.xyzw = clamp(o_Data.xyzw, 0.0f, 1.0f);
 }

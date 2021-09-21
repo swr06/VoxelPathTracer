@@ -101,7 +101,7 @@ namespace Clouds
 
 	void RenderWeatherMap(GLClasses::Framebuffer& fbo)
 	{
-		fbo.SetSize(1024, 1024);
+		fbo.SetSize(256, 256);
 		GLClasses::Shader NoiseShader;
 
 		float Vertices[] =

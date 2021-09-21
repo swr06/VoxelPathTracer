@@ -16,7 +16,7 @@ static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
 
 namespace Clouds {
 	GLClasses::Framebuffer CurlCloudNoise(128, 128, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
-	GLClasses::Framebuffer CloudWeatherMap(1024, 1024, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false, false);
+	GLClasses::Framebuffer CloudWeatherMap(256, 256, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false, false);
 }
 
 void Clouds::CloudRenderer::Initialize()
@@ -34,16 +34,19 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(160, 160, 160, nullptr); // 32*5
-	CloudNoiseDetail->CreateTexture(64, 64, 64, nullptr);
+	CloudNoise->CreateTexture(96, 96, 96, nullptr);
+	CloudNoiseDetail->CreateTexture(48, 48, 48, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
 	CloudWeatherMap.CreateFramebuffer();
-	CloudWeatherMap.SetSize(1024, 1024);
+	CloudWeatherMap.SetSize(256, 256);
+
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
-	Clouds::RenderNoise(*CloudNoise, 160, false);
-	Clouds::RenderNoise(*CloudNoiseDetail, 64, true);
+
+	Clouds::RenderNoise(*CloudNoise, 96, false);
+	Clouds::RenderNoise(*CloudNoiseDetail, 48, true);
+
 	Clouds::RenderCurlNoise(CurlCloudNoise);
 	Clouds::RenderWeatherMap(CloudWeatherMap);
 
@@ -67,7 +70,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -130,6 +133,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetBool("u_Checker", Checkerboard);
 		CloudShader.SetBool("u_UseBayer", Bayer);
 		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
+		CloudShader.SetBool("u_CurlNoiseOffset", curlnoise);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
 
 		glActiveTexture(GL_TEXTURE1);

@@ -118,7 +118,7 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
 void main()
 {
-	vec4 CurrentColor = textureBicubic(u_CurrentColorTexture, v_TexCoords).rgba;
+	vec4 CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).rgba;
 	//vec4 CurrentColor = texture(u_CurrentColorTexture, v_TexCoords).rgba;
 	//vec4 CurrentColor = SampleTextureCatmullRom(u_CurrentColorTexture, v_TexCoords, textureSize(u_CurrentColorTexture,0)).rgba;
 
@@ -139,8 +139,8 @@ void main()
 		
 		vec2 PreviousCoord = ProjectedPrevious * 0.5f + 0.5f;
 		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
-		vec4 PrevColor = SampleTextureCatmullRom(u_PreviousColorTexture, PreviousCoord, textureSize(u_PreviousColorTexture,0)).rgba;
-		//vec4 PrevColor = texture_catmullrom(u_PreviousColorTexture, PreviousCoord).rgba;
+		//vec4 PrevColor = SampleTextureCatmullRom(u_PreviousColorTexture, PreviousCoord, textureSize(u_PreviousColorTexture,0)).rgba;
+		vec4 PrevColor = texture_catmullrom(u_PreviousColorTexture, PreviousCoord).rgba;
 
 		if (u_Clamp) {
 			PrevColor.xyz = ClampColor(PrevColor.xyz);
