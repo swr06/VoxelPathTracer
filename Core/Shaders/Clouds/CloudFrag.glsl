@@ -60,6 +60,8 @@ uniform float u_TimeScale = 1.0f;
 uniform bool u_HighQualityClouds;
 uniform bool u_CurlNoiseOffset;
 
+const float ACCUM_MULTIPLIER = 10.0f;
+
 
 const vec3 NoiseKernel[6] = vec3[] 
 (
@@ -300,7 +302,7 @@ float RaymarchAmbient(vec3 Point)
 	int LightSteps = u_HighQualityClouds ? 8 : 4;
 	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
     vec3 RayStep = Direction;
-	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+	float StepSize = 1.0f / float(LightSteps);
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
 	for(int Step = 0; Step < LightSteps; Step++)
@@ -311,7 +313,7 @@ float RaymarchAmbient(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 42.0f;
+	return Accum * 42.0f * ACCUM_MULTIPLIER;
 }
 
 float PowHalf(int n) 
@@ -327,7 +329,7 @@ float RaymarchLight(vec3 Point)
 	int LightSteps = u_HighQualityClouds ? 12 : 6;
 	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
     vec3 RayStep = Direction;
-	float StepSize = 1.0f / float(LightSteps) * 12.0f;
+	float StepSize = 1.0f / float(LightSteps);
     vec3 CurrentPoint = Point + RayStep * Increment * Dither;
 
 	for(int Step = 0; Step < LightSteps; Step++)
@@ -338,7 +340,7 @@ float RaymarchLight(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 50.0f;
+	return Accum * 50.0f * ACCUM_MULTIPLIER;
 }
 
 // Thanks to jess for suggesting this
