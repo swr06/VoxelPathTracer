@@ -279,6 +279,10 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
 vec3 GetAtmosphereAndClouds()
 {
+    vec2 ij = floor(mod(gl_FragCoord.xy, vec2(2.0) ));
+	float idx = ij.x + 2.0*ij.y;
+	vec4 m = step( abs(vec4(idx)-vec4(0,1,2,3)), vec4(0.5) ) * vec4(0.75,0.25,0.00,0.50);
+	float d = m.x+m.y+m.z+m.w; // dither.
     vec3 NormalizedDir = normalize(v_RayDirection);
     float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
     CloudFade = pow(CloudFade * 2.75f, 3.25f);
@@ -296,7 +300,7 @@ vec3 GetAtmosphereAndClouds()
     vec3 Sky = vec3(0.0f);
     bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f, Transmittance);
     Sky = Sky * max(Transmittance, 0.9f);
-    return vec3(Sky + Scatter*M);
+    return vec3(Sky + Scatter*M)+(d/255.0f); // + dither.
 }
 
 float GetLuminance(vec3 color) {
