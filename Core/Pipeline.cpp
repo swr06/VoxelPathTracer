@@ -59,7 +59,7 @@ static VoxelRT::Player MainPlayer;
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
-static bool BicubicCloudTemporal = false;
+static bool SmartUpscaleCloudTemporal = true;
 
 // pixel padding
 static int PIXEL_PADDING = 20;
@@ -273,7 +273,7 @@ public:
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
-			ImGui::Checkbox("Use Bicubic for cloud temporal? (slightly blurrier but more smooth. Uses CatmullRom by default.)?", &BicubicCloudTemporal);
+			ImGui::Checkbox("Use smart cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 2.0f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.750f, 0.5);
@@ -1085,10 +1085,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetVector2f("u_Dimensions", glm::vec2(DiffuseRawTraceFBO.GetWidth(), DiffuseRawTraceFBO.GetHeight()));
 		DiffuseTraceShader.SetFloat("u_Time", glfwGetTime() * 1.2f);
 		DiffuseTraceShader.SetFloat("u_DiffuseLightIntensity", DiffuseLightIntensity);
+
+		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0;
+		
+		if (app.GetCurrentFrame() % 100 == 0) {
+			std::cout << "\nSUN VISIBILITY : " << sun_visibility;
+		}
+
+		DiffuseTraceShader.SetFloat("u_SunVisibility", sun_visibility);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
-		DiffuseTraceShader.SetVector3f("u_SunDirection", SunDirection);
-		DiffuseTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
+		DiffuseTraceShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
+		DiffuseTraceShader.SetVector3f("u_MoonDirection", glm::normalize(MoonDirection));
 
 		DiffuseTraceShader.SetMatrix4("u_ShadowProjection", ShadowProjection);
 		DiffuseTraceShader.SetMatrix4("u_ShadowView", ShadowView);
@@ -2207,7 +2215,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
-				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset, BicubicCloudTemporal);
+				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset, SmartUpscaleCloudTemporal);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

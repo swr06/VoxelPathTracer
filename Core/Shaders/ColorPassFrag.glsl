@@ -277,6 +277,40 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     return false;
 }
 
+float CASWeight(vec3 x) {
+    //return GetSat(x);
+    return max(dot(x, vec3(0.2125f, 0.7154f, 0.0721f)), 0.01f);
+    //return max(x.g, EPSILON);
+}
+
+vec4 CAS(sampler2D Texture, vec2 uv, float SharpeningAmount)
+{
+    ivec2 Pixel = ivec2(floor(uv*textureSize(Texture,0)));
+
+    // Samples 
+    vec4 a = texelFetch(Texture, Pixel + ivec2(0, -1), 0).rgba;
+    vec4 b = texelFetch(Texture, Pixel + ivec2(-1, 0), 0).rgba;
+    vec4 c = texelFetch(Texture, Pixel + ivec2(0, 0), 0).rgba;
+    vec4 d = texelFetch(Texture, Pixel + ivec2(1, 0), 0).rgba;
+    vec4 e = texelFetch(Texture, Pixel + ivec2(0, 1), 0).rgba;
+
+    // Weight by luminance 
+    float WeightA = CASWeight(a.xyz);
+    float WeightB = CASWeight(b.xyz);
+    float WeightC = CASWeight(c.xyz);
+    float WeightD = CASWeight(d.xyz);
+    float WeightE = CASWeight(e.xyz);
+
+    // Calculate bounds :
+    float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
+    float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
+
+    // Apply weights :
+    float FinalSharpenAmount = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
+    float w = FinalSharpenAmount * mix(-0.125f, -0.2f, SharpeningAmount);
+    return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
+}
+
 vec3 GetAtmosphereAndClouds()
 {
     vec2 ij = floor(mod(gl_FragCoord.xy, vec2(2.0) ));
@@ -294,6 +328,7 @@ vec3 GetAtmosphereAndClouds()
     S = mix(S, D, DuskVisibility);
     vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
+	//vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f); // Bicubic B spline interp
     SampledCloudData.xyz *= CloudFade;
     float Transmittance = SampledCloudData.w;
     vec3 Scatter = SampledCloudData.xyz*1.2f ;

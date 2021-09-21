@@ -34,8 +34,8 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(96, 96, 96, nullptr);
-	CloudNoiseDetail->CreateTexture(48, 48, 48, nullptr);
+	CloudNoise->CreateTexture(128, 128, 128, nullptr);
+	CloudNoiseDetail->CreateTexture(32, 32, 32, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
 	CloudWeatherMap.CreateFramebuffer();
@@ -44,8 +44,8 @@ void Clouds::CloudRenderer::Initialize()
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
 
-	Clouds::RenderNoise(*CloudNoise, 96, false);
-	Clouds::RenderNoise(*CloudNoiseDetail, 48, true);
+	Clouds::RenderNoise(*CloudNoise, 128, false);
+	Clouds::RenderNoise(*CloudNoiseDetail, 32, true);
 
 	Clouds::RenderCurlNoise(CurlCloudNoise);
 	Clouds::RenderWeatherMap(CloudWeatherMap);
@@ -70,7 +70,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, bool bicubictemporal)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, bool smartupscale)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -203,7 +203,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 		TemporalFilter.SetBool("u_Clamp", Clamp);
-		TemporalFilter.SetBool("u_Bicubic", bicubictemporal);
+		TemporalFilter.SetBool("u_Bicubic", smartupscale);
+		TemporalFilter.SetBool("u_SmartUpscale", smartupscale);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);

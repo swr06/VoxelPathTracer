@@ -56,6 +56,8 @@ uniform int u_CurrentFrameMod512;
 uniform int u_CurrentFrameMod128;
 uniform bool u_UseBlueNoise;
 
+uniform float u_SunVisibility;
+
 uniform vec3 u_ViewerPosition;
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
@@ -211,7 +213,9 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 
 	else 
 	{	
-		return GetSkyColorAt(r.Direction) * 1.35f;
+		float x = mix(3.0f, 1.75f, u_SunVisibility);
+		x = clamp(x,0.0f,5.0f);
+		return GetSkyColorAt(r.Direction) * x;
 	}
 }
 
@@ -814,7 +818,7 @@ bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out
 
 float GetShadowAt(vec3 pos, in vec3 ldir)
 {
-	vec3 RayDirection = normalize(ldir);
+	vec3 RayDirection = (ldir);
 	
 	float T = -1.0f;
 	 
