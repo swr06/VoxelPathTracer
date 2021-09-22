@@ -34,7 +34,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 
-	CloudNoise->CreateTexture(128, 128, 128, nullptr);
+	CloudNoise->CreateTexture(96, 96, 96, nullptr); // (32 * 3) ^ 3
 	CloudNoiseDetail->CreateTexture(32, 32, 32, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
@@ -44,13 +44,18 @@ void Clouds::CloudRenderer::Initialize()
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
 
-	Clouds::RenderNoise(*CloudNoise, 128, false);
+	Clouds::RenderNoise(*CloudNoise, 96, false);
 	Clouds::RenderNoise(*CloudNoiseDetail, 32, true);
 
 	Clouds::RenderCurlNoise(CurlCloudNoise);
 	Clouds::RenderWeatherMap(CloudWeatherMap);
 
+	// mipmap them.
 	glBindTexture(GL_TEXTURE_3D, CloudNoise->GetTextureID());
+	glGenerateMipmap(GL_TEXTURE_3D);
+	glBindTexture(GL_TEXTURE_3D, 0);
+
+	glBindTexture(GL_TEXTURE_3D, CloudNoiseDetail->GetTextureID());
 	glGenerateMipmap(GL_TEXTURE_3D);
 	glBindTexture(GL_TEXTURE_3D, 0);
 

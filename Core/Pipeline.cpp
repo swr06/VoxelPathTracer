@@ -90,7 +90,7 @@ static float CloudErosionWeightExponent = 1.350f;
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
-static glm::vec2 CloudModifiers = glm::vec2(-0.435, 0.1250f); // magic kek
+static glm::vec2 CloudModifiers = glm::vec2(-0.3569, 0.1250f); // magic kek
 static bool CurlNoiseOffset = false;
 static float CloudTimeScale = 1.0f;
 
@@ -2969,3 +2969,4 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 // pipeline end.
+

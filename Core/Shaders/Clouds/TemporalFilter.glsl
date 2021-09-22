@@ -162,6 +162,49 @@ vec4 SpatialUpscaleCloud(sampler2D samp, vec2 txc)
     return AntiChecker ? Blurred : texture_catmullrom(samp, txc).xyzw;
 }
 
+float pow5(float x) {
+    return x*x*x*x*x;
+}
+
+float pow8(float x) {
+    return x*x*x*x*x*x*x*x;
+}
+
+float pow12(float x) {
+    return x*x*x*x*x*x*x*x*x*x*x*x;
+}
+
+vec4 SpatialFilterCloud(vec4 CurrentColor) {
+    
+    float BaseLuminance = Luminance(CurrentColor.xyz);
+    
+    vec4 TotalColor = vec4(0.0f);
+    vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0).xy;
+    const float Scale = 1.05f;
+    float TotalWeight = 0.0f;
+
+    // 36 taps.
+    for (int x = -3 ; x <= 3 ; x++)
+    {
+        for (int y = -3 ; y <= 3 ; y++) 
+        {
+            vec2 SampleTxc = v_TexCoords+vec2(x,y)*Scale*TexelSize;
+            //float XWeight = AtrousWeights[abs(x)];
+	        //float YWeight = AtrousWeights[abs(y)];
+            //float Kernel = clamp(XWeight*YWeight, 0.0f, 1.0f);
+            vec4 Sample = texture(u_CurrentColorTexture, SampleTxc);
+            float LumaAt = Luminance(Sample.xyz);
+            float LuminanceError = clamp(1.0f - clamp(abs(LumaAt - BaseLuminance) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
+            float Weight = clamp(pow12(LuminanceError), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
+            Weight = clamp(Weight, 0.01f, 1.0f);
+            TotalColor += Sample*Weight;
+            TotalWeight += Weight;
+        }
+    }
+
+    return TotalColor / max(TotalWeight, 0.01f);
+}
+
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv, vec2 texSize );
 vec4 texture2D_bicubic(sampler2D tex, vec2 uv);
@@ -189,13 +232,12 @@ void main()
 	if (CurrentColor.w > -0.5f)
 	{
 		// Reproject clouds by assuming it lies in a plane some x units in front of the camera :
-		vec3 CurrentVirtualPosition = PlayerPosition + normalize(GetRayDirectionAt(v_TexCoords)) * 800.0f;
+		vec3 CurrentVirtualPosition = PlayerPosition + normalize(GetRayDirectionAt(v_TexCoords)) * 500.0f;
 		vec2 ProjectedCurrent = ProjectCurrent(CurrentVirtualPosition);
 		vec2 ProjectedPrevious = Reprojection(CurrentVirtualPosition.xyz);
 		
 		vec2 PreviousCoord = ProjectedPrevious * 0.5f + 0.5f;
 		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
-		//vec4 PrevColor = SampleTextureCatmullRom(u_PreviousColorTexture, PreviousCoord, textureSize(u_PreviousColorTexture,0)).rgba;
         vec4 PrevColor;
 
         if (u_SmartUpscale) {
@@ -227,7 +269,13 @@ void main()
 		else 
 		{
 		#ifdef DENOISE
+        if (!u_SmartUpscale) {
 			o_Color = SpatialBasic();
+        }
+
+        else {
+            o_Color = SpatialFilterCloud(CurrentColor);
+        }
 		#else 
 			o_Color = CurrentColor;
 		#endif
@@ -237,7 +285,14 @@ void main()
 	else 
 	{
 		#ifdef DENOISE 
+	    if (!u_SmartUpscale) {
 			o_Color = SpatialBasic();
+        }
+
+        else {
+            o_Color = SpatialFilterCloud(CurrentColor);
+        }
+
 		#else 
 			o_Color = CurrentColor;
 		#endif
@@ -371,10 +426,8 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
 
 
 
-// bicubic b spline
-
-
-
+// Somewhat better bicubic interpolation 
+// used for testing
 
 float w0(float a)
 {

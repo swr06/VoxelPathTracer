@@ -1,6 +1,6 @@
 #version 330 core
 
-#define CLOUD_THICKNESS 900.0f
+#define CLOUD_THICKNESS 850.0f
 #define CLOUD_HEIGHT 1000.0
 #define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
 
@@ -10,8 +10,8 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
-#define LIGHT_LOD 2.0f // 96
-#define AMBIENT_LOD 2.0f 
+#define LIGHT_LOD 1.5f 
+#define AMBIENT_LOD 1.75f 
 #define BASE_LOD 0.0f
 //#define DITHER_POS_WITH_CURL_NOISE
 
@@ -60,7 +60,7 @@ uniform float u_TimeScale = 1.0f;
 uniform bool u_HighQualityClouds;
 uniform bool u_CurlNoiseOffset;
 
-const float ACCUM_MULTIPLIER = 10.0f;
+const float ACCUM_MULTIPLIER = 12.0f;
 
 
 const vec3 NoiseKernel[6] = vec3[] 
@@ -186,6 +186,7 @@ vec3 SampleWeather(vec3 pos)
 
 float SampleDensity(vec3 p, float lod)
 {
+	lod = clamp(lod, 0.0f, 1.0f);
 	vec3 OriginalP=p;
 	p.xyz *= 425.0f;
 
@@ -208,7 +209,7 @@ float SampleDensity(vec3 p, float lod)
 		p += CurlNoise*2.0f;
 	}
 	
-	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, 1.0f).xyzw;
+	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, lod).xyzw;
 	float HighFreqFBM = (DetailNoise.g * 0.625f) +
                        (DetailNoise.b * 0.25f)  +
                        (DetailNoise.a * 0.125f);
