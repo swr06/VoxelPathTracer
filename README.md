@@ -11,7 +11,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - Normal mapping
 - PBR Texture support 
 - Physically based lighting (Cook torrance BRDF)
-- Ray traced contact hardening soft shadows (with shadow denoising)
+- Ray traced contact hardening soft shadows (with specialized shadow denoiser)
 - Flexible material system
 - Temporal Anti Aliasing (And temporal supersampling)
 - FXAA
@@ -55,8 +55,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 - If you want to report an issue, then you can contact me on discord (swr#1793)
 
 # Resource List
-- https://github.com/BrutPitt/glslSmartDeNoise/
-- https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf
+- https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf (DDA)
 - ScratchAPixel
 - https://google.github.io/filament/Filament.md
 - http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
