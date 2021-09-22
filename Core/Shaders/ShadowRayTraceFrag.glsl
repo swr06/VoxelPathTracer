@@ -409,7 +409,7 @@ void main()
 		Hash = texelFetch(u_BlueNoiseTexture, SampleTexelLoc, 0).xy;
 
 		vec3 L = JitteredLightDirection;
-		vec3 T = normalize(cross(L, vec3(0.0, 1.0, 1.0)));
+		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
 		vec3 B = cross(T, L);
 		mat3 TBN = mat3(T, B, L);
 

@@ -317,6 +317,7 @@ vec3 GetAtmosphereAndClouds()
 	float idx = ij.x + 2.0*ij.y;
 	vec4 m = step( abs(vec4(idx)-vec4(0,1,2,3)), vec4(0.5) ) * vec4(0.75,0.25,0.00,0.50);
 	float d = m.x+m.y+m.z+m.w; // dither.
+    float base_bayer = bayer4(gl_FragCoord.xy);
     vec3 NormalizedDir = normalize(v_RayDirection);
     float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
     CloudFade = pow(CloudFade * 2.75f, 3.25f);
@@ -327,7 +328,8 @@ vec3 GetAtmosphereAndClouds()
     float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
     S = mix(S, D, DuskVisibility);
     vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
-	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
+	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
+	//vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
 	//vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f); // Bicubic B spline interp
     SampledCloudData.xyz *= CloudFade;
     float Transmittance = SampledCloudData.w;

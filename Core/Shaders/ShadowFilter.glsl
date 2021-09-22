@@ -1,9 +1,6 @@
 #version 330 core
 
-// Uses gbuffers as well! 
-
-#define INV_SQRT_OF_2PI 0.398942280 
-#define INV_PI 0.318309886
+//#define BE_USELESS
 
 layout (location = 0) out float o_Color;
 in vec2 v_TexCoords;
@@ -49,31 +46,32 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
     return GetNormalFromID(texture(samp, txc).x);
 }
 
-float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float threshold)
+float Luminance(vec3 x)
 {
-    float radius;
-    radius = 2;
-    float radQ = radius * radius;
-    float invSigmaQx2 = 0.5f / (sigma * sigma);   
-    float invSigmaQx2PI = INV_PI * invSigmaQx2;    
-    float invThresholdSqx2 = 0.5f / (threshold * threshold);
-    float invThresholdSqrt2PI = INV_SQRT_OF_2PI / threshold;
-    float centrPx = texture(tex, uv).r;
+	return dot(x, vec3(0.2125f, 0.7154f, 0.0721f));
+}
+
+float LuminancePow(float x) {
+    return x*x*x*x;
+}
+
+float ShadowSpatial(sampler2D tex, vec2 uv)
+{
     vec4 CenterPosition = GetPositionAt(u_PositionTexture, v_TexCoords);
     vec3 CenterNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
+    float CenterShadow = texture(u_InputTexture, v_TexCoords).x;
+    float BaseLuminance = Luminance(vec3(CenterShadow));
+    vec2 TexelSize = 1.0f / vec2(textureSize(tex, 0));
 
-    float zBuff = 0.0f;
-    float aBuff = 0.0f;
-    vec2 size = vec2(textureSize(tex, 0));
+    float TotalWeight = 0.0f;
+    float TotalShadow = 0.0f;
     
-    for(float x = -radius; x <= radius; x++) 
-    {
-        float pt = sqrt(radQ - x * x);  
-
-        for(float y = -pt; y <= pt; y++) 
+    // 6 * 4 = 24 samples. 
+    for (int x = -3 ; x <= 3 ; x++) {
+        for (int y = -2 ; y <= 2 ; y++) 
         {
             vec2 d = vec2(x, y);
-            vec2 SampleCoord = uv + d / size;
+            vec2 SampleCoord = uv + d * TexelSize * 1.1f;
             vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord);
             vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
@@ -83,26 +81,28 @@ float SmartDenoise(sampler2D tex, vec2 uv, float sigma, float kSigma, float thre
             {
                 continue;
             }
-
-            // Weights :
-            float blurFactor = exp(-dot(d, d) * invSigmaQx2) * invSigmaQx2PI; 
-            float walkPx = texture(tex, uv + d / size).r;
-            float dC = walkPx - centrPx;
-            float deltaFactor = exp(-dot(dC, dC) * invThresholdSqx2) * invThresholdSqrt2PI * blurFactor;
-            zBuff += deltaFactor;
-            aBuff += deltaFactor * walkPx;
+            
+            float ShadowAt = texture(u_InputTexture, SampleCoord).x;
+            float LumaAt = Luminance(vec3(ShadowAt));
+            float LuminanceError = clamp(1.0f - clamp(abs(LumaAt - BaseLuminance) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
+            float Weight = clamp(LuminancePow(LuminanceError), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
+            Weight = clamp(Weight, 0.01f, 1.0f);
+            TotalShadow += ShadowAt * Weight;
+            TotalWeight += Weight;
         }
     }
 
-    return aBuff / zBuff;
+    return TotalShadow / max(TotalWeight, 0.01f);;
 }
 
 void main()
 {
-    // High edge threshold because the color delta is HUGE! between areas of shadow and no shadow 
-    // Doesnt matter at the end, the hard parts are NOT overblurred
-    o_Color = SmartDenoise(u_InputTexture, v_TexCoords, 5.0, 2.0, 0.28575f); 
+#ifdef BE_USELESS 
+    o_Color = texture(u_InputTexture,v_TexCoords).x;  
+    return;
+#endif
 
 
-    //o_Color = texture(u_InputTexture, v_TexCoords).r;
+    o_Color = ShadowSpatial(u_InputTexture, v_TexCoords); 
+    return;
 }

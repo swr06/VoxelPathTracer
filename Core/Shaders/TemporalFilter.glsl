@@ -253,7 +253,7 @@ void main()
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
-			float t = u_ShadowTemporal ? 0.5f : 1.1f;
+			float t = u_ShadowTemporal ? 0.325f : 1.1f;
 
 			if (d > t) 
 			{

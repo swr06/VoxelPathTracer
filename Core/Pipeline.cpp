@@ -69,6 +69,10 @@ static bool TEMPORAL_SPEC = true;
 
 
 
+static bool DenoiseSunShadows = true;
+
+
+
 static bool CHECKERBOARD_SPP = true;
 static bool CHECKERBOARD_SPEC_SPP = false;
 
@@ -256,6 +260,7 @@ public:
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
 
@@ -1770,7 +1775,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		// Final shadow noise cleanup
-		if (SoftShadows)
+		if (SoftShadows&&DenoiseSunShadows)
 		{
 			ShadowFiltered.Bind();
 			ShadowFilter.Use();
@@ -1902,7 +1907,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(1));
 
 			glActiveTexture(GL_TEXTURE16);
-			glBindTexture(GL_TEXTURE_2D, SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, SoftShadows ?(DenoiseSunShadows?ShadowFiltered.GetTexture():ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
 			
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
 
@@ -2329,7 +2334,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
 
 		glActiveTexture(GL_TEXTURE8);
-		glBindTexture(GL_TEXTURE_2D, SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, SoftShadows ? (DenoiseSunShadows ? ShadowFiltered.GetTexture() : ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
 
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, BlueNoise.GetTextureArray());
@@ -2750,7 +2755,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		//
 
 		glActiveTexture(GL_TEXTURE9);
-		glBindTexture(GL_TEXTURE_2D, SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, SoftShadows ? (DenoiseSunShadows ? ShadowFiltered.GetTexture() : ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
 
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_2D, VolumetricFBO.GetTexture());
@@ -2888,7 +2893,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			world->UpdateParticles(&MainCamera, 
 				InitialTraceFBO->GetTexture(0),
-				SoftShadows ? ShadowFiltered.GetTexture() : ShadowRawTrace.GetTexture(),
+				SoftShadows ? (DenoiseSunShadows ? ShadowFiltered.GetTexture() : ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture(),
 				DiffuseDenoiseFBO.GetTexture(), DiffuseDenoiseFBO.GetTexture(1),
 				SunDirection, MainCamera.GetPosition(), 
 				glm::vec2(app.GetWidth(), app.GetHeight()), 

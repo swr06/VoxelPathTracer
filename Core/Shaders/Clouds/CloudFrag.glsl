@@ -497,7 +497,7 @@ void main()
 	}
 
 	int Frame = u_CurrentFrame % 30;
-	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f);
+	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f); 
 	g_BayerIncrement=BayerIncrement;
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
@@ -518,7 +518,7 @@ void main()
     float T2 = RayBasePlaneIntersectionTop(CameraPosition, Direction);
     vec3 EndPosition = CameraPosition + Direction * T2;
     vec3 RayStep = (EndPosition - StartPosition) / float(StepCount);
-	float dither = Bayer32(gl_FragCoord.xy+BayerIncrement);
+	float dither = Bayer64(gl_FragCoord.xy+BayerIncrement);
 	vec3 CurrentPoint = StartPosition + RayStep * dither;
 	float StepSize = length(RayStep);
 	
