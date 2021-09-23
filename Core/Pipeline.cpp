@@ -1052,6 +1052,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetVector2f("u_Dimensions", glm::vec2(InitialTraceFBO->GetWidth(), InitialTraceFBO->GetHeight()));
 			InitialTraceShader.SetVector2f("u_VertDimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 			InitialTraceShader.SetVector2f("u_CurrentTAAJitter", glm::vec2(TAAJitter));
+			InitialTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
+			InitialTraceShader.SetFloat("u_FOV", MainCamera.GetFov());
+			InitialTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
 			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
 			
 			glActiveTexture(GL_TEXTURE0);
@@ -1701,6 +1704,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			ShadowTraceShader.SetBool("u_ContactHardeningShadows", SoftShadows);
 			ShadowTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTestShadows);
+			ShadowTraceShader.SetFloat("u_FOV", MainCamera.GetFov());
+			ShadowTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));

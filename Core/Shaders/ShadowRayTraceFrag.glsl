@@ -21,6 +21,7 @@ uniform bool u_DoFullTrace;
 uniform mat4 u_ShadowProjection;
 uniform mat4 u_ShadowView;
 uniform float u_Time;
+uniform float u_FOV;
 
 uniform vec3 u_LightDirection;
 uniform mat4 u_InverseView;
@@ -94,94 +95,124 @@ bool CompareFloatNormal(float x, float y) {
     return abs(x - y) < 0.02f;
 }
 
-float AlphaTest(float d, vec3 initial_origin, vec3 o, vec3 direction, inout vec3 normal, inout float blockType)
-{
-	vec2 SampleUV = CalculateUV(o, normal);
+
+float g_K = 0.0f;
+
+bool StopRay(vec3 P, vec3 N, float Type) {
+	int BlockID = GetBlockID(Type);
+	if (BlockTransparentData[BlockID]==0) {
+		return true;
+	}
+
+	vec2 SampleUV = CalculateUV(P,N);
 	SampleUV.y = 1.0f - SampleUV.y;
-	int BlockID = GetBlockID(blockType);
-	float Lod = textureQueryLod(u_AlbedoTextures, vec2(SampleUV)).x;
-	float Alpha = textureLod(u_AlbedoTextures, vec3(SampleUV, float(BlockAlbedoData[BlockID])), clamp(Lod - 2.5f, 0.0f, 3.0f)).w;
-	
-	if (Alpha <= 0.02f) { 
-		vec3 origin = o;
-		const float epsilon = 0.01f;
-		bool Intersection = false;
+	float D = distance(P,u_InverseView[3].xyz);
+	int LOD = int(log2(512.0f / (1.0f / D * g_K)));
+	float Alpha = textureLod(u_AlbedoTextures, vec3(SampleUV, float(BlockAlbedoData[BlockID])), clamp(LOD-2.0f, 0.0f, 8.0f)).w;
+	return Alpha > 0.975f;
+}
 
-		ivec3 BaseGridCoords = ivec3(origin);
+float VoxelTraversalDF_AlphaTest(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType) 
+{
+	vec3 initial_origin = origin;
+	const float epsilon = 0.01f;
+	bool Intersection = false;
 
-		int MinIdx = 0;
-		ivec3 RaySign = ivec3(sign(direction));
+	int MinIdx = 0;
+	ivec3 RaySign = ivec3(sign(direction));
 
-		int itr = 0;
+	int itr = 0;
 
-		for (itr = 0 ; itr < 30 ; itr++)
+	for (itr = 0 ; itr < 350 ; itr++)
+	{
+		ivec3 Loc = ivec3(floor(origin));
+		
+		if (!IsInVolume(Loc))
 		{
-			bool Continue = false;
+			Intersection = false;
+			break;
+		}
 
-			ivec3 Loc = ivec3(floor(origin));
-			
-			if (!IsInVolume(Loc))
-			{
-				Intersection = false;
+		float Dist = GetDistance(Loc) * 255.0f; 
+
+		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+		if (Euclidean == 0)
+		{
+			vec3 tn = vec3(0.0f);
+			tn[MinIdx] = -RaySign[MinIdx];
+			float bt = GetVoxel(ivec3(floor(origin)));
+			if (StopRay(origin, tn, bt)) {
 				break;
 			}
 
-			float Dist = GetDistance(Loc) * 255.0f; 
-
-			int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
-
-			if (Euclidean == 0)
-			{
-				float BlockAt = GetVoxel(Loc);
-				int IDAt = GetBlockID(BlockAt);
-
-				if (IDAt != BlockID)
-				{
-					break;
+			else {
+				for (int i = 0 ; i < 4 ; i++) {
+					ivec3 GridCoords = ivec3(origin);
+					vec3 WithinVoxelCoords = origin - GridCoords;
+					vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+					MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+						? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+						: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+					GridCoords[MinIdx] += RaySign[MinIdx];
+					WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+					WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+					origin = GridCoords + WithinVoxelCoords;
+					origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
+					
+					float bt = GetVoxel(ivec3(floor(origin)));
+					if (bt > 0.0f) {
+						vec3 tn = vec3(0.0f);
+						tn[MinIdx] = -RaySign[MinIdx];
+						float bt = GetVoxel(ivec3(floor(origin)));
+						if (StopRay(origin, tn, bt)) {
+							normal = vec3(0.0f);
+							normal[MinIdx] = -RaySign[MinIdx];
+							blockType = GetVoxel(ivec3(floor(origin)));
+							return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
+						}
+					}
 				}
-
-				Continue = true;
-			}
-
-			if (Euclidean == 1 || Continue)
-			{
-				// Do the DDA algorithm for one voxel 
-
-				ivec3 GridCoords = ivec3(origin);
-				vec3 WithinVoxelCoords = origin - GridCoords;
-				vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
-
-				MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
-					? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
-					: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
-
-				GridCoords[MinIdx] += RaySign[MinIdx];
-				WithinVoxelCoords += direction * DistanceFactor[MinIdx];
-				WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
-
-				origin = GridCoords + WithinVoxelCoords;
-				origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
-
-				Intersection = true;
-			}
-
-			else 
-			{
-				origin += int(Euclidean - 1) * direction;
 			}
 		}
 
-		if (Intersection)
+		if (Euclidean == 1)
 		{
-			vec3 n = vec3(0.0f);
-			n[MinIdx] = -RaySign[MinIdx];
-			normal = (n);
-			blockType = GetVoxel(ivec3(floor(origin)));
-			return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
-		} 
+			// Do the DDA algorithm for one voxel 
+
+			ivec3 GridCoords = ivec3(origin);
+			vec3 WithinVoxelCoords = origin - GridCoords;
+			vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+
+			MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+				? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+				: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+
+			GridCoords[MinIdx] += RaySign[MinIdx];
+			WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+
+			origin = GridCoords + WithinVoxelCoords;
+			origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
+
+			Intersection = true;
+		}
+
+		else 
+		{
+			origin += int(Euclidean - 1) * direction;
+		}
+	}
+	
+	if (Intersection)
+	{
+		normal = vec3(0.0f);
+		normal[MinIdx] = -RaySign[MinIdx];
+		blockType = GetVoxel(ivec3(floor(origin)));
+		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
 	}
 
-	return d;
+	return -1.0f;
 }
 
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType) 
@@ -242,28 +273,18 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 		}
 	}
 
-	if (u_ShouldAlphaTest)
+	if (Intersection)
 	{
 		normal = vec3(0.0f);
 		normal[MinIdx] = -RaySign[MinIdx];
 		blockType = GetVoxel(ivec3(floor(origin)));
-		float dd = blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
-		return AlphaTest(dd, initial_origin.xyz, origin.xyz, direction, normal, blockType);
-	}
-
-	else 
-	{
-		if (Intersection)
-		{
-			normal = vec3(0.0f);
-			normal[MinIdx] = -RaySign[MinIdx];
-			blockType = GetVoxel(ivec3(floor(origin)));
-			return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
-		}
+		return blockType > 0.0f ? distance(origin, initial_origin) : -1.0f;
 	}
 
 	return -1.0f;
 }
+
+
 
 
 vec2 ReprojectShadow (in vec3 pos)
@@ -384,6 +405,7 @@ vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
 
 void main()
 {
+	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 102.0f;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
@@ -415,7 +437,7 @@ void main()
 
 		// 0.98906604617 -> physically based
 		// 0.999825604617
-		const float CosTheta = 0.9998845604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
+		const float CosTheta = 0.9999505604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
 		vec2 Xi = Hash;
 		vec3 ConeSample = TBN * SampleCone(Xi, CosTheta);
         JitteredLightDirection = ConeSample;
@@ -434,7 +456,7 @@ void main()
 		if (RayOrigin.w > 0.0f) 
 		{
 			float b; vec3 n;
-			T = VoxelTraversalDF(RayOrigin.xyz + Bias, RayDirection, n, b);
+			T = u_ShouldAlphaTest ? VoxelTraversalDF_AlphaTest(RayOrigin.xyz + Bias, RayDirection, n, b) : VoxelTraversalDF(RayOrigin.xyz + Bias, RayDirection, n, b);
 		}
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
