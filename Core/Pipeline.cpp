@@ -206,7 +206,6 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			//ImGui::Checkbox("ANTI_FLICKER", &ANTI_FLICKER);
 			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
 			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
@@ -312,6 +311,15 @@ public:
 
 		if (ImGui::Begin("Other Settings and properties"))
 		{
+			static bool soundpack = true;
+			std::string sndpackalt = soundpack ? "Alternate" : "Default";
+			if (ImGui::Button(std::string("Switch Sound Pack To " + sndpackalt).c_str())) {
+				soundpack = !soundpack;
+				VoxelRT::SoundManager::SetPack(soundpack);
+			}
+
+			ImGui::NewLine();
+
 			if (world) {
 
 				std::string s = MainPlayer.m_isOnGround ? "Yes" : "No";

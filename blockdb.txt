@@ -845,7 +845,7 @@
 	Normal : Res/Block/Planks3/Normal.png
 	PBR : Res/Block/Planks3/PBR.png
 	
-	SND_STEP : Wood
+	SND_STEP : SqueakyWood
 	SND_MODIFY : Wood
 }
 
@@ -905,7 +905,7 @@
 	Normal : Res/Block/Table/Normal.png
 	PBR : Res/Block/Table/PBR.png
 	
-	SND_STEP : Wood
+	SND_STEP : SqueakyWood
 	SND_MODIFY : Wood
 }
 

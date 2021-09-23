@@ -19,5 +19,6 @@ namespace VoxelRT
 		void PlaySound(const std::string& s, const glm::vec3& p, float d, float v, bool pause);
 		void PlayBlockSound(uint8_t block, const glm::vec3& p, bool type);
 		void Destroy();
+		void SetPack(bool TYPE);
 	}
 }
