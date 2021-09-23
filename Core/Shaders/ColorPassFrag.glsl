@@ -745,7 +745,7 @@ vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness)
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 4.0f;
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 5.45f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
@@ -899,7 +899,7 @@ void main()
             vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR * 0.5f, DuskVisibility);
 
             //vec3 SunColor = SUN_COLOR;
-            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SunColor, SunColor * 0.4f, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
+            vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_SunDirection), SunColor, SunColor, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, normalize(u_MoonDirection), NIGHT_COLOR, NIGHT_COLOR, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             

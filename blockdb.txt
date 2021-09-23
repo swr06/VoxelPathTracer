@@ -23,8 +23,8 @@
 	Normal : Res/Block/Dirt/Normal.png
 	PBR : Res/Block/Dirt/PBR.png
 	
-	SND_STEP : Grass
-	SND_MODIFY : Grass
+	SND_STEP : Dirt
+	SND_MODIFY : Dirt
 }
 
 {
@@ -75,8 +75,8 @@
 	PBR : Res/Block/Leaves/PBR.png
 	Transparent;
 	
-	SND_STEP : Grass
-	SND_MODIFY : Grass
+	SND_STEP : Leaves
+	SND_MODIFY : Leaves
 }
 
 {
@@ -775,7 +775,7 @@
 	Normal : Res/Block/CryingObsidian/Normal.png
 	PBR : Res/Block/CryingObsidian/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Concrete
 	SND_MODIFY : Stone
 }
 
@@ -785,7 +785,7 @@
 	Normal : Res/Block/PolishedBlackBricks/Normal.png
 	PBR : Res/Block/PolishedBlackBricks/PBR.png
 	
-	SND_STEP : Marble
+	SND_STEP : Concrete
 	SND_MODIFY : Stone
 }
 
@@ -845,7 +845,7 @@
 	Normal : Res/Block/Planks3/Normal.png
 	PBR : Res/Block/Planks3/PBR.png
 	
-	SND_STEP : Wood
+	SND_STEP : SqueakyWood
 	SND_MODIFY : Wood
 }
 
@@ -865,7 +865,7 @@
 	Normal : Res/Block/Magma/Normal.png
 	PBR : Res/Block/Magma/PBR.png
 
-	SND_STEP : Marble
+	SND_STEP : Concrete
 	SND_MODIFY : Stone
 }
 
@@ -895,7 +895,7 @@
 	Normal : Res/Block/Concrete/Normal.png
 	PBR : Res/Block/Concrete/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Concrete
 	SND_MODIFY : Stone
 }
 
@@ -905,7 +905,7 @@
 	Normal : Res/Block/Table/Normal.png
 	PBR : Res/Block/Table/PBR.png
 	
-	SND_STEP : Wood
+	SND_STEP : SqueakyWood
 	SND_MODIFY : Wood
 }
 
