@@ -9,8 +9,8 @@ extern float VoxelRT_VolumeMultiplier;
 namespace VoxelRT
 {
 	static irrklang::ISoundEngine* MainSoundEngine;
-	static std::unordered_map<std::string, std::array<std::string, 4>> SoundPathsStep;
-	static std::unordered_map<std::string, std::array<std::string, 4>> SoundPathsModify;
+	static std::unordered_map<std::string, std::vector<std::string>> SoundPathsStep;
+	static std::unordered_map<std::string, std::vector<std::string>> SoundPathsModify;
 	static double PreviousStepTime = -1.0f;
 
 	void SoundManager::InitializeSoundManager()
@@ -25,23 +25,54 @@ namespace VoxelRT
 		// Step :
 		std::string BaseStepPath = "Res/Sounds/Step/";
 		SoundPathsStep["Cloth"] = { BaseStepPath + "cloth1.ogg", BaseStepPath + "cloth2.ogg", BaseStepPath + "cloth3.ogg", BaseStepPath + "cloth4.ogg" };
-		SoundPathsStep["Grass"] = { BaseStepPath + "grass1.ogg", BaseStepPath + "grass2.ogg", BaseStepPath + "grass3.ogg", BaseStepPath + "grass5.ogg" };
-		SoundPathsStep["Gravel"] = { BaseStepPath + "gravel1.ogg", BaseStepPath + "gravel2.ogg", BaseStepPath + "gravel3.ogg", BaseStepPath + "gravel4.ogg" };
+		
 		SoundPathsStep["Sand"] = { BaseStepPath + "sand1.ogg", BaseStepPath + "sand2.ogg", BaseStepPath + "sand3.ogg", BaseStepPath + "sand4.ogg" };
-		SoundPathsStep["Snow"] = { BaseStepPath + "snow1.ogg", BaseStepPath + "snow2.ogg", BaseStepPath + "snow3.ogg", BaseStepPath + "snow4.ogg" };
-		SoundPathsStep["Stone"] = { BaseStepPath + "stone1.ogg", BaseStepPath + "stone2.ogg", BaseStepPath + "stone3.ogg", BaseStepPath + "stone5.ogg" };
-		SoundPathsStep["Wood"] = { BaseStepPath + "wood1.ogg", BaseStepPath + "wood2.ogg", BaseStepPath + "wood3.ogg", BaseStepPath + "wood4.ogg" };
-		SoundPathsStep["Metal"] = { BaseStepPath + "metal1.ogg", BaseStepPath + "metal2.ogg", BaseStepPath + "metal3.ogg", BaseStepPath + "metal4.ogg" };
-		SoundPathsStep["Marble"] = { BaseStepPath + "marble1.ogg", BaseStepPath + "marble2.ogg", BaseStepPath + "marble3.ogg", BaseStepPath + "marble4.ogg" };
+		
+		SoundPathsStep["Snow"] = { BaseStepPath + "snow_walk1.ogg", BaseStepPath + "snow_walk2.ogg", BaseStepPath + "snow_walk3.ogg", BaseStepPath + "snow_walk4.ogg",
+									BaseStepPath + "snow_walk5.ogg", BaseStepPath + "snow_walk6.ogg", BaseStepPath + "snow_walk7.ogg", BaseStepPath + "snow_walk8.ogg" };
+
+		SoundPathsStep["Grass"] = { BaseStepPath + "grass_walk1.ogg", BaseStepPath + "grass_walk2.ogg", BaseStepPath + "grass_walk3.ogg", BaseStepPath + "grass_walk4.ogg",
+									BaseStepPath + "grass_walk5.ogg", BaseStepPath + "grass_walk6.ogg", BaseStepPath + "grass_walk7.ogg", BaseStepPath + "grass_walk8.ogg" };
+
+		SoundPathsStep["Dirt"] = { BaseStepPath + "dirt_walk1.ogg", BaseStepPath + "dirt_walk2.ogg", BaseStepPath + "dirt_walk3.ogg", BaseStepPath + "dirt_walk4.ogg",
+									BaseStepPath + "dirt_walk5.ogg", BaseStepPath + "dirt_walk6.ogg", BaseStepPath + "dirt_walk7.ogg", BaseStepPath + "dirt_walk8.ogg" };
+
+		SoundPathsStep["Leaves"] = { BaseStepPath + "leaves_through1.ogg", BaseStepPath + "leaves_through2.ogg", BaseStepPath + "leaves_through3.ogg", BaseStepPath + "leaves_through4.ogg",
+									BaseStepPath + "leaves_through5.ogg", BaseStepPath + "leaves_through6.ogg", BaseStepPath + "leaves_through7.ogg" };
+
+		SoundPathsStep["Gravel"] = { BaseStepPath + "gravel_walk1.ogg", BaseStepPath + "gravel_walk2.ogg", BaseStepPath + "gravel_walk3.ogg", BaseStepPath + "gravel_walk4.ogg",
+									 BaseStepPath + "gravel_walk5.ogg", BaseStepPath + "gravel_walk6.ogg", BaseStepPath + "gravel_walk7.ogg", BaseStepPath + "gravel_walk8.ogg" };
+
+
+		SoundPathsStep["Stone"] = { BaseStepPath + "stone_walk1.ogg", BaseStepPath + "stone_walk2.ogg", BaseStepPath + "stone_walk3.ogg", BaseStepPath + "stone_walk4.ogg",
+									BaseStepPath + "stone_walk5.ogg", BaseStepPath + "stone_walk6.ogg", BaseStepPath + "stone_walk7.ogg", BaseStepPath + "stone_walk8.ogg" };
+		
+		SoundPathsStep["Wood"] = { BaseStepPath + "wood_walk1.ogg", BaseStepPath + "wood_walk2.ogg", BaseStepPath + "wood_walk3.ogg", BaseStepPath + "wood_walk4.ogg",
+								   BaseStepPath + "wood_walk5.ogg", BaseStepPath + "wood_walk6.ogg", BaseStepPath + "wood_walk7.ogg", BaseStepPath + "wood_walk8.ogg" };
+		
+		SoundPathsStep["Metal"] = { BaseStepPath + "metalbar_walk1.ogg", BaseStepPath + "metalbar_walk2.ogg", BaseStepPath + "metalbar_walk3.ogg", BaseStepPath + "metalbar_walk4.ogg",
+									BaseStepPath + "metalbar_walk5.ogg", BaseStepPath + "metalbar_walk6.ogg", BaseStepPath + "metalbar_walk7.ogg", BaseStepPath + "metalbar_walk8.ogg" };
+		
+		SoundPathsStep["Marble"] = { BaseStepPath + "marble_walk1.ogg", BaseStepPath + "marble_walk2.ogg", BaseStepPath + "marble_walk3.ogg", BaseStepPath + "marble_walk4.ogg", 
+									 BaseStepPath + "marble_walk5.ogg", BaseStepPath + "marble_walk6.ogg", BaseStepPath + "marble_walk7.ogg", BaseStepPath + "marble_walk8.ogg" };
 	
+		SoundPathsStep["Concrete"] = { BaseStepPath + "concrete_walk1.ogg", BaseStepPath + "concrete_walk2.ogg", BaseStepPath + "concrete_walk3.ogg", BaseStepPath + "concrete_walk4.ogg",
+									 BaseStepPath + "concrete_walk5.ogg", BaseStepPath + "concrete_walk6.ogg", BaseStepPath + "concrete_walk7.ogg", BaseStepPath + "concrete_walk8.ogg" };
+
+
 		// Break/Place (Modify)
 		std::string BaseModifyPath = "Res/Sounds/Modify/";
 		SoundPathsModify["Cloth"] = { BaseModifyPath + "cloth1.ogg", BaseModifyPath + "cloth2.ogg", BaseModifyPath + "cloth3.ogg", BaseModifyPath + "cloth4.ogg" };
+		
 		SoundPathsModify["Grass"] = { BaseModifyPath + "grass1.ogg", BaseModifyPath + "grass2.ogg", BaseModifyPath + "grass3.ogg", BaseModifyPath + "grass4.ogg" };
+		SoundPathsModify["Dirt"] = { BaseModifyPath + "grass1.ogg", BaseModifyPath + "grass2.ogg", BaseModifyPath + "grass3.ogg", BaseModifyPath + "grass4.ogg" };
+		SoundPathsModify["Leaves"] = { BaseModifyPath + "grass1.ogg", BaseModifyPath + "grass2.ogg", BaseModifyPath + "grass3.ogg", BaseModifyPath + "grass4.ogg" };
+		
 		SoundPathsModify["Gravel"] = { BaseModifyPath + "gravel1.ogg", BaseModifyPath + "gravel2.ogg", BaseModifyPath + "gravel3.ogg", BaseModifyPath + "gravel4.ogg" };
 		SoundPathsModify["Sand"] = { BaseModifyPath + "sand1.ogg", BaseModifyPath + "sand2.ogg", BaseModifyPath + "sand3.ogg", BaseModifyPath + "sand4.ogg" };
 		SoundPathsModify["Snow"] = { BaseModifyPath + "snow1.ogg", BaseModifyPath + "snow2.ogg", BaseModifyPath + "snow3.ogg", BaseModifyPath + "snow4.ogg" };
 		SoundPathsModify["Stone"] = { BaseModifyPath + "stone1.ogg", BaseModifyPath + "stone2.ogg", BaseModifyPath + "stone3.ogg", BaseModifyPath + "stone4.ogg" };
+		SoundPathsModify["Concrete"] = { BaseModifyPath + "stone1.ogg", BaseModifyPath + "stone2.ogg", BaseModifyPath + "stone3.ogg", BaseModifyPath + "stone4.ogg" };
 		SoundPathsModify["Metal"] = { BaseModifyPath + "stone1.ogg", BaseModifyPath + "stone2.ogg", BaseModifyPath + "stone3.ogg", BaseModifyPath + "stone4.ogg" };
 		SoundPathsModify["Wood"] = { BaseModifyPath + "wood1.ogg", BaseModifyPath + "wood2.ogg", BaseModifyPath + "wood3.ogg", BaseModifyPath + "wood4.ogg" };
 		SoundPathsModify["Marble"] = { BaseStepPath + "marble1.ogg", BaseStepPath + "marble2.ogg", BaseStepPath + "marble3.ogg", BaseStepPath + "marble4.ogg" };
@@ -94,8 +125,8 @@ namespace VoxelRT
 			return;
 		}
 
-		int rand_idx = rand() % 4;
-		rand_idx = glm::clamp((int)rand_idx, (int)0, (int)3);
+		int rand_idx = rand() % list[Type].size();
+		rand_idx = glm::clamp(rand_idx, 0, 8);
 		std::string Path = list[Type][rand_idx];
 
 		float v = type ? 6.0f : 6.0f; v *= VoxelRT_VolumeMultiplier;

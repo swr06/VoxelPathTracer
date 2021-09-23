@@ -11,7 +11,7 @@
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
 #define MAX_VOXEL_DIST 25
 #define MAX_BOUNCE_LIMIT 2
-#define APPLY_PLAYER_SHADOW
+//#define APPLY_PLAYER_SHADOW
 
 // Bayer matrix, used for testing dithering
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -159,7 +159,7 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo,
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (12.0f);
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (18.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 4.675f; 
 	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
