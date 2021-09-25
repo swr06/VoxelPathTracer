@@ -1,4 +1,4 @@
-#version 430 core
+#version 450 core
 
 
 #define WORLD_SIZE_X 384
@@ -132,7 +132,8 @@ vec2 ReprojectShadow(vec3);
 void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
 bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist);
-
+vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR);
+float diffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness);
 
 // Globals
 vec3 g_Normal;
@@ -150,14 +151,21 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
+const bool CAUSTICS = true;
+
 // Simplified diffuse brdf
-vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL)
+vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
 {
-	vec3 DiffuseBRDF = albedo * NDotL * (radiance * 1.5f);
-    return DiffuseBRDF * (1.0f - shadow);
+	if (!CAUSTICS) {
+		return albedo * diffuseHammon(N, -rD, sdir, PBR.x) * (radiance * 3.5f) * (1.0f - shadow);
+	}
+
+	else {
+		return (GetBRDF(N, rD, sdir, albedo, PBR.xy) * (radiance * 3.5f)) * (1.0f - shadow);
+	}
 } 
 
-vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal)
+vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal, vec3 rD)
 {
 	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (18.0f);
 	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 4.675f; 
@@ -176,7 +184,9 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 		float(BlockEmissiveData[tex_index])
 	);
 
-	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3).rgb;
+	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
+	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.r), 2.0f).rgb; // 512, 256, 128, 64, 32, 16
+	//Albedo = pow(Albedo, vec3(1.0f/2.2f));
 
 	float Emmisivity = 0.0f;
 
@@ -189,7 +199,7 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 	float NDotL = max(dot(flatnormal, StrongerLightDirection), 0.0f);
 	vec3 bias = (flatnormal * 0.045);
 	float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(world_pos + bias, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, LIGHT_COLOR, Albedo, ShadowAt, NDotL);
+	vec3 DirectLighting = CalculateDirectionalLight(world_pos, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, flatnormal, rD, StrongerLightDirection);
 	return (Emmisivity * Albedo) + DirectLighting;
 }
 
@@ -208,7 +218,7 @@ vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
 	if (Intersect && b > 0) 
 	{ 
 		vec2 txc; CalculateUV(pos, out_n, txc);
-		return GetDirectLighting(pos, tex_ref, txc, out_n);
+		return GetDirectLighting(pos, tex_ref, txc, out_n, r.Direction);
 	} 
 
 	else 
@@ -884,4 +894,79 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     {
         uv = vec2(fract(world_pos.xy));
     }
+}
+
+// brdf 
+
+
+float GGX_D(float dotNH, float alpha2) {
+    float den = (alpha2 - 1.0) * dotNH * dotNH + 1.0;
+    return alpha2 / (PI * den * den);
+}
+
+vec3 ggx_light(vec3 n, vec3 v, vec3 l, vec2 specularity, vec3 albedo) {
+    float alpha2 = specularity.x * specularity.x;
+
+    float dotNL = clamp(dot(n, l), 0., 1.);
+    float dotNV = clamp(dot(n, v), 0., 1.);
+
+    vec3 h = normalize(v + l);
+    float dotNH = clamp(dot(n, h), 0., 1.);
+    float dotLH = clamp(dot(l, h), 0., 1.);
+
+    // GGX microfacet distribution function
+    float D = GGX_D(dotNH, alpha2);
+
+    // Fresnel with Schlick approximation
+    vec3 F0 = specularity.y*albedo;
+
+    vec3 F = F0 + (1.0 - F0) * pow(1. - dotLH, 5.0);
+
+    // Smith joint masking-shadowing function
+    float k = (specularity.x + 1)*(specularity.x + 1)/8.0;
+    float G = 1.0 / ((dotNL * (1.0 - k) + k) * (dotNV * (1.0 - k) + k));
+
+    //pdf = max(D * dotNH /(4.0*dotLH), 0.00001);
+    return max(D * F * G, 0.0001);
+}
+
+float max0(float x) { return max(0.0f, x); }
+
+float schlickInverse(float f0, float VoH) {
+    return 1.0 - clamp(f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0), 0.0f, 1.0f);
+}
+
+float diffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness)
+{
+    float nDotL = max0(dot(normal, lightDir));
+    if (nDotL <= 0.0) return (0.0);
+    float nDotV = max0(dot(normal, viewDir));
+    float lDotV = max0(dot(lightDir, viewDir));
+    vec3 halfWay = normalize(viewDir + lightDir);
+    float nDotH = max0(dot(normal, halfWay));
+    float facing = lDotV * 0.5 + 0.5;
+    float singleRough = facing * (0.9 - 0.4 * facing) * ((0.5 + nDotH) * rcp(max(nDotH, 0.02)));
+    float singleSmooth = 1.05 * schlickInverse(0.0, nDotL) * schlickInverse(0.0, max0(nDotV));
+    float single = clamp(mix(singleSmooth, singleRough, roughness) * rcp(PI), 0.0f, 1.0f);
+    float multi = 0.1159 * roughness;
+    return clamp((multi + single) * nDotL, 0.0f, 1.0f);
+}
+
+vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR) 
+{
+    vec3 BRDF;
+    bool isMetal = (PBR.y > 0.1f);
+    float cosTheta = clamp(dot(normal, sunDir), 0.0f, 1.0f);
+
+    if(!isMetal) 
+	{
+        return albedo * diffuseHammon(normal, -incident, sunDir, PBR.x);
+    }
+	
+	else 
+	{
+       return mix(vec3(1), albedo, float(isMetal)) * ggx_light(normal, -incident, sunDir, PBR, albedo) * cosTheta;
+    }
+    
+    return BRDF;
 }
