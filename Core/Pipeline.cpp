@@ -494,10 +494,11 @@ public:
 
 		if (e.type == VoxelRT::EventTypes::WindowResize)
 		{
-			MainCamera.SetAspect((float)e.wx / (float)e.wy);
-			OCamera.SetProjection(0.0f, e.wx, 0.0f, e.wy);
+			float pwx = this->GetWidth() + PIXEL_PADDING;
+			float pwy = this->GetHeight() + PIXEL_PADDING;
+			MainCamera.SetAspect((float)pwx / (float)pwy);
+			OCamera.SetProjection(0.0f, pwx, 0.0f, pwy);
 		}
-
 
 
 		world->RebufferLightList();
