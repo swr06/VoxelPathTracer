@@ -1,5 +1,8 @@
 #version 330 core
 
+#define AGGRESSIVE_DISOCCLUSION_HANDLING
+
+
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Variance;
@@ -91,16 +94,29 @@ void main()
     vec2 TotalCoCg = vec2(0.0f);
     float TotalLuminosity = 0.0f;
     float TotalWeight2 = 0.0f;
-
-
     float Variance = 0.0f;
     const float SPP_THRESH = 4.0f;
 
     if (SPP < SPP_THRESH)
     {
-        for (int x = -2 ; x <= 2 ; x++) 
+        #ifdef AGGRESSIVE_DISOCCLUSION_HANDLING 
+        const float ColorPhi = 5.5f; 
+        #else 
+        const float ColorPhi = 10.0f; // 10.0f
+        #endif
+
+
+        #ifdef AGGRESSIVE_DISOCCLUSION_HANDLING
+        int XKernel = 4;
+        int YKernel = 4;
+        #else 
+        int XKernel = 2;
+        int YKernel = 2;
+        #endif
+
+        for (int x = -XKernel ; x <= XKernel ; x++) 
         {
-            for (int y = -2 ; y <= 2 ; y++)
+            for (int y = -YKernel ; y <= YKernel ; y++)
             {
                 vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
 
@@ -112,7 +128,7 @@ void main()
                 vec3 PositionDifference = abs(SamplePosition - BasePosition);
                 float DistSqr = dot(PositionDifference, PositionDifference);
 
-                if (DistSqr < 1.0f) 
+                if (DistSqr < 1.2f) 
                 { 
                     vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
                     vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
@@ -123,8 +139,8 @@ void main()
                     vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
                     float SampleLuminosity = SHToY(SampleSH);
 
-                    float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 12.0f);
-                    float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / 1.0e1;
+                    float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
+                    float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / ColorPhi;
                     float Weight = exp(-LuminosityWeight - NormalWeight);
                     float Weight_2 = Weight;
 

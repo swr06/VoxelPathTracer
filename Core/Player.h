@@ -36,6 +36,7 @@ namespace VoxelRT
 		bool DisableCollisions = false;
 
 		void ClampVelocity();
+		void ApplyBasicViewBoobing(); // yes, *boob* :D
 
 	private :
 

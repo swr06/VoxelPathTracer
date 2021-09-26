@@ -133,7 +133,7 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
 bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist);
 vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR);
-float diffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness);
+float DiffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness);
 
 // Globals
 vec3 g_Normal;
@@ -151,24 +151,25 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
-const bool CAUSTICS = true;
+const bool CAUSTICS = false;
 
 // Simplified diffuse brdf
 vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
 {
 	if (!CAUSTICS) {
-		return albedo * diffuseHammon(N, -rD, sdir, PBR.x) * (radiance * 3.5f) * (1.0f - shadow);
+		//return albedo * NDotL * (radiance * 3.5f)  * (1.0f - shadow);
+		return albedo * DiffuseHammon(N, -rD, sdir, PBR.x) * (radiance * 3.5f) * (1.0f - shadow) * PI; // * PI to preserve energy
 	}
 
 	else {
-		return (GetBRDF(N, rD, sdir, albedo, PBR.xy) * (radiance * 3.5f)) * (1.0f - shadow);
+		return (GetBRDF(N, -rD, sdir, albedo, PBR.xy) * (radiance * 4.0f)) * (1.0f - shadow);
 	}
 } 
 
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal, vec3 rD)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (18.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 4.675f; 
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (10.0f);
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
 	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
 	vec3 LIGHT_COLOR; // The radiance of the light source
@@ -936,7 +937,7 @@ float schlickInverse(float f0, float VoH) {
     return 1.0 - clamp(f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0), 0.0f, 1.0f);
 }
 
-float diffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness)
+float DiffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness)
 {
     float nDotL = max0(dot(normal, lightDir));
     if (nDotL <= 0.0) return (0.0);
@@ -960,7 +961,7 @@ vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR)
 
     if(!isMetal) 
 	{
-        return albedo * diffuseHammon(normal, -incident, sunDir, PBR.x);
+        return albedo * DiffuseHammon(normal, -incident, sunDir, PBR.x);
     }
 	
 	else 

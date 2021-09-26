@@ -139,6 +139,12 @@ namespace VoxelRT
 			return m_ViewMatrix;
 		}
 
+		// tf dude
+		inline glm::mat4& GetViewMatrix_REFERENCE()
+		{
+			return m_ViewMatrix;
+		}
+
 		/*
 		Gets the front vector of the camera
 		*/

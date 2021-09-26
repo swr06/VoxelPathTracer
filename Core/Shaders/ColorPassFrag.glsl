@@ -327,10 +327,10 @@ vec3 GetAtmosphereAndClouds()
     vec3 S = vec3(1.45f);
     float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
     S = mix(S, D, DuskVisibility);
-    vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.1f, SunVisibility); 
+    vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.2f, SunVisibility); 
 	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
 	//vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
-	//vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f); // Bicubic B spline interp
+	//vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f);
     SampledCloudData.xyz *= CloudFade;
     float Transmittance = SampledCloudData.w;
     vec3 Scatter = SampledCloudData.xyz*1.2f ;

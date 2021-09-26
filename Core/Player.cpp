@@ -73,6 +73,7 @@ namespace VoxelRT
 		Camera.SetSensitivity(Sensitivity);
 
 		m_Velocity += m_Acceleration;
+		ApplyBasicViewBoobing();
 		m_Acceleration = { 0, 0, 0 };
 
 		// Gravity : 
@@ -221,5 +222,33 @@ namespace VoxelRT
 	{
 		m_Velocity = glm::clamp(m_Velocity, glm::vec3(-3.0f), glm::vec3(3.0f));
 		m_Acceleration = glm::clamp(m_Acceleration, glm::vec3(-3.0f), glm::vec3(3.0f));
+	}
+
+	// test.
+	void Player::ApplyBasicViewBoobing()
+	{
+		return;
+
+		glm::mat4& ViewTransform = this->Camera.GetViewMatrix_REFERENCE();
+		glm::vec3 CurrentVelocity = m_Velocity;
+		CurrentVelocity.y = 0.0f;
+		float VelocityLength = glm::length(CurrentVelocity) * 10.0f;
+		
+		if (VelocityLength < 0.001f) { return; }
+
+		const float PI = 3.1415926535;
+		const float TAU = 2.0f * PI;
+
+		float Time = glfwGetTime();
+		float Bobbing = glm::sin(Time * VelocityLength * (TAU));
+
+		glm::vec3 Position = Camera.GetPosition();
+
+		float Scale_1 = 1.0f;
+		glm::vec3 NewPosition = glm::vec3(Position.x, Position.y + Bobbing * Scale_1, Position.z);
+		glm::mat4 RotationMatrix = glm::mat4(1.0f); 
+		RotationMatrix = glm::rotate(glm::mat4(1.0f), glm::radians(Bobbing * 5.0f), glm::vec3(1.0f, 0.0f, 0.0f)); // X axis rotation matrix
+		ViewTransform = RotationMatrix * Camera.GetViewMatrix();
+		Camera.SetPosition(NewPosition);
 	}
 }
