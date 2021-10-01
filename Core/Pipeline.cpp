@@ -71,7 +71,7 @@ static bool TEMPORAL_SPEC = true;
 
 static bool DenoiseSunShadows = true;
 
-
+static bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
 
 static bool CHECKERBOARD_SPP = true;
 static bool CHECKERBOARD_SPEC_SPP = false;
@@ -211,6 +211,7 @@ public:
 			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
 			ImGui::NewLine();
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
+			ImGui::Checkbox("AGGRESSIVE_DISOCCLUSION_HANDLING ", &AGGRESSIVE_DISOCCLUSION_HANDLING);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
@@ -1346,6 +1347,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Variance.SetMatrix4("u_VertInverseView", inv_view);
 				SVGF_Variance.SetMatrix4("u_VertInverseProjection", inv_projection);
 				SVGF_Variance.SetBool("DO_SPATIAL", DO_VARIANCE_SPATIAL);
+				SVGF_Variance.SetBool("AGGRESSIVE_DISOCCLUSION_HANDLING", AGGRESSIVE_DISOCCLUSION_HANDLING);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -1464,6 +1466,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetMatrix4("u_InverseProjection", inv_projection);
 					SVGF_Spatial.SetBool("u_ShouldDetailWeight", !(i >= 3));
 					SVGF_Spatial.SetBool("DO_SPATIAL", DO_SVGF_SPATIAL);
+					SVGF_Spatial.SetBool("AGGRESSIVE_DISOCCLUSION_HANDLING", AGGRESSIVE_DISOCCLUSION_HANDLING);
 					SVGF_Spatial.SetFloat("u_ColorPhiBias", ColorPhiBias);
 					SVGF_Spatial.SetFloat("u_Time", glfwGetTime());
 					SVGF_Spatial.SetFloat("u_DeltaTime", DeltaTime);

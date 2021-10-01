@@ -13,7 +13,7 @@
 #define MAX_BOUNCE_LIMIT 2
 //#define APPLY_PLAYER_SHADOW
 
-// Bayer matrix, used for testing dithering
+// Bayer matrix, used for testing dithering, unused 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -24,12 +24,13 @@
 
 // Outputs diffuse indirect
 // Specular indirect is handled separately and in a higher resolution
-layout (location = 0) out vec4 o_SH;
-layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
-layout (location = 2) out float o_Utility;
-layout (location = 3) out float o_AO; // VXAO
 
-in vec2 v_TexCoords;
+layout (location = 0) out vec4 o_SH; // Projected radiance onto the first 2 spherical harmonics.
+layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
+layout (location = 2) out float o_Utility; // Using the first SH band to get the luminance is slightly erraneous so I store this.
+layout (location = 3) out float o_AO; // Basic VXAO
+
+in vec2 v_TexCoords; // screen space 
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 

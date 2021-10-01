@@ -1,7 +1,5 @@
 #version 330 core
 
-#define AGGRESSIVE_DISOCCLUSION_HANDLING
-
 
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
@@ -21,6 +19,7 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
 uniform bool DO_SPATIAL = true;
+uniform bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -95,24 +94,16 @@ void main()
     float TotalLuminosity = 0.0f;
     float TotalWeight2 = 0.0f;
     float Variance = 0.0f;
-    const float SPP_THRESH = 4.0f;
+
+    const float SPP_THRESH = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4.0f+4.0f : 4.0f;
+
 
     if (SPP < SPP_THRESH)
     {
-        #ifdef AGGRESSIVE_DISOCCLUSION_HANDLING 
-        const float ColorPhi = 5.5f; 
-        #else 
-        const float ColorPhi = 10.0f; // 10.0f
-        #endif
+        const float ColorPhi = AGGRESSIVE_DISOCCLUSION_HANDLING ? 5.0f : 5.0f*2.0f; 
 
-
-        #ifdef AGGRESSIVE_DISOCCLUSION_HANDLING
-        int XKernel = 4;
-        int YKernel = 4;
-        #else 
-        int XKernel = 2;
-        int YKernel = 2;
-        #endif
+        int XKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 2;
+        int YKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 2;
 
         for (int x = -XKernel ; x <= XKernel ; x++) 
         {

@@ -126,7 +126,7 @@ float GetVarianceEstimate(out float BaseVariance)
 
 float SHToY(vec4 shY)
 {
-    return max(0, 3.544905f * shY.w);
+    return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic
 }
 
 bool CompareFloatNormal(float x, float y) {
@@ -168,8 +168,8 @@ void main()
 	vec2 TexelSize = 1.0f / u_Dimensions;
 	vec4 TotalColor = vec4(0.0f);
 
-	bool FilterAO = u_Step <= 6;
-
+	bool FilterAO = u_Step < 5;
+	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 0.8f));
 	vec4 BasePosition = GetPositionAt(v_TexCoords);
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
@@ -188,13 +188,11 @@ void main()
 	float TotalAO = BaseAO;
 	float TotalAOWeight = 1.0f;
 	
-	float PhiColor = sqrt(max(0.0f, 1e-10 + VarianceEstimate));
+	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.005?pow(VarianceEstimate,2.2f):VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
-
-	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 0.8f));
 	//float Bayer = bayer2(gl_FragCoord.xy);
 
-	// 9 samples, with 6 passes and 1 initial pass
+	// 9 samples, with 5 atrous passes and 1 initial pass
 	for (int x = -1 ; x <= 1 ; x++)
 	{
 		for (int y = -1 ; y <= 1 ; y++)
