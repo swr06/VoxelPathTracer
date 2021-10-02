@@ -164,6 +164,8 @@ void main()
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.5f));
 
 	// Sample neighbours and hope to find a good sample : 
+	// Verified that this is indeed *much* better than just sampling at the reprojected coordinate 
+
 	for (int i = 0 ; i < 5 ; i++)
 	{
 		vec2 Offset = Offsets[i];
@@ -216,7 +218,7 @@ void main()
 	}
 
 	float UtilitySPP = SumSPP + 1.0;
-	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * pow(BaseLuminosity, 2.0f);
+	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * (BaseLuminosity*BaseLuminosity);//pow(BaseLuminosity, 2.0f);
 	
 	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
 	float StoreLuma = mix(SumLuminosity, CurrentNoisyLuma, BlendFactor);

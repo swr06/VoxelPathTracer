@@ -84,7 +84,7 @@ void main()
     vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
     float BaseLuminosity = SHToY(BaseSH);
 
-    float SPP = BaseUtility.x;
+    float ACCUMULATED_FRAMES = BaseUtility.x;
     float BaseMoment = BaseUtility.y;
 
     float TotalWeight = 0.0f;
@@ -95,10 +95,10 @@ void main()
     float TotalWeight2 = 0.0f;
     float Variance = 0.0f;
 
-    const float SPP_THRESH = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4.0f+4.0f : 4.0f;
+    const float FRAME_BIAS = 1.0f;  //u_Framebias////
+    const float ACCUMULATED_FRAMES_THRESH = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4.0f+4.0f+FRAME_BIAS : 4.0f+FRAME_BIAS;
 
-
-    if (SPP < SPP_THRESH)
+    if (ACCUMULATED_FRAMES < ACCUMULATED_FRAMES_THRESH) 
     {
         const float ColorPhi = AGGRESSIVE_DISOCCLUSION_HANDLING ? 5.0f : 5.0f*2.0f; 
 
@@ -165,7 +165,7 @@ void main()
         float AccumulatedLuminosity = TotalLuminosity;
         AccumulatedLuminosity = AccumulatedLuminosity * AccumulatedLuminosity;
         Variance = TotalMoment - AccumulatedLuminosity;
-	    Variance *= SPP_THRESH / SPP;
+	    Variance *= ACCUMULATED_FRAMES_THRESH / ACCUMULATED_FRAMES;
     } 
 
 

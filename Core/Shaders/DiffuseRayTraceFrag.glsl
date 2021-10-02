@@ -90,7 +90,6 @@ layout (std430, binding = 2) buffer BlueNoise_Data
 	int rankingTile[128*128*8];
 };
 
-
 float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
 {
 	int pixel_i = px.x;
@@ -158,12 +157,11 @@ const bool CAUSTICS = false;
 vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
 {
 	if (!CAUSTICS) {
-		//return albedo * NDotL * (radiance * 3.5f)  * (1.0f - shadow);
-		return albedo * DiffuseHammon(N, -rD, sdir, PBR.x) * (radiance * 3.5f) * (1.0f - shadow) * PI; // * PI to preserve energy
+		return albedo * DiffuseHammon(N, -rD, sdir, PBR.x) * (radiance*3.5f) * (1.0f - shadow) * PI;
 	}
 
 	else {
-		return (GetBRDF(N, -rD, sdir, albedo, PBR.xy) * (radiance * 4.0f)) * (1.0f - shadow);
+		return (GetBRDF(N, -rD, sdir, albedo, PBR.xy) * (radiance*4.0f)) * (1.0f - shadow);
 	}
 } 
 
@@ -898,66 +896,66 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     }
 }
 
-// brdf 
 
 
-float GGX_D(float dotNH, float alpha2) {
+
+
+
+// BRDF
+float GGX_D(float dotNH, float alpha2) { // distribution
     float den = (alpha2 - 1.0) * dotNH * dotNH + 1.0;
     return alpha2 / (PI * den * den);
 }
 
-vec3 ggx_light(vec3 n, vec3 v, vec3 l, vec2 specularity, vec3 albedo) {
-    float alpha2 = specularity.x * specularity.x;
-
-    float dotNL = clamp(dot(n, l), 0., 1.);
-    float dotNV = clamp(dot(n, v), 0., 1.);
-
+vec3 GGX_LIGHT(vec3 n, vec3 v, vec3 l, vec2 RM, vec3 albedo) 
+{
+    float alpha2 = RM.x * RM.x;
+    float dotNL = clamp(dot(n, l), 0.0f, 1.0f);
+    float dotNV = clamp(dot(n, v), 0.0f, 1.0f);
     vec3 h = normalize(v + l);
-    float dotNH = clamp(dot(n, h), 0., 1.);
-    float dotLH = clamp(dot(l, h), 0., 1.);
-
-    // GGX microfacet distribution function
+    float dotNH = clamp(dot(n, h), 0.0f, 1.0f);
+    float dotLH = clamp(dot(l, h), 0.0f, 1.0f);
     float D = GGX_D(dotNH, alpha2);
-
-    // Fresnel with Schlick approximation
-    vec3 F0 = specularity.y*albedo;
-
-    vec3 F = F0 + (1.0 - F0) * pow(1. - dotLH, 5.0);
-
-    // Smith joint masking-shadowing function
-    float k = (specularity.x + 1)*(specularity.x + 1)/8.0;
-    float G = 1.0 / ((dotNL * (1.0 - k) + k) * (dotNV * (1.0 - k) + k));
-
-    //pdf = max(D * dotNH /(4.0*dotLH), 0.00001);
-    return max(D * F * G, 0.0001);
+    vec3 F0 = RM.y*albedo;
+    vec3 F = F0 + (1.0f - F0) * pow(1.9f - dotLH, 5.0f);
+    float k = (RM.x + 1.0f) * (RM.x + 1.0f) / 8.0f;
+    float G = 1.0f / ((dotNL * (1.0f - k) + k) * (dotNV * (1.0f - k) + k));
+    return max(D * F * G, 0.0001f);
 }
 
-float max0(float x) { return max(0.0f, x); }
-
-float schlickInverse(float f0, float VoH) {
-    return 1.0 - clamp(f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0), 0.0f, 1.0f);
+float InverseSchlick(float f0, float VoH) 
+{
+    return 1.0 - clamp(f0 + (1.0f - f0) * pow(1.0f - VoH, 5.0f), 0.0f, 1.0f);
 }
 
+// hammon diffuse brdf 
 float DiffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness)
 {
-    float nDotL = max0(dot(normal, lightDir));
-    if (nDotL <= 0.0) return (0.0);
-    float nDotV = max0(dot(normal, viewDir));
-    float lDotV = max0(dot(lightDir, viewDir));
+    float nDotL = max(dot(normal, lightDir), 0.0f);
+
+    if (nDotL <= 0.0) 
+	{
+		return 0.0f; 
+	}
+
+	const float OneOverPI = 1.0f/PI;
+
+    float nDotV = max(dot(normal, viewDir), 0.0f);
+    float lDotV = max(dot(lightDir, viewDir), 0.0f);
     vec3 halfWay = normalize(viewDir + lightDir);
-    float nDotH = max0(dot(normal, halfWay));
-    float facing = lDotV * 0.5 + 0.5;
-    float singleRough = facing * (0.9 - 0.4 * facing) * ((0.5 + nDotH) * rcp(max(nDotH, 0.02)));
-    float singleSmooth = 1.05 * schlickInverse(0.0, nDotL) * schlickInverse(0.0, max0(nDotV));
+    float nDotH = max(dot(normal, halfWay), 0.0f);
+    float facing = lDotV * 0.5f + 0.5f;
+    float singleRough = facing * (0.9f - 0.4f * facing) * ((0.5f + nDotH) * rcp(max(nDotH, 0.02)));
+    float singleSmooth = 1.05f * InverseSchlick(0.0f, nDotL) * InverseSchlick(0.0f, max(nDotV, 0.0f));
     float single = clamp(mix(singleSmooth, singleRough, roughness) * rcp(PI), 0.0f, 1.0f);
-    float multi = 0.1159 * roughness;
-    return clamp((multi + single) * nDotL, 0.0f, 1.0f);
+    float multi = 0.1159f * roughness;
+    return clamp((multi + single) * nDotL, 0.0f, 1.0f); // approximate for multi scattering as well
 }
 
 vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR) 
 {
     vec3 BRDF;
-    bool isMetal = (PBR.y > 0.1f);
+    bool isMetal = (PBR.y > 0.08f);
     float cosTheta = clamp(dot(normal, sunDir), 0.0f, 1.0f);
 
     if(!isMetal) 
@@ -967,7 +965,7 @@ vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR)
 	
 	else 
 	{
-       return mix(vec3(1), albedo, float(isMetal)) * ggx_light(normal, -incident, sunDir, PBR, albedo) * cosTheta;
+       return mix(vec3(1), albedo, float(isMetal)) * GGX_LIGHT(normal, -incident, sunDir, PBR, albedo) * cosTheta;
     }
     
     return BRDF;

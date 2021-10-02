@@ -188,7 +188,7 @@ void main()
 	float TotalAO = BaseAO;
 	float TotalAOWeight = 1.0f;
 	
-	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.005?pow(VarianceEstimate,2.2f):VarianceEstimate));
+	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.00625?pow(VarianceEstimate,2.2f):VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
 	//float Bayer = bayer2(gl_FragCoord.xy);
 

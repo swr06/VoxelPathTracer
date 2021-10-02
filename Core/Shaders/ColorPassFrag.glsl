@@ -615,8 +615,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
     float cosTheta = max(dot(norm, Eye), 0.0);
-    const float magic = 1.71100;
-    // 1.0 - roughness -> smoothness -> amplified by magic 
+    const float magic = 2.4f;
     return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
 }
 
