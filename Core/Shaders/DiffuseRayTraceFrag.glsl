@@ -1,5 +1,7 @@
 #version 450 core
 
+// indirect diffuse raytracing
+
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
@@ -125,7 +127,7 @@ float nextFloat(inout int seed);
 int nextInt(inout int seed); 
 vec3 GetSkyColorAt(vec3 rd);
 vec3 RandomPointInUnitSphereRejective();
-vec3 CosineSampleHemisphere(float u1, float u2);
+vec3 CosineSampleHemisphere_2(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float GetShadowAt(vec3 pos, in vec3 ldir);
 vec2 ReprojectShadow(vec3);
@@ -704,12 +706,162 @@ bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 no
 }
 
 
+/*
+
+// initial DDA algorithm 
+// thanks to telo for the help
+
+float ProjectToCube(vec3 ro, vec3 rd) 
+{	
+	float tx1 = (0 - ro.x) / rd.x;
+	float tx2 = (MapSize.x - ro.x) / rd.x;
+
+	float ty1 = (0 - ro.y) / rd.y;
+	float ty2 = (MapSize.y - ro.y) / rd.y;
+
+	float tz1 = (0 - ro.z) / rd.z;
+	float tz2 = (MapSize.z - ro.z) / rd.z;
+
+	float tx = max(min(tx1, tx2), 0);
+	float ty = max(min(ty1, ty2), 0);
+	float tz = max(min(tz1, tz2), 0);
+
+	float t = max(tx, max(ty, tz));
+	
+	return t;
+}
+
+float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType) 
+{
+	vec3 origin = orig;
+	const float epsilon = 0.001f;
+	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
+	origin += t1 * direction;
+
+	int mapX = int(floor(origin.x));
+	int mapY = int(floor(origin.y));
+	int mapZ = int(floor(origin.z));
+
+	float sideDistX;
+	float sideDistY;
+	float sideDistZ;
+
+	float deltaDX = abs(1.0f / direction.x);
+	float deltaDY = abs(1.0f / direction.y);
+	float deltaDZ = abs(1.0f / direction.z);
+	float T = -1.0;
+
+	int stepX;
+	int stepY;
+	int stepZ;
+
+	int hit = 0;
+	int side;
+
+	if (direction.x < 0)
+	{
+		stepX = -1;
+		sideDistX = (origin.x - mapX) * deltaDX;
+	} 
+	
+	else 
+	{
+		stepX = 1;
+		sideDistX = (mapX + 1.0 - origin.x) * deltaDX;
+	}
+
+	if (direction.y < 0) 
+	{
+		stepY = -1;
+		sideDistY = (origin.y - mapY) * deltaDY;
+	} 
+	
+	else 
+	{
+		stepY = 1;
+		sideDistY = (mapY + 1.0 - origin.y) * deltaDY;
+	}
+
+	if (direction.z < 0) 
+	{
+		stepZ = -1;
+		sideDistZ = (origin.z - mapZ) * deltaDZ;
+	} 
+	
+	else 
+	{
+		stepZ = 1;
+		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
+	}
+
+	for (int i = 0; i < 175; i++) 
+	{
+		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
+		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
+
+		if (sideDistX < sideDistY && sideDistX < sideDistZ) 
+		{
+			sideDistX += deltaDX;
+			mapX += stepX;
+			side = 0;
+		} 
+		
+		else if (sideDistY < sideDistX && sideDistY < sideDistZ)
+		{
+			sideDistY += deltaDY;
+			mapY += stepY;
+			side = 1;
+		} 
+		
+		else 
+		{
+			sideDistZ += deltaDZ;
+			mapZ += stepZ;
+			side = 2;
+		}
+
+		float block = GetVoxel(ivec3(mapX, mapY, mapZ));
+
+		if (block != 0) 
+		{
+			hit = 1;
+			blockType = block;
+
+			if (side == 0) 
+			{
+				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
+				normal = vec3(1, 0, 0) * -stepX;
+			}
+
+			else if (side == 1) 
+			{
+				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
+				normal = vec3(0, 1, 0) * -stepY;
+			}
+
+			else
+			{
+				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
+				normal = vec3(0, 0, 1) * -stepZ;
+			}
+
+			break;
+		}
+	}
+
+	return T;
+}
+
+*/
+
+
+// 
 bool PointIsInSphere(vec3 point, float radius)
 {
 	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
 }
 
-vec3 RandomPointInUnitSphereRejective()
+vec3 RandomPointInUnitSphereRejective() // unused since this is slow asf
 {
 	float x, y, z;
 	const int accuracy = 10;
@@ -729,14 +881,12 @@ vec3 RandomPointInUnitSphereRejective()
 	return vec3(x, y, z);
 }
 
-vec3 CosineSampleHemisphere(float u1, float u2)
+vec3 CosineSampleHemisphere_2(float u1, float u2)
 {
     float r = sqrt(u1);
-    float theta = 2 * 3.14159265 * u2;
- 
+    float theta = 2.0f * 3.14159265f * u2;
     float x = r * cos(theta);
     float y = r * sin(theta);
- 
     return vec3(x, y, sqrt(max(0.0f, 1 - u1)));
 }
 
