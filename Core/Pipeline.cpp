@@ -98,7 +98,7 @@ static glm::vec2 CloudModifiers = glm::vec2(-0.3569, 0.1250f); // magic kek
 static bool CurlNoiseOffset = false;
 static float CloudTimeScale = 1.0f;
 
-static float ColorPhiBias = 2.125f;
+static float ColorPhiBias = 3.25f;
 static float CloudResolution = 0.5f;
 
 static bool VXAO = true;
@@ -1457,6 +1457,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetInteger("u_CoCg", 5);
 					SVGF_Spatial.SetInteger("u_Utility", 6);
 					SVGF_Spatial.SetInteger("u_AO", 8);
+					SVGF_Spatial.SetInteger("u_TemporalMoment", 9);
 
 					SVGF_Spatial.SetInteger("u_Step", StepSizes[i]);
 					SVGF_Spatial.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
@@ -1494,6 +1495,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 					glActiveTexture(GL_TEXTURE8);
 					glBindTexture(GL_TEXTURE_2D, AOTexture);
+
+					glActiveTexture(GL_TEXTURE9);
+					glBindTexture(GL_TEXTURE_2D, DiffuseTemporalFBO.GetTexture(2));
 
 					VAO.Bind();
 					glDrawArrays(GL_TRIANGLES, 0, 6);

@@ -180,7 +180,7 @@ void main()
 		float idat = texture(u_PrevBlockIDTexture, SampleCoord).r;
 		int SampleBlock = clamp(int(floor((idat) * 255.0f)), 0, 127);
 
-		if (PositionError < 1.10f &&
+		if (PositionError < 0.8f &&
 			PreviousNormalAt == BaseNormal &&
 			BaseBlock == SampleBlock)
 		{
@@ -217,12 +217,12 @@ void main()
 		BlendFactor = 0.01f;
 	}
 
-	float UtilitySPP = SumSPP + 1.0;
-	float UtilityMoment = (1 - MomentFactor) * SumMoment + MomentFactor * (BaseLuminosity*BaseLuminosity);//pow(BaseLuminosity, 2.0f);
+	float UtilitySPP = SumSPP + 1.2f;
+	float UtilityMoment = (1.0f - MomentFactor) * SumMoment + MomentFactor * (BaseLuminosity * BaseLuminosity) ;//pow(BaseLuminosity, 2.0f); 
 	
 	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
 	float StoreLuma = mix(SumLuminosity, CurrentNoisyLuma, BlendFactor);
-
+	
 	o_SH = mix(SumSH, BaseSH, BlendFactor);
 	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);
 	o_AO = mix(SumAO, BaseAO, BlendFactor);

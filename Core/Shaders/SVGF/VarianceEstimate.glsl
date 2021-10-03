@@ -95,15 +95,15 @@ void main()
     float TotalWeight2 = 0.0f;
     float Variance = 0.0f;
 
-    const float FRAME_BIAS = 1.0f;  //u_Framebias////
+    const float FRAME_BIAS = 4.0f;  //u_Framebias////
     const float ACCUMULATED_FRAMES_THRESH = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4.0f+4.0f+FRAME_BIAS : 4.0f+FRAME_BIAS;
 
     if (ACCUMULATED_FRAMES < ACCUMULATED_FRAMES_THRESH) 
     {
         const float ColorPhi = AGGRESSIVE_DISOCCLUSION_HANDLING ? 5.0f : 5.0f*2.0f; 
 
-        int XKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 2;
-        int YKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 2;
+        int XKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 1;
+        int YKernel = AGGRESSIVE_DISOCCLUSION_HANDLING ? 4 : 1;
 
         for (int x = -XKernel ; x <= XKernel ; x++) 
         {

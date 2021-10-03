@@ -11,7 +11,7 @@
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 25
+#define MAX_VOXEL_DIST 30
 #define MAX_BOUNCE_LIMIT 2
 //#define APPLY_PLAYER_SHADOW
 
@@ -167,20 +167,11 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo,
 	}
 } 
 
+vec3 LIGHT_COLOR;
+vec3 StrongerLightDirection;
+
 vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal, vec3 rD)
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (10.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
-	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
-
-	vec3 LIGHT_COLOR; // The radiance of the light source
-	vec3 StrongerLightDirection;
-	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
-	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
-    vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
-	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
-	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
-
 	vec2 TextureIndexes = vec2(
 		float(BlockAlbedoData[tex_index]),
 		float(BlockEmissiveData[tex_index])
@@ -188,7 +179,6 @@ vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 
 
 	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
 	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.r), 2.0f).rgb; // 512, 256, 128, 64, 32, 16
-	//Albedo = pow(Albedo, vec3(1.0f/2.2f));
 
 	float Emmisivity = 0.0f;
 
@@ -353,6 +343,17 @@ vec2 SampleBlueNoise2D(int Index)
 
 void main()
 {
+	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (10.0f);
+	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
+	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
+
+	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
+	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
+    vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
+	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
+	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
+
+	
     #ifdef ANIMATE_NOISE
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 1000);
 	#else
@@ -367,6 +368,7 @@ void main()
 
 	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
 	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
+
 	o_Utility = GetLuminance(vec3(0.0f));
 
 	if (Position.w < 0.0f)

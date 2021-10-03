@@ -26,12 +26,14 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTexture;
 uniform sampler2D u_VarianceTexture;
+uniform sampler2D u_TemporalMoment;
 uniform sampler2D u_AO;
 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 uniform bool u_ShouldDetailWeight;
 uniform bool DO_SPATIAL;
+uniform bool AGGRESSIVE_DISOCCLUSION_HANDLING;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
@@ -187,7 +189,10 @@ void main()
 	float TotalVariance = BaseVariance;
 	float TotalAO = BaseAO;
 	float TotalAOWeight = 1.0f;
-	
+
+	float AccumulatedFrames = texture(u_TemporalMoment, v_TexCoords).x;
+	bool DoStrongSpatial = AccumulatedFrames < 8.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
+
 	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.00625?pow(VarianceEstimate,2.2f):VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
 	//float Bayer = bayer2(gl_FragCoord.xy);
@@ -225,7 +230,7 @@ void main()
 				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
 				NormalWeight = clamp(NormalWeight, 0.001f, 1.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
-				float Weight = exp(-LuminosityWeight - NormalWeight); // * DepthWeight;
+				float Weight = DoStrongSpatial ? exp(-NormalWeight) : exp(-LuminosityWeight - NormalWeight); // * DepthWeight;
 				Weight = clamp(Weight, 0.001f, 1.0f);
 
 				// Kernel Weights : 
