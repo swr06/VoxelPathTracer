@@ -183,4 +183,9 @@ void main()
     }
 
     o_Variance = Variance;
+
+    // clamp
+    o_SH = clamp(o_SH, -100.0f, 100.0f);
+	o_CoCg = clamp(o_CoCg, -10.0f, 100.0f);
+	o_Variance = clamp(o_Variance, -1.0f, 50.0f);
 }

@@ -96,7 +96,7 @@ float GetVarianceEstimate(out float BaseVariance)
 	float VarianceSum = 0.0f;
 
 	const float Kernel[3] = float[3](1.0 / 4.0, 1.0 / 8.0, 1.0 / 16.0);
-	const float Gaussian[2] = float[2](0.60283f, 0.198585f);
+	const float Gaussian[2] = float[2](0.60283f, 0.198585f); // gaussian kernel
 	float TotalKernel = 0.0f;
 
 	for (int x = -1 ; x <= 1 ; x++)
@@ -276,4 +276,10 @@ void main()
 		o_Variance = BaseVariance;
 		o_AO = BaseAO;
 	}
+
+    // clamp
+	o_SH = clamp(o_SH, -100.0f, 100.0f);
+	o_CoCg = clamp(o_CoCg, -10.0f, 100.0f);
+	o_Variance = clamp(o_Variance, -1.0f, 50.0f);
+	o_AO = clamp(o_AO, 0.0f, 1.0f);
 }

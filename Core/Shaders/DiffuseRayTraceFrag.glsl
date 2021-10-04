@@ -170,73 +170,65 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo,
 vec3 LIGHT_COLOR;
 vec3 StrongerLightDirection;
 
-vec3 GetDirectLighting(in vec3 world_pos, in int tex_index, in vec2 uv, in vec3 flatnormal, vec3 rD)
-{
-	vec2 TextureIndexes = vec2(
-		float(BlockAlbedoData[tex_index]),
-		float(BlockEmissiveData[tex_index])
-	);
-
-	vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(uv, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
-	vec3 PBR = textureLod(u_BlockPBRTextures, vec3(uv, TextureIndexes.r), 2.0f).rgb; // 512, 256, 128, 64, 32, 16
-
-	float Emmisivity = 0.0f;
-
-	if (TextureIndexes.y >= 0.0f)
-	{
-		float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(uv, TextureIndexes.y)).r;
-		Emmisivity = SampledEmmisivity * 20.0f * u_DiffuseLightIntensity;
-	}
-
-	float NDotL = max(dot(flatnormal, StrongerLightDirection), 0.0f);
-	vec3 bias = (flatnormal * 0.045);
-	float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(world_pos + bias, StrongerLightDirection);
-	vec3 DirectLighting = CalculateDirectionalLight(world_pos, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, flatnormal, rD, StrongerLightDirection);
-	return (Emmisivity * Albedo) + DirectLighting;
-}
-
-vec3 GetBlockRayColor(in Ray r, out vec3 pos, out vec3 out_n)
-{
-	float b = 0;
-
-	//bool Intersect = voxel_traversal(r.Origin, r.Direction, b, out_n, pos, MAX_VOXEL_DIST);
-
-	// float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, in int dist);
-	float T = VoxelTraversalDF(r.Origin, r.Direction, out_n, b, MAX_VOXEL_DIST);
-	int tex_ref = clamp(int(floor(b * 255.0f)), 0, 127);
-	bool Intersect = T > 0.0f;
-	pos = r.Origin + (r.Direction * T);
-
-	if (Intersect && b > 0) 
-	{ 
-		vec2 txc; CalculateUV(pos, out_n, txc);
-		return GetDirectLighting(pos, tex_ref, txc, out_n, r.Direction);
-	} 
-
-	else 
-	{	
-		float x = mix(3.0f, 1.75f, u_SunVisibility);
-		x = clamp(x,0.0f,5.0f);
-		return GetSkyColorAt(r.Direction) * x;
-	}
-}
-
 vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir)
 {
 	float bias = 0.045f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
 
-	vec3 total_color = vec3(0.0f);;
-
-	vec3 Position;
-	vec3 Normal;
 	float ao = 1.0f;
+
+	vec3 radiance = vec3(0.0f);
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
+		if (i == 0) {
+			dir = new_ray.Direction;
+		}
+
 		vec3 tangent_normal;
-		total_color += GetBlockRayColor(new_ray, Position, Normal);
-		float T = distance(initial_origin, Position);
+		
+		vec3 HitNormal; 
+		float HitBlock;
+		float T = VoxelTraversalDF(new_ray.Origin, new_ray.Direction, HitNormal, HitBlock, MAX_VOXEL_DIST);
+		int tex_ref = clamp(int(floor(HitBlock * 255.0f)), 0, 127);
+		bool Intersect = T > 0.0f;
+		vec3 IntersectionPosition = new_ray.Origin + (new_ray.Direction * T);
+
+		if (Intersect && HitBlock > 0) 
+		{ 
+			vec2 txc; 
+			CalculateUV(IntersectionPosition, HitNormal, txc);
+			vec2 TextureIndexes = vec2(
+				float(BlockAlbedoData[tex_ref]),
+				float(BlockEmissiveData[tex_ref])
+			);
+
+			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(txc, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
+			vec3 PBR = textureLod(u_BlockPBRTextures, vec3(txc, TextureIndexes.r), 2.0f).rgb; // 512, 256, 128, 64, 32, 16
+
+			float Emmisivity = 0.0f;
+
+			if (TextureIndexes.y >= 0.0f)
+			{
+				float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(txc, TextureIndexes.y)).r;
+				Emmisivity = SampledEmmisivity * 20.0f * u_DiffuseLightIntensity;
+			}
+
+			float NDotL = max(dot(HitNormal, StrongerLightDirection), 0.0f);
+			vec3 bias_shadow = (HitNormal * 0.045);
+			float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(IntersectionPosition + bias_shadow, StrongerLightDirection);
+			vec3 BRDF = CalculateDirectionalLight(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
+			radiance += (Emmisivity * Albedo)+BRDF;
+		} 
+
+		else 
+		{	
+			float x = mix(3.0f, 1.75f, u_SunVisibility);
+			x = clamp(x,0.0f,5.0f);
+			radiance += GetSkyColorAt(new_ray.Direction) * x * 2.0f;
+			break;
+		}
+
 
 		if (i == 0)
 		{
@@ -251,12 +243,12 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir
 			dir = new_ray.Direction;
 		}
 
-		new_ray.Origin = Position + Normal * bias;
-		new_ray.Direction = cosWeightedRandomHemisphereDirection(Normal);
+		new_ray.Origin = IntersectionPosition + HitNormal * 0.09;
+		new_ray.Direction = cosWeightedRandomHemisphereDirection(HitNormal);
 	}
 	
-	total_color = total_color / max(MAX_BOUNCE_LIMIT, 1);
-	return vec4(total_color, ao); 
+	radiance /= float(MAX_BOUNCE_LIMIT);
+	return vec4(radiance, ao); 
 }
 
 // basic fract(sin) pseudo random number generator

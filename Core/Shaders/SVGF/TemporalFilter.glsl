@@ -48,6 +48,7 @@ uniform float u_MinimumMix = 0.25f;
 uniform float u_MaximumMix = 0.975f;
 uniform vec3 u_PrevCameraPos;
 uniform vec3 u_CurrentCameraPos;
+uniform bool u_BeUseful;
 
 uniform float u_DeltaTime;
 uniform float u_Time;
@@ -209,15 +210,18 @@ void main()
 
 	const bool AccumulateAll = false;
 
-	float BlendFactor = max(1.0f / (SumSPP + 1.0f), 0.05f);
-	float MomentFactor = max(1.0f / (SumSPP + 1.0f), 0.05f);
+	float Increment = float(u_BeUseful);
+	float BlendFactor = max(1.0f / (SumSPP + Increment), 0.05f);
+	float MomentFactor = max(1.0f / (SumSPP + Increment), 0.05f);
 
 	
-	if (AccumulateAll) {
-		BlendFactor = 0.01f;
+	if (!u_BeUseful) {
+		BlendFactor = 0.99f;
+		SumSPP = 0.0f;
 	}
 
-	float UtilitySPP = SumSPP + 1.2f;
+	SumSPP = clamp(SumSPP, 0.0f, 120.0f);
+	float UtilitySPP = SumSPP + Increment;
 	float UtilityMoment = (1.0f - MomentFactor) * SumMoment + MomentFactor * (BaseLuminosity * BaseLuminosity) ;//pow(BaseLuminosity, 2.0f); 
 	
 	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
@@ -227,6 +231,12 @@ void main()
 	o_CoCg = mix(SumCoCg, BaseCoCg, BlendFactor);
 	o_AO = mix(SumAO, BaseAO, BlendFactor);
 	o_Utility = vec3(UtilitySPP, UtilityMoment, StoreLuma);
+	
+	// clamp
+	o_SH = clamp(o_SH, -100.0f, 100.0f);
+	o_CoCg = clamp(o_CoCg, -10.0f, 100.0f);
+	o_AO = clamp(o_AO, 0.0f, 1.0f);
+	o_Utility = clamp(o_Utility, -150.0f, 150.0f);
 }
 
 

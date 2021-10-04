@@ -65,6 +65,13 @@ static bool SmartUpscaleCloudTemporal = true;
 static int PIXEL_PADDING = 20;
 
 static bool TEMPORAL_SPEC = true;
+
+
+
+static bool REFLECT_PLAYER = false;
+
+
+
 //static bool ANTI_FLICKER = true;
 
 
@@ -98,7 +105,7 @@ static glm::vec2 CloudModifiers = glm::vec2(-0.3569, 0.1250f); // magic kek
 static bool CurlNoiseOffset = false;
 static float CloudTimeScale = 1.0f;
 
-static float ColorPhiBias = 3.25f;
+static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.5f;
 
 static bool VXAO = true;
@@ -141,6 +148,7 @@ static bool Bloom = true;
 static bool USE_SVGF = true;
 static bool DO_VARIANCE_SPATIAL = true;
 static bool DO_SVGF_SPATIAL = true;
+static bool DO_SVGF_TEMPORAL = true;
 
 static bool BrutalFXAA = true;
 
@@ -213,6 +221,7 @@ public:
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("AGGRESSIVE_DISOCCLUSION_HANDLING ", &AGGRESSIVE_DISOCCLUSION_HANDLING);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
+			ImGui::Checkbox("DO_SVGF_TEMPORAL ", &DO_SVGF_TEMPORAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
@@ -253,6 +262,7 @@ public:
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
 		//	ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
 			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
+			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
 			
 			//ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
 			
@@ -1271,6 +1281,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Temporal.SetFloat("u_MaximumMix", 0.96f);
 				SVGF_Temporal.SetInteger("u_TemporalQuality", 0); // No clamping!
 				SVGF_Temporal.SetBool("u_ReflectionTemporal", false);
+				SVGF_Temporal.SetBool("u_BeUseful", DO_SVGF_TEMPORAL);
 				SVGF_Temporal.SetFloat("u_ClampBias", 0.025f);
 				SVGF_Temporal.SetVector3f("u_PrevCameraPos", PreviousPosition);
 				SVGF_Temporal.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -1856,6 +1867,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 			ReflectionTraceShader.SetBool("u_RoughReflections", RoughReflections);
 			ReflectionTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
+			ReflectionTraceShader.SetBool("u_ReflectPlayer", REFLECT_PLAYER);
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -2994,5 +3006,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 
+
+
+
 // pipeline end.
+
 

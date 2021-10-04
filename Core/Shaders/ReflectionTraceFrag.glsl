@@ -74,6 +74,7 @@ uniform int u_CurrentFrameMod128;
 
 
 uniform bool TEMPORAL_SPEC=false;
+uniform bool u_ReflectPlayer;
 
 
 layout (std430, binding = 0) buffer SSBO_BlockData
@@ -698,7 +699,10 @@ void main()
 			vec3 Computed;
 			Computed = DirectLighting;
 			Computed *= AO;
-			ComputePlayerReflection(refpos, R, Computed, T);
+
+			if (u_ReflectPlayer) {
+				ComputePlayerReflection(refpos, R, Computed, T);
+			}
 
 			float[6] SH = IrridianceToSH(Computed, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
