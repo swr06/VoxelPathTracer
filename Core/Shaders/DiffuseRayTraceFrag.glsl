@@ -136,6 +136,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist);
 vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR);
 float DiffuseHammon(vec3 normal, vec3 viewDir, vec3 lightDir, float roughness);
+vec3 CreateDiffuseRay(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir, out vec3 weight);
 
 // Globals
 vec3 g_Normal;
@@ -155,8 +156,12 @@ float Bayer2(vec2 a)
 
 const bool CAUSTICS = false;
 
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (15.0f);
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
+const vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
+
 // Simplified diffuse brdf
-vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
+vec3 SunBRDF(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
 {
 	if (!CAUSTICS) {
 		return albedo * DiffuseHammon(N, -rD, sdir, PBR.x) * (radiance*3.5f) * (1.0f - shadow) * PI;
@@ -167,22 +172,37 @@ vec3 CalculateDirectionalLight(in vec3 world_pos, vec3 radiance, in vec3 albedo,
 	}
 } 
 
+vec3 SunBRDFWithoutRadiance(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
+{
+	if (!CAUSTICS) {
+		return albedo * DiffuseHammon(N, -rD, sdir, PBR.x) * (1.0f - shadow) * PI;
+	}
+
+	else {
+		return GetBRDF(N, -rD, sdir, albedo, PBR.xy) * (1.0f - shadow);
+	}
+} 
+
+
 vec3 LIGHT_COLOR;
 vec3 StrongerLightDirection;
+bool g_AverageBounces = true;
 
-vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
-	float bias = 0.045f;
+	float bias = 0.05f;
 	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
 
 	float ao = 1.0f;
 
-	vec3 radiance = vec3(0.0f);
+	vec3 Contribution = vec3(0.0f);
+	vec3 Throughput = vec3(1.0f);
+	vec3 TotalBounceRadiance = vec3(0.0f);
 
 	for (int i = 0 ; i < MAX_BOUNCE_LIMIT ; i++)
 	{
 		if (i == 0) {
-			dir = new_ray.Direction;
+			odir = new_ray.Direction;
 		}
 
 		vec3 tangent_normal;
@@ -217,15 +237,29 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir
 			float NDotL = max(dot(HitNormal, StrongerLightDirection), 0.0f);
 			vec3 bias_shadow = (HitNormal * 0.045);
 			float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(IntersectionPosition + bias_shadow, StrongerLightDirection);
-			vec3 BRDF = CalculateDirectionalLight(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
-			radiance += (Emmisivity * Albedo)+BRDF;
+			//radiance += (Emmisivity * Albedo)+BRDF;
+			
+			vec3 EmmisivityColor = (Emmisivity * Albedo);
+			vec3 BRDF = SunBRDF(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
+			Contribution += EmmisivityColor * Throughput;
+			Contribution += BRDF * Throughput;
+
+			// Sample New Direction 
+			vec3 W = vec3(0.0f);
+			vec3 NewDirection = g_AverageBounces ? cosWeightedRandomHemisphereDirection(HitNormal) : CreateDiffuseRay(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection, W);
+			Throughput *= W;
+			new_ray.Direction = NewDirection;
+			new_ray.Origin = IntersectionPosition + HitNormal * bias;
+			TotalBounceRadiance += EmmisivityColor + BRDF;
 		} 
 
 		else 
 		{	
 			float x = mix(3.0f, 1.75f, u_SunVisibility);
 			x = clamp(x,0.0f,5.0f);
-			radiance += GetSkyColorAt(new_ray.Direction) * x * 2.0f;
+			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x * 2.0f);
+			Contribution += sky * Throughput;
+			TotalBounceRadiance += sky;
 			break;
 		}
 
@@ -238,17 +272,11 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 dir
 				ao = 1.0f - float(T*T<0.225f);
 				//ao = T / 3.5f;
 			}
-
-			// store sh direction
-			dir = new_ray.Direction;
 		}
 
-		new_ray.Origin = IntersectionPosition + HitNormal * 0.09;
-		new_ray.Direction = cosWeightedRandomHemisphereDirection(HitNormal);
 	}
-	
-	radiance /= float(MAX_BOUNCE_LIMIT);
-	return vec4(radiance, ao); 
+
+	return g_AverageBounces ? vec4(TotalBounceRadiance/max(float(MAX_BOUNCE_LIMIT),0.0f), ao) : vec4(Contribution, ao); 
 }
 
 // basic fract(sin) pseudo random number generator
@@ -335,9 +363,7 @@ vec2 SampleBlueNoise2D(int Index)
 
 void main()
 {
-	vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (10.0f);
-	vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
-	vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
+
 
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
 	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
@@ -345,7 +371,6 @@ void main()
 	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 
-	
     #ifdef ANIMATE_NOISE
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 1000);
 	#else
@@ -471,6 +496,29 @@ vec3 cosWeightedRandomHemisphereDirection(const vec3 n)
 	vec3  rr = vec3(rx * uu + ry * vv + rz * n );
     
     return normalize(rr);
+}
+
+// vec3 SunBRDF(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
+vec3 GGX_LIGHT(vec3 n, vec3 v, vec3 l, vec2 RM, vec3 albedo) ;
+
+vec3 DiffuseRayBRDF(vec3 normal, vec3 incident, vec3 diffusedir, vec3 albedo, vec2 rg)
+{
+   // float CosTheta = clamp(dot(normal, diffusedir), 0.0f, 1.0f);
+    vec3 BRDF;
+    BRDF = vec3(1.0f) * DiffuseHammon(normal, -incident, diffusedir, rg.r);
+    return BRDF;
+}
+
+vec3 CreateDiffuseRay(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir, out vec3 weight)
+{
+	const float OneOverPI = 1.0f / PI;
+    vec3 DiffuseDirection;
+	float PDF;
+    DiffuseDirection = cosWeightedRandomHemisphereDirection(N);
+    float CosTheta = clamp(dot(N, DiffuseDirection), 0.0f, 1.0f);
+    PDF = max(CosTheta / PI, 0.00001f); // dot(n,r)/pi
+    weight = DiffuseRayBRDF(N, rD, DiffuseDirection, albedo, PBR.xy) / PDF;
+    return DiffuseDirection;
 }
 
 vec3 GetSkyColorAt(vec3 rd) 

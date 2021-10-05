@@ -403,6 +403,9 @@ vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
 	return r * vec2(cos(theta), sin(theta));
 }
 
+//#define ANIMATE_BY_GOLDEN_RATIO
+//#define USE_EW_WHITE_NOISE
+
 void main()
 {
 	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
@@ -419,17 +422,31 @@ void main()
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 JitteredLightDirection = normalize(u_LightDirection);
 
+
+
 	if (u_ContactHardeningShadows)
 	{
 		vec3 RayPosition = RayOrigin.xyz;
 
-		vec2 Hash;
-		int n = u_CurrentFrame%1024;
-		vec2 off = fract(vec2(n*12664745, n*9560333)/16777216.0) * 1024.0;
-		ivec2 TextureSize = textureSize(u_BlueNoiseTexture, 0);
-		ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
-		Hash = texelFetch(u_BlueNoiseTexture, SampleTexelLoc, 0).xy;
-
+		#ifndef USE_EW_WHITE_NOISE 
+			#ifdef ANIMATE_BY_GOLDEN_RATIO
+				ivec2 TxS = ivec2(textureSize(u_BlueNoiseTexture, 0).xy);
+				vec3 Hash = texelFetch(u_BlueNoiseTexture, ivec2(gl_FragCoord.xy*2.0)%TxS, 0).xyz;//texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(TxS / 2.0f))).xy;
+				const float GoldenRatio = 1.61803398875f;
+				vec3 Xi = mod(Hash + GoldenRatio * (u_CurrentFrame % 240), 1.0f);
+			#else
+				vec3 Hash;
+				int n = u_CurrentFrame % 1024;
+				vec2 off = fract(vec2(n * 12664745, n * 9560333) / 16777216.0) * 1024.0;
+				ivec2 TextureSize = textureSize(u_BlueNoiseTexture, 0);
+				ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
+				Hash = texelFetch(u_BlueNoiseTexture, SampleTexelLoc, 0).xyz;
+				vec3 Xi = Hash;
+			#endif
+		#else 
+			vec3 Xi = vec3(hash2(), hash2().x);
+		#endif
+		
 		vec3 L = JitteredLightDirection;
 		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
 		vec3 B = cross(T, L);
@@ -438,8 +455,7 @@ void main()
 		// 0.98906604617 -> physically based
 		// 0.999825604617
 		const float CosTheta = 0.9999505604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
-		vec2 Xi = Hash;
-		vec3 ConeSample = TBN * SampleCone(Xi, CosTheta);
+		vec3 ConeSample = TBN * SampleCone(Xi.xy, CosTheta);
         JitteredLightDirection = ConeSample;
 	}
 

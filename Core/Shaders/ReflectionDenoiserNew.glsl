@@ -1,3 +1,6 @@
+// Gaussian reflection denoiser
+// This denoiser has specialized weights so that it doesn't overblur anything 
+
 #version 430 core
 
 layout (location = 0) out vec4 o_SpatialResult;
@@ -151,6 +154,7 @@ void main()
 
 	vec2 BaseUV = CalculateUV(BasePosition.xyz, BaseNormal);
 	BaseUV = clamp(BaseUV, 0.001f, 0.999f);
+	BaseUV.y = 1.0f - BaseUV.y;
 
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
@@ -162,7 +166,7 @@ void main()
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 1e-6f);
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), (1.0f-RoughnessAt)*4.0f), 0.0f, 1.0f);
 	int EffectiveRadius = int(floor(Radius * 12.0f));
-	EffectiveRadius = clamp(EffectiveRadius, 1, 12);
+	EffectiveRadius = clamp(EffectiveRadius, 1, 12+2);
 
 	// reduce noise on too rough objects 
 	bool BaseTooRough = RoughnessAt > 0.897511f;

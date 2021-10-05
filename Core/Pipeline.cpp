@@ -2745,6 +2745,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
+		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
+		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
 		// Set the bloom mips
 		PostProcessingShader.SetInteger("u_BloomMips[0]", 5);

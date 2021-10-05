@@ -63,6 +63,10 @@ uniform bool u_PointVolumetricsToggled = false;
 
 uniform int u_GodRaysStepCount = 12;
 
+
+uniform int u_CurrentFrame;
+
+
 uniform sampler2D u_FramebufferTexture;
 
 uniform sampler2D u_PositionTexture;
@@ -699,6 +703,26 @@ void main()
 		LensFlare = clamp(LensFlare, 0.0f, 0.9999f);
 		o_Color += LensFlare * u_LensFlareIntensity;
 	}
+
+
+	
+
+	// used to test out ways to animate blue noise
+
+	///ivec2 TxS = ivec2(textureSize(u_BlueNoise, 0).xy);
+	///vec3 Hash = texelFetch(u_BlueNoise, ivec2(gl_FragCoord.xy*2.0)%TxS, 0).xyz;//texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(TxS / 2.0f))).xy;
+	///const float GoldenRatio = 1.61803398875;
+	///vec3 Xi = mod(Hash + GoldenRatio * (u_CurrentFrame % 240), 1.0f);
+	///o_Color = vec3(Xi);
+
+	///vec3 Hash;
+	///int n = u_CurrentFrame%1024;
+	///vec2 off = fract(vec2(n*12664745, n*9560333)/16777216.0) * 1024.0;
+	///ivec2 TextureSize = textureSize(u_BlueNoise, 0);
+	///ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
+	///Hash = texelFetch(u_BlueNoise, SampleTexelLoc, 0).xyz;
+	///vec3 Xi = Hash;
+	///o_Color = Xi;
 
 }
 

@@ -515,15 +515,15 @@ void main()
 	vec2 iUV; 
 	vec3 iTan, iBitan;
 	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
-	
+	iUV.y = 1.0f - iUV.y;
 	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
 
 	float RoughnessAt = PBRMap.r;
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
 	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal));
-	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(vec2(iUV.x, 1.0f-iUV.y), data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04500f; // Apply bias.
+	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.05500f; // Apply bias.
     NormalMappedInitial = normalize(NormalMappedInitial);
 	
 	float ComputedShadow = 0.0f;
@@ -655,7 +655,7 @@ void main()
 
 				else 
 				{
-					ComputedShadow = GetShadowAt(HitPosition + Normal*0.035f, NormalizedStrongerDir);
+					ComputedShadow = GetShadowAt(HitPosition + Normal*0.055f, NormalizedStrongerDir);
 				}
 
 				ShadowItr = ShadowItr + 1;
@@ -715,7 +715,9 @@ void main()
 		{
 			vec3 AtmosphereColor;
 			GetAtmosphere(AtmosphereColor, R);
-			ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
+			if (u_ReflectPlayer) {
+				ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
+			}
 			float[6] SH = IrridianceToSH(AtmosphereColor, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
 			TotalCoCg += vec2(SH[4], SH[5]);
