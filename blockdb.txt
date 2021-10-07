@@ -870,6 +870,16 @@
 }
 
 {
+	Name : IronMC
+	Albedo : Res/Block/IronMC/Albedo.png
+	Normal : Res/Block/IronMC/Normal.png
+	PBR : Res/Block/IronMC/PBR.png
+	
+	SND_STEP : Metal
+	SND_MODIFY : Metal
+}
+
+{
 	Name : NewMetal0
 	Albedo : Res/Block/NewMetal0/Albedo.png
 	Normal : Res/Block/NewMetal0/Normal.png

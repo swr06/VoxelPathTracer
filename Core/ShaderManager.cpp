@@ -53,6 +53,8 @@ void VoxelRT::ShaderManager::CreateShaders()
 
 	// anti flicker
 	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");
+	AddShader("BILATERAL_HITDIST1", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistance_Bilateral.glsl");
+	AddShader("BILATERAL_HITDIST2", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistancePass2_Bilateral.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

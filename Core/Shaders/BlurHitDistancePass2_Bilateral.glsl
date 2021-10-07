@@ -1,8 +1,8 @@
 #version 330 core
 
-layout (location = 2) out float o_HitDistance;
+layout (location = 2) out float o_HitDistance; //location 2 -->
 
-in vec2 v_Texcoords;
+in vec2 v_TexCoords;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_HitDist;
@@ -10,16 +10,18 @@ uniform sampler2D u_HitDist;
 void main() {
 	float TotalWeight = 0.0f;
 	float TotalDist = 0.0f;
-	float BaseHitDistance = texture(u_PositionTexture,v_Texcoords).x;
+	float BaseHitDistance = texture(u_PositionTexture,v_TexCoords).x;
 	vec2 TexelSize = 1.0f/textureSize(u_HitDist,0);
-	float Scale = 1.025f;
+	float Scale = 1.0f;
+	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 
 	for (int x = -1 ; x <= 1 ; x++) {
-		for (int y = -1 ; y <= 1 ; y++) {
-			float DistAt = texture(u_PositionTexture,v_Texcoords+vec2(x,y)*TexelSize*Scale).x;
-			float HitDistAt = texture(u_HitDist,v_Texcoords+vec2(x,y)*TexelSize*Scale).x;
-			float w = 1.0f / abs(DistAt-BaseHitDistance);
-			w = w*w*w*w*w;
+		for (int y = -2 ; y <= 2 ; y++) {
+			float DistAt = texture(u_PositionTexture,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
+			float HitDistAt = texture(u_HitDist,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
+			float e = abs(DistAt - BaseHitDistance);
+			if (e > 1.0f) { continue; }
+			float w = AtrousWeights[abs(x)]*AtrousWeights[abs(y)];
 			TotalDist += HitDistAt*w;
 			TotalWeight += w;
 		}

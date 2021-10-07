@@ -50,9 +50,6 @@
 // 
 
 
-
-
-
 // vars
 
 static VoxelRT::Player MainPlayer;
@@ -70,6 +67,7 @@ static bool TEMPORAL_SPEC = true;
 
 static bool REFLECT_PLAYER = false;
 
+static bool DENOISE_REFLECTION_HIT_DATA = false;
 
 
 //static bool ANTI_FLICKER = true;
@@ -168,6 +166,7 @@ static bool HighQualityPOM = false;
 static bool CheckerboardClouds = true;
 static bool AmplifyNormalMap = true;
 
+
 static int GodRaysStepCount = 12;
 
 static bool AutoExposure = false;
@@ -214,8 +213,10 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::Checkbox("CHECKERBOARD_SPP", &CHECKERBOARD_SPP);
+			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
+			ImGui::NewLine();
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
 			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
 			ImGui::NewLine();
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
@@ -564,6 +565,7 @@ GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, 
 GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
 GLClasses::Framebuffer ShadowRawTrace(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
 ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
@@ -701,6 +703,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& PointVolumetrics = ShaderManager::GetShader("VOLUMETRICS_COMPUTE");
 	GLClasses::Shader& Gaussian9TapOptimized = ShaderManager::GetShader("GAUSSIAN_9TAP_OPTIMIZED");
 	GLClasses::Shader& Gaussian5TapOptimized = ShaderManager::GetShader("GAUSSIAN_5TAP_OPTIMIZED");
+	GLClasses::Shader& BilateralHitDist_1 = ShaderManager::GetShader("BILATERAL_HITDIST1");
+	GLClasses::Shader& BilateralHitDist_2 = ShaderManager::GetShader("BILATERAL_HITDIST2");
 	
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
@@ -953,6 +957,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			ReflectionHitDataDenoised.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 
 			if (GodRays)
 			{
@@ -1949,6 +1954,50 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VAO.Unbind();
 
 			ReflectionTraceFBO.Unbind();
+
+
+			// denoise the hit distance 
+			if (DENOISE_REFLECTION_HIT_DATA)
+			{
+				if (app.GetCurrentFrame() % 4 == 0) { std::cout << "\ndenoised hit data\n"; }
+
+				ReflectionHitDataDenoised.Bind();
+				BilateralHitDist_1.Use();
+
+				BilateralHitDist_1.SetInteger("u_PositionTexture", 0);
+				BilateralHitDist_1.SetInteger("u_HitDist", 1);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+
+				ReflectionHitDataDenoised.Unbind();
+
+
+				// 2nd spatial pass :-
+
+				ReflectionTraceFBO.Bind();
+				BilateralHitDist_2.Use();
+
+				BilateralHitDist_2.SetInteger("u_PositionTexture", 0);
+				BilateralHitDist_2.SetInteger("u_HitDist", 1);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, ReflectionHitDataDenoised.GetTexture());
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
 		}
 
 		// Temporally filter it

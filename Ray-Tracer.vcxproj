@@ -265,6 +265,8 @@
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
+    <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl" />
+    <None Include="Core\Shaders\BlurHitDistance_Bilateral.glsl" />
     <None Include="Core\Shaders\CalculateAverageLuminance.comp" />
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl" />
