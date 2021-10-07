@@ -60,7 +60,7 @@ uniform float u_TimeScale = 1.0f;
 uniform bool u_HighQualityClouds;
 uniform bool u_CurlNoiseOffset;
 
-const float ACCUM_MULTIPLIER = 12.0f;
+const float ACCUM_MULTIPLIER = 50.0f;
 
 
 const vec3 NoiseKernel[6] = vec3[] 
@@ -314,7 +314,7 @@ float RaymarchAmbient(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 42.0f * ACCUM_MULTIPLIER;
+	return Accum * 60.0f * ACCUM_MULTIPLIER;
 }
 
 float PowHalf(int n) 
@@ -341,7 +341,7 @@ float RaymarchLight(vec3 Point)
 	}
 
 	const float SunAbsorbption = 1.0f;
-	return Accum * 50.0f * ACCUM_MULTIPLIER;
+	return Accum * 70.0f * ACCUM_MULTIPLIER;
 }
 
 // Thanks to jess for suggesting this
@@ -423,7 +423,7 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 	float AmbientMarchResult = RaymarchAmbient(Point);
 	float LightMarchResult = RaymarchLight(Point);
 
-	float CloudShadowCoefficient = 0.30585f; // Increase to have a stronger shadow
+	float CloudShadowCoefficient = 0.340f; // Increase to have a stronger shadow
 	vec2 Scatter = vec2(0.0f);
 
 	// fake second scatter :
@@ -439,8 +439,8 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
    }
 
 	vec3 SunLight = SunColor * Scatter.x;
-	float SkyShadow = Scatter.y * (PI * 0.85f);
-    return (SunLight*SkyShadow);
+	float SkyShadow = Scatter.y * (PI * 0.5f);
+    return (SunLight+SkyShadow);
 }
 
 vec3 ComputeRayDirection()

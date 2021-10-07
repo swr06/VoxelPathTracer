@@ -2471,8 +2471,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);
+		TemporalAAShader.SetMatrix4("u_InversePrevProjection", glm::inverse(PreviousProjection));
+		TemporalAAShader.SetMatrix4("u_InversePrevView", glm::inverse(PreviousView));
 		TemporalAAShader.SetMatrix4("u_VertInverseView", inv_view);
 		TemporalAAShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+		TemporalAAShader.SetMatrix4("u_InverseView", inv_view);
+		TemporalAAShader.SetMatrix4("u_InverseProjection", inv_projection);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
