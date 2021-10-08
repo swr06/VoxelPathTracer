@@ -423,7 +423,7 @@ vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Pha
 	float AmbientMarchResult = RaymarchAmbient(Point);
 	float LightMarchResult = RaymarchLight(Point);
 
-	float CloudShadowCoefficient = 0.340f; // Increase to have a stronger shadow
+	float CloudShadowCoefficient = 0.275f; // Increase to have a stronger shadow
 	vec2 Scatter = vec2(0.0f);
 
 	// fake second scatter :

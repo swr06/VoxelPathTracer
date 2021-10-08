@@ -208,8 +208,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 		TemporalFilter.SetBool("u_Clamp", Clamp);
-		TemporalFilter.SetBool("u_Bicubic", smartupscale);
-		TemporalFilter.SetBool("u_SmartUpscale", smartupscale);
+		TemporalFilter.SetBool("u_Bicubic", smartupscale&&Checkerboard);
+		TemporalFilter.SetBool("u_SmartUpscale", smartupscale&& Checkerboard);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);
