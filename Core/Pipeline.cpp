@@ -50,7 +50,9 @@
 // 
 
 
-// vars
+// static globals 
+// these variables are used all over the file 
+// yes, I know i'm a degenerate for using globals but whatever ;)
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -72,6 +74,7 @@ static bool TEMPORAL_SPEC = true;
 static bool REFLECT_PLAYER = false;
 
 static bool DENOISE_REFLECTION_HIT_DATA = false;
+
 
 
 //static bool ANTI_FLICKER = true;
@@ -103,8 +106,10 @@ static float CloudErosionWeightExponent = 1.350f;
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
-static glm::vec2 CloudModifiers = glm::vec2(-0.3569, 0.1250f); // magic kek
+static glm::vec2 CloudModifiers = glm::vec2(-0.42069, 0.1250f); 
 static bool CurlNoiseOffset = false;
+static float CirrusScale = 2.0f;
+static float CirrusStrength = 0.360f; 
 static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 3.325f;
@@ -299,6 +304,8 @@ public:
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 2.0f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution (Effectively halved when checkering is enabled)", &CloudResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -0.750f, 0.5);
+			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
+			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 6.0f);
 			ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
 			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
 			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
@@ -2312,7 +2319,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
-				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset, SmartUpscaleCloudTemporal);
+				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), CloudTimeScale, CurlNoiseOffset, SmartUpscaleCloudTemporal, CirrusStrength,CirrusScale);
 
 			Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);

@@ -10,6 +10,9 @@
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
 #define CHECKERBOARDING
+
+// sample at lower lods for the lighting 
+// it does not matter too much.
 #define LIGHT_LOD 1.5f 
 #define AMBIENT_LOD 1.75f 
 #define BASE_LOD 0.0f
@@ -39,6 +42,10 @@ uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
 uniform sampler2D u_CurlNoise;
 uniform sampler2D u_CloudWeatherMap;
+uniform sampler2D u_CirrusClouds;
+
+uniform float u_CirrusStrength;
+uniform float u_CirrusScale;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
@@ -63,6 +70,8 @@ uniform bool u_CurlNoiseOffset;
 const float ACCUM_MULTIPLIER = 50.0f;
 
 
+
+// used for dither tests 
 const vec3 NoiseKernel[6] = vec3[] 
 (
 	vec3( 0.38051305,  0.92453449, -0.02111345),
@@ -72,14 +81,23 @@ const vec3 NoiseKernel[6] = vec3[]
 	vec3( 0.28128598,  0.42443639, -0.86065785),
 	vec3(-0.16852403,  0.14748697,  0.97460106)
 );
+// ~_~
 
+
+// Ray struct 
 struct Ray
 {
 	vec3 Origin;
 	vec3 Direction;
 };
 
-vec2 g_BayerIncrement;
+vec2 g_BayerIncrement; // animate the bayer dither to use the temporal filter more effectively
+
+float Bayer2(vec2 a) 
+{
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
 
 vec3 GetSkyColorAt(vec3 rd) 
 {
@@ -216,7 +234,7 @@ float SampleDensity(vec3 p, float lod)
 
 	RemappedToCoverage = RemappedToCoverage - (HighFreqFBM) * pow((1.0f - RemappedToCoverage), u_DetailParams.z);
 	RemappedToCoverage = remap(RemappedToCoverage / 0.5f, (HighFreqFBM) * 0.2f, 1.0f, 0.0f, 1.0f);
-	return clamp(RemappedToCoverage*u_Coverage, 0.0f, 1.0f);
+	return clamp((RemappedToCoverage*u_Coverage), 0.0f, 1.0f);
 } 
 
 float hg(float a, float g) 
@@ -252,11 +270,7 @@ float phase2Lobes(float x)
     return mix(lobe2, lobe1, m);
 }
 
-float Bayer2(vec2 a) 
-{
-    a = floor(a);
-    return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
+
 
 int MIN = -2147483648;
 int MAX = 2147483647;
@@ -297,7 +311,7 @@ float nextFloat(inout int seed, in float min, in float max)
 
 float RaymarchAmbient(vec3 Point)
 {
-	vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
+	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
 	int LightSteps = u_HighQualityClouds ? 8 : 4;
@@ -322,9 +336,11 @@ float PowHalf(int n)
 	return pow(0.5f, float(n));
 }
 
+vec3 NormalizedSUNDIR;
+
 float RaymarchLight(vec3 Point)
 {
-	vec3 Direction = normalize(u_SunDirection);
+	vec3 Direction = NormalizedSUNDIR;
 	float Accum = 0.0; 
 	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
 	int LightSteps = u_HighQualityClouds ? 12 : 6;
@@ -484,10 +500,62 @@ bool SampleValid(in vec2 txc)
     return false;
 }
 
+float GetCirrusDensityAt(vec3 P)
+{
+	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
+	const float ts = 0.1f;
+	SamplePosition += vec2(u_Time * 0.16666f * ts, u_Time * 0.5f * ts).yx;
+	float CirrusDensity = texture(u_CirrusClouds, SamplePosition).x;
+	CirrusDensity = 1.0f - pow(CirrusDensity, 0.125f);
+	return (CirrusDensity * 0.9f * u_CirrusStrength);
+}
+
+float powder_cirrus(float od)
+{
+	return 1.0f - exp2(-od * 2.0f);
+}
+
+const float Log2 = log(2.0);
+
+vec3 MarchCirrus(vec3 P, float CosTheta) 
+{
+	float BaseOpticalDepth = GetCirrusDensityAt(P);
+	float hg = phase2Lobes(CosTheta); //simple.
+
+	float Accum = 0.0; 
+	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
+	int LightSteps = 2; 
+	float Increment = 8.0f;
+    vec3 RayStep = NormalizedSUNDIR;
+	float StepSize = 1.0f / float(LightSteps);
+    vec3 CurrentPoint = P + RayStep * Increment * Dither;
+
+	// sum up density in like 2 or 3 points 
+	// this doesnt matter too much as the analytical stuff will be doing most of the work.
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += GetCirrusDensityAt(CurrentPoint)*3.2f; 
+		CurrentPoint += RayStep * Increment;
+	}
+
+	// we use a crude multi scatter approximation to avoid an extra march loop
+	// works well enough since the cirrus clouds arent the most visible.
+
+	float MultiScatterApproximation = ScatterIntegral(BaseOpticalDepth, 1.11f);  
+	float SunVisibility = exp(-Accum * StepSize); 
+	float BeersPowder = powder(BaseOpticalDepth * Log2);
+	vec3 SkyLightBasic = vec3(0.75f) * 0.25f * (1.0f / PI);
+	vec3 SunLight = vec3(1.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f);
+	return (SunLight + SkyLightBasic) * MultiScatterApproximation * (PI) * 0.75f * 0.135f;
+}
+
+
 const float IsotropicScatter = 0.25f / PI;
 
 void main()
 {
+	NormalizedSUNDIR = normalize(u_SunDirection);
 	o_Data = vec4(0.0f);
 	
 	// We dont need to ray cast the clouds if there is a hit at the current position
@@ -556,6 +624,15 @@ void main()
 	// scatter boost
 	Scattering = pow(Scattering, vec3(1.0f/5.0f)); 
 	Scattering = clamp(Scattering, 0.0f, 1.0f);
+
+	// mix cirrus
+	if (u_CirrusStrength > 0.02f) {
+		// cirrus 
+		vec3 CirrusMarchResult = MarchCirrus(mix(StartPosition, EndPosition, 0.5f), CosTheta); 
+
+		// Mix the cirrus and weight by transmittance 
+		Scattering = mix(Scattering, CirrusMarchResult, Transmittance);
+	}
 
 	// store it!
 	o_Data = vec4(Scattering, Transmittance);

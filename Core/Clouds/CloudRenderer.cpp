@@ -1,5 +1,7 @@
 #include "CloudRenderer.h"
 
+#include "../GLClasses/Texture.h"
+
 static float CloudResolution = 1.0f;
 static bool Checkerboard = true;
 static float Coverage = 0.128f;
@@ -13,6 +15,7 @@ static std::unique_ptr<GLClasses::Shader> CloudTemporalFilterPtr;
 static std::unique_ptr<GLClasses::Shader> CloudCheckerUpscalerPtr;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoise;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
+static std::unique_ptr<GLClasses::Texture> CloudCirrus;
 
 namespace Clouds {
 	GLClasses::Framebuffer CurlCloudNoise(128, 128, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
@@ -26,6 +29,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr = std::unique_ptr<GLClasses::Shader>(new GLClasses::Shader);
 	CloudNoise = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
 	CloudNoiseDetail = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
+	CloudCirrus = std::unique_ptr<GLClasses::Texture>(new GLClasses::Texture);
 
 	CloudShaderPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/CloudVert.glsl", "Core/Shaders/Clouds/CloudFrag.glsl");
 	CloudShaderPtr->CompileShaders();
@@ -33,6 +37,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudTemporalFilterPtr->CompileShaders();
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
+	CloudCirrus->CreateTexture("Res/Misc/cirrus_density.png", false, false);
 
 	CloudNoise->CreateTexture(96, 96, 96, nullptr); // (32 * 3) ^ 3
 	CloudNoiseDetail->CreateTexture(32, 32, 32, nullptr);
@@ -75,7 +80,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, bool smartupscale)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, bool smartupscale, float cirrusstrength, float CirrusScale)
 {
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -120,11 +125,14 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetInteger("u_CloudDetailedNoise", 3);
 		CloudShader.SetInteger("u_CurlNoise", 6);
 		CloudShader.SetInteger("u_CloudWeatherMap", 8);
+		CloudShader.SetInteger("u_CirrusClouds", 9);
 		CloudShader.SetFloat("u_Time", glfwGetTime());
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
 		CloudShader.SetFloat("u_DetailIntensity", DetailStrength);
 		CloudShader.SetFloat("u_TimeScale", TimeScale);
+		CloudShader.SetFloat("u_CirrusStrength", cirrusstrength);
+		CloudShader.SetFloat("u_CirrusScale", CirrusScale);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
@@ -161,6 +169,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, CloudWeatherMap.GetTexture());
+
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, CloudCirrus->GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
