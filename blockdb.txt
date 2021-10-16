@@ -910,6 +910,16 @@
 }
 
 {
+	Name : GildedBlackstone
+	Albedo : Res/Block/GildedBlackstone/Albedo.png
+	Normal : Res/Block/GildedBlackstone/Normal.png
+	PBR : Res/Block/GildedBlackstone/PBR.png
+	
+	SND_STEP : Concrete
+	SND_MODIFY : Concrete
+}
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png
