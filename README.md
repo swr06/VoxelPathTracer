@@ -1,5 +1,6 @@
 # Voxel Path Tracer
-A Voxel Path Tracing Engine implemented using C++ and the modern opengl programmable pipeline
+A Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
+This engine was implemented using C++ and the modern opengl programmable pipeline.
 
 # Features Implemented
 - Voxel Ray Casting 
@@ -37,7 +38,7 @@ A Voxel Path Tracing Engine implemented using C++ and the modern opengl programm
 
 # Features to implement
 - Foliage
-- Refractions (Will be done in screen space)
+- (Preferably sthochastic) Refractions
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 
