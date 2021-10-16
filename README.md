@@ -48,7 +48,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - 180 - 200 FPS on a GTX 1080Ti
 
 # Note
-- The path tracer is still HEAVILY WIP, the current state is not a representation of the final version.
+- This project is still not finished, the current state is not a representation of the final version.
 - It has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
 - It is *not* guarenteed to work on ANY Intel GPUs
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
