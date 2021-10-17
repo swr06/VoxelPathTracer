@@ -196,7 +196,7 @@ namespace VoxelRT
 		char* vendor = (char*)glGetString(GL_VENDOR);
 		char* version = (char*)glGetString(GL_VERSION);
 
-		std::cout << "-----------  VoxelRT -----------\n";
+		std::cout << "-----------  VoxelRT, A fully raytraced voxel engine -----------\n";
 		std::cout << "\tRENDERER : " << renderer << "\n";
 		std::cout << "\tVENDOR : " << vendor << "\n";
 		std::cout << "\tVERSION : " << version << "\n";

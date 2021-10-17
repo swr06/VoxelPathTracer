@@ -1,8 +1,8 @@
-// Main program pipeline
+// Main program render/gameplay pipeline code
 
 
 
-
+// License
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 //    																					 //
@@ -31,7 +31,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////
 
 
-
+// License
 
 
 
@@ -47,12 +47,12 @@
 #include "TAAJitter.h"
 #include "VolumetricFloodFill.h"
 
-// 
+// includes
 
 
 // static globals 
 // these variables are used all over the file 
-// yes, I know i'm a degenerate for using globals but whatever ;)
+// yes, I know i'm a degenerate for using globals but whatever 
 
 static VoxelRT::Player MainPlayer;
 static bool VSync = false;
@@ -601,6 +601,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	RayTracerApp app;
 	app.Initialize();
+	std::cout << "\n\n--------CONTROLS-------- \n\tF1 -> Lock/Unlock mouse\
+		\n\tW, S, A, D->Move\
+		\n\tSpace->Jump / Fly\
+		\n\tShift->Accelerate down\
+		\n\tQ / E->Change current block\
+		\n\tF->Toggle freefly\
+		\n\tC->Toggle Collisions(only toggles IF on freefly mode)\
+		\n\tESC->Save and quit\
+		\n\tV->Toggle VSync\
+		\n\tF2->Recompile shaders\
+		\n\tImGui Windows ->\
+		\n\tWindow 1 : Various Other Settings(Resolution settings)\
+		\n\tWindow 2 : Player sensitivity, speedand sound options\n\n ";
+	
 	VoxelRT::BlockDatabase::Initialize();
 
 	bool gen_type = 0;
@@ -3092,8 +3106,6 @@ namespace VoxelRT {
 
 
 
-
-// pipeline end.
-
-
-
+//////////////////////////
+// End of pipeline code.//
+//////////////////////////
