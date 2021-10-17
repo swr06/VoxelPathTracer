@@ -183,6 +183,7 @@ namespace VoxelRT
 							else if (vel.y < 0)
 							{
 								m_isOnGround = true;
+								InitialCollisionDone = true;
 								position.y = y + m_AABB.m_Dimensions.y + 1;
 								m_Velocity.y = 0;
 							}
@@ -220,8 +221,10 @@ namespace VoxelRT
 
 	void Player::ClampVelocity()
 	{
-		m_Velocity = glm::clamp(m_Velocity, glm::vec3(-3.0f), glm::vec3(3.0f));
-		m_Acceleration = glm::clamp(m_Acceleration, glm::vec3(-3.0f), glm::vec3(3.0f));
+		const float SPD = 3.75252f;
+		float Range = (InitialCollisionDone&&!Freefly) ? SPD : SPD/2.4f; // dirty hack to fix an issue with the player clipping through
+		m_Velocity = glm::clamp(m_Velocity, glm::vec3(-Range), glm::vec3(Range));
+		m_Acceleration = glm::clamp(m_Acceleration, glm::vec3(-Range), glm::vec3(Range));
 	}
 
 	// test.
@@ -229,6 +232,9 @@ namespace VoxelRT
 	{
 		return;
 
+
+
+		// experiments
 		glm::mat4& ViewTransform = this->Camera.GetViewMatrix_REFERENCE();
 		glm::vec3 CurrentVelocity = m_Velocity;
 		CurrentVelocity.y = 0.0f;

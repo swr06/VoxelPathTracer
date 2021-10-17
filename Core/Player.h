@@ -26,6 +26,7 @@ namespace VoxelRT
 		bool Freefly = false;
 		float Sensitivity = 0.25;
 		float Speed = 0.045f;
+		bool InitialCollisionDone = false;
 
 
 		glm::vec3 m_Position;
@@ -36,7 +37,7 @@ namespace VoxelRT
 		bool DisableCollisions = false;
 
 		void ClampVelocity();
-		void ApplyBasicViewBoobing(); // yes, *boob* :D
+		void ApplyBasicViewBoobing(); // yes.
 
 	private :
 

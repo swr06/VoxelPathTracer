@@ -2349,13 +2349,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_BlueNoiseTextures", 9);
 		ColorShader.SetInteger("u_BlockEmissiveTextures", 11);
 		ColorShader.SetInteger("u_CloudData", 12);
+
+		// indirect diffuse sh
 		ColorShader.SetInteger("u_DiffuseSHData1", 14);
 		ColorShader.SetInteger("u_DiffuseSHData2", 15);
 
-		/*
-		 u_ReflectionSHData;
-		 u_ReflectionCoCgData;
-		*/
+		ColorShader.SetInteger("u_DiffuseSHy", 14);
+		ColorShader.SetInteger("u_DiffuseCoCg", 15);
 
 		ColorShader.SetInteger("u_ReflectionSHData", 16);
 		ColorShader.SetInteger("u_ReflectionCoCgData", 17);
@@ -3062,6 +3062,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		// make sure padding is divisible by 2
 		if (PIXEL_PADDING % 2 != 0) { PIXEL_PADDING += 1; }
+
+		////std::cout << MainPlayer.InitialCollisionDone;
 	}
 
 	SaveWorld(world, world_name);

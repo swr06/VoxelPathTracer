@@ -33,8 +33,8 @@ uniform sampler2D u_VXAO;
 uniform bool u_UseDFG;
 uniform bool u_RemoveTiling;
 
-uniform sampler2D u_DiffuseSHData1;
-uniform sampler2D u_DiffuseSHData2;
+uniform sampler2D u_DiffuseSHy;
+uniform sampler2D u_DiffuseCoCg;
 
 uniform sampler2D u_ReflectionSHData;
 uniform sampler2D u_ReflectionCoCgData;
@@ -671,8 +671,8 @@ bool IsAtEdge(in vec2 txc)
 void SpatialUpscaleIndirectDiffuse(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg)
 {
 #ifndef SPATIAL_UPSCALE_INDIRECT_DIFFUSE
-    SH = texture(u_DiffuseSHData1, v_TexCoords).xyzw ;
-	CoCg = texture(u_DiffuseSHData2, v_TexCoords).xy ;
+    SH = texture(u_DiffuseSHy, v_TexCoords).xyzw ;
+	CoCg = texture(u_DiffuseCoCg, v_TexCoords).xy ;
     return;
 
 #else 
@@ -681,7 +681,7 @@ void SpatialUpscaleIndirectDiffuse(vec3 BaseNormal, float BaseLinearDepth, out v
 	vec2 TotalCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
 
-	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHData1, 0);
+	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
 	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
     float HighFreqBL = texture(u_HighResBL, v_TexCoords * (u_Dimensions / vec2(1024.0f))).r;
     float SpatialDither = u_ShouldDitherUpscale ? bayer8(gl_FragCoord.xy) : 1.0f;
@@ -702,8 +702,8 @@ void SpatialUpscaleIndirectDiffuse(vec3 BaseNormal, float BaseLinearDepth, out v
 			float Kernel = Weights[x + 2] * Weights[y + 2];
 			float Weight = Kernel * clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
 			Weight = max(Weight, 0.01f);
-			TotalSH += texture(u_DiffuseSHData1, SampleCoord).xyzw * Weight;
-			TotalCoCg += texture(u_DiffuseSHData2, SampleCoord).xy * Weight;
+			TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
+			TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
 			TotalWeight += Weight;
 		}
 	}
