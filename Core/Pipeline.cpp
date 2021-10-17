@@ -109,7 +109,7 @@ static bool ClampCloudTemporal = false;
 static glm::vec2 CloudModifiers = glm::vec2(-0.42069, 0.1250f); 
 static bool CurlNoiseOffset = false;
 static float CirrusScale = 2.0f;
-static float CirrusStrength = 0.360f; 
+static float CirrusStrength = 0.390f;
 static float CloudTimeScale = 1.0f;
 
 static float ColorPhiBias = 3.325f;

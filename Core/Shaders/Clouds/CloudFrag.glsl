@@ -1,6 +1,6 @@
 #version 330 core
 
-#define CLOUD_THICKNESS 850.0f
+#define CLOUD_THICKNESS 940.0f
 #define CLOUD_HEIGHT 1000.0
 #define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
 

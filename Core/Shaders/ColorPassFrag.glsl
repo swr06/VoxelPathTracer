@@ -158,27 +158,10 @@ vec3 GetNormalFromID(float n) {
     return Normals[idx];
 }
 
+// Samplers :
+
 vec3 SampleNormal(sampler2D samp, vec2 txc) { 
 	return GetNormalFromID(texture(samp, txc).x);
-}
-
-
-float Noise2d( in vec2 x )
-{
-    float xhash = cos( x.x * 37.0 );
-    float yhash = cos( x.y * 57.0 );
-    return fract( 415.92653 * ( xhash + yhash ) );
-}
-
-// thresholded white noise :
-float NoisyStarField( in vec2 vSamplePos, float fThreshhold )
-{
-    float StarVal = Noise2d(vSamplePos);
-    if ( StarVal >= fThreshhold )
-        StarVal = pow((StarVal - fThreshhold)/(1.0 - fThreshhold), 6.0 );
-    else
-        StarVal = 0.0;
-    return StarVal;
 }
 
 vec3 GetRayDirectionAt(vec2 screenspace)
@@ -194,35 +177,63 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-float StableStarField(in vec2 vSamplePos, float fThreshhold)
+/////////
+
+float Noise2d(in vec2 x)
 {
-    float fractX = fract(vSamplePos.x);
-    float fractY = fract(vSamplePos.y);
-    vec2 floorSample = floor( vSamplePos );
-    float v1 = NoisyStarField( floorSample, fThreshhold );
-    float v2 = NoisyStarField( floorSample + vec2(0.0, 1.0), fThreshhold );
-    float v3 = NoisyStarField( floorSample + vec2(1.0, 0.0), fThreshhold );
-    float v4 = NoisyStarField( floorSample + vec2(1.0, 1.0), fThreshhold );
-    float StarVal =   v1 * (1.0 - fractX) * (1.0 - fractY)
-        			+ v2 * (1.0 - fractX) * fractY
-        			+ v3 * fractX * (1.0 - fractY)
-        			+ v4 * fractX * fractY;
+    float xhash = cos( x.x * 37.0 );
+    float yhash = cos( x.y * 57.0 );
+    return fract( 415.92653 * ( xhash + yhash ) );
+}
+
+// thresholded white noise :
+float NoisyStarField(in vec2 UV, float Threshold)
+{
+    float StarVal = Noise2d(UV);
+
+    if (StarVal >= Threshold) 
+    {
+        StarVal = pow((StarVal - Threshold) / (1.0f - Threshold), 6.0f);
+    }
+
+    else 
+    {
+        StarVal = 0.0;
+    }
+
+    return StarVal;
+}
+
+float StableStarField(in vec2 UV, float NoiseThreshold)
+{
+    float FractUVx = fract(UV.x);
+    float FractUVy = fract(UV.y);
+    vec2 floorSample = floor(UV);
+    float v1 = NoisyStarField(floorSample, NoiseThreshold);
+    float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
+    float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
+    float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
+    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
+          + v2 * (1.0 - FractUVx) * FractUVy
+          + v3 * FractUVx * (1.0 - FractUVy)
+          + v4 * FractUVx * FractUVy;
 	return StarVal;
 }
 
+// fract-sin noise
 float rand(vec2 co){
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-float stars(vec3 fragpos)
+float ShadeStars(vec3 fragpos)
 {
     fragpos.y = abs(fragpos.y);
 	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	vec2 uv = fragpos.xz / (1.0f + elevation);
-    float star = StableStarField(uv * 700.0f, 0.98);
+    float star = StableStarField(uv * 700.0f, 0.96);
     star *= 0.06f;
     float rand_val = rand(fragpos.xy);
-	return clamp(star, 0.0f, 100000.0f) * 4.46f;
+	return clamp(star, 0.0f, 100000.0f) * 3.46f;
 }
 
 vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
@@ -267,7 +278,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     float star_visibility;
     star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
     star_visibility = 1.0f - star_visibility;
-    vec3 stars = vec3(stars(vec3(in_ray_dir)) * star_visibility);
+    vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
 
     atmosphere += stars*4.0f*true_transmittance;
@@ -745,7 +756,7 @@ vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness)
 
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.5f; 
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.4f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
 
