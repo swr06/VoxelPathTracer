@@ -20,5 +20,6 @@ namespace VoxelRT
 		void PlayBlockSound(uint8_t block, const glm::vec3& p, bool type);
 		void Destroy();
 		void SetPack(bool TYPE);
+		void LoadSounds();
 	}
 }

@@ -920,6 +920,27 @@
 }
 
 {
+	Name : ChilseledSandstone
+	Albedo : Res/Block/ChilseledSandstone/Albedo.png
+	Normal : Res/Block/ChilseledSandstone/Normal.png
+	PBR : Res/Block/ChilseledSandstone/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
+}
+
+{
+	Name : Sandstone2
+	Albedo : Res/Block/Sandstone2/Albedo.png
+	Normal : Res/Block/Sandstone2/Normal.png
+	PBR : Res/Block/Sandstone2/PBR.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
+}
+
+
+{
 	Name : MISC_LEAVE_THIS_AT_THE_END
 	Albedo : Res/Block/Misc/Albedo.png
 	Normal : Res/Block/Misc/Normal.png
