@@ -22,6 +22,10 @@ namespace VoxelRT
 
 	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt)
 	{
+		// Flag to make sure to ONLY play sounds after the player has touched down atleast once
+		// Another hack but who gives a shit anymore
+		InitialCollisionDone2 = InitialCollisionDone||Freefly; 
+
 		glm::vec3 StartPosition = m_Position;
 
 		dt = glm::min(dt, 35.0f);
@@ -126,7 +130,7 @@ namespace VoxelRT
 		float fracttime = glm::fract(glfwGetTime());
 		int Moment = static_cast<int>(glm::floor(fracttime * 800.0f));
 
-		if (glm::distance(StartPosition, Camera.GetPosition()) + 1e-3 >= 0.03f)
+		if (glm::distance(StartPosition, Camera.GetPosition()) + 1e-3 >= 0.03f&& InitialCollisionDone2)
 		{
 			dtt = 0.0f;
 			glm::ivec3 Idx = glm::ivec3(glm::floor(Camera.GetPosition()));
@@ -156,6 +160,7 @@ namespace VoxelRT
 				}
 			}
 		}
+
 	}
 
 	static bool Test3DAABBCollision(const glm::vec3& pos_1, const glm::vec3& dim_1, const glm::vec3& pos_2, const glm::vec3& dim_2)

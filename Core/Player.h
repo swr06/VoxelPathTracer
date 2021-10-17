@@ -27,7 +27,7 @@ namespace VoxelRT
 		float Sensitivity = 0.25;
 		float Speed = 0.045f;
 		bool InitialCollisionDone = false;
-
+		bool InitialCollisionDone2 = false;
 
 		glm::vec3 m_Position;
 		glm::vec3 m_Velocity;

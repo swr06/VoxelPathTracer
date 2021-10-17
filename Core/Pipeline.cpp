@@ -679,6 +679,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	std::cout << "Initializing Sound Engine..\n";
 	SoundManager::InitializeSoundManager();
 	std::cout << "\nInitialized Sound Engine.";
+	std::cout << "\n\nLoading & Playing Sounds..\n";
+	SoundManager::LoadSounds();
+	std::cout << "\nLoaded Sounds..";
 	std::cout << "\n\n";
 
 
@@ -3091,5 +3094,6 @@ namespace VoxelRT {
 
 
 // pipeline end.
+
 
 

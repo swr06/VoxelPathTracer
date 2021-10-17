@@ -45,6 +45,36 @@ namespace VoxelRT
 		aud.p_Sound->setIsPaused(pause);
 	}
 
+	void SoundManager::LoadSounds()
+	{
+		glm::vec3 p = glm::vec3(0.0f, 70.0f, 0.0f);
+
+		for (int block = 0; block < 128; block++) {
+			std::string snd_typ = BlockDatabase::GetStepSound(block);
+			std::string snd_1_typ = BlockDatabase::GetModifySound(block);
+
+			if (snd_typ.size() > 0 && snd_typ != "???") {
+				for (int i = 0; i < SoundPathsStep[snd_typ].size(); i++) {
+					std::string snd = SoundPathsStep[snd_typ][i];
+					Audio::Audio3D aud(snd, p, MainSoundEngine, false);
+					aud.p_Sound->setMinDistance(1);
+					aud.p_Sound->setVolume(0.05f);
+					aud.p_Sound->setIsPaused(false);
+				}
+			}
+
+			if (snd_1_typ.size() > 0 && snd_1_typ != "???") {
+				for (int i = 0; i < SoundPathsModify[snd_1_typ].size(); i++) {
+					std::string snd = SoundPathsModify[snd_1_typ][i];
+					Audio::Audio3D aud1(snd, p, MainSoundEngine, false);
+					aud1.p_Sound->setMinDistance(1);
+					aud1.p_Sound->setVolume(0.05f);
+					aud1.p_Sound->setIsPaused(false);
+				}
+			}
+		}
+	}
+
 	void SoundManager::PlayBlockSound(uint8_t block, const glm::vec3& p, bool type)
 	{
 		// Air.
