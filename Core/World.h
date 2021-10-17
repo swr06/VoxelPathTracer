@@ -18,6 +18,7 @@
 
 namespace VoxelRT
 {
+
 	class World
 	{
 	public :

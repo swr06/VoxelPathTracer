@@ -222,6 +222,9 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
+			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
+			ImGui::NewLine();
+			ImGui::NewLine();
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -3073,11 +3076,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 	exit(0);
 }
 
+// Forward declaration.
+namespace VoxelRT {
+	namespace Scope {
+		ParticleSystem::ParticleEmitter* GetWorldParticleEmitter() {
+			return world?&world->m_ParticleEmitter:nullptr;
+		}
+	}
 
-
-
-
-
+}
 
 
 

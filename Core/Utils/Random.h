@@ -25,6 +25,7 @@ public:
 
 	unsigned int UnsignedInt(unsigned int limit)
 	{
+		limit = limit == 0 ? 1 : limit;
 		return (unsigned int)m_Distribution(m_Engine) % limit;
 	}
 

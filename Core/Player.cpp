@@ -1,7 +1,12 @@
 #include "Player.h"
+#include "Utils/Random.h"
 
 namespace VoxelRT
 {
+	namespace Scope {
+		ParticleSystem::ParticleEmitter* GetWorldParticleEmitter(); // Implementation in Pipeline.cpp
+	}
+
 	Player::Player() : Camera(60.0f, 800.0f / 600.0f, 0.1f, 1000.0f), m_AABB(glm::vec3(0.3f, 1.0f, 0.3f))
 	{
 		m_Acceleration = glm::vec3(0.0f);
@@ -134,6 +139,21 @@ namespace VoxelRT
 				auto blockat = world->GetBlock((uint16_t)Idx.x, (uint16_t)Idx.y, (uint16_t)Idx.z);
 				//s1 = blockat.block > 0 ? VoxelRT::BlockDatabase::GetBlockName(blockat.block) : s1;
 				SoundManager::PlayBlockSound(blockat.block, glm::vec3(Idx), true);
+
+				// Emit Particles.
+				auto* ParticleEmitter = Scope::GetWorldParticleEmitter();
+
+				if (ParticleEmitter&&m_isOnGround&& blockat.block>0&&m_EmitFootstepParticles) {
+					Random random;
+					glm::vec3 ParticlePosition = m_Position; ParticlePosition.y -= 0.996f;
+					ParticlePosition.x -= Camera.GetFront().x*0.75f;
+					ParticlePosition.z -= Camera.GetFront().z*0.75f;
+					ParticlePosition.x += random.Float() / 2.0f;
+					ParticlePosition.z += random.Float() / 1.8f;
+					glm::vec3 ParticleVelocity = glm::vec3(0.625f, 0.2f, 0.625f);
+					ParticleVelocity = glm::vec3(Camera.GetFront().x+random.Float()*0.1f, 0.2f, Camera.GetFront().z+random.Float() * 0.07f);
+					ParticleEmitter->EmitParticlesAt(Idx, 2.5f, 4, ParticlePosition, glm::vec3(2.4), ParticleVelocity, blockat.block);
+				}
 			}
 		}
 	}
