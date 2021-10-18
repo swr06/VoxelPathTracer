@@ -3071,10 +3071,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
 
-		if (MainCamera.GetPosition().y <= 2.0f) 
+
+		// World bounds check
+		glm::vec3 CP = MainCamera.GetPosition(); // Camera position
+		if (MainCamera.GetPosition().y <= 2.0f || CP.x > WORLD_SIZE_X - 2 || CP.x < 2 || CP.z > WORLD_SIZE_Z - 2 || CP.z < 2)
 		{
-			MainCamera.SetPosition(glm::vec3(MainCamera.GetPosition().x, 75, MainCamera.GetPosition().z));
+			MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X/2, 75, WORLD_SIZE_Z/2));
 			MainPlayer.m_Position = MainCamera.GetPosition();
+			MainPlayer.m_Velocity = glm::vec3(0.0f);
+			MainPlayer.m_Acceleration = glm::vec3(0.0f);
+			MainPlayer.m_isOnGround = false;
+			MainPlayer.InitialCollisionDone = false;
+			MainPlayer.InitialCollisionDone2 = false;
 		}
 
 		// velocity clamp
