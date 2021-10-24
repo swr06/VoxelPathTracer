@@ -27,6 +27,8 @@ uniform sampler2DArray u_AlbedoTextures;
 uniform vec2 u_Dimensions;
 uniform bool u_ShouldAlphaTest;
 
+uniform int u_RenderDistance;
+
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
@@ -200,7 +202,7 @@ float VoxelTraversalDF_AlphaTest(vec3 origin, vec3 direction, inout vec3 normal,
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < u_RenderDistance ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		
@@ -303,7 +305,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 	int itr = 0;
 
-	for (itr = 0 ; itr < 350 ; itr++)
+	for (itr = 0 ; itr < u_RenderDistance ; itr++)
 	{
 		ivec3 Loc = ivec3(floor(origin));
 		

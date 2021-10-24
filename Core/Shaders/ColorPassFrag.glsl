@@ -1,3 +1,9 @@
+// Light combine / Color pass.
+
+
+
+
+
 #version 450 core
 
 #define CLOUD_HEIGHT 70
@@ -101,7 +107,7 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f, 1.0f, 0.5f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
 
-
+// 3D poisson disk
 vec3 PoissonDisk3D[16] = vec3[](
     vec3(0.488937, 0.374798, 0.0314035),
     vec3(0.112522, 0.0911893, 0.932066),
@@ -122,6 +128,7 @@ vec3 PoissonDisk3D[16] = vec3[](
 );
 
 
+// bayer dither
 float bayer2(vec2 a){
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
@@ -134,6 +141,9 @@ float bayer2(vec2 a){
 #define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 
+
+
+// GBuffer fetch
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
 const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
@@ -158,6 +168,9 @@ vec3 GetNormalFromID(float n) {
     return Normals[idx];
 }
 
+
+
+
 // Samplers :
 
 vec3 SampleNormal(sampler2D samp, vec2 txc) { 
@@ -181,9 +194,9 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 
 float Noise2d(in vec2 x)
 {
-    float xhash = cos( x.x * 37.0 );
-    float yhash = cos( x.y * 57.0 );
-    return fract( 415.92653 * ( xhash + yhash ) );
+    float xhash = cos(x.x * 37.0);
+    float yhash = cos(x.y * 57.0);
+    return fract(415.92653 * (xhash + yhash));
 }
 
 // thresholded white noise :
@@ -213,10 +226,10 @@ float StableStarField(in vec2 UV, float NoiseThreshold)
     float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
     float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
     float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
-    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
-          + v2 * (1.0 - FractUVx) * FractUVy
-          + v3 * FractUVx * (1.0 - FractUVy)
-          + v4 * FractUVx * FractUVy;
+    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy) // interp
+					+ v2 * (1.0 - FractUVx) * FractUVy
+					+ v3 * FractUVx * (1.0 - FractUVy)
+					+ v4 * FractUVx * FractUVy;
 	return StarVal;
 }
 
@@ -236,6 +249,9 @@ float ShadeStars(vec3 fragpos)
 	return clamp(star, 0.0f, 100000.0f) * 3.46f;
 }
 
+//
+// ray box intersection function 
+//
 vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
 {
 	vec3 t0 = (boundsMin - rayOrigin) * invRaydir;
@@ -288,6 +304,9 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     return false;
 }
 
+
+
+// Contrast adaptive sharpening 
 float CASWeight(vec3 x) {
     //return GetSat(x);
     return max(dot(x, vec3(0.2125f, 0.7154f, 0.0721f)), 0.01f);
@@ -322,6 +341,7 @@ vec4 CAS(sampler2D Texture, vec2 uv, float SharpeningAmount)
     return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
 }
 
+// fetch sky
 vec3 GetAtmosphereAndClouds()
 {
     vec2 ij = floor(mod(gl_FragCoord.xy, vec2(2.0) ));
@@ -351,13 +371,17 @@ vec3 GetAtmosphereAndClouds()
     return vec3(Sky + Scatter*M)+(d/255.0f); // + dither.
 }
 
+vec3 FetchSky() { return GetAtmosphereAndClouds(); }
+
+
+
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
 vec4 ClampedTexture(sampler2D tex, vec2 txc)
 {
-    return texture(tex, clamp(txc, 0.0f, 1.0f));
+    return texture(tex, clamp(txc, 0.0f, 0.9999999f));
 }
 
 vec2 ReprojectShadow(in vec3 world_pos)
@@ -479,7 +503,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
     float BaseShadow = texture(u_ShadowTexture, Txc).r;
     float Shadow = BaseShadow;
     float PlayerShadow  = 0.0f;
-    int PlayerShadowSamples = 16;
+    int PlayerShadowSamples = 12;
 
     vec3 BiasedWorldPos = world_pos - (flat_normal * 0.255f);
     if (u_ContactHardeningShadows) {
@@ -756,7 +780,7 @@ vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness)
 
 // COLORS //
 const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.4f; 
+const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.3f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
 
@@ -767,6 +791,13 @@ vec4 hash4( vec2 p ) { return fract(sin(vec4( 1.0+dot(p,vec2(37.0,17.0)),
                                               2.0+dot(p,vec2(11.0,47.0)),
                                               3.0+dot(p,vec2(41.0,29.0)),
                                               4.0+dot(p,vec2(23.0,31.0))))*103.0); }
+
+
+
+
+
+// catmull rom texture interpolation 
+vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
 
 
@@ -887,17 +918,24 @@ void main()
             // 
 
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
-            if (do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < 70)) // -> Causes artifacts if the AO is applied too far away
+			
+			const int VXGI_CUTOFF = 69 + 7;
+			
+            if (do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < VXGI_CUTOFF)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.00125f;
                 if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
-                    float ao = texture(u_VXAO, v_TexCoords).x;
-                    SampledIndirectDiffuse *= vec3(clamp(pow(ao, 1.85f), 0.0f, 1.0f));
+					 // prevents some aliasing. I DONT FUCKING KNOW AT THIS POINT.
+                    float ao = texture_catmullrom(u_VXAO, v_TexCoords).x;
+					
+					// Multiply indirect diffuse by ao 
+                    SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 1.85f), 0.1f, 1.0f));
                 }
             }
 
+			
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
@@ -1156,3 +1194,53 @@ vec4 TilelessTexture(sampler2DArray samp, vec3 uvt, float v)
                 mix( textureGrad( samp, vec3(uvc,uvt.z), ddxc, ddyc ),
                      textureGrad( samp, vec3(uvd,uvt.z), ddxd, ddyd ), b.x), b.y );
 }
+
+
+
+// catmull rom interpolation.
+
+#define sqr(x) (x*x)
+
+
+vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
+    vec2 res    = textureSize(tex, 0);
+	vec2 pixelSize = 1.0f / res;
+
+    vec2 coord  = uv*res;
+    vec2 coord1 = floor(coord - 0.5) + 0.5;
+
+    vec2 f      = coord-coord1;
+
+    vec2 w0     = f*(-0.5 + f*(1.0-0.5*f));
+    vec2 w1     = 1.0 + sqr(f)*(-2.5+1.5*f);
+    vec2 w2     = f*(0.5 + f*(2.0-1.5*f));
+    vec2 w3     = sqr(f)*(-0.5+0.5*f);
+
+    vec2 w12    = w1+w2;
+    vec2 delta12 = w2/w12;
+
+    vec2 uv0    = coord1 - vec2(1.0);
+    vec2 uv3    = coord1 + vec2(1.0);
+    vec2 uv12   = coord1 + delta12;
+
+        uv0    *= pixelSize;
+        uv3    *= pixelSize;
+        uv12   *= pixelSize;
+
+    vec4 col    = vec4(0.0);
+        col    += textureLod(tex, vec2(uv0.x, uv0.y), 0)*w0.x*w0.y;
+        col    += textureLod(tex, vec2(uv12.x, uv0.y), 0)*w12.x*w0.y;
+        col    += textureLod(tex, vec2(uv3.x, uv0.y), 0)*w3.x*w0.y;
+
+        col    += textureLod(tex, vec2(uv0.x, uv12.y), 0)*w0.x*w12.y;
+        col    += textureLod(tex, vec2(uv12.x, uv12.y), 0)*w12.x*w12.y;
+        col    += textureLod(tex, vec2(uv3.x, uv12.y), 0)*w3.x*w12.y;
+
+        col    += textureLod(tex, vec2(uv0.x, uv3.y), 0)*w0.x*w3.y;
+        col    += textureLod(tex, vec2(uv12.x, uv3.y), 0)*w12.x*w3.y;
+        col    += textureLod(tex, vec2(uv3.x, uv3.y), 0)*w3.x*w3.y;
+
+    return clamp(col, 0.0, 65535.0);
+}
+
+// end of light combine / color pass

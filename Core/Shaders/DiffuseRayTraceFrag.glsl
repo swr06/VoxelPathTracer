@@ -195,6 +195,8 @@ vec3 DiffuseRayBRDF(vec3 N, vec3 I, vec3 D, float Roughness)
     return BRDF;
 }
 
+bool Moonstronger=false;
+
 vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
 	float bias = 0.05f;
@@ -243,7 +245,17 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 			float NDotL = max(dot(HitNormal, StrongerLightDirection), 0.0f);
 			vec3 bias_shadow = (HitNormal * 0.045);
-			float ShadowAt = NDotL < 0.001f ? 0.0f : GetShadowAt(IntersectionPosition + bias_shadow, StrongerLightDirection);
+			float ShadowAt;
+
+			if (Moonstronger)
+			{ 
+				ShadowAt=1.0f;
+			}
+
+			else {
+				ShadowAt = (NDotL < 0.001f) ? 0.0f : GetShadowAt(IntersectionPosition + bias_shadow, StrongerLightDirection);
+			}
+
 			//radiance += (Emmisivity * Albedo)+BRDF;
 			
 			vec3 EmmisivityColor = (Emmisivity * Albedo);
@@ -396,11 +408,14 @@ void main()
     vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
 	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
 	LIGHT_COLOR *= 0.45f;
-	EmissivityMultiplier = 13.0f;
-
-
-
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
+	Moonstronger = !SunStronger;
+	EmissivityMultiplier = Moonstronger ? 13.0f : 12.0f;
+
+
+
+	o_AO = 1.0f;
+	
 
     #ifdef ANIMATE_NOISE
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 1000);
@@ -418,6 +433,7 @@ void main()
 	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
 
 	o_Utility = GetLuminance(vec3(0.0f));
+
 
 	if (Position.w < 0.0f)
 	{
@@ -442,6 +458,10 @@ void main()
 	vec2 CoCg = vec2(0.0f);
 	vec3 radiance = vec3(0.0f);
 
+	if (Moonstronger) {
+		SPP*=2; // We DONT cast shadow rays if the moon is stronger, so we save two shadow rays per diffuse ray, double the spp to make up for this
+	}
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		vec3 d = vec3(0.0f);
@@ -462,6 +482,7 @@ void main()
 	o_CoCg.xy = CoCg;
 	o_Utility = GetLuminance(radiance);
 	o_AO = AccumulatedAO;
+	o_AO = clamp(o_AO,0.0f,1.0f);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

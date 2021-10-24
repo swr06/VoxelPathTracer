@@ -69,7 +69,7 @@ static int PIXEL_PADDING = 20;
 
 static bool TEMPORAL_SPEC = true;
 
-
+static int RenderDistance = 350;
 
 static bool REFLECT_PLAYER = false;
 
@@ -257,6 +257,8 @@ public:
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
+			ImGui::NewLine();
+			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
 			ImGui::NewLine();
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
@@ -1096,6 +1098,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 																 glm::inverse(MainCamera.GetProjectionMatrix()));
 			InitialTraceShader.SetInteger("u_VoxelDataTexture", 0);
 			InitialTraceShader.SetInteger("u_AlbedoTextures", 1);
+			InitialTraceShader.SetInteger("u_RenderDistance", RenderDistance);
 			InitialTraceShader.SetInteger("u_DistanceFieldTexture", 2);
 			InitialTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			InitialTraceShader.SetInteger("u_VertCurrentFrame", app.GetCurrentFrame());
@@ -2381,7 +2384,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_ReflectionCoCgData", 17);
 		ColorShader.SetInteger("u_VXAO", 18);
 		ColorShader.SetInteger("u_HighResBL", 19);
-		ColorShader.SetInteger("u_ContactHardeningShadows", true);
+		ColorShader.SetInteger("u_ContactHardeningShadows", SoftShadows);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetMatrix4("u_View", MainCamera.GetViewMatrix());
@@ -3088,6 +3091,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// velocity clamp
 		MainPlayer.ClampVelocity();
 		
+		RenderDistance = glm::clamp(RenderDistance, 0, 350);
+
 		// make sure padding is divisible by 2
 		if (PIXEL_PADDING % 2 != 0) { PIXEL_PADDING += 1; }
 
