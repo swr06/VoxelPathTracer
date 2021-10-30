@@ -279,7 +279,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 		else 
 		{	
-			float x = mix(3.0f, 1.75f, u_SunVisibility);
+			float x = mix(3.0f, 1.5f, u_SunVisibility);
 			x = clamp(x,0.0f,5.0f);
 			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x * 1.25f);
 			RayContribution += sky * RayThroughput;

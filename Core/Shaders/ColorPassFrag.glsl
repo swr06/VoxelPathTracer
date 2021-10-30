@@ -701,51 +701,61 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
-#define SPATIAL_UPSCALE_INDIRECT_DIFFUSE
 
-void SpatialUpscaleIndirectDiffuse(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg)
+void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg)
 {
-#ifndef SPATIAL_UPSCALE_INDIRECT_DIFFUSE
-    SH = texture(u_DiffuseSHy, v_TexCoords).xyzw ;
-	CoCg = texture(u_DiffuseCoCg, v_TexCoords).xy ;
-    return;
-
-#else 
 
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
+    vec4 TotalSpecSH = vec4(0.0f);
+    vec2 TotalSpecCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
+
+    const vec2 Offsets[4] = vec2[](
+        vec2(0.0f, 1.0f),
+        vec2(1.0f, 0.0f),
+        vec2(-1.0f, 0.0f),
+        vec2(0.0, -1.0f)
+    );
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
 	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
-    float HighFreqBL = texture(u_HighResBL, v_TexCoords * (u_Dimensions / vec2(1024.0f))).r;
-    float SpatialDither = u_ShouldDitherUpscale ? bayer8(gl_FragCoord.xy) : 1.0f;
 
-	for (int x = -2 ; x <= 2 ; x++) {
-		for (int y = -2 ; y <= 2 ; y++) {
-			
-            vec2 SampleCoord = v_TexCoords + (vec2(x,y) * SpatialDither * 1.025f) * TexelSize;
-			float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
-            if (LinearDepthAt <= 0.0f + 1e-2) { continue; }
-			
-            vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
-			float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
-			DepthWeight = pow(DepthWeight, 16.0f);
-            DepthWeight = max(DepthWeight, 0.0f);
-			float NormalWeight = pow(abs(dot(NormalAt, BaseNormal)), 8.0f);
-            NormalWeight = max(NormalWeight, 0.0f);
-			float Kernel = Weights[x + 2] * Weights[y + 2];
-			float Weight = Kernel * clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
-			Weight = max(Weight, 0.01f);
-			TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
-			TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
-			TotalWeight += Weight;
-		}
+
+	for (int s = 0 ; s < 4 ; s++) {
+		
+        vec2 SampleCoord = v_TexCoords + (vec2(Offsets[s])) * TexelSize;
+		float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
+        
+        float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
+		DepthWeight = pow(DepthWeight, 8.0f);
+        DepthWeight = max(DepthWeight, 0.0f);
+
+        vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+		float NormalWeight = pow(max(abs(dot(NormalAt, BaseNormal)),0.000001f), 64.0f);
+        NormalWeight = max(NormalWeight, 0.0f);
+
+		float Weight = clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
+
+		Weight = max(Weight, 0.01f);
+        float SpecularWeight = Weight;
+
+
+		TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
+		TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
+        TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
+        TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
+		TotalWeight += Weight;
 	}
 
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
-#endif
+    TotalSpecSH = TotalSpecSH / TotalWeight;
+    TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
+
+    SpecularSHy = TotalSpecSH;
+    SpecularCoCg = TotalSpecCoCg;
+
 }
 
 vec3 saturate(vec3 x)
@@ -909,7 +919,9 @@ void main()
             
             vec4 SHy;
             vec2 ShCoCg;
-            SpatialUpscaleIndirectDiffuse(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg);
+            vec4 SpecularSH;
+            vec2 SpecularCoCg;
+            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg);
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
@@ -958,8 +970,7 @@ void main()
 
             // Compute Specular indirect from spherical harmonic 
 
-            vec4 SpecularSH = texture(u_ReflectionSHData, v_TexCoords);
-            vec2 SpecularCoCg = texture(u_ReflectionCoCgData, v_TexCoords).rg;
+           
             vec3 SpecularIndirect = vec3(0.0f);
             
             if (InBiasedSS) {
@@ -991,6 +1002,8 @@ void main()
             }
 
             else {
+
+                // direct + ind_diff + ind_spec * dfg brdf
                 float NDotV = clamp(dot(NonAmplifiedNormal, Lo), 0.0f, 1.0f);
                 vec3 Tint = mix(vec3(1.0f), AlbedoColor, float(PBRMap.g > 0.0125f));
                 vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
@@ -999,6 +1012,8 @@ void main()
                 o_Color = DirectLighting + DiffuseIndirect;
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
+
+            //o_Color = SpecularIndirect;
 
 
              ///if (PBRMap.x > 0.897511) 

@@ -44,6 +44,7 @@ layout(location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
+flat in int v_PlayerShadowed;
 
 uniform vec3 u_SunDirection;
 uniform vec3 u_StrongerLightDirection;
@@ -692,7 +693,7 @@ void main()
 		//o_Color += (Emissivity * 8.0f) * o_Color;
 	}
 
-	if (u_LensFlare && u_SunIsStronger)
+	if (u_LensFlare && u_SunIsStronger && v_PlayerShadowed==0)
 	{
 		vec2 SunScreenSpacePosition = WorldToScreen(u_SunDirection * 10000.0f) - 0.5f; 
 		SunScreenSpacePosition.x *= u_Dimensions.x / u_Dimensions.y;

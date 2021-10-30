@@ -1,3 +1,8 @@
+// Temporal Anti Aliasing implementation 
+// Resources :
+//	   TAA (Neighbourhood clamping, box clipping) : INSIDE TAA
+//     Variance Clipping : https://www.dropbox.com/sh/dmye840y307lbpx/AAAQpC0MxMbuOsjm6XmTPgFJa	
+
 #version 330 core
 
 layout (location = 0) out vec3 o_Color;
@@ -130,6 +135,124 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 
 
+///
+vec3 DiagonalColorClamp(vec2 Reprojected) {
+	vec3 MinBox = vec3(100.0f);
+	vec3 MaxBox = vec3(-100.0f);
+
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+
+	vec3 CenterColor = texture(u_CurrentColorTexture, Reprojected).xyz;
+
+	const vec2 SampleOffsets[8] = vec2[8](vec2(-1, 1), vec2(0, 1), vec2(1, 1), vec2(-1, 0), vec2(1, 0), vec2(-1,-1), vec2(0,-1), vec2(1,-1));
+	vec3 Samples[8];
+
+	for (int x = 0 ; x < 8 ; x++) {
+		vec2 Offset = SampleOffsets[x];
+		vec2 Coord = Reprojected+Offset*TexelSize;
+		vec3 SampleColor = texture(u_CurrentColorTexture, Coord).xyz; 
+		MinBox = min(SampleColor, MinBox);
+		MaxBox = min(SampleColor, MaxBox);
+		Samples[x] = SampleColor;
+	}
+
+	// Diagonal Clamp
+	const vec3 dgx = normalize(vec3(1.0f)); 
+    const vec3 dgz = normalize(cross(dgx, vec3(0,1,0)));
+    const vec3 dgy = cross(dgz, dgx);
+    mat3x3 rgb2drgb = mat3x3(dgx, dgy, dgz);
+
+    vec3 dc = rgb2drgb * CenterColor;
+    vec3 mnd = dc;
+	vec3 mxd = dc;
+
+    for (int i = 0; i < 8; i++)
+    {
+        vec3 ds = rgb2drgb * Samples[i];
+        mnd = min(mnd, ds);
+        mxd = max(mxd, ds);
+    }
+
+
+	// History
+	vec3 History = texture(u_PreviousColorTexture, Reprojected).xyz;
+	History = clamp(History, MinBox, MaxBox);
+	vec3 DiagonalTransform = rgb2drgb * History;
+    DiagonalTransform = clamp(DiagonalTransform, mnd, mxd );
+    return DiagonalTransform * rgb2drgb;
+}
+///
+
+vec3 rgb2ycocg(in vec3 rgb)
+{
+    float co = rgb.r - rgb.b;
+    float t = rgb.b + co / 2.0;
+    float cg = rgb.g - t;
+    float y = t + cg / 2.0;
+    return vec3(y, co, cg);
+}
+
+
+vec3 ycocg2rgb(in vec3 ycocg)
+{
+    float t = ycocg.r - ycocg.b / 2.0;
+    float g = ycocg.b + t;
+    float b = t - ycocg.g / 2.0;
+    float r = ycocg.g + b;
+    return vec3(r, g, b);
+}
+
+// inside taa 
+vec3 clipToAABB(in vec3 cOld, in vec3 cNew, in vec3 centre, in vec3 halfSize)
+{
+    if (all(lessThanEqual(abs(cOld - centre), halfSize))) {
+        return cOld;
+    }
+    
+    vec3 dir = (cNew - cOld);
+    vec3 near = centre - sign(dir) * halfSize;
+    vec3 tAll = (near - cOld) / dir;
+    float t = 1e20;
+    for (int i = 0; i < 3; i++) {
+        if (tAll[i] >= 0.0 && tAll[i] < t) {
+            t = tAll[i];
+        }
+    }
+    
+    if (t >= 1e20) {
+		return cOld;
+    }
+    return cOld + dir * t;
+}
+
+// Variance clipping
+vec3 VarianceClip(vec2 Reproj, vec3 CenterCurrent) 
+{
+	vec2 Offsets[4] = vec2[4](vec2(-1.0,  0.0), 
+								vec2( 1.0,  0.0), 
+								vec2( 0.0, -1.0), 
+								vec2( 0.0,  1.0));
+	
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+	vec3 C = texture(u_PreviousColorTexture, Reproj).xyz;
+	vec3 Averaged = rgb2ycocg(CenterCurrent.rgb);
+    vec3 StandardDeviation = Averaged * Averaged;
+
+    for (int i = 0; i < 4; i++) 
+	{
+        vec3 Sample = rgb2ycocg(texture(u_CurrentColorTexture, (Reproj + Offsets[i] * TexelSize)).rgb);
+        Averaged += Sample;
+        StandardDeviation += Sample * Sample;
+    }
+
+    Averaged /= 5.0f;
+    StandardDeviation = sqrt(StandardDeviation / 5.0f - Averaged * Averaged);
+	vec3 ClippedColor = C;
+	ClippedColor = ycocg2rgb(clipToAABB(rgb2ycocg(ClippedColor), rgb2ycocg(CenterCurrent.rgb), Averaged, StandardDeviation));
+	return ClippedColor;
+}
+
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -161,6 +284,10 @@ void main()
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
+		// used for testing
+		////vec3 PrevColor = AdvancedClamp(PreviousCoord); //SampleHistory(PreviousCoord, WorldPosition.xyzw);////
+		////vec3 PrevColor = VarianceClip(PreviousCoord, CurrentColor.xyz);////
+
 		vec3 PrevColor = SampleHistory(PreviousCoord, WorldPosition.xyzw);
 
 		// Construct our motion vector

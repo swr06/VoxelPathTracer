@@ -117,7 +117,7 @@ void main()
 	float TotalWeight = 1.0f;
 	float TotalAO = BaseAO;
 	float TotalAOWeight = 1.0f;
-	float PhiColor = 3.0f;
+	float PhiColor = 4.0f;
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.0f * 1.1f));
 
 	for (int x = -1 ; x <= 1 ; x++)

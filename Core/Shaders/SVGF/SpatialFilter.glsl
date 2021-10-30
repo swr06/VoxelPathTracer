@@ -33,6 +33,7 @@ uniform vec2 u_Dimensions;
 uniform int u_Step;
 uniform bool u_ShouldDetailWeight;
 uniform bool DO_SPATIAL;
+uniform bool u_LargeKernel;
 uniform bool AGGRESSIVE_DISOCCLUSION_HANDLING;
 
 uniform mat4 u_InverseView;
@@ -198,9 +199,11 @@ void main()
 	//float Bayer = bayer2(gl_FragCoord.xy);
 
 	// 9 samples, with 5 atrous passes and 1 initial pass
-	for (int x = -1 ; x <= 1 ; x++)
+	int KernelSampleSize = u_LargeKernel ? 2 : 1;
+
+	for (int x = -KernelSampleSize ; x <= KernelSampleSize ; x++)
 	{
-		for (int y = -1 ; y <= 1 ; y++)
+		for (int y = -KernelSampleSize ; y <= KernelSampleSize ; y++)
 		{
 			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + (vec2(Jitter)*1.05f)) * TexelSize ;
 			if (!InScreenSpace(SampleCoord)) { continue; }

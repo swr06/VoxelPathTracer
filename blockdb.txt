@@ -236,8 +236,8 @@
 	Normal : Res/Block/NetherGold/Normal.png
 	PBR : Res/Block/NetherGold/PBR.png
 	
-	SND_STEP : Metal
-	SND_MODIFY : Metal
+	SND_STEP : Stone
+	SND_MODIFY : Stone
 }
 
 {
