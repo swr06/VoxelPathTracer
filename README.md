@@ -16,7 +16,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Flexible material system
 - Temporal Anti Aliasing (And temporal supersampling)
 - FXAA
-- Tonemapping, Gamma correction
+- HDR Tonemapping, Gamma correction
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX with specialized specular denoiser)
 - Naive world saving and loading
@@ -29,7 +29,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Bloom (Mip based) 
 - Volumetric 3D clouds
 - Particle system
-- Spherical harmonics (to encode indirect radiance data, used for both specular and diffuse) 
+- Spherical harmonics (Second order, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
 - Fully 3D Audio
 - Point Light Volumetrics 
