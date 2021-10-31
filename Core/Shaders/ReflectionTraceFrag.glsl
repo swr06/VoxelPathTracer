@@ -37,6 +37,8 @@ uniform sampler2D u_DiffuseSH;
 uniform sampler2D u_DiffuseCoCg;
 uniform sampler2D u_ShadowTrace;
 
+uniform sampler2D u_IndirectAO;
+
 
 uniform bool u_RoughReflections;
 uniform bool CHECKERBOARD_SPEC_SPP;
@@ -417,12 +419,12 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
     return GetNormalFromID(texture(samp, txc).x);
 }
 
-vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success)
+vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success, out vec4 PositionAt)
 {
     vec4 ProjectedPosition = u_Projection * u_View * vec4(HitPosition, 1.0f);
     ProjectedPosition.xyz /= ProjectedPosition.w;
     ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
-    vec4 PositionAt = GetPositionAt(u_PositionTexture, ProjectedPosition.xy);
+    PositionAt = GetPositionAt(u_PositionTexture, ProjectedPosition.xy);
     vec3 NormalAt = SampleNormalFromTex(u_InitialTraceNormalTexture, ProjectedPosition.xy).xyz;
     vec3 PositionDifference = abs(PositionAt.xyz - HitPosition.xyz);
     float Error = dot(PositionDifference, PositionDifference) ;
@@ -589,12 +591,19 @@ void main()
 			// Reproject to screen space !
 
 			if (u_ReprojectToScreenSpace) {
-				ScreenSpaceReprojected = ReprojectReflectionToScreenSpace(HitPosition, Normal, ReprojectionSuccessful);
+				vec4 ReprojectedWorldPos;
+				ScreenSpaceReprojected = ReprojectReflectionToScreenSpace(HitPosition, Normal, ReprojectionSuccessful, ReprojectedWorldPos);
 
 				if (ReprojectionSuccessful) {
 					vec4 ReprojectedSH = texture(u_DiffuseSH, ScreenSpaceReprojected);
 					vec2 ReprojectedCoCg = texture(u_DiffuseCoCg, ScreenSpaceReprojected).xy;
 					Ambient = SHToIrradianceA(ReprojectedSH, ReprojectedCoCg);
+					float ReprojectedVXAO = pow(texture(u_IndirectAO, ScreenSpaceReprojected.xy).x,0.75f);
+					if (ReprojectedWorldPos.w>0.0f){
+						if (distance(ReprojectedWorldPos.xyz,u_InverseView[3].xyz) < 40) {
+							Ambient *= ReprojectedVXAO;
+						}
+					}
 				} 
 			}
 

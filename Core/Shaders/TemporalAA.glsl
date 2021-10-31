@@ -92,6 +92,27 @@ vec3 clipAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
     return denom > 1.0 ? pClip + vClip / denom : prevColor;
 }
 
+
+vec3 rgb2ycocg(in vec3 rgb)
+{
+    float co = rgb.r - rgb.b;
+    float t = rgb.b + co / 2.0;
+    float cg = rgb.g - t;
+    float y = t + cg / 2.0;
+    return vec3(y, co, cg);
+}
+
+
+vec3 ycocg2rgb(in vec3 ycocg)
+{
+    float t = ycocg.r - ycocg.b / 2.0;
+    float g = ycocg.b + t;
+    float b = t - ycocg.g / 2.0;
+    float r = ycocg.g + b;
+    return vec3(r, g, b);
+}
+
+
 vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
 {
     vec3 MinColor = vec3(100.0);
@@ -130,7 +151,8 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 	BestOffset = FindBestPixel ? BestOffset : vec2(0.0f);
 	vec3 Color = texture(u_PreviousColorTexture, Reprojected + BestOffset * TexelSize).xyz;
-    return clipAABB(Color, MinColor, MaxColor);
+   // return ycocg2rgb(clipAABB(rgb2ycocg(Color), rgb2ycocg(MinColor), rgb2ycocg(MaxColor))).xyz;
+     return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
 }
 
 
@@ -183,25 +205,6 @@ vec3 DiagonalColorClamp(vec2 Reprojected) {
 }
 ///
 
-vec3 rgb2ycocg(in vec3 rgb)
-{
-    float co = rgb.r - rgb.b;
-    float t = rgb.b + co / 2.0;
-    float cg = rgb.g - t;
-    float y = t + cg / 2.0;
-    return vec3(y, co, cg);
-}
-
-
-vec3 ycocg2rgb(in vec3 ycocg)
-{
-    float t = ycocg.r - ycocg.b / 2.0;
-    float g = ycocg.b + t;
-    float b = t - ycocg.g / 2.0;
-    float r = ycocg.g + b;
-    return vec3(r, g, b);
-}
-
 // inside taa 
 vec3 clipToAABB(in vec3 cOld, in vec3 cNew, in vec3 centre, in vec3 halfSize)
 {
@@ -244,7 +247,7 @@ vec3 VarianceClip(vec2 Reproj, vec3 CenterCurrent)
         Averaged += Sample;
         StandardDeviation += Sample * Sample;
     }
-
+	
     Averaged /= 5.0f;
     StandardDeviation = sqrt(StandardDeviation / 5.0f - Averaged * Averaged);
 	vec3 ClippedColor = C;

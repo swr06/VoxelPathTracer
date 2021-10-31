@@ -1930,6 +1930,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
+			ReflectionTraceShader.SetInteger("u_IndirectAO", 17);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_CurrentFrameMod128", app.GetCurrentFrame()%128);
@@ -1943,6 +1944,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
 			ReflectionTraceShader.SetBool("CHECKERBOARD_SPEC_SPP", CHECKERBOARD_SPEC_SPP);
 			ReflectionTraceShader.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
+
+			
+				
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
 			BlockDataStorageBuffer.Bind(0);
@@ -1992,6 +1996,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE16);
 			glBindTexture(GL_TEXTURE_2D, SoftShadows ?(DenoiseSunShadows?ShadowFiltered.GetTexture():ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
 			
+			glActiveTexture(GL_TEXTURE17);
+			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(3));
+
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
 
 			VAO.Bind();

@@ -1,9 +1,5 @@
 // Light combine / Color pass.
 
-
-
-
-
 #version 450 core
 
 #define CLOUD_HEIGHT 70
@@ -1003,7 +999,10 @@ void main()
 
             else {
 
-                // direct + ind_diff + ind_spec * dfg brdf
+                // direct + ind_diff + ind_spec * dfg (fr) 
+                // dfg * fresnel to correct fresnel for energy conservation
+                // 1.0 + f0 * (1.0 / dfg.y - 1.0) usually
+
                 float NDotV = clamp(dot(NonAmplifiedNormal, Lo), 0.0f, 1.0f);
                 vec3 Tint = mix(vec3(1.0f), AlbedoColor, float(PBRMap.g > 0.0125f));
                 vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
@@ -1013,7 +1012,7 @@ void main()
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
 
-            //o_Color = SpecularIndirect;
+            ////o_Color = SpecularIndirect;
 
 
              ///if (PBRMap.x > 0.897511) 

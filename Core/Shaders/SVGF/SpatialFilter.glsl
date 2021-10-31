@@ -205,7 +205,7 @@ void main()
 	{
 		for (int y = -KernelSampleSize ; y <= KernelSampleSize ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + (vec2(Jitter)*1.05f)) * TexelSize ;
+			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + (vec2(Jitter)*0.5f)) * TexelSize ;
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 

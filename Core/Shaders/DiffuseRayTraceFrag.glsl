@@ -1,7 +1,6 @@
+// Indirect diffuse raytracing 
+
 #version 450 core
-
-// indirect diffuse raytracing
-
 
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
@@ -262,10 +261,12 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 			vec3 SUNBRDF = SunBRDF(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
 
 			vec3 NewDirection = vec3(0.0f);
-			NewDirection = cosWeightedRandomHemisphereDirection(HitNormal); // create a direction 
+			NewDirection = cosWeightedRandomHemisphereDirection(HitNormal); // create a direction based on the lambertian diffuse brdf
 			float CosTheta = clamp(dot(HitNormal, NewDirection), 0.0f, 1.0f); 
 			float PDF = max(CosTheta / PI, 0.00001f); // lambert brdf pdf -> dot(n,r)/pi 
-			vec3 Attenuation = DiffuseRayBRDF(HitNormal, new_ray.Direction, NewDirection, PBR.x); // I know I need to use the hammon diffuse brdf pdf instead, it's still wip 
+			
+			// Weight by Lambertian diffuse brdf because i use a cosine weighted hemisphere function
+			vec3 Attenuation = DiffuseRayBRDF(HitNormal, new_ray.Direction, NewDirection, PBR.x); 
 
 			RayContribution += RayThroughput * SUNBRDF; // Sun GI
 			RayContribution += EmmisivityColor * RayThroughput; // Emissive GI
@@ -279,9 +280,9 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 		else 
 		{	
-			float x = mix(3.0f, 1.5f, u_SunVisibility);
-			x = clamp(x,0.0f,5.0f);
-			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x * 1.25f);
+			float x = mix(3.0f, 1.4f, u_SunVisibility);
+			x = clamp(x*1.25f,0.0f,5.0f);
+			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x);
 			RayContribution += sky * RayThroughput;
 			SummedContribution_t += sky;
 			break;
