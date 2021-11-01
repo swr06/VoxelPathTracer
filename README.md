@@ -4,7 +4,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 
 # Features Implemented
 - Voxel Ray Casting 
-- Over 100+ block types
+- Over 100+ block types with 512x512 textures (Albedo, normals, metalness, roughness, indirect occlusion & displacement)
 - Manhattan Distance Field acceleration (Distance fields are generated using compute shaders) 
 - Procedural Terrain Generation (Plains, superflat) 
 - Indirect Light Tracing (Diffuse, Specular, AO)
