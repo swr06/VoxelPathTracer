@@ -8,6 +8,7 @@ in vec2 v_TexCoords;
 uniform sampler2D u_InputTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
+uniform sampler2D u_IntersectionTransversals;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
@@ -52,7 +53,7 @@ float Luminance(vec3 x)
 }
 
 float LuminancePow(float x) {
-    return x*x*x*x;
+    return x*x*x*x*x;
 }
 
 float ShadowSpatial(sampler2D tex, vec2 uv)
@@ -62,6 +63,17 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
     float CenterShadow = texture(u_InputTexture, v_TexCoords).x;
     float BaseLuminance = Luminance(vec3(CenterShadow));
     vec2 TexelSize = 1.0f / vec2(textureSize(tex, 0));
+
+    float Transversal = texture(u_IntersectionTransversals, v_TexCoords).x;
+
+    Transversal = Transversal * 100.0f;
+
+    const float TransversalCutoff = sqrt(2.0f);
+    bool SharpShadow = Transversal > 0.0f && Transversal < TransversalCutoff;
+
+    if (SharpShadow) {
+        return CenterShadow;
+    }
 
     float TotalWeight = 0.0f;
     float TotalShadow = 0.0f;

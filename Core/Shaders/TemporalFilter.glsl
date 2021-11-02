@@ -1,7 +1,7 @@
 #version 330 core
 
 layout (location = 0) out vec4 o_Color;
-layout (location = 1) out vec2 o_SH;
+layout (location = 1) out vec2 o_CoCg;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -12,6 +12,8 @@ uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
+// (Actually the CoCg part, the chrominance is stored in the first band of the spherical harmonic[SHy]) 
+// idk wtf happened to me when naming this 
 uniform sampler2D u_PreviousSH;
 uniform sampler2D u_CurrentSH;
 
@@ -231,6 +233,117 @@ vec4 GetShadowSpatial() {
 	return Total;
 }
 
+
+// Variance clip -> aabb 
+// Calculate standard deviation with average color and clip to an aabb
+vec3 clipToAABB(in vec3 cOld, in vec3 cNew, in vec3 centre, in vec3 halfSize)
+{
+    if (all(lessThanEqual(abs(cOld - centre), halfSize))) {
+        return cOld;
+    }
+    
+    vec3 dir = (cNew - cOld);
+    vec3 near = centre - sign(dir) * halfSize;
+    vec3 tAll = (near - cOld) / dir;
+    float t = 1e20;
+    for (int i = 0; i < 3; i++) {
+        if (tAll[i] >= 0.0 && tAll[i] < t) {
+            t = tAll[i];
+        }
+    }
+    
+    if (t >= 1e20) {
+		return cOld;
+    }
+    return cOld + dir * t;
+}
+
+
+// rgb -> ycocg and 
+// ycocg -> rgb conversions 
+vec3 rgb2ycocg(in vec3 rgb)
+{
+    float co = rgb.r - rgb.b;
+    float t = rgb.b + co / 2.0;
+    float cg = rgb.g - t;
+    float y = t + cg / 2.0;
+    return vec3(y, co, cg);
+}
+
+
+vec3 ycocg2rgb(in vec3 ycocg)
+{
+    float t = ycocg.r - ycocg.b / 2.0;
+    float g = ycocg.b + t;
+    float b = t - ycocg.g / 2.0;
+    float r = ycocg.g + b;
+    return vec3(r, g, b);
+}
+////
+
+// AABB color clipping 
+vec3 clipAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
+{
+    vec3 pClip = 0.5 * (maxColor + minColor); 
+    vec3 eClip = 0.5 * (maxColor - minColor); 
+    vec3 vClip = prevColor - pClip;
+    vec3 vUnit = vClip / eClip;
+    vec3 aUnit = abs(vUnit);
+    float denom = max(aUnit.x, max(aUnit.y, aUnit.z));
+    return denom > 1.0 ? pClip + vClip / denom : prevColor;
+}
+
+
+// reduces ghosting 
+// spatial filter does carry quite a bit 
+vec3 ClipShadow(vec2 Reprojected) 
+{
+    vec3 MinColor = vec3(100.0);
+	vec3 MaxColor = vec3(-100.0); 
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
+
+    for(int x = -1; x <= 1; x++) 
+	{
+        for(int y = -1; y <= 1; y++) 
+		{
+            vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
+            MinColor = min(Sample, MinColor); 
+			MaxColor = max(Sample, MaxColor); 
+        }
+    }
+
+	vec3 HistoryShadow = texture(u_PreviousColorTexture, Reprojected).xyz;
+	return clipAABB(HistoryShadow, MinColor, MaxColor);
+}
+
+// Used to test shadow clip
+vec3 VarianceClip(vec2 Reproj, vec3 CenterCurrent) 
+{
+	vec2 Offsets[4] = vec2[4](vec2(-1.0,  0.0), 
+								vec2( 1.0,  0.0), 
+								vec2( 0.0, -1.0), 
+								vec2( 0.0,  1.0));
+	
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+	vec3 C = texture(u_PreviousColorTexture, Reproj).xyz;
+	vec3 Averaged = rgb2ycocg(CenterCurrent.rgb);
+    vec3 StandardDeviation = Averaged * Averaged;
+
+    for (int i = 0; i < 4; i++) 
+	{
+        vec3 Sample = rgb2ycocg(texture(u_CurrentColorTexture, (Reproj + Offsets[i] * TexelSize)).rgb);
+        Averaged += Sample;
+        StandardDeviation += Sample * Sample;
+    }
+	
+    Averaged /= 5.0f;
+    StandardDeviation = sqrt(StandardDeviation / 5.0f - Averaged * Averaged);
+	vec3 ClippedColor = C;
+	ClippedColor = ycocg2rgb(clipToAABB(rgb2ycocg(ClippedColor), rgb2ycocg(CenterCurrent.rgb), Averaged, StandardDeviation));
+	return ClippedColor;
+}
+
+
 // I know i use a shitton of uniform branches but they are nearly free so i dont really care 
 void main()
 {
@@ -245,7 +358,7 @@ void main()
 		Reprojected = Reprojection(CurrentPosition.xyz);
 
 		vec4 CurrentColor = u_ShadowTemporal ? GetShadowSpatial() : texture(u_CurrentColorTexture, CurrentCoord).rgba;
-		vec4 PrevColor = texture(u_PreviousColorTexture, Reprojected);
+		vec4 PrevColor = u_ShadowTemporal ? vec4(ClipShadow(Reprojected),1.0f) : texture(u_PreviousColorTexture, Reprojected);
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 
 		float Bias = u_ShadowTemporal ? 0.006f : 0.01;
@@ -253,7 +366,7 @@ void main()
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
-			float t = u_ShadowTemporal ? 0.325f : 1.1f;
+			float t = u_ShadowTemporal ? 1.0f : 1.1f;
 
 			if (d > t) 
 			{
@@ -261,7 +374,7 @@ void main()
 
 				if (u_DiffuseTemporal) {
 					vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-					o_SH = CurrentSH;
+					o_CoCg = CurrentSH;
 				}
 
 				return;
@@ -285,7 +398,7 @@ void main()
 			if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
 				vec2 PrevSH = texture(u_PreviousSH, Reprojected.xy).xy;
-				o_SH = mix(CurrentSH, PrevSH, BlendFactor);
+				o_CoCg = mix(CurrentSH, PrevSH, BlendFactor);
 			}
 		}
 
@@ -295,7 +408,7 @@ void main()
 
 			if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-				o_SH = CurrentSH;
+				o_CoCg = CurrentSH;
 			}
 		}
 	}
@@ -305,7 +418,7 @@ void main()
 		o_Color = u_ShadowTemporal ? GetShadowSpatial() : texture(u_CurrentColorTexture, v_TexCoords);
 		if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
-				o_SH = CurrentSH;
+				o_CoCg = CurrentSH;
 		}
 	}
 }

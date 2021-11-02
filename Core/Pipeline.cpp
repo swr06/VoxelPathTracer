@@ -254,7 +254,8 @@ public:
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
-			ImGui::Checkbox("Point Volumetric Fog?", &PointVolumetricsToggled);
+			ImGui::Checkbox("Point Volumetric Fog? (WIP!)", &PointVolumetricsToggled);
+			ImGui::SliderFloat("Volumetric Render Resolution (WIP!)", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
@@ -264,7 +265,6 @@ public:
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::SliderInt("PIXEL_PADDING", &PIXEL_PADDING, 0, 128);
-			ImGui::SliderFloat("VOL Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
@@ -587,9 +587,11 @@ GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_
 GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
-GLClasses::Framebuffer ShadowRawTrace(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
+// shadow buffers
+GLClasses::Framebuffer ShadowRawTrace(16, 16, { { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, { GL_R16F, GL_RED, GL_FLOAT } }, false),
 ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
 ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false);
+
 
 
 
@@ -1864,6 +1866,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowFilter.SetInteger("u_InputTexture", 0);
 			ShadowFilter.SetInteger("u_PositionTexture", 1);
 			ShadowFilter.SetInteger("u_NormalTexture", 2);
+			ShadowFilter.SetInteger("u_IntersectionTransversals", 3);
 			ShadowFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
 			ShadowFilter.SetMatrix4("u_VertInverseView", inv_view);
 			ShadowFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -1878,6 +1881,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

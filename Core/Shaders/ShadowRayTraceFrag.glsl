@@ -5,6 +5,7 @@
 #define WORLD_SIZE_Z 384
 
 layout (location = 0) out float o_Shadow;
+layout (location = 1) out float o_IntersectionTransversal;
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -476,6 +477,7 @@ void main()
 		}
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
+		o_IntersectionTransversal = T / 100.0f;
 	}
 }
 
