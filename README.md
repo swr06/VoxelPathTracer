@@ -38,11 +38,13 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Contrast Adaptive Sharpening
 - Auto exposure based on a luminance histogram (Slightly wip!)
 
-# Features to implement
+# Features to implement (Or atleast.. in mind)
 - Foliage
+- Sunsets 
 - (Preferably sthochastic) Refractions
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
+- Raytraced realistic sound
 
 # Performance
 
