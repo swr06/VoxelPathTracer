@@ -62,6 +62,13 @@ uniform bool u_RTAO = false;
 uniform bool u_ExponentialFog = false;
 uniform bool u_PointVolumetricsToggled = false;
 
+uniform float u_Time;
+uniform float u_FilmGrainStrength;
+
+uniform float u_ChromaticAberrationStrength = 0.0f;
+
+uniform bool u_FilmGrain;
+
 uniform int u_GodRaysStepCount = 12;
 
 
@@ -572,12 +579,54 @@ vec4 textureSmooth(sampler2D t, vec2 x, vec2 textureSize)
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv);
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+void FilmGrain(inout vec3 oc) 
+{
+	float Strength = u_FilmGrainStrength;
+	vec3 NoiseColor = vec3(0.2001f, 0.804f, 1.02348f);
+    vec3 Noise = vec3(hash2().x, hash2().y, hash2().x);
+	oc += Noise * exp(-oc) * NoiseColor * 0.01f;
+    oc *= mix(vec3(1.0f), Noise, Strength / 5.0f);
+}
+
+// Chromatic aberration.
+vec3 BasicChromaticAberation()
+{
+	float AberationScale = mix(0.0f, 0.5f, u_ChromaticAberrationStrength);
+	vec2 DistanceWeight = v_TexCoords - 0.5;
+    vec2 Aberrated = AberationScale * pow(DistanceWeight, vec2(3.0f, 3.0f));
+    vec3 Final = vec3(0.0f);
+    
+	// Barrel Distortion
+    for (int i = 1; i <= 8; i++)
+    {
+        float wg = 1.0f / pow(2.0f, float(i)); // Blur Weights, tested.
+        Final.r += texture(u_FramebufferTexture, v_TexCoords - float(i) * Aberrated).r * wg;
+        Final.b += texture(u_FramebufferTexture, v_TexCoords + float(i) * Aberrated).b * wg;
+    }
+    
+	const float TotalWeight = 0.9961f; //(1.0 / pow(2.0f, float(i)) i = 1 -> 8 
+	Final.g = texture(u_FramebufferTexture, v_TexCoords).g * TotalWeight;
+	return max(Final,0.0f);
+}
+
+
+vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
  #define VOLUMETRIC_BICUBIC
 
 void main()
 {
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += fract(u_Time) * 100.0f;
+
+
+
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = SamplePositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 NormalAt = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
@@ -590,7 +639,7 @@ void main()
 	if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
 	{
 		vec3 InputColor;
-		InputColor = texture(u_FramebufferTexture, v_TexCoords).rgb;
+		InputColor = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation();
 
 		if (u_SSAO && (!u_RTAO))
 		{
@@ -705,7 +754,9 @@ void main()
 		o_Color += LensFlare * u_LensFlareIntensity;
 	}
 
-
+	if (u_FilmGrain) {
+		FilmGrain(o_Color);
+	}
 	
 
 	// used to test out ways to animate blue noise

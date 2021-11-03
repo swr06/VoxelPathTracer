@@ -4,7 +4,11 @@
 layout (location = 0) out vec3 o_Color;
 
 uniform sampler2D u_Texture;
+uniform sampler2D u_ColorLUT;
 uniform float u_SharpenAmount;
+uniform bool u_ColorGrading;
+uniform int u_SelectedLUT;
+uniform bool u_ColorDither;
 
 float linearToSrgb(float linear){
     float SRGBLo = linear * 12.92;
@@ -74,10 +78,53 @@ vec3 ContrastAdaptiveSharpening(sampler2D Texture, ivec2 Pixel, float Sharpening
     return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
 }
 
+
+vec3 Lookup(vec3 color) 
+{
+    const vec2 InverseSize = vec2(1.0f / 512.0f, 1.0f / 5120.0f);
+    mat2 Grid = mat2(vec2(1.0f, InverseSize.y * 512), vec2(0.0f, u_SelectedLUT * InverseSize.y * 512)); 
+
+    // calculate blue component -> used to figure out the quad
+    float BlueComponent = color.b * 63.0f;
+
+    // Get Quad 
+    vec4 Quad = vec4(0.0f);
+    Quad.y = floor(floor(BlueComponent) * 0.125f);
+    Quad.x = floor(BlueComponent) - (Quad.y * 8.0f);
+    Quad.w = floor(ceil(BlueComponent) * 0.125f);
+    Quad.z = ceil(BlueComponent) - (Quad.w * 8.0f);
+
+    // calculate sample pos
+    vec4 SamplePosition = (Quad * 0.125f) + (0.123046875f * color.rg).xyxy + 0.0009765625f;
+
+    // fetch
+    vec3 Fetch1 = texture2D(u_ColorLUT, SamplePosition.xy * Grid[0] + Grid[1]).rgb;
+    vec3 Fetch2 = texture2D(u_ColorLUT, SamplePosition.zw * Grid[0] + Grid[1]).rgb;
+    
+    // mix
+    return mix(Fetch1, Fetch2, fract(BlueComponent));
+}
+
+void BasicColorDither(inout vec3 color)
+{
+    vec3 lestynRGB = vec3(dot(vec2(171.0, 231.0), gl_FragCoord.xy));
+    lestynRGB = fract(lestynRGB.rgb / vec3(103.0, 71.0, 97.0));
+    color += lestynRGB.rgb / 255.0;
+}
+
 void main() {
     ivec2 Pixel = ivec2(gl_FragCoord.xy);
     vec3 OriginalColor = texelFetch(u_Texture, Pixel, 0).xyz;
     float SharpeningAmount = u_SharpenAmount;
-    vec3 SharpenedColor = ContrastAdaptiveSharpening(u_Texture, Pixel, SharpeningAmount);
+    vec3 SharpenedColor = ContrastAdaptiveSharpening(u_Texture, Pixel, SharpeningAmount+0.02f);
     o_Color = linearToSrgb(SharpenedColor);
+    o_Color = clamp(o_Color,0.0f,1.0f);
+
+    if (u_ColorGrading) {
+        o_Color = Lookup(o_Color);
+    }
+
+    if (u_ColorDither) {
+		BasicColorDither(o_Color);
+    }
 }

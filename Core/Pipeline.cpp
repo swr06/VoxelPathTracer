@@ -64,6 +64,11 @@ static bool SmartUpscaleCloudTemporal = true;
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
 
+static int SelectedColorGradingLUT = -1;
+static bool ColorDither = true;
+static float FilmGrainStrength = 0.0f;
+static float ChromaticAberrationStrength = 0.0f;
+
 // pixel padding
 static int PIXEL_PADDING = 20;
 
@@ -157,6 +162,7 @@ static bool DO_VARIANCE_SPATIAL = true;
 static bool DO_SVGF_SPATIAL = true;
 static bool DO_SVGF_TEMPORAL = true;
 
+
 static bool BrutalFXAA = true;
 
 static bool GodRays = false;
@@ -222,9 +228,7 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
-			ImGui::NewLine();
-			ImGui::NewLine();
+			
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -285,7 +289,6 @@ public:
 			
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
-			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
 			ImGui::Checkbox("Particles?", &RenderParticles);
@@ -295,7 +298,26 @@ public:
 			ImGui::Checkbox("Do RTAO (RTAO_1 not availible when SVGF filtering is disabled!)", &RTAO);
 
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
+
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("---- Post Process ----");
+			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
+			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
+			ImGui::Checkbox("Color Dither", &ColorDither);
+			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.750f);
+			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 1.0f);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
+			ImGui::Checkbox("Lens Flare?", &LensFlare);
+			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
+			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
+			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
+			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
+			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+			ImGui::NewLine();
+			ImGui::NewLine();
 
 
 			ImGui::NewLine();
@@ -320,12 +342,7 @@ public:
 			ImGui::NewLine();
 
 
-			ImGui::Checkbox("Lens Flare?", &LensFlare);
-			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
-			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
-			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
-			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
-			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+			
 
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -333,11 +350,11 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
-			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended)", &SSAO);
+			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
 			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
-				The textures adapted from minecraft resource packs use a d ifferent parallax representation that needs to be handles)", &POM);
+				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
 
 		if (ImGui::Begin("Other Settings and properties"))
@@ -788,7 +805,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Texture BluenoiseTexture;
 	GLClasses::Texture BluenoiseHighResTexture;
 	GLClasses::Texture PlayerSprite;
-	Crosshair.CreateTexture("Res/Misc/crosshair.png", false);
+	GLClasses::Texture ColorGradingLUT;
+
+	Crosshair.CreateTexture("Res/Misc/crosshair.png", false, false);
+	ColorGradingLUT.CreateTexture("Res/Misc/colorluts.png", false);
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	BluenoiseHighResTexture.CreateTexture("Res/Misc/BluenoiseHighRes.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
@@ -2856,6 +2876,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
+		PostProcessingShader.SetFloat("u_ChromaticAberrationStrength", ChromaticAberrationStrength);
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
@@ -2882,8 +2903,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingShader.SetVector3f("u_VertSunDir", SunDirection);
 		PostProcessingShader.SetBool("u_ComputePlayerShadow", lff);
+		PostProcessingShader.SetBool("u_FilmGrain", FilmGrainStrength>0.001f);
 		PostProcessingShader.SetInteger("u_DistanceFieldTexture", 18);
 		PostProcessingShader.SetInteger("u_VoxelVolume", 19);
+
+		PostProcessingShader.SetFloat("u_Time", glfwGetTime());
+		PostProcessingShader.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -3003,12 +3028,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetInteger("u_PositionTexture", 1);
 		FinalShader.SetInteger("u_NormalTexture", 2);
 		FinalShader.SetInteger("u_BlockIDTex", 3);
+		FinalShader.SetInteger("u_ColorLUT", 4);
 		FinalShader.SetInteger("u_Padding", PIXEL_PADDING);
 		FinalShader.SetBool("u_BrutalFXAA", BrutalFXAA);
 		FinalShader.SetBool("u_CAS", ContrastAdaptiveSharpening);
 		FinalShader.SetMatrix4("u_InverseView", inv_view);
 		FinalShader.SetMatrix4("u_InverseProjection", inv_projection);
 		FinalShader.SetVector2f("u_Dimensions", glm::vec2(app.GetWidth(), app.GetHeight()));
+		FinalShader.SetBool("u_ColorGrading", SelectedColorGradingLUT >= 0);
+		FinalShader.SetInteger("u_SelectedLUT", SelectedColorGradingLUT);
+		FinalShader.SetBool("u_ColorDither", ColorDither);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
@@ -3021,6 +3050,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+		
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, ColorGradingLUT.GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3040,9 +3072,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glViewport(0, 0, app.GetWidth(), app.GetHeight());
 			CAS_Shader.SetInteger("u_Texture", 0);
 			CAS_Shader.SetFloat("u_SharpenAmount", CAS_SharpenAmount);
+			CAS_Shader.SetBool("u_ColorGrading", SelectedColorGradingLUT >= 0);
+			CAS_Shader.SetBool("u_ColorDither", ColorDither);
+			CAS_Shader.SetInteger("u_ColorLUT", 1);
+			CAS_Shader.SetInteger("u_SelectedLUT", SelectedColorGradingLUT);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, FXAA_Final.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, ColorGradingLUT.GetTextureID());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
