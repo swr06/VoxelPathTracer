@@ -1,2 +1,1 @@
-pretty obvious. 
-These are all utility functions that can be used in the shaders for whatever.
+These are all utility functions that can be used in the shaders for whatever. Also contains useful offsets that can be used for blurs
