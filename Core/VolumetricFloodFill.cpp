@@ -67,7 +67,7 @@ void VoxelRT::Volumetrics::CreateVolume(World* world, GLuint SSBO_Blockdata, GLu
 	ClearShaderFloat.Compile();
 	ClearShaderFloat.Use();
 
-	glBindImageTexture(0, VolumetricFloodFillVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_RED);
+	glBindImageTexture(0, VolumetricFloodFillVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
 	glDispatchCompute(384 / 8, 128 / 8, 384 / 8);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 

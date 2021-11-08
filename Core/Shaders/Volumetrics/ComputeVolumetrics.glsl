@@ -5,7 +5,7 @@
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
 
-// Bayer dither
+// Bayer dithering functions
 #define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
@@ -15,18 +15,21 @@
 #define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 
 
-layout (location = 0) out vec3 o_Volumetrics;
+layout (location = 0) out vec4 o_Volumetrics;
 
 in vec2 v_TexCoords;
 
 // Participating media 
 uniform sampler3D u_VolumetricDensityData;
-layout(r8ui, binding = 1) uniform uimage3D u_VolumetricColorData;
+//layout(r8ui, binding = 1) uniform uimage3D u_VolumetricColorData;
 
 
 
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_LinearDepthTexture;
+uniform usampler3D u_VolumetricColorDataSampler;
+
+uniform bool u_UsePerlinNoiseForOD;
 
 uniform vec3 u_ViewerPosition;
 uniform vec2 u_Dimensions;
@@ -37,6 +40,7 @@ uniform mat4 u_InverseProjection;
 uniform mat4 u_InverseView;
 
 uniform bool u_Colored;
+uniform bool u_UseBayer;
 
 uniform int u_LightCount;
 uniform float u_Time;
@@ -79,7 +83,9 @@ float saturate(float x) {
 	return clamp(x, 1e-5f, 1.0f);
 }
 
-// Used to create variation
+
+// Noise FBMs 
+// Perlin noise
 float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
@@ -153,6 +159,19 @@ float layeredNoise(in vec3 x) {
     return 0.6*noise3d2(x*5.0) + 0.4*noise3d2(x*10.0) + 0.2*noise3d2(x*16.0) - 0.2;
 }
 
+// Returns the optical depth for a point using a perlin FBM
+float OpticalDepth(vec3 p)
+{
+    float Time = u_Time * 0.9f;
+    //float OD = pow(dot(noise(p - Time),vec3(0.625,0.25,0.625),2.2)*4.0 ;
+    float OD = noise(p - Time) * 0.5f;
+    OD += noise(p * 2.0f + Time) * 0.25f;
+    OD += noise(p * 4.0f - Time) * 0.125f;
+	return (OD*OD * 4.0f + 0.25f) * (0.9f / 1.0f);
+}
+
+// Triquadratic interpolation + cubic spline with a gradient approximation to improve performance 
+// Doesn't work for some reason. it's a todo optimization.
 vec3 sample_triquadratic_gradient_approx(sampler3D channel, vec3 res, vec3 uv) {
     vec3 q = fract(uv * res);
     vec3 cc = 0.5 / res;
@@ -165,14 +184,13 @@ vec3 sample_triquadratic_gradient_approx(sampler3D channel, vec3 res, vec3 uv) {
 }
 
 vec3 SampleVolumetricColor(vec3 UV) {
-    ivec3 Texel = ivec3(UV*vec3(384.0f,128.0f,384.0f));
-    uint BlockID = imageLoad(u_VolumetricColorData, Texel).x;
+    uint BlockID = texture(u_VolumetricColorDataSampler, UV).x;
     return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
 
 }   
 
 vec3 SampleVolumetricColorTexel(ivec3 Texel) {
-    uint BlockID = imageLoad(u_VolumetricColorData, Texel).x;
+    uint BlockID = texture(u_VolumetricColorDataSampler, Texel).x;
     return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
 
 }   
@@ -193,22 +211,29 @@ vec4 sample_triquadratic(sampler3D channel, vec3 res, vec3 uv) {
 	return s / 8.0;
 }
 
-vec3 SoftwareTriquadraticVolumetrics(vec3 uv) {
-    const vec3 res = vec3(384.0f, 128.0f, 384.0f);
+
+// Triquadratic 3D interp
+vec3 SoftwareTriquadraticVolumetrics(vec3 uv) 
+{ 
+    vec3 res = vec3(384.0f, 128.0f, 384.0f);
     vec3 q = fract(uv * res);
-    vec3 cc = 0.5 / res;
-    vec3 ww0 = uv - cc;
-    vec3 ww1 = uv + cc;
-    float nx = SampleVolumetricColor(vec3(ww1.x, uv.y, uv.z)).r - SampleVolumetricColor(vec3(ww0.x, uv.y, uv.z)).r;
-    float ny = SampleVolumetricColor(vec3(uv.x, ww1.y, uv.z)).r - SampleVolumetricColor(vec3(uv.x, ww0.y, uv.z)).r;
-    float nz = SampleVolumetricColor(vec3(uv.x, uv.y, ww1.z)).r - SampleVolumetricColor(vec3(uv.x, uv.y, ww0.z)).r;
-	return vec3(nx, ny, nz);
+    vec3 c = (q*(q - 1.0) + 0.5) / res;
+    vec3 w0 = uv - c;
+    vec3 w1 = uv + c;
+    vec3 s = SampleVolumetricColor(vec3(w0.x, w0.y, w0.z))
+    	   + SampleVolumetricColor(vec3(w1.x, w0.y, w0.z))
+    	   + SampleVolumetricColor(vec3(w1.x, w1.y, w0.z))
+    	   + SampleVolumetricColor(vec3(w0.x, w1.y, w0.z))
+    	   + SampleVolumetricColor(vec3(w0.x, w1.y, w1.z))
+    	   + SampleVolumetricColor(vec3(w1.x, w1.y, w1.z))
+    	   + SampleVolumetricColor(vec3(w1.x, w0.y, w1.z))
+		   + SampleVolumetricColor(vec3(w0.x, w0.y, w1.z));
+	return s / 8.0;
 }
 
 void main() 
 {
-	const int STEPS = 100;
-	const int HALF_STEPS = STEPS/2;
+    const int Steps = 64;
 
 	// Ray properties
 	float BaseLinearDepth = texture(u_LinearDepthTexture, v_TexCoords).x;
@@ -222,50 +247,72 @@ void main()
     float Distance = BaseLinearDepth;
     Distance = clamp(Distance, 0.0f, 96.0f);
 
-    int Steps = 64;
     float SigmaS = 0.3f * 0.0625f * 0.05f * 5.0f; 
 
     float StepSize = Distance / float(Steps);
-	vec3 BlueNoise = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).xyz;
-    StepSize *= BlueNoise.x;
+	vec3 DitherNoise = vec3(1.0f);
 
-    vec3 RayPosition = u_ViewerPosition + RayDirection * 0.2f;
+    if (u_UseBayer) {
+        DitherNoise = vec3(bayer128(gl_FragCoord.xy));
+    }
+
+    else {
+        DitherNoise = texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(256.0f))).xyz;
+    }
+
+    StepSize *= DitherNoise.x;
+
+    vec3 RayPositionActual = u_ViewerPosition + RayDirection * 0.2f;
 
     vec3 VolumetricLighting = vec3(0.0f);
 
-    const bool UsePerlinFBM = false;
+    bool UsePerlinFBM = u_UsePerlinNoiseForOD;
+    float OutputTransmittance = 1.0f;
+    float OutputDensitySum = 1.0f;
+
+    vec3 SampleDither = vec3(bayer16(gl_FragCoord.xy), bayer16(gl_FragCoord.xy)*0.4, bayer16(gl_FragCoord.xy)*0.7);
 
     for (int CurrentStep = 0 ; CurrentStep < Steps ; CurrentStep++) {
         
         float AirDensity = 1.0f; // Base density at position
 
+        vec3 RayPosition = RayPositionActual + vec3(0.0f, -0.25f, 0.0f);
+
         if (UsePerlinFBM) {
-            AirDensity = noise(RayPosition);
+            AirDensity = clamp(pow(OpticalDepth(RayPosition*0.82569420f),2.2f)/sqrt(2.0f),0.0f,1.0f);
         }
 
         if (AirDensity > 0.001f) {
             float SampleSigmaS = SigmaS * AirDensity; 
-            float PointDensity = texture(u_VolumetricDensityData, RayPosition.xyz / vec3(384.0f, 128.0f, 384.0f)).x * 24.0f; // Hardware trilinear
+            float PointDensity = texture(u_VolumetricDensityData, (RayPosition.xyz * (1.0f/vec3(384.0f,128.0f,384.0f)))+(SampleDither*0.1f*(1.0f/vec3(384.0f,128.0f,384.0f)))).x * 24.0f; // Hardware trilinear
+            OutputDensitySum += PointDensity;
             vec3 ScatteringColor = vec3(1.0f);
 
             if (u_Colored) {
-                // Triquadratic interpolation with cubic spline with an approximated gradient curve
-                ScatteringColor = clamp(SoftwareTriquadraticVolumetrics(RayPosition/vec3(384.0f,128.0f,384.0f)), 0.0f, 1.0f); 
-               // ScatteringColor = clamp(SampleVolumetricColorTexel(ivec3(RayPosition)), 0.0f, 1.0f); 
+                // Triquadratic interpolation 
+                vec3 Normalized = RayPosition * (1.0f/vec3(384.0f,128.0f,384.0f));
+                Normalized += SampleDither * 0.450f * (1.0f/vec3(384.0f,128.0f,384.0f)); // Jitter ray sample position
+                ScatteringColor = clamp(SoftwareTriquadraticVolumetrics(Normalized), 0.0f, 1.0f)*2.0f; 
             }
 
             vec3 CurrentDensity = vec3(pow(2.0f, 7.0f) * pow(PointDensity, 2.0f))*ScatteringColor;
             vec3 S = SampleSigmaS * CurrentDensity;
-            float Transmittance = exp(-(SigmaS*AirDensity) * StepSize); // standard
-			vec3 IntegratedScattering = (S - S * Transmittance) / (SigmaS*AirDensity);  // S-St/Se
+            float Transmittance = exp(-(SigmaS*AirDensity) * StepSize); // exponential volumetric transmittance function
+			OutputTransmittance *= Transmittance;
+            vec3 IntegratedScattering = (S - S * Transmittance) / (SigmaS * AirDensity);  // S-St/Se
             VolumetricLighting += IntegratedScattering;
         }
 
-        RayPosition += RayDirection * StepSize;
+        RayPositionActual += RayDirection * StepSize;
     }
 
     const float IsotropicScatter = 0.25 / PI;
     const float ScattersM = pow(2.0f, 4.0f);
     VolumetricLighting *= ScattersM * u_Strength;
-    o_Volumetrics = VolumetricLighting;
+
+    o_Volumetrics = vec4(VolumetricLighting, OutputDensitySum); 
+
+    if (false) {
+        o_Volumetrics = vec4(VolumetricLighting, OutputTransmittance); 
+    }
 }
