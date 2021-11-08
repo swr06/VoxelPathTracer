@@ -521,4 +521,23 @@ namespace VoxelRT
 	{
 		return BlockEmissiveTextureArray.GetTextureArray();
 	}
+
+	bool BlockDatabase::HasEmissiveTexture(BlockIDType block_id)
+	{
+		std::string pth;
+
+		if (ParsedBlockDataListID.find(block_id) == ParsedBlockDataListID.end())
+		{
+			return false;
+		}
+
+		pth = ParsedBlockDataListID[block_id].EmissiveMap;
+
+		if (pth.size() > 0)
+		{
+			return true;
+		}
+
+		return false;
+	}
 }

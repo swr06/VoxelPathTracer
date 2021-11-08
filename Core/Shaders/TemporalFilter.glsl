@@ -302,14 +302,13 @@ vec3 ClipShadow(vec2 Reprojected)
 	vec3 MaxColor = vec3(-100.0); 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
 
-    for(int x = -1; x <= 1; x++) 
+	vec2 ShadowClipOffsets[5] = vec2[5](vec2(-1.0f, 0.0f), vec2(1.0f, 0.0f), vec2(0.0f, 0.0f), vec2(0.0f, -1.0f), vec2(0.0f, 1.0f));
+
+    for(int s = 0; s < 5; s++) 
 	{
-        for(int y = -1; y <= 1; y++) 
-		{
-            vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
-            MinColor = min(Sample, MinColor); 
-			MaxColor = max(Sample, MaxColor); 
-        }
+        vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(ShadowClipOffsets[s]) * TexelSize).rgb; 
+        MinColor = min(Sample, MinColor); 
+		MaxColor = max(Sample, MaxColor); 
     }
 
 	vec3 HistoryShadow = texture(u_PreviousColorTexture, Reprojected).xyz;

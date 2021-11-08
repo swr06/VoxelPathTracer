@@ -1,5 +1,9 @@
 #version 330 core
 
+
+
+
+//////
 #define CG_RR 255 
 #define CG_RG 0 
 #define CG_RB 0 
@@ -29,6 +33,8 @@
 
 #define SATURATION 1.0f
 #define VIBRANCE 1.6f
+//////
+
 
 // Bayer matrix, used for testing dithering
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -105,7 +111,7 @@ uniform mat4 u_InverseProjection;
 uniform float u_LensFlareIntensity;
 uniform float u_Exposure;
 
-
+uniform float u_GodRaysStrength;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -620,6 +626,7 @@ vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture 
 
  #define VOLUMETRIC_BICUBIC
 
+vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 void main()
 {
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
@@ -634,7 +641,15 @@ void main()
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
 	float BayerDither = Bayer64(gl_FragCoord.xy);
 	vec2 InverseVolRes = 1.0f / textureSize(u_VolumetricsCompute,0);
-	vec3 PointVolumetrics = u_PointVolumetricsToggled ? textureBicubic(u_VolumetricsCompute, v_TexCoords).xyz : vec3(0.0f);
+	vec3 PointVolumetrics = vec3(0.0f);
+	
+	if (u_PointVolumetricsToggled) {
+	
+		PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
+		
+	}
+
+
 
 	if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
 	{
@@ -676,16 +691,16 @@ void main()
 		if (u_GodRays)
 		{
 			float intensity = u_SunIsStronger ? 0.55f : 0.025f;
-			float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity;
-			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity * u_GodRaysStrength;
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(250.0f, 250.0f, 230.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
-			fake_vol_multiplier = 0.5f;
+			fake_vol_multiplier = 0.3f;
 		}
 
 		if (u_SSGodRays)
 		{
-			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz) * fake_vol_multiplier;
-			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(189.0f, 200.0f, 200.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
+			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz) * fake_vol_multiplier * u_GodRaysStrength;
+			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(250.0f, 250.0f, 230.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
 		}
 
@@ -883,4 +898,50 @@ vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv)
     result += sampleLevel0(tex, vec2(texPos3.x,  texPos3.y)) * w3.x * w3.y;
 
     return result;
+}
+
+#define sqr(x) (x*x)
+
+vec2 ClampUV(vec2 x) {
+	return clamp(x, 0.000001f, 0.999999f);
+}
+
+
+vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
+    vec2 res    = textureSize(tex, 0);
+	vec2 pixelSize = 1.0f / res;
+
+    vec2 coord  = uv*res;
+    vec2 coord1 = floor(coord - 0.5) + 0.5;
+
+    vec2 f      = coord-coord1;
+
+    vec2 w0     = f*(-0.5 + f*(1.0-0.5*f));
+    vec2 w1     = 1.0 + sqr(f)*(-2.5+1.5*f);
+    vec2 w2     = f*(0.5 + f*(2.0-1.5*f));
+    vec2 w3     = sqr(f)*(-0.5+0.5*f);
+
+    vec2 w12    = w1+w2;
+    vec2 delta12 = w2/w12;
+
+    vec2 uv0    = coord1 - vec2(1.0);
+    vec2 uv3    = coord1 + vec2(1.0);
+    vec2 uv12   = coord1 + delta12;
+
+        uv0    *= pixelSize;
+        uv3    *= pixelSize;
+        uv12   *= pixelSize;
+
+    vec4 col    = vec4(0.0);
+        col    += textureLod(tex, ClampUV(vec2(uv0.x, uv0.y)), 0)*w0.x*w0.y;
+        col    += textureLod(tex, ClampUV(vec2(uv12.x, uv0.y)), 0)*w12.x*w0.y;
+        col    += textureLod(tex, ClampUV(vec2(uv3.x, uv0.y)), 0)*w3.x*w0.y;
+        col    += textureLod(tex, ClampUV(vec2(uv0.x, uv12.y)), 0)*w0.x*w12.y;
+        col    += textureLod(tex, ClampUV(vec2(uv12.x, uv12.y)), 0)*w12.x*w12.y;
+        col    += textureLod(tex, ClampUV(vec2(uv3.x, uv12.y)), 0)*w3.x*w12.y;
+        col    += textureLod(tex, ClampUV(vec2(uv0.x, uv3.y)), 0)*w0.x*w3.y;
+        col    += textureLod(tex, ClampUV(vec2(uv12.x, uv3.y)), 0)*w12.x*w3.y;
+        col    += textureLod(tex, ClampUV(vec2(uv3.x, uv3.y)), 0)*w3.x*w3.y;
+
+    return clamp(col, 0.0, 65535.0);
 }

@@ -78,6 +78,9 @@
     <Filter Include="Source Files\Shaders\util">
       <UniqueIdentifier>{d0b57557-2560-4369-856d-4b9da47c1f42}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\voxel-rt\Light Chunks">
+      <UniqueIdentifier>{ac9dc8f6-dad3-4656-9478-e54c51fb7e50}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -235,6 +238,12 @@
     </ClCompile>
     <ClCompile Include="Core\WorldFileHandler.cpp">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\LightChunkHandler.cpp">
+      <Filter>Source Files\voxel-rt\Light Chunks</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\LightChunk.cpp">
+      <Filter>Source Files\voxel-rt\Light Chunks</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -405,6 +414,12 @@
     </ClInclude>
     <ClInclude Include="Core\WorldFileHandler.h">
       <Filter>Source Files\voxel-rt</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\LightChunkHandler.h">
+      <Filter>Source Files\voxel-rt\Light Chunks</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\LightChunk.h">
+      <Filter>Source Files\voxel-rt\Light Chunks</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -647,6 +662,9 @@
     </None>
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl">
       <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\ClearDataFloat.comp">
+      <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

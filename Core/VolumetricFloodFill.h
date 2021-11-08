@@ -50,9 +50,10 @@ namespace VoxelRT
 		void UploadLight(const glm::ivec3& p, uint8_t v, uint8_t block, bool should_bind);
 		void AddLightToVolume(const glm::ivec3& p, uint8_t block);
 		void Reupload();
-		GLuint GetVolume();
 		GLuint GetAverageColorSSBO();
 		std::queue<LightNode>& GetLightBFSQueue();
 		std::queue<LightRemovalNode>& GetLightRemovalBFSQueue();
+		GLuint GetDensityVolume();
+		GLuint GetColorVolume();
 	}
 }

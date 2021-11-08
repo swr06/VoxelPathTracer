@@ -2,19 +2,20 @@
 
 #include <memory>
 
-#define PACK_U16(lsb, msb) ((uint16_t) ( ((uint16_t)(lsb) & 0xFF) | (((uint16_t)(msb) & 0xFF) << 8) ))
+// Flood fill implementation done using a BFS queue system
+// Fastest CPU side algorithm, about 2x faster than recursion
 
-// Used to debug flood fill algorithm
-//#define VOXEL_RT_VOLUMETRICS_DEBUG
 
 namespace VoxelRT {
-	
-	static GLuint VolumetricVolume = 0;
+
+	static GLuint VolumetricFloodFillVolume = 0;
+	static GLuint ColorDataFloodFillVolume = 0;
 	static GLuint AverageColorSSBO = 0;
 	static std::queue<LightNode> LightBFS;
 	static std::queue<LightRemovalNode> LightRemovalBFS;
 	static World* VolumetricWorldPtr = nullptr;
-	static std::unique_ptr<std::array<uint16_t, 384 * 128 * 384>> LightWorldData;
+	static std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>> WorldVolumetricDensityData;
+	static std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>> WorldVolumetricColorData;
 
 	bool InVoxelVolume(const glm::ivec3& x) {
 
@@ -29,33 +30,63 @@ namespace VoxelRT {
 
 void VoxelRT::Volumetrics::CreateVolume(World* world, GLuint SSBO_Blockdata, GLuint AlbedoArray)
 {
-	VolumetricVolume = 0;
+	VolumetricFloodFillVolume = 0;
+	ColorDataFloodFillVolume = 0;
 	AverageColorSSBO = 0;
 	VolumetricWorldPtr = world;
 
-	glGenTextures(1, &VolumetricVolume);
-	glBindTexture(GL_TEXTURE_3D, VolumetricVolume);
+	glGenTextures(1, &VolumetricFloodFillVolume);
+	glBindTexture(GL_TEXTURE_3D, VolumetricFloodFillVolume);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_RED, 384, 128, 384, 0, GL_RED, GL_UNSIGNED_BYTE, nullptr);
+
+
+	glGenTextures(1, &ColorDataFloodFillVolume);
+	glBindTexture(GL_TEXTURE_3D, ColorDataFloodFillVolume);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_R16UI, 384, 128, 384, 0, GL_RED_INTEGER, GL_UNSIGNED_SHORT, nullptr);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R8UI, 384, 128, 384, 0, GL_RED_INTEGER, GL_UNSIGNED_BYTE, nullptr);
+
+
+
+
+
 
 	// clear (doesnt automatically clear on some gpus)
+	
+
+	GLClasses::ComputeShader ClearShaderFloat;
+	ClearShaderFloat.CreateComputeShader("Core/Shaders/Volumetrics/ClearDataFloat.comp");
+	ClearShaderFloat.Compile();
+	ClearShaderFloat.Use();
+
+	glBindImageTexture(0, VolumetricFloodFillVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8);
+	glDispatchCompute(384 / 8, 128 / 8, 384 / 8);
+	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
 	GLClasses::ComputeShader ClearShader;
 	ClearShader.CreateComputeShader("Core/Shaders/Volumetrics/ClearData.comp");
 	ClearShader.Compile();
 	ClearShader.Use();
-	glBindImageTexture(0, VolumetricVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R16UI);
+
+	glBindImageTexture(0, ColorDataFloodFillVolume, 0, GL_TRUE, 0, GL_READ_WRITE, GL_R8UI);
 	glDispatchCompute(384 / 8, 128 / 8, 384 / 8);
 	glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 	// Create light data array
-	LightWorldData = std::unique_ptr<std::array<uint16_t, 384 * 128 * 384>>(new std::array<uint16_t, 384 * 128 * 384>);
+	WorldVolumetricColorData = std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>>(new std::array<uint8_t, 384 * 128 * 384>);
+	WorldVolumetricDensityData = std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>>(new std::array<uint8_t, 384 * 128 * 384>);
 
 	// memset 
-	memset(LightWorldData.get()->data(), 0, 384 * 128 * 384 * sizeof(uint16_t));
+	memset(WorldVolumetricColorData.get()->data(), 0, 384 * 128 * 384 * sizeof(uint8_t));
+	memset(WorldVolumetricDensityData.get()->data(), 0, 384 * 128 * 384 * sizeof(uint8_t));
 
 	// initialize data ssbo 
 	glGenBuffers(1, &AverageColorSSBO);
@@ -92,8 +123,8 @@ uint8_t VoxelRT::Volumetrics::GetLightValue(const glm::ivec3& p)
 	}
 
 	int idx = p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y;
-	auto& arr = *LightWorldData;
-	return (arr.at(idx)) & 0xFF;
+	auto& arr = *WorldVolumetricDensityData;
+	return (arr.at(idx));
 }
 
 uint8_t VoxelRT::Volumetrics::GetBlockTypeLightValue(const glm::ivec3& p)
@@ -108,8 +139,8 @@ uint8_t VoxelRT::Volumetrics::GetBlockTypeLightValue(const glm::ivec3& p)
 	}
 
 	int idx = p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y;
-	auto& arr = *LightWorldData;
-	return ((arr.at(idx)) >> 8) & 0xFF ;
+	auto& arr = *WorldVolumetricColorData;
+	return ((arr.at(idx)));
 }
 
 void VoxelRT::Volumetrics::SetLightValue(const glm::ivec3& p, uint8_t v, uint8_t block)
@@ -119,13 +150,13 @@ void VoxelRT::Volumetrics::SetLightValue(const glm::ivec3& p, uint8_t v, uint8_t
 #endif
 
 	if (!VoxelRT::InVoxelVolume(p)) {
-		return;
 		//throw "wtf";
+		return;
 	}
 
-	auto& arr = *LightWorldData;
 	int idx = p.x + p.y * WORLD_SIZE_X + p.z * WORLD_SIZE_X * WORLD_SIZE_Y;
-	arr[idx] = PACK_U16(v, block);
+	WorldVolumetricColorData.get()->at(idx) = block;
+	WorldVolumetricDensityData.get()->at(idx) = v;
 }
 
 void VoxelRT::Volumetrics::UploadLight(const glm::ivec3& p, uint8_t v, uint8_t block, bool should_bind)
@@ -139,13 +170,12 @@ void VoxelRT::Volumetrics::UploadLight(const glm::ivec3& p, uint8_t v, uint8_t b
 		//throw "wtf";
 	}
 
-	uint16_t data = PACK_U16(v, block);
 
-	if (should_bind) {
-		glBindTexture(GL_TEXTURE_3D, VolumetricVolume);
-	}
+	glBindTexture(GL_TEXTURE_3D, VolumetricFloodFillVolume);
+	glTexSubImage3D(GL_TEXTURE_3D, 0, (int)p.x, (int)p.y, (int)p.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &v);
 
-	glTexSubImage3D(GL_TEXTURE_3D, 0, (int)p.x, (int)p.y, (int)p.z, 1, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_SHORT, &data);
+	glBindTexture(GL_TEXTURE_3D, ColorDataFloodFillVolume);
+	glTexSubImage3D(GL_TEXTURE_3D, 0, (int)p.x, (int)p.y, (int)p.z, 1, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_BYTE, &block);
 }
 
 void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
@@ -153,11 +183,11 @@ void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
 	VoxelRT::Volumetrics::SetLightValue(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 7, block); 
+		floor(p.z)), 4, block);
 	VoxelRT::Volumetrics::UploadLight(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 7, block, true);
+		floor(p.z)), 4, block, true);
 	LightBFS.push(LightNode(glm::vec3(
 		floor(p.x),
 		floor(p.y),
@@ -166,15 +196,25 @@ void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
 
 void VoxelRT::Volumetrics::Reupload()
 {
-	glBindTexture(GL_TEXTURE_3D, VolumetricVolume);
-	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 384, 128, 384, GL_RED_INTEGER, GL_UNSIGNED_SHORT, LightWorldData.get()->data());
+	glBindTexture(GL_TEXTURE_3D, VolumetricFloodFillVolume);
+	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 384, 128, 384, GL_RED, GL_UNSIGNED_BYTE, WorldVolumetricDensityData.get()->data());
+	glBindTexture(GL_TEXTURE_3D, 0);
+
+	glBindTexture(GL_TEXTURE_3D, ColorDataFloodFillVolume);
+	glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 384, 128, 384, GL_RED_INTEGER, GL_UNSIGNED_BYTE, WorldVolumetricColorData.get()->data());
 	glBindTexture(GL_TEXTURE_3D, 0);
 }
 
-GLuint VoxelRT::Volumetrics::GetVolume()
+GLuint VoxelRT::Volumetrics::GetDensityVolume()
 {
-	return VolumetricVolume;
+	return VolumetricFloodFillVolume;
 }
+
+GLuint VoxelRT::Volumetrics::GetColorVolume()
+{
+	return ColorDataFloodFillVolume;
+}
+
 
 GLuint VoxelRT::Volumetrics::GetAverageColorSSBO()
 {
@@ -195,7 +235,6 @@ void VoxelRT::Volumetrics::PropogateVolume()
 {
 	World* world = VolumetricWorldPtr;
 
-	glBindTexture(GL_TEXTURE_3D, VolumetricVolume);
 
 	while (!LightBFS.empty())
 	{
@@ -218,7 +257,7 @@ void VoxelRT::Volumetrics::PropogateVolume()
 			}
 		}
 
-		
+
 		temp_pos = glm::vec3(pos.x - 1, pos.y, pos.z);
 		if (VoxelRT::InVoxelVolume(temp_pos)) {
 			if (world->GetBlock(temp_pos).block == 0 && Volumetrics::GetLightValue(temp_pos) + 2 < current_light)
@@ -277,7 +316,6 @@ void VoxelRT::Volumetrics::PropogateVolume()
 
 void VoxelRT::Volumetrics::DepropogateVolume()
 {
-	glBindTexture(GL_TEXTURE_3D, VolumetricVolume);
 
 	while (!LightRemovalBFS.empty())
 	{
@@ -422,3 +460,4 @@ void VoxelRT::Volumetrics::DepropogateVolume()
 	}
 }
 
+//
