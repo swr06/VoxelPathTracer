@@ -127,7 +127,9 @@ static bool USE_NEW_SPECULAR_SPATIAL = true;
 static bool USE_BLUE_NOISE_FOR_TRACING = true;
 
 static bool PointVolumetricsToggled = false;
-static float PointVolumetricStrength = 1.25f;
+static float PointVolumetricStrength = 0.5f;
+static bool ColoredPointVolumetrics = false;
+
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -202,7 +204,7 @@ float VoxelRT_VolumeMultiplier = 1.0f;
 
 static float DeltaSum = 0.0f;
 
-static float PointVolumetricsScale = 0.1f; // 0.1 * 0.1 = 1/100th the pixels :p
+static float PointVolumetricsScale = 0.2f; // 1/25 the pixels
 
 class RayTracerApp : public VoxelRT::Application
 {
@@ -259,6 +261,7 @@ public:
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
 			ImGui::Checkbox("Point Volumetric Fog? (WIP!)", &PointVolumetricsToggled);
+			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
 			ImGui::SliderFloat("Volumetric Render Resolution (WIP!)", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
@@ -2790,19 +2793,25 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetInteger("u_ParticipatingMedia", 0);
 			PointVolumetrics.SetInteger("u_BlueNoise", 1);
 			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
+			PointVolumetrics.SetInteger("u_VolumetricDensityData", 3);
 			PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
 
 			PointVolumetrics.SetFloat("u_Time", glfwGetTime());
 			PointVolumetrics.SetFloat("u_Strength", PointVolumetricStrength);
 
+			PointVolumetrics.SetBool("u_Colored", ColoredPointVolumetrics);
+
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
-			glBindImageTexture(0, VoxelRT::Volumetrics::GetVolume(), 0, true, 0, GL_READ_ONLY, GL_R16UI);
+			glBindImageTexture(1, VoxelRT::Volumetrics::GetColorVolume(), 0, true, 0, GL_READ_ONLY, GL_R8UI);
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetDensityVolume());
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, VoxelRT::Volumetrics::GetAverageColorSSBO());
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->m_LightPositionSSBO);
@@ -2824,19 +2833,19 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
-			// Blur 2
-
-			Gaussian5TapOptimized.Use();
-			VolumetricsCompute.Bind();
-
-			Gaussian5TapOptimized.SetInteger("u_Texture", 0);
-			
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
-
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
+			//// Blur 2
+			//
+			//Gaussian5TapOptimized.Use();
+			//VolumetricsCompute.Bind();
+			//
+			//Gaussian5TapOptimized.SetInteger("u_Texture", 0);
+			//
+			//glActiveTexture(GL_TEXTURE0);
+			//glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
+			//
+			//VAO.Bind();
+			//glDrawArrays(GL_TRIANGLES, 0, 6);
+			//VAO.Unbind();
 		}
 
 		// ---- POST PROCESSING ----
@@ -2958,7 +2967,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, CloudData);
 
 		glActiveTexture(GL_TEXTURE16);
-		glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
 
 		glActiveTexture(GL_TEXTURE17);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));

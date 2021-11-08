@@ -166,6 +166,8 @@
     <ClCompile Include="Core\Clouds\NoiseTexture3D.cpp" />
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
+    <ClCompile Include="Core\LightChunk.cpp" />
+    <ClCompile Include="Core\LightChunkHandler.cpp" />
     <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
@@ -222,6 +224,8 @@
     <ClInclude Include="Core\ColorPassFBO.h" />
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
     <ClInclude Include="Core\GLClasses\Framebuffer.h" />
+    <ClInclude Include="Core\LightChunk.h" />
+    <ClInclude Include="Core\LightChunkHandler.h" />
     <ClInclude Include="Core\Macros.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />
@@ -337,6 +341,7 @@
     <None Include="Core\Shaders\Utility\SphericalHarmonics.glsl" />
     <None Include="Core\Shaders\VolumetricLighting.glsl" />
     <None Include="Core\Shaders\Volumetrics\ClearData.comp" />
+    <None Include="Core\Shaders\Volumetrics\ClearDataFloat.comp" />
     <None Include="Core\Shaders\Volumetrics\ComputeVolumetrics.glsl" />
     <None Include="Core\Shaders\Volumetrics\PrecomputeAverageBlockColor.comp" />
     <None Include="Dependencies\fast_noise\LICENSE" />

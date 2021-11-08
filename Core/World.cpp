@@ -321,7 +321,6 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					particle_pos, glm::vec3(5, 5, 5), x, GetBlock((int)position.x, (int)position.y, (int)position.z).block);
 
 					SoundManager::PlayBlockSound(GetBlock((int)position.x, (int)position.y, (int)position.z).block, position, false);
-					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
 
 
 
@@ -329,7 +328,13 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					auto& LightRemovalBFS = Volumetrics::GetLightRemovalBFSQueue();
 					auto& LightPropogateBFS = Volumetrics::GetLightBFSQueue();
 
-					if (BlockDatabase::GetBlockEmissiveTexture(edited_block) >= 0) {
+
+					SetBlock((int)position.x, (int)position.y, (int)position.z, { 0 });
+
+
+					if (BlockDatabase::HasEmissiveTexture(edited_block))
+					{
+						std::cout << "\nLAMP BROKEN!\n";
 
 						LightRemovalBFS.push(LightRemovalNode(glm::vec3(
 							floor(position.x),
@@ -341,6 +346,11 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 							floor(position.x),
 							floor(position.y),
 							floor(position.z)), 0, 0);
+
+						Volumetrics::UploadLight(glm::ivec3(
+							floor(position.x),
+							floor(position.y),
+							floor(position.z)), 0, 0, true);
 					}
 
 					// Propogate!
@@ -398,7 +408,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 				glBindTexture(GL_TEXTURE_3D, 0);
 
-				for (int light = 0; light < 3; light++) {
+				for (int PropogateIterations = 0; PropogateIterations < 4; PropogateIterations++) {
 					Volumetrics::DepropogateVolume();
 					Volumetrics::PropogateVolume();
 				}

@@ -47,5 +47,7 @@ namespace VoxelRT
 		GLuint GetNormalTextureArray();
 		GLuint GetPBRTextureArray();
 		GLuint GetEmissiveTextureArray();
+
+		bool HasEmissiveTexture(BlockIDType block_id);
 	}
 }
