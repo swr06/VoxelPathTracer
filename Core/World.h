@@ -16,6 +16,8 @@
 
 #include "SoundManager.h"
 
+#include "LightChunk.h"
+
 namespace VoxelRT
 {
 
@@ -61,14 +63,34 @@ namespace VoxelRT
 		void RebufferLightList();
 
 		void InsertToLightList(const glm::vec3& x) {
-			m_LightPositions.push_back(glm::vec4(x, 0.0f));
+			//m_LightPositions.push_back(glm::vec4(x, 0.0f));
+
+			glm::ivec3 block_loc = glm::ivec3(glm::floor(x));
+			int cx = floor((float)block_loc.x / (float)16);
+			int cy = floor((float)block_loc.y / (float)32);
+			int cz = floor((float)block_loc.z / (float)16);
+			m_LightChunks[cx][cy][cz].LightList.push_back(glm::vec4(x, 0.0f));
 		}
 
 		void RemoveFromLightList(const glm::vec3& x) {
 			
-			std::vector<glm::vec4>::iterator position = std::find(m_LightPositions.begin(), m_LightPositions.end(), glm::vec4(x, 0.0f));
-			if (position != m_LightPositions.end()) // == myVector.end() means the element was not found
-				m_LightPositions.erase(position);
+			glm::ivec3 block_loc = glm::ivec3(glm::floor(x));
+			int cx = floor((float)block_loc.x / (float)16); 
+			int cy = floor((float)block_loc.y / (float)32);
+			int cz = floor((float)block_loc.z / (float)16);
+			std::vector<glm::vec4>::iterator ChunkListIter = std::find(m_LightChunks[cx][cy][cz].LightList.begin(), m_LightChunks[cx][cy][cz].LightList.end(), glm::vec4(x, 0.0f));
+			if (ChunkListIter != m_LightChunks[cx][cy][cz].LightList.end()) // == myVector.end() means the element was not found 
+			{
+				m_LightChunks[cx][cy][cz].LightList.erase(ChunkListIter);
+			}
+
+
+
+			//std::vector<glm::vec4>::iterator position = std::find(m_LightPositions.begin(), m_LightPositions.end(), glm::vec4(x, 0.0f));
+			//if (position != m_LightPositions.end()) // == myVector.end() means the element was not found 
+			//{
+			//	m_LightPositions.erase(position);
+			//}
 		}
 
 		void Buffer()
@@ -96,8 +118,13 @@ namespace VoxelRT
 		Texture3D m_DistanceFieldTexture;
 		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 
-		std::vector<glm::vec4> m_LightPositions;
+		//std::vector<glm::vec4> m_LightPositions;
 		GLuint m_LightPositionSSBO=0;
+
+		// for MIS
+		GLuint m_LightChunkDataSSBO = 0;
+		GLuint m_LightChunkOffsetsSSBO = 0;
+		void GenerateLightChunkSSBOData();
 
 	private :
 		bool m_Buffered = false;
@@ -106,5 +133,7 @@ namespace VoxelRT
 		GLClasses::ComputeShader m_DistanceShaderX;
 		GLClasses::ComputeShader m_DistanceShaderY;
 		GLClasses::ComputeShader m_DistanceShaderZ;
+
+		std::array<std::array<std::array<LightChunk, 384 / LIGHT_CHUNK_X>, 128 / LIGHT_CHUNK_Y>, 384 / LIGHT_CHUNK_Z> m_LightChunks;
 	};
 }

@@ -233,7 +233,7 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			
+			ImGui::Text("\nPlayer Position : %f  %f  %f\n", MainPlayer.m_Position.x, MainPlayer.m_Position.y, MainPlayer.m_Position.z);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -519,6 +519,7 @@ public:
 			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n\n";
 			VoxelRT::Volumetrics::Reupload();
 			world->RebufferLightList();
+			world->GenerateLightChunkSSBOData();
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
@@ -1264,6 +1265,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->m_LightChunkDataSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, world->m_LightChunkOffsetsSSBO);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2805,7 +2808,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
 			PointVolumetrics.SetInteger("u_VolumetricDensityData", 3);
 			PointVolumetrics.SetInteger("u_VolumetricColorDataSampler", 4);
-			PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
+			//PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
 
 			PointVolumetrics.SetFloat("u_Time", glfwGetTime());
 			PointVolumetrics.SetFloat("u_Strength", PointVolumetricStrength);

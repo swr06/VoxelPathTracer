@@ -167,7 +167,6 @@
     <ClCompile Include="Core\ColorPassFBO.cpp" />
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
     <ClCompile Include="Core\LightChunk.cpp" />
-    <ClCompile Include="Core\LightChunkHandler.cpp" />
     <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
@@ -225,7 +224,7 @@
     <ClInclude Include="Core\GLClasses\CubeTextureMap.h" />
     <ClInclude Include="Core\GLClasses\Framebuffer.h" />
     <ClInclude Include="Core\LightChunk.h" />
-    <ClInclude Include="Core\LightChunkHandler.h" />
+    <ClInclude Include="Core\LightChunkMacros.h" />
     <ClInclude Include="Core\Macros.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />

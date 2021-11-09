@@ -239,9 +239,6 @@
     <ClCompile Include="Core\WorldFileHandler.cpp">
       <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
-    <ClCompile Include="Core\LightChunkHandler.cpp">
-      <Filter>Source Files\voxel-rt\Light Chunks</Filter>
-    </ClCompile>
     <ClCompile Include="Core\LightChunk.cpp">
       <Filter>Source Files\voxel-rt\Light Chunks</Filter>
     </ClCompile>
@@ -415,10 +412,10 @@
     <ClInclude Include="Core\WorldFileHandler.h">
       <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
-    <ClInclude Include="Core\LightChunkHandler.h">
+    <ClInclude Include="Core\LightChunk.h">
       <Filter>Source Files\voxel-rt\Light Chunks</Filter>
     </ClInclude>
-    <ClInclude Include="Core\LightChunk.h">
+    <ClInclude Include="Core\LightChunkMacros.h">
       <Filter>Source Files\voxel-rt\Light Chunks</Filter>
     </ClInclude>
   </ItemGroup>

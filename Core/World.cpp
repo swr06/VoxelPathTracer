@@ -12,19 +12,36 @@ glm::ivec3 Get3DIdx(int idx)
 	return glm::ivec3(x, y, z);
 }
 
+int Get1DIdxFrom3D_LightChunk(int x, int y, int z)
+{
+	return (z * 24 * 4) + (y * 24) + x;
+}
+
 void VoxelRT::World::InitializeLightList()
 {
 	glGenBuffers(1, &m_LightPositionSSBO);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, 1024 * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	// 1 million max lights, reasonable limit
+	glGenBuffers(1, &m_LightChunkDataSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightChunkDataSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 64 * 64 * 64 * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW); // 1 mb ssbo
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	// Each chunk stores an Offset & Count
+	glGenBuffers(1, &m_LightChunkOffsetsSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightChunkOffsetsSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 2 * sizeof(GLuint) * (24 * 4 * 24), nullptr, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void VoxelRT::World::RebufferLightList()
 {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
+	//glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }	
 
 void VoxelRT::World::InitializeDistanceGenerator()
@@ -92,6 +109,34 @@ void VoxelRT::World::GenerateDistanceField()
 	glUseProgram(0);
 
 	std::cout << "\nFinished Generating Distance Field!\n";
+}
+
+void VoxelRT::World::GenerateLightChunkSSBOData()
+{
+	std::array<glm::ivec2, 24 * 4 * 24> OffsetData;
+	std::vector<glm::vec4> LightPositionData;
+
+	for (int x = 0; x < 24; x++) {
+		for (int y = 0; y < 4; y++) {
+			for (int z = 0; z < 24; z++) {
+				unsigned int Offset = 0;
+				unsigned int Size = m_LightChunks[x][y][z].LightList.size();
+				Offset = LightPositionData.size();
+				LightPositionData.insert(std::end(LightPositionData), std::begin(m_LightChunks[x][y][z].LightList), std::end(m_LightChunks[x][y][z].LightList));
+				OffsetData[Get1DIdxFrom3D_LightChunk(x, y, z)].x = Offset;
+				OffsetData[Get1DIdxFrom3D_LightChunk(x, y, z)].y = Size;
+			}
+		}
+	}
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightChunkDataSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * glm::clamp((int)(LightPositionData.size()), 0, 64*64*63), &LightPositionData[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightChunkOffsetsSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec2) * 24*4*24, &OffsetData[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
 }
 
 void VoxelRT::World::ChangeCurrentlyHeldBlock(bool x)

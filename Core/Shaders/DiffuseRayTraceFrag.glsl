@@ -91,6 +91,16 @@ layout (std430, binding = 2) buffer BlueNoise_Data
 	int rankingTile[128*128*8];
 };
 
+layout (std430, binding = 4) buffer LightChunkDataSSBO
+{
+	vec4 LightChunkPositions[];
+};
+
+layout (std430, binding = 5) buffer LightChunkDataOffsetsSSBO
+{
+	ivec2 LightChunkDataOffsets[24*4*24];
+};
+
 float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
 {
 	int pixel_i = px.x;
@@ -159,6 +169,36 @@ const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (15.0f);
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
 const vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
 
+// basic fract(sin) pseudo random number generator
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+vec3 GetSampleLight(vec3 P, out bool s) {
+	ivec3 block_loc = ivec3(floor(P));
+	int cx = int(floor(float(block_loc.x) / float(16)));
+	int cy = int(floor(float(block_loc.y) / float(32)));
+	int cz = int(floor(float(block_loc.z) / float(16)));
+	int OffsetArrayFetchLocation = (cz * 24 * 4) + (cy * 24) + cx;
+	ivec2 ChunkData = LightChunkDataOffsets[OffsetArrayFetchLocation];
+
+	if (ChunkData.y <= 0) {
+		s = false;
+		return vec3(0.0f);
+	}
+
+	s = true;
+	int Range = abs(ChunkData.x-ChunkData.y);
+	int RandomLight = clamp(int(floor(clamp(hash2().x,0.,1.)*float(Range))),0,Range);
+	vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
+	return RandomPosition;
+}
+
+
+
+
 // Simplified diffuse brdf
 vec3 SunBRDF(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
 {
@@ -183,6 +223,8 @@ vec3 SunBRDFWithoutRadiance(in vec3 world_pos, vec3 radiance, in vec3 albedo, in
 } 
 
 
+
+
 vec3 LIGHT_COLOR;
 vec3 StrongerLightDirection;
 const bool g_AverageBounces = false;
@@ -194,12 +236,85 @@ vec3 DiffuseRayBRDF(vec3 N, vec3 I, vec3 D, float Roughness)
     return BRDF;
 }
 
+
+
+#define EPSILON 0.0001 
+
+float PdfWtoA( float aPdfW, float aDist2, float aCosThere ){
+    if( aDist2 < EPSILON )
+        return 0.0;
+    return aPdfW * abs(aCosThere) / aDist2;
+}
+
+// Converting PDF between from Area to Solid angle
+float PdfAtoW( float aPdfA, float aDist2, float aCosThere ){
+    float absCosTheta = abs(aCosThere);
+    if( absCosTheta < EPSILON )
+        return 0.0;
+    
+    return aPdfA * aDist2 / absCosTheta;
+}
+
+vec2 uniformPointWithinCircle( in float radius, in float Xi1, in float Xi2 ) {
+    float r = radius*sqrt(1.0 - Xi1);
+    float theta = Xi2*2.0f*PI;
+	return vec2( r*cos(theta), r*sin(theta) );
+}
+
+vec3 uniformDirectionWithinCone( in vec3 d, in float phi, in float sina, in float cosa ) {    
+	vec3 w = normalize(d);
+    vec3 u = normalize(cross(w.yzx, w));
+    vec3 v = cross(w, u);
+	return (u*cos(phi) + v*sin(phi)) * sina + w * cosa;
+}
+
+float misWeight( in float a, in float b ) {
+    float a2 = a*a;
+    float b2 = b*b;
+    float a2b2 = a2 + b2;
+    return a2 / a2b2;
+}
+
+vec3 SampleCone(vec2 Xi, float CosThetaMax) 
+{
+    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
+    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
+    float phi = Xi.y * PI * 2.0;
+    vec3 L;
+    L.x = SinTheta * cos(phi);
+    L.y = SinTheta * sin(phi);
+    L.z = CosTheta;
+    return L;
+}
+
+vec3 GetStochasticDirectLightDir(vec3 O, vec3 N) {
+	bool Success = false;
+	vec3 SelectedLight = GetSampleLight(O, Success);//vec3(178.0f, 42.0f, 223.0f);
+
+	if (!Success) {
+		return cosWeightedRandomHemisphereDirection(N);
+	}
+
+	vec3 L = normalize(SelectedLight - O);
+	vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
+	vec3 B = cross(T, L);
+	mat3 TBN = mat3(T, B, L);
+	const float CosTheta = 0.95f; 
+	vec3 ConeSample = TBN * SampleCone(hash2(), CosTheta);
+	return ConeSample;
+}
+
+
 bool Moonstronger=false;
 
 vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
 	float bias = 0.05f;
-	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
+	//Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
+
+	
+
+	Ray new_ray = Ray(initial_origin + input_normal * bias, GetStochasticDirectLightDir(initial_origin, input_normal));
 
 	float ao = 1.0f;
 
@@ -261,7 +376,8 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 			vec3 SUNBRDF = SunBRDF(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
 
 			vec3 NewDirection = vec3(0.0f);
-			NewDirection = cosWeightedRandomHemisphereDirection(HitNormal); // create a direction based on the lambertian diffuse brdf
+			//NewDirection = cosWeightedRandomHemisphereDirection(HitNormal); // create a direction based on the lambertian diffuse brdf
+			NewDirection = GetStochasticDirectLightDir(IntersectionPosition, HitNormal); // create a direction based on the lambertian diffuse brdf
 			float CosTheta = clamp(dot(HitNormal, NewDirection), 0.0f, 1.0f); 
 			float PDF = max(CosTheta / PI, 0.00001f); // lambert brdf pdf -> dot(n,r)/pi 
 			
@@ -318,12 +434,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 	return g_AverageBounces ? vec4(SummedContribution_t / float(MAX_BOUNCE_LIMIT), ao) : vec4(RayContribution, ao); 
 }
 
-// basic fract(sin) pseudo random number generator
-float HASH2SEED = 0.0f;
-vec2 hash2() 
-{
-	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
-}
+
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {

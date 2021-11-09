@@ -51,10 +51,6 @@ layout (std430, binding = 2) buffer SSBO_BlockAverageData
     vec4 BlockAverageColorData[128];
 };
 
-layout (std430, binding = 4) buffer SSBO_LightData
-{
-    vec4 LightLocations[1024];
-};
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
