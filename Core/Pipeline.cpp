@@ -55,6 +55,9 @@
 // yes, I know i'm a degenerate for using globals but whatever 
 
 static VoxelRT::Player MainPlayer;
+
+int VoxelRT_FloodFillDistanceLimit = 4;
+
 static bool VSync = false;
 static bool JitterSceneForTAA = false;
 
@@ -73,6 +76,8 @@ static float ChromaticAberrationStrength = 0.0f;
 static int PIXEL_PADDING = 20;
 
 static bool TEMPORAL_SPEC = true;
+
+static bool APPLY_PLAYER_SHADOW_FOR_GI = false;
 
 static int RenderDistance = 350;
 
@@ -96,7 +101,7 @@ static bool CHECKERBOARD_SPEC_SPP = false;
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
-static float CAS_SharpenAmount = 0.3f;
+static float CAS_SharpenAmount = 0.2 + 0.025f;
 
 static bool UseDFG = false;
 static bool RemoveTiling = false;
@@ -265,14 +270,34 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("----- Point Light Volumetrics -----");
-			ImGui::Checkbox("Point Volumetric Fog? (WIP!)", &PointVolumetricsToggled);
+			ImGui::Checkbox("Point Volumetric Fog? ", &PointVolumetricsToggled);
 			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
 			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
-			ImGui::Checkbox("Use Noise for Optical Depth?", &PointVolPerlinOD);
+			ImGui::Checkbox("Use Perlin Noise FBM for Optical Depth?", &PointVolPerlinOD);
 			//ImGui::Checkbox("Noise type? (0 : Smooth perlin [Faster], 1 : Simplex Fractal [Slower])", &FractalSimplexOD);
-			ImGui::SliderFloat("Volumetric Render Resolution (WIP!)", &PointVolumetricsScale, 0.05f, 1.0f);
+			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
-			ImGui::Text("----- ----- -----");
+			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
+			//ImGui::SameLine(); 
+			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) { 
+				VoxelRT_FloodFillDistanceLimit = 4; 
+				world->RepropogateLPV_();
+			}
+
+			//
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ImColor(128, 0, 0)));
+			ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(ImColor(255, 0, 0)));
+
+			if (ImGui::Button("Repropogate *ENTIRE* LPV")) {
+				world->RepropogateLPV_();
+			}
+
+			ImGui::PopStyleColor(2);
+			//
+
+			ImGui::Text("----------------");
+
+
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
@@ -295,6 +320,7 @@ public:
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
 		//	ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
+			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
 			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
 			
@@ -519,7 +545,7 @@ public:
 		{
 			std::cout << "\n\n--REUPLOADED VOLUMETRIC VOLUME TO GPU--\n\n";
 			VoxelRT::Volumetrics::Reupload();
-			world->RebufferLightList();
+			//world->RebufferLightList();
 		}
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
@@ -563,7 +589,7 @@ public:
 		}
 
 
-		world->RebufferLightList();
+		//world->RebufferLightList();
 		
 	}
 
@@ -1220,6 +1246,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_CurrentFrameMod128", (int)app.GetCurrentFrame() % 128);
 		DiffuseTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
 		DiffuseTraceShader.SetBool("CHECKERBOARD_SPP", CHECKERBOARD_SPP);
+		DiffuseTraceShader.SetBool("u_APPLY_PLAYER_SHADOW", APPLY_PLAYER_SHADOW_FOR_GI);
 
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
@@ -2832,7 +2859,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetColorVolume());
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, VoxelRT::Volumetrics::GetAverageColorSSBO());
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->m_LightPositionSSBO);
+			//glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->m_LightPositionSSBO);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3137,6 +3164,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		// Odd numbers taken to make sure that there arent any lag spikes.
+		// (You want to make sure that too many heavy operations don't take place on the exact same frame) 
+
 		if (app.GetCurrentFrame() % 109 == 0)
 		{
 			world->GenerateDistanceField();
@@ -3147,7 +3176,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			world->m_ParticleEmitter.CleanUpList();
 		}
 
-		if (app.GetCurrentFrame() % 103 == 0 && PointVolumetricsToggled) {
+		if (app.GetCurrentFrame() % 197 == 0 && PointVolumetricsToggled) {
 			std::cout << "\n-- AUTO REUPLOADED VOLUMETRIC VOLUME DATA -- \n";
 			Volumetrics::Reupload();
 		}
@@ -3155,11 +3184,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Update world
 		world->Update(&MainCamera);
 
-		// Upload light list
-		if (app.GetCurrentFrame() % 17 == 0)
-		{
-			world->RebufferLightList();
-		}
 
 		// Finish Frame
 		glFinish();

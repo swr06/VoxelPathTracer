@@ -55,5 +55,6 @@ namespace VoxelRT
 		std::queue<LightRemovalNode>& GetLightRemovalBFSQueue();
 		GLuint GetDensityVolume();
 		GLuint GetColorVolume();
+		void ClearEntireVolume();
 	}
 }

@@ -58,7 +58,7 @@ namespace VoxelRT
 
 
 		void InitializeLightList();
-		void RebufferLightList();
+		//void RebufferLightList();
 
 		void InsertToLightList(const glm::vec3& x) {
 			m_LightPositions.push_back(glm::vec4(x, 0.0f));
@@ -97,7 +97,8 @@ namespace VoxelRT
 		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 
 		std::vector<glm::vec4> m_LightPositions;
-		GLuint m_LightPositionSSBO=0;
+
+		void RepropogateLPV_();
 
 	private :
 		bool m_Buffered = false;

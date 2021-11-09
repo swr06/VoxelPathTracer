@@ -14,18 +14,18 @@ glm::ivec3 Get3DIdx(int idx)
 
 void VoxelRT::World::InitializeLightList()
 {
-	glGenBuffers(1, &m_LightPositionSSBO);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, 1024 * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	//glGenBuffers(1, &m_LightPositionSSBO);
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
+	//glBufferData(GL_SHADER_STORAGE_BUFFER, 1024 * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
+	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void VoxelRT::World::RebufferLightList()
-{
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-}	
+//void VoxelRT::World::RebufferLightList()
+//{
+//	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
+//	//glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
+//	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+//}	
 
 void VoxelRT::World::InitializeDistanceGenerator()
 {
@@ -419,8 +419,29 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 	}
 }
 
+// Renders particles
 void VoxelRT::World::UpdateParticles(FPSCamera* cam, GLuint pos_texture, GLuint shadow_tex, GLuint diff, GLuint diff2, const glm::vec3& sdir, const glm::vec3& player_pos, const glm::vec2& dims, float dt)
 {
 	m_ParticleEmitter.OnUpdateAndRender(cam, m_WorldData, pos_texture, shadow_tex, diff, diff2, sdir, player_pos, dims, dt);
+}
+
+void VoxelRT::World::RepropogateLPV_()
+{
+	std::cout << "\n\n----REPROPOGATING LPV----\n\n";
+
+	Volumetrics::ClearEntireVolume();
+
+	for (auto& e : m_LightPositions) {
+		uint8_t block_at = this->GetBlock(glm::ivec3(glm::floor(glm::vec3(e)))).block;
+		Volumetrics::AddLightToVolume(e, block_at);
+	}
+
+	for (int PropogationIterations = 0; PropogationIterations < 4; PropogationIterations++) {
+		Volumetrics::PropogateVolume();
+	}
+
+	Volumetrics::Reupload();
+
+	std::cout << "\n\n----REPROPOGATED LPV----\n\n";
 }
 

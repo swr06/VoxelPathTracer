@@ -5,6 +5,7 @@
 // Flood fill implementation done using a BFS queue system
 // Fastest CPU side algorithm, about 2x faster than recursion
 
+extern int VoxelRT_FloodFillDistanceLimit; // main.cpp (setting)
 
 namespace VoxelRT {
 
@@ -16,6 +17,7 @@ namespace VoxelRT {
 	static World* VolumetricWorldPtr = nullptr;
 	static std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>> WorldVolumetricDensityData;
 	static std::unique_ptr<std::array<uint8_t, 384 * 128 * 384>> WorldVolumetricColorData;
+
 
 	bool InVoxelVolume(const glm::ivec3& x) {
 
@@ -183,11 +185,11 @@ void VoxelRT::Volumetrics::AddLightToVolume(const glm::ivec3& p, uint8_t block)
 	VoxelRT::Volumetrics::SetLightValue(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 4, block);
+		floor(p.z)), VoxelRT_FloodFillDistanceLimit > 8 ? 8 : VoxelRT_FloodFillDistanceLimit, block);
 	VoxelRT::Volumetrics::UploadLight(glm::ivec3(
 		floor(p.x),
 		floor(p.y),
-		floor(p.z)), 4, block, true);
+		floor(p.z)), VoxelRT_FloodFillDistanceLimit > 8 ? 8 : VoxelRT_FloodFillDistanceLimit, block, true);
 	LightBFS.push(LightNode(glm::vec3(
 		floor(p.x),
 		floor(p.y),
@@ -213,6 +215,12 @@ GLuint VoxelRT::Volumetrics::GetDensityVolume()
 GLuint VoxelRT::Volumetrics::GetColorVolume()
 {
 	return ColorDataFloodFillVolume;
+}
+
+void VoxelRT::Volumetrics::ClearEntireVolume()
+{
+	memset(WorldVolumetricColorData.get()->data(), 0, 384 * 128 * 384 * sizeof(uint8_t));
+	memset(WorldVolumetricDensityData.get()->data(), 0, 384 * 128 * 384 * sizeof(uint8_t));
 }
 
 

@@ -1,4 +1,7 @@
 // Indirect diffuse raytracing 
+// We encode the radiance in a 2nd order spherical harmonic 
+// To preserve normal map sharpness 
+// (It also helps with spatial upscaling!)
 
 #version 450 core
 
@@ -12,9 +15,8 @@
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
 #define MAX_VOXEL_DIST 30
 #define MAX_BOUNCE_LIMIT 2
-//#define APPLY_PLAYER_SHADOW
 
-// Bayer matrix, used for testing dithering, unused 
+// Bayer matrix, used for testing some dithering, unused 
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -23,13 +25,18 @@
 #define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
+
+
+#define EPSILON 0.0001f
+
 // Outputs diffuse indirect
-// Specular indirect is handled separately and in a higher resolution
+// Specular indirect is handled separately
+// Combined based on the fresnel term
 
 layout (location = 0) out vec4 o_SH; // Projected radiance onto the first 2 spherical harmonics.
 layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
-layout (location = 2) out float o_Utility; // Using the first SH band to get the luminance is slightly erraneous so I store this.
-layout (location = 3) out float o_AO; // Basic VXAO
+layout (location = 2) out float o_Utility; // Using the first SH band to get the luminance is slightly erraneous so I store this. Used as an input for the SVGF denoiser
+layout (location = 3) out float o_AO; // VXAO (Exaggerate AO at edges, about 10^64 times better than SSAO)
 
 in vec2 v_TexCoords; // screen space 
 in vec3 v_RayDirection;
@@ -50,6 +57,8 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform vec2 u_Dimensions;
 uniform float u_Time;
+
+uniform bool u_APPLY_PLAYER_SHADOW;
 
 uniform int u_SPP;
 uniform int u_CheckerSPP;
@@ -155,9 +164,76 @@ float Bayer2(vec2 a)
 
 const bool CAUSTICS = false;
 
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (15.0f);
+// Colors 
+const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * (16.0f);
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 1.5f; 
 const vec3 DUSK_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.9f; 
+
+
+// ---
+
+float PdfWtoA(float aPdfW, float aDist2, float aCosThere)
+{
+    if(aDist2 < EPSILON)
+	{
+        return 0.0;
+	}
+
+    return aPdfW * abs(aCosThere) / aDist2;
+}
+
+float PdfAtoW(float aPdfA, float aDist2, float aCosThere)
+{
+    float absCosTheta = abs(aCosThere);
+
+    if(absCosTheta < EPSILON)
+	{
+        return 0.0;
+    }
+
+    return aPdfA * aDist2 / absCosTheta;
+}
+
+vec2 uniformPointWithinCircle(in float radius, in float Xi1, in float Xi2) 
+{
+    float r = radius * sqrt(1.0 - Xi1);
+    float theta = Xi2 *2.0f * PI;
+	return vec2(r * cos(theta), r * sin(theta));
+}
+
+vec3 uniformDirectionWithinCone(in vec3 d, in float phi, in float sina, in float cosa) 
+{    
+	vec3 w = normalize(d);
+    vec3 u = normalize(cross(w.yzx, w));
+    vec3 v = cross(w, u);
+	return (u * cos(phi) + v * sin(phi)) * sina + w * cosa;
+}
+
+float misWeight(in float a, in float b) 
+{
+    float a2 = a * a;
+    float b2 = b * b;
+    float a2b2 = a2 + b2;
+    return a2 / a2b2;
+}
+
+vec3 SampleCone(vec2 Xi, float CosThetaMax) 
+{
+    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
+    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
+    float phi = Xi.y * PI * 2.0;
+    vec3 L;
+    L.x = SinTheta * cos(phi);
+    L.y = SinTheta * sin(phi);
+    L.z = CosTheta;
+    return L;
+}
+
+float LambertianPDF(float CosTheta) {
+	return CosTheta / PI; // Simplest form, dot(n,r)/pi 
+}
+
+// ---
 
 // Simplified diffuse brdf
 vec3 SunBRDF(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float shadow, float NDotL, vec3 PBR, vec3 N, vec3 rD, vec3 sdir)
@@ -477,6 +553,7 @@ void main()
 		CoCg += vec2(SH[4], SH[5]);
 	}
 
+
 	AccumulatedAO /= SPP;
 	TotalSHy /= SPP;
 	CoCg /= SPP;
@@ -493,6 +570,8 @@ vec3 lerp(vec3 v1, vec3 v2, float t)
 	return (1.0f - t) * v1 + t * v2;
 }
 
+
+// RNG
 int MIN = -2147483648;
 int MAX = 2147483647;
 
@@ -529,6 +608,8 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
+// RNG
+
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
   	vec2 r = vec2(0.0f);
@@ -563,7 +644,7 @@ vec3 CreateDiffuseRay(in vec3 world_pos, vec3 radiance, in vec3 albedo, in float
 	float PDF;
     DiffuseDirection = cosWeightedRandomHemisphereDirection(N);
     float CosTheta = clamp(dot(N, DiffuseDirection), 0.0f, 1.0f);
-    PDF = max(CosTheta / PI, 0.00001f); // dot(n,r)/pi
+    PDF = max(CosTheta * OneOverPI, 0.00001f); // dot(n,r)/pi
     weight = DiffuseRayBRDF(N, rD, DiffuseDirection, PBR.x) / PDF;
     return DiffuseDirection;
 }
@@ -798,8 +879,10 @@ bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 no
 /*
 
 // initial DDA algorithm 
-// thanks to telo for the help
+// thanks to telo for the help with understanding it 
 
+
+// Project to cube to make sure that the ray always starts at the volume -> 
 float ProjectToCube(vec3 ro, vec3 rd) 
 {	
 	float tx1 = (0 - ro.x) / rd.x;
@@ -820,7 +903,8 @@ float ProjectToCube(vec3 ro, vec3 rd)
 	return t;
 }
 
-float voxel_traversal(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType) 
+// My *FIRST* ever DDA implementation, amazing. I know.
+float DDA(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType) 
 {
 	vec3 origin = orig;
 	const float epsilon = 0.001f;
@@ -950,7 +1034,7 @@ bool PointIsInSphere(vec3 point, float radius)
 	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
 }
 
-vec3 RandomPointInUnitSphereRejective() // unused since this is slow asf
+vec3 RandomPointInUnitSphereRejective() // unused since this is slow asf, it was only ever used as a test, nothing else.
 {
 	float x, y, z;
 	const int accuracy = 10;
@@ -1074,11 +1158,14 @@ float GetShadowAt(vec3 pos, in vec3 ldir)
 	vec3 norm;
 	float block;
 
-	#ifdef APPLY_PLAYER_SHADOW
+	if (u_APPLY_PLAYER_SHADOW) {
 		float ShadowTMIN = -1.0f, ShadowTMAX = -1.0f;
-		bool PlayerIntersect = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
-		if (PlayerIntersect) { return 1.0f; }
-	#endif
+		bool IntersectsPlayer = RayBoxIntersect(u_ViewerPosition + vec3(0.2f, 0.0f, 0.2f), u_ViewerPosition - vec3(0.75f, 1.75f, 0.75f), pos.xyz, RayDirection, ShadowTMIN, ShadowTMAX);
+		if (IntersectsPlayer)
+		{
+			return 1.0f;
+		}
+	}
 
 	T = VoxelTraversalDF(pos.rgb, RayDirection, norm, block, 150);
 	return float(T > 0.0f);
@@ -1141,7 +1228,10 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
 
 
 // BRDF
-float GGX_D(float dotNH, float alpha2) { // distribution
+
+// distribution ggx
+float GGX_D(float dotNH, float alpha2)
+{ 
     float den = (alpha2 - 1.0) * dotNH * dotNH + 1.0;
     return alpha2 / (PI * den * den);
 }
@@ -1209,3 +1299,4 @@ vec3 GetBRDF(vec3 normal, vec3 incident, vec3 sunDir, vec3 albedo, vec2 PBR)
     
     return BRDF;
 }
+

@@ -183,13 +183,20 @@ float ScatterIntegral(float OD, float Coefficent)
 // Returns the optical depth for a point using a perlin/simplex fractal FBM
 float OpticalDepth(vec3 p)
 {
-    if (!false) {
-        float Time = mod(u_Time * 1.0f, 100.0f);
+    if (true) {
+
         //float OD = pow(dot(noise(p - Time),vec3(0.625,0.25,0.625),2.2)*4.0 ;
-        float OD = noise(p - Time) * 0.5f;
+        //OD -= pow(dot(noise(p - Time*2.0f),vec3(0.625,0.25,0.625),8.2)*4.0 ;
+        //OD += pow(dot(noise(p + Time*4.0f),vec3(0.625,0.25,0.625),4.2)*4.0 ;
+        //float Integral = ScatterIntegral(OD,1.1f);
+
+        float Time = mod(u_Time * (0.9f / 1.0f), 100.0f);
+        float OD = noise(p - Time) * 0.5f; 
+        p *= 1.2f;
         OD += noise(p * 2.0f + Time) * 0.25f;
         OD += noise(p * 4.0f - Time) * 0.125f;
-	    return (OD*OD * 4.0f + 0.25f) * (0.9f / 1.0f);
+        float OpticalDepthSquared = OD * OD;
+	    return (OpticalDepthSquared * 4.0f + 0.25f) * (0.9f / 1.0f);
     }
 
     else {
