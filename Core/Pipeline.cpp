@@ -4,31 +4,31 @@
 
 // License
 
-///////////////////////////////////////////////////////////////////////////////////////////
-//    																					 //
-//    MIT License																		 //
-//    																					 //
-//    Copyright (c) 2021 Samuel Rasquinha												 //
-//    																					 //
-//    Permission is hereby granted, free of charge, to any person obtaining a copy		 //
-//    of this software and associated documentation files (the "Software"), to deal		 //
-//    in the Software without restriction, including without limitation the rights		 //
-//    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell			 //
-//    copies of the Software, and to permit persons to whom the Software is				 //
-//    furnished to do so, subject to the following conditions:							 //
-//    																					 //
-//    The above copyright notice and this permission notice shall be included in all	 //
-//    copies or substantial portions of the Software.									 //
-//    																					 //
-//    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR		 //
-//    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,			 //
-//    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE		 //
-//    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER			 //
-//    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,		 //
-//    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE		 //
-//    SOFTWARE.																			 //
-//    																		             //
-///////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////
+//    																					
+//    MIT License																		
+//    																					
+//    Copyright (c) 2021 Samuel Rasquinha												
+//    																					
+//    Permission is hereby granted, free of charge, to any person obtaining a copy		
+//    of this software and associated documentation files (the "Software"), to deal		
+//    in the Software without restriction, including without limitation the rights		
+//    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell			
+//    copies of the Software, and to permit persons to whom the Software is				
+//    furnished to do so, subject to the following conditions:							
+//    																					
+//    The above copyright notice and this permission notice shall be included in all	
+//    copies or substantial portions of the Software.									
+//    																					
+//    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR		
+//    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,			
+//    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE		
+//    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER			
+//    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,		
+//    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE		
+//    SOFTWARE.																			
+//    																		            
+//////////////////////////////////////////////////////////////////////////////////////
 
 
 // License
@@ -127,10 +127,10 @@ static bool USE_NEW_SPECULAR_SPATIAL = true;
 static bool USE_BLUE_NOISE_FOR_TRACING = true;
 
 static bool PointVolumetricsToggled = false;
-static float PointVolumetricStrength = 0.5f;
+static float PointVolumetricStrength = 0.525f;
 static bool ColoredPointVolumetrics = false;
 static bool PointVolumetricsBayer = true;
-static bool PointVolPerlinOD = true;
+static bool PointVolPerlinOD = false;
 
 
 static float InitialTraceResolution = 1.0f;
@@ -258,7 +258,7 @@ public:
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
 			ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
 			ImGui::NewLine();
-			ImGui::Checkbox("Use DFG Polynomial ", &UseDFG);
+			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
 			ImGui::NewLine();
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
@@ -268,7 +268,8 @@ public:
 			ImGui::Checkbox("Point Volumetric Fog? (WIP!)", &PointVolumetricsToggled);
 			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
 			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
-			ImGui::Checkbox("Use Perlin Noise for Optical Depth?", &PointVolPerlinOD);
+			ImGui::Checkbox("Use Noise for Optical Depth?", &PointVolPerlinOD);
+			//ImGui::Checkbox("Noise type? (0 : Smooth perlin [Faster], 1 : Simplex Fractal [Slower])", &FractalSimplexOD);
 			ImGui::SliderFloat("Volumetric Render Resolution (WIP!)", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
 			ImGui::Text("----- ----- -----");
@@ -2813,6 +2814,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetBool("u_Colored", ColoredPointVolumetrics);
 			PointVolumetrics.SetBool("u_UseBayer", PointVolumetricsBayer);
 			PointVolumetrics.SetBool("u_UsePerlinNoiseForOD", PointVolPerlinOD);
+			PointVolumetrics.SetBool("u_FractalSimplexOD", false); // FALSE
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
@@ -3196,6 +3198,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// velocity clamp
 		MainPlayer.ClampVelocity();
+		
+		if (app.GetCurrentFrame() % 10 == 0) {
+			MainPlayer.Camera.SetAspect((float)((float)app.GetWidth()) / (float)(app.GetHeight()));
+		}
 		
 		RenderDistance = glm::clamp(RenderDistance, 0, 350);
 

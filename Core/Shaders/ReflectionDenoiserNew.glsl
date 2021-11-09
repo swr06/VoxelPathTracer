@@ -172,7 +172,7 @@ void main()
 	bool BaseTooRough = RoughnessAt > 0.897511f;
 	EffectiveRadius = BaseTooRough ? 12 : EffectiveRadius;
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
-	float Scale = 1.125f;
+	float Scale = 1.225f;
 
 	EffectiveRadius = clamp(EffectiveRadius,1,14);
 

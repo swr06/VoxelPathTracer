@@ -243,12 +243,14 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 			}
 
 			float NDotL = max(dot(HitNormal, StrongerLightDirection), 0.0f);
-			vec3 bias_shadow = (HitNormal * 0.045);
+			vec3 bias_shadow = (HitNormal * 0.045f);
 			float ShadowAt;
 
+			// Don't cast shadow rays at night as the moon doesn't contribute to gi much here
+			// Cast more samples instead to reduce the variance
 			if (Moonstronger)
 			{ 
-				ShadowAt=1.0f;
+				ShadowAt = 1.0f;
 			}
 
 			else {
@@ -281,7 +283,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 		else 
 		{	
 			float x = mix(3.0f, 1.4f, u_SunVisibility);
-			x = clamp(x*1.25f,0.0f,5.0f);
+			x = clamp(x*1.0f,0.0f,5.0f);
 			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x);
 			RayContribution += sky * RayThroughput;
 			SummedContribution_t += sky;

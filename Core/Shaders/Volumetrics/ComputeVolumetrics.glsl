@@ -19,15 +19,16 @@ layout (location = 0) out vec4 o_Volumetrics;
 
 in vec2 v_TexCoords;
 
-// Participating media 
-uniform sampler3D u_VolumetricDensityData;
 //layout(r8ui, binding = 1) uniform uimage3D u_VolumetricColorData;
 
 
 
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_LinearDepthTexture;
+
+// Participating media 
 uniform usampler3D u_VolumetricColorDataSampler;
+uniform sampler3D u_VolumetricDensityData;
 
 uniform bool u_UsePerlinNoiseForOD;
 
@@ -45,16 +46,19 @@ uniform bool u_UseBayer;
 uniform int u_LightCount;
 uniform float u_Time;
 uniform float u_Strength;
+uniform bool u_FractalSimplexOD;
 
+// Ssbos 
 layout (std430, binding = 2) buffer SSBO_BlockAverageData
 {
-    vec4 BlockAverageColorData[128];
+    vec4 BlockAverageColorData[128]; // Returns the average color per block type 
 };
 
-layout (std430, binding = 4) buffer SSBO_LightData
-{
-    vec4 LightLocations[1024];
-};
+// 
+//layout (std430, binding = 4) buffer SSBO_LightData
+//{
+//    vec4 LightLocations[1024]; 
+//};
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -90,6 +94,7 @@ float mod289(float x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 mod289(vec4 x){return x - floor(x * (1.0 / 289.0)) * 289.0;}
 vec4 perm(vec4 x){return mod289(((x * 34.0) + 1.0) * x);}
 
+
 float noise(vec3 p)
 {
     vec3 a = floor(p);
@@ -108,66 +113,114 @@ float noise(vec3 p)
     return o4.y * d.y + o4.x * (1.0 - d.y);
 }
 
-// Random rotation matrices 
-const mat3 rot1 = mat3(-0.37, 0.36, 0.85,-0.14,-0.93, 0.34,0.92, 0.01,0.4);
-const mat3 rot2 = mat3(-0.55,-0.39, 0.74, 0.33,-0.91,-0.24,0.77, 0.12,0.63);
-const mat3 rot3 = mat3(-0.71, 0.52,-0.47,-0.08,-0.72,-0.68,-0.7,-0.45,0.56);
 
-// Random rotation to reduce banding 
-float simplex3d_fractal(vec3 m) 
+// Simplex noise 
+vec3 random3(vec3 c) 
 {
-	// weight * noise(m * rotation matrix) 
-    return   0.5333333 * noise(m*rot1)
-			+ 0.2666667 * noise(2.0*m*rot2)
-			+ 0.1333333 * noise(4.0*m*rot3)
-			+ 0.0666667 * noise(8.0*m);
+	float j = 4096.0*sin(dot(c,vec3(17.0, 59.4, 15.0)));
+	vec3 r;
+	r.z = fract(512.0*j);
+	j *= .125;
+	r.x = fract(512.0*j);
+	j *= .125;
+	r.y = fract(512.0*j);
+	return r-0.5;
 }
 
-float ManhattanDist(vec3 a, vec3 b) {
-	return abs(a.x - b.x) + abs(a.y - b.y) + abs(a.z - b.z);
+// returns simplex noise for a single point 
+float simplex3d(vec3 p) {
+    const float F3 =  0.3333333f;
+    const float G3 =  0.1666667f;
+    vec3 s = floor(p + dot(p, vec3(F3)));
+    vec3 x = p - s + dot(s, vec3(G3));
+    vec3 e = step(vec3(0.0), x - x.yzx);
+    vec3 i1 = e*(1.0 - e.zxy);
+    vec3 i2 = 1.0 - e.zxy*(1.0 - e);
+    vec3 x1 = x - i1 + G3;
+    vec3 x2 = x - i2 + 2.0*G3;
+    vec3 x3 = x - 1.0 + 3.0*G3;
+    vec4 w, d;
+    w.x = dot(x, x);
+    w.y = dot(x1, x1);
+    w.z = dot(x2, x2);
+    w.w = dot(x3, x3);
+    w = max(0.6 - w, 0.0);
+    d.x = dot(random3(s), x);
+    d.y = dot(random3(s + i1), x1);
+    d.z = dot(random3(s + i2), x2);
+    d.w = dot(random3(s + 1.0), x3);
+    w *= w;
+    w *= w;
+    d *= w;
+    return dot(d, vec4(52.0));
 }
 
-// 3D hash3d2 function
-float hash3d2(vec3 p)
+const mat3 RotationMatrix_1 = mat3(-0.37f, 0.36f, 0.85f,-0.14f,-0.93f, 0.34f,0.92f, 0.01f,0.40f);
+const mat3 RotationMatrix_2 = mat3(-0.55f,-0.39f, 0.74f, 0.33f,-0.91f,-0.24f,0.77f, 0.12f,0.63f);
+const mat3 RotationMatrix_3 = mat3(-0.71f, 0.52f,-0.47f,-0.08f,-0.72f,-0.68f,-0.7f,-0.45f,0.56f);
+
+// Rotate each sample octave to reduce artifacts 
+// Works super well usually 
+float SimplexFractalNoise(vec3 m) {
+    return  4.0f *(  0.5333333f * simplex3d(m * RotationMatrix_1)
+			+ 0.2666667f * simplex3d(2.0f * m * RotationMatrix_2)
+			+ 0.1333333f * simplex3d(4.0f * m * RotationMatrix_3)
+			+ 0.0666667f * simplex3d(8.0f * m));
+}
+
+
+float ScatterIntegral(float OD, float Coefficent)
 {
-    p  = fract( p*0.3183099+.1 );
-	p *= 17.0;
-    return fract( p.x*p.y*p.z*(p.x+p.y+p.z) );
+    float InverseLog2 = 1.0f / log(2.0);
+    float T = -Coefficent * InverseLog2; 
+    float B = -1.0f / Coefficent;
+    float C =  1.0f / Coefficent;
+    //return exp(T * OD) * B + C;
+    return exp2(T * OD) * B + C;
 }
 
-// 3D precedural noise3d2
-float noise3d2( in vec3 x )
-{
-    vec3 p = floor(x);
-    vec3 f = fract(x);
-    f = f*f*(3.0-2.0*f);
-	
-    // interpolate between hashes of adjacent grid points
-    return mix(mix(mix( hash3d2(p+vec3(0,0,0)), 
-                        hash3d2(p+vec3(1,0,0)),f.x),
-                   mix( hash3d2(p+vec3(0,1,0)), 
-                        hash3d2(p+vec3(1,1,0)),f.x),f.y),
-               mix(mix( hash3d2(p+vec3(0,0,1)), 
-                        hash3d2(p+vec3(1,0,1)),f.x),
-                   mix( hash3d2(p+vec3(0,1,1)), 
-                        hash3d2(p+vec3(1,1,1)),f.x),f.y),f.z);
-}
 
-// 3D noise3d2 layered in several octaves
-float layeredNoise(in vec3 x) {
-    x += vec3(10.0, 5.0, 6.0);
-    return 0.6*noise3d2(x*5.0) + 0.4*noise3d2(x*10.0) + 0.2*noise3d2(x*16.0) - 0.2;
-}
-
-// Returns the optical depth for a point using a perlin FBM
+// Returns the optical depth for a point using a perlin/simplex fractal FBM
 float OpticalDepth(vec3 p)
 {
-    float Time = u_Time * 0.9f;
-    //float OD = pow(dot(noise(p - Time),vec3(0.625,0.25,0.625),2.2)*4.0 ;
-    float OD = noise(p - Time) * 0.5f;
-    OD += noise(p * 2.0f + Time) * 0.25f;
-    OD += noise(p * 4.0f - Time) * 0.125f;
-	return (OD*OD * 4.0f + 0.25f) * (0.9f / 1.0f);
+    if (!false) {
+        float Time = mod(u_Time * 1.0f, 100.0f);
+        //float OD = pow(dot(noise(p - Time),vec3(0.625,0.25,0.625),2.2)*4.0 ;
+        float OD = noise(p - Time) * 0.5f;
+        OD += noise(p * 2.0f + Time) * 0.25f;
+        OD += noise(p * 4.0f - Time) * 0.125f;
+	    return (OD*OD * 4.0f + 0.25f) * (0.9f / 1.0f);
+    }
+
+    else {
+        float Time = u_Time * 0.9f;
+        Time = mod(Time, 100.0f);
+        p*=3.0f;
+        float OD = SimplexFractalNoise(vec3(p.x - mod(Time, 100.0f), p.y + Time * 0.2f, p.z + Time)) * 1.0f;
+	    return (OD*OD * 4.0f + 0.25f) * (0.9f / 1.0f) * (0.9f / 1.0f);
+    }
+}
+
+float MarchODShadow(vec3 Point, vec3 Lo)
+{
+    if (!u_UsePerlinNoiseForOD) {
+        return 1.0f;
+    }
+
+    int Steps = 4;
+    float StepSize = 1.0 / float(Steps);
+    vec3 Increment = Lo * StepSize;
+    vec3 RayPosition = Point;
+    float Transmittance = float(1.0);
+    
+    for (int CurrentStep = 0; CurrentStep < Steps; CurrentStep++)
+    {
+        float OD_At = OpticalDepth(RayPosition);
+		RayPosition += Increment;
+        Transmittance += OD_At;
+    }
+    
+    return exp2(-Transmittance * StepSize); // Exponential transmittance function
 }
 
 // Triquadratic interpolation + cubic spline with a gradient approximation to improve performance 
@@ -189,47 +242,42 @@ vec3 SampleVolumetricColor(vec3 UV) {
 
 }   
 
+vec3 SampleVolumetricColor(vec3 UV, float D) {
+    uint BlockID = texture(u_VolumetricColorDataSampler, UV+D*0.5f*(1.0f/vec3(384.0f,128.0f,384.0f))).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+}   
+
 vec3 SampleVolumetricColorTexel(ivec3 Texel) {
     uint BlockID = texture(u_VolumetricColorDataSampler, Texel).x;
     return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
 
 }   
 
-vec4 sample_triquadratic(sampler3D channel, vec3 res, vec3 uv) {
-    vec3 q = fract(uv * res);
-    vec3 c = (q*(q - 1.0) + 0.5) / res;
-    vec3 w0 = uv - c;
-    vec3 w1 = uv + c;
-    vec4 s = texture(channel, vec3(w0.x, w0.y, w0.z))
-    	   + texture(channel, vec3(w1.x, w0.y, w0.z))
-    	   + texture(channel, vec3(w1.x, w1.y, w0.z))
-    	   + texture(channel, vec3(w0.x, w1.y, w0.z))
-    	   + texture(channel, vec3(w0.x, w1.y, w1.z))
-    	   + texture(channel, vec3(w1.x, w1.y, w1.z))
-    	   + texture(channel, vec3(w1.x, w0.y, w1.z))
-		   + texture(channel, vec3(w0.x, w0.y, w1.z));
-	return s / 8.0;
-}
 
-
-// Triquadratic 3D interp
-vec3 SoftwareTriquadraticVolumetrics(vec3 uv) 
+// Custom Triquadratic 3D interpolation 
+vec3 CustomTriquadraticVolumeInterp(vec3 UV, vec3 BayerNormalized) 
 { 
-    vec3 res = vec3(384.0f, 128.0f, 384.0f);
-    vec3 q = fract(uv * res);
-    vec3 c = (q*(q - 1.0) + 0.5) / res;
-    vec3 w0 = uv - c;
-    vec3 w1 = uv + c;
-    vec3 s = SampleVolumetricColor(vec3(w0.x, w0.y, w0.z))
-    	   + SampleVolumetricColor(vec3(w1.x, w0.y, w0.z))
-    	   + SampleVolumetricColor(vec3(w1.x, w1.y, w0.z))
-    	   + SampleVolumetricColor(vec3(w0.x, w1.y, w0.z))
-    	   + SampleVolumetricColor(vec3(w0.x, w1.y, w1.z))
-    	   + SampleVolumetricColor(vec3(w1.x, w1.y, w1.z))
-    	   + SampleVolumetricColor(vec3(w1.x, w0.y, w1.z))
-		   + SampleVolumetricColor(vec3(w0.x, w0.y, w1.z));
-	return s / 8.0;
+    vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
+    vec3 FractTexel = fract(UV * Resolution);
+    vec3 Curve = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
+    vec3 W0 = UV - Curve;
+    vec3 W1 = UV + Curve;
+
+    const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.25f, 0.2f);
+    const float GlobalDitherNoiseWeight = 1.0f;
+
+    vec3 Interpolated = SampleVolumetricColor(vec3(W0.x, W0.y, W0.z) + BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W1.x, W0.y, W0.z) - BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W1.x, W1.y, W0.z) + BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W0.x, W1.y, W0.z) - BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W0.x, W1.y, W1.z) + BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W1.x, W1.y, W1.z) - BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleVolumetricColor(vec3(W1.x, W0.y, W1.z) + BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight)
+		   + SampleVolumetricColor(vec3(W0.x, W0.y, W1.z) - BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight);
+
+	return max(Interpolated / 8.0, 0.00000001f);
 }
+
 
 void main() 
 {
@@ -254,6 +302,7 @@ void main()
 
     if (u_UseBayer) {
         DitherNoise = vec3(bayer128(gl_FragCoord.xy));
+        DitherNoise.y = bayer64(gl_FragCoord.xy);
     }
 
     else {
@@ -272,47 +321,59 @@ void main()
 
     vec3 SampleDither = vec3(bayer16(gl_FragCoord.xy), bayer16(gl_FragCoord.xy)*0.4, bayer16(gl_FragCoord.xy)*0.7);
 
+    vec3 VolumetricColorDither = vec3(bayer128(gl_FragCoord.xy));
+    VolumetricColorDither *= 1.0f/vec3(384.0f,128.0f,384.0f);
+
+    //float CurrentTransmittance = 1.0f;
+    //float TotalTransmittance = 1.0f;
+
     for (int CurrentStep = 0 ; CurrentStep < Steps ; CurrentStep++) {
         
         float AirDensity = 1.0f; // Base density at position
 
-        vec3 RayPosition = RayPositionActual + vec3(0.0f, -0.25f, 0.0f);
+        vec3 RayPosition = RayPositionActual + vec3(0.0f, -0.225f, 0.0f);
 
         if (UsePerlinFBM) {
-            AirDensity = clamp(pow(OpticalDepth(RayPosition*0.82569420f),2.2f)/sqrt(2.0f),0.0f,1.0f);
+            AirDensity = clamp(pow(OpticalDepth(RayPosition*0.95f),1.52525f)/1.4144f,0.0f,1.0f);
         }
 
         if (AirDensity > 0.001f) {
             float SampleSigmaS = SigmaS * AirDensity; 
-            float PointDensity = texture(u_VolumetricDensityData, (RayPosition.xyz * (1.0f/vec3(384.0f,128.0f,384.0f)))+(SampleDither*0.1f*(1.0f/vec3(384.0f,128.0f,384.0f)))).x * 24.0f; // Hardware trilinear
+            vec3 DensitySamplePosition = (vec3(RayPosition.xyz-vec3(0.125f,0.0f,0.125f))*(1.0f/vec3(384.0f,128.0f,384.0f)))+(SampleDither*0.125f*(1.0f/vec3(384.0f,128.0f,384.0f)));
+            float PointDensity = texture(u_VolumetricDensityData, DensitySamplePosition).x * 24.0f; // Hardware trilinear
             OutputDensitySum += PointDensity;
             vec3 ScatteringColor = vec3(1.0f);
 
             if (u_Colored) {
                 // Triquadratic interpolation 
                 vec3 Normalized = RayPosition * (1.0f/vec3(384.0f,128.0f,384.0f));
-                Normalized += SampleDither * 0.450f * (1.0f/vec3(384.0f,128.0f,384.0f)); // Jitter ray sample position
-                ScatteringColor = clamp(SoftwareTriquadraticVolumetrics(Normalized), 0.0f, 1.0f)*2.0f; 
+               // Normalized += SampleDither * 0.450f * (1.0f/vec3(384.0f,128.0f,384.0f)); // Jitter ray sample position
+                ScatteringColor = clamp(CustomTriquadraticVolumeInterp(Normalized,VolumetricColorDither), 0.0f, 1.0f)*2.0f*1.66676f; 
             }
 
-            vec3 CurrentDensity = vec3(pow(2.0f, 7.0f) * pow(PointDensity, 2.0f))*ScatteringColor;
+            const float dM = pow(2.0f, 7.0f);
+
+            vec3 CurrentDensity = vec3(dM * (PointDensity * PointDensity)) * ScatteringColor;
             vec3 S = SampleSigmaS * CurrentDensity;
-            float Transmittance = exp(-(SigmaS*AirDensity) * StepSize); // exponential volumetric transmittance function
+            float Transmittance = exp(-(SigmaS * AirDensity) * StepSize); // exponential volumetric transmittance function
 			OutputTransmittance *= Transmittance;
             vec3 IntegratedScattering = (S - S * Transmittance) / (SigmaS * AirDensity);  // S-St/Se
             VolumetricLighting += IntegratedScattering;
+
+            // exp2() looks more correct.. somehow?
+            //CurrentTransmittance *= exp2(AirDensity);
+		    //TotalTransmittance *= exp2(-AirDensity);
         }
 
         RayPositionActual += RayDirection * StepSize;
     }
 
-    const float IsotropicScatter = 0.25 / PI;
+    const float IsotropicScatter = 0.25f / PI;
     const float ScattersM = pow(2.0f, 4.0f);
     VolumetricLighting *= ScattersM * u_Strength;
-
-    o_Volumetrics = vec4(VolumetricLighting, OutputDensitySum); 
+    o_Volumetrics = vec4(clamp(VolumetricLighting,0.0f,4.0f), clamp(OutputDensitySum,0.0f,0.9f/1.0f)); 
 
     if (false) {
-        o_Volumetrics = vec4(VolumetricLighting, OutputTransmittance); 
+        o_Volumetrics = vec4(clamp(VolumetricLighting,0.0f,5.0f), clamp(OutputTransmittance,0.0f,0.9f/1.0f)); 
     }
 }

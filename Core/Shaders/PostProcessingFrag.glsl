@@ -449,17 +449,16 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
     for (int i = 0; i < 4; i++) 
     {
         vec3 sampled_normal = SampleNormal(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        float nweight = pow(abs(dot(sampled_normal, base_normal)), 4);
-
-        float sampled_depth = SamplePositionAt(u_PositionTexture, txc + Kernel[i] * texel_size).z; 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
+        float nweight = clamp(pow(abs(dot(sampled_normal, base_normal)), 8), 0.001f, 1.0f);
+        float sampled_depth = texture(u_PositionTexture, txc + Kernel[i] * texel_size).x; 
+        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.01f);
+		dweight = clamp(pow(dweight,32.0),0.01f,1.0f);
         float computed_weight = nweight * dweight;
         color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
         weight_sum += computed_weight;
     }
 
-    color /= max(weight_sum, 0.2f);
+    color /= max(weight_sum, 0.01f);
     return color;
 }
 
@@ -645,8 +644,9 @@ void main()
 	
 	if (u_PointVolumetricsToggled) {
 	
-		PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
-		
+		PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords+(Bayer128(gl_FragCoord.xy)*1.1*(1.0f/textureSize(u_VolumetricsCompute,0)))).xyz;
+		//PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
+		//PointVolumetrics += BayerDither * (1.0f-exp(-GetLuminance(PointVolumetrics.xyz)));
 	}
 
 
@@ -676,7 +676,7 @@ void main()
 			rtao_strength = ((1.0f - ClipSpaceAt.z) * 200.0f) * max_rtao_strength;
 			rtao_strength = clamp(rtao_strength, 0.0f, max_rtao_strength);
 
-			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.z).r;
+			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.w).r;
 			RTAO = pow(RTAO, rtao_strength);
 			RTAO = max(RTAO, 0.825f);
 
