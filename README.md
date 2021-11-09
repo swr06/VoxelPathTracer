@@ -34,7 +34,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing (Slightly buggy with the diffuse indirect :/) 
 - Fully 3D Audio
-- Point Light Volumetrics using flood fill
+- Point Light Volumetrics using ray marching and an LPV
 - Contrast Adaptive Sharpening
 - Auto exposure based on a luminance histogram (Slightly wip!)
 
