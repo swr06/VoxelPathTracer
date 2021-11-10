@@ -10,6 +10,19 @@ uniform bool u_ColorGrading;
 uniform int u_SelectedLUT;
 uniform bool u_ColorDither;
 
+// Bayer dither 
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
+
 float linearToSrgb(float linear){
     float SRGBLo = linear * 12.92;
     float SRGBHi = (pow(abs(linear), 1.0/2.4) * 1.055) - 0.055;
@@ -107,9 +120,7 @@ vec3 Lookup(vec3 color)
 
 void BasicColorDither(inout vec3 color)
 {
-    vec3 lestynRGB = vec3(dot(vec2(171.0, 231.0), gl_FragCoord.xy));
-    lestynRGB = fract(lestynRGB.rgb / vec3(103.0, 71.0, 97.0));
-    color += lestynRGB.rgb / 255.0;
+    color += bayer128(gl_FragCoord.xy) / 128.0f;
 }
 
 void main() {

@@ -67,6 +67,7 @@ uniform bool u_Bloom = false;
 uniform bool u_RTAO = false;
 uniform bool u_ExponentialFog = false;
 uniform bool u_PointVolumetricsToggled = false;
+uniform bool u_PurkinjeEffect = false;
 
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
@@ -620,6 +621,41 @@ vec3 BasicChromaticAberation()
 	return max(Final,0.0f);
 }
 
+mat3x3 xyzToRGBMatrix = mat3(
+    3.1338561, -1.6168667, -0.4906146,
+    -0.9787684,  1.9161415,  0.0334540,
+    0.0719453, -0.2289914,  1.4052427
+);
+
+mat3x3 rgbToXYZMatrix = mat3(
+    vec3(0.5149, 0.3244, 0.1607),
+    vec3(0.3654, 0.6704, 0.0642),
+    vec3(0.0248, 0.1248, 0.8504)
+);
+
+vec3 xyzToRGB(in vec3 xyz) {
+    float r = dot(xyz, xyzToRGBMatrix[0]);
+    float g = dot(xyz, xyzToRGBMatrix[1]);
+    float b = dot(xyz, xyzToRGBMatrix[2]);
+    return vec3(r, g, b);
+}
+
+vec3 rgbToXYZ(in vec3 rgb) {
+    float x = dot(rgb, rgbToXYZMatrix[0]);
+    float y = dot(rgb, rgbToXYZMatrix[1]);
+    float z = dot(rgb, rgbToXYZMatrix[2]);
+    return vec3(x, y, z);
+}
+
+vec3 PurkinjeEffect(vec3 Color) 
+{
+    vec3 RodResponse = vec3(7.15e-5, 4.81e-1, 3.28e-1);
+    vec3 XYZ = rgbToXYZ(Color);
+    vec3 ScopticLuma = XYZ * (1.33f * (1.0f + (XYZ.y + XYZ.z) / XYZ.x) - 1.68f);
+    float Purkinge = dot(RodResponse, xyzToRGB(ScopticLuma));
+    Color = mix(Color, Purkinge * vec3(0.5f, 0.7f, 1.0f), exp2(-Purkinge * 2.0f));
+    return max(Color, 0.0);
+}
 
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
@@ -714,6 +750,10 @@ void main()
 
 		o_Color = InputColor;
 		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
+		if (u_PurkinjeEffect) {
+			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
+		}
+
 		o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure + 0.01f).rgb;
 	}
 
@@ -721,6 +761,9 @@ void main()
 	{
 		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb) + PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
+		if (u_PurkinjeEffect) {
+			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
+		}
 		o_Color = BasicTonemap(o_Color);
 	}
 

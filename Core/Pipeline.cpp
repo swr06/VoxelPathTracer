@@ -66,7 +66,7 @@ static bool SmartUpscaleCloudTemporal = true;
 
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
-
+static bool PurkinjeEffect = false;
 static int SelectedColorGradingLUT = -1;
 static bool ColorDither = true;
 static float FilmGrainStrength = 0.0f;
@@ -356,6 +356,7 @@ public:
 			ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+			ImGui::Checkbox("Purkinje Effect?", &PurkinjeEffect);
 			ImGui::NewLine();
 			ImGui::NewLine();
 
@@ -2925,6 +2926,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
+		PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
 		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled&& PointVolumetricStrength > 0.01f);

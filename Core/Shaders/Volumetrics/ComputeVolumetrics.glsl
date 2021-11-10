@@ -266,9 +266,9 @@ vec3 CustomTriquadraticVolumeInterp(vec3 UV, vec3 BayerNormalized)
 { 
     const vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
     vec3 FractTexel = fract(UV * Resolution);
-    vec3 Offset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
-    vec3 W0 = UV - Offset;
-    vec3 W1 = UV + Offset;
+    vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
+    vec3 W0 = UV - LinearOffset;
+    vec3 W1 = UV + LinearOffset;
 
     const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.25f, 0.2f);
     const float GlobalDitherNoiseWeight = 1.0f;
