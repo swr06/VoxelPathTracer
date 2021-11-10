@@ -18,11 +18,11 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Temporal Anti Aliasing (And temporal supersampling)
 - FXAA
 - HDR Tonemapping, Gamma correction
+- Post Processing (Lens flare, Purkinje Effect, Film grain, Color Dither, Color grading with an LUT, Chromatic Aberration, Screen Space God Rays etc.)
 - Ray traced reflections 
 - Ray traced rough reflections (Importance Sampled GGX with specialized specular denoiser)
 - Naive world saving and loading
 - Physically based atmosphere
-- God Rays (Screen space) 
 - Per Pixel Emissive Materials
 - Spatial filtering (Atrous and SVGF)
 - Spatial Upscaling
