@@ -278,6 +278,7 @@
     <None Include="Core\Shaders\Clouds\WeatherMapGenerator.glsl" />
     <None Include="Core\Shaders\ComputeExposure.comp" />
     <None Include="Core\Shaders\ComputeUtility\ClearData.comp" />
+    <None Include="Core\Shaders\ContactShadows.glsl" />
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\EV100.glsl" />
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />

@@ -657,6 +657,7 @@ vec3 PurkinjeEffect(vec3 Color)
     return max(Color, 0.0);
 }
 
+
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
  #define VOLUMETRIC_BICUBIC
@@ -681,6 +682,7 @@ void main()
 	if (u_PointVolumetricsToggled) {
 	
 		PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords+(Bayer128(gl_FragCoord.xy)*1.1*(1.0f/textureSize(u_VolumetricsCompute,0)))).xyz;
+		//PointVolumetrics *= clamp(Bayer128(gl_FragCoord.xy),0.5f,1.0f);
 		//PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
 		//PointVolumetrics += BayerDither * (1.0f-exp(-GetLuminance(PointVolumetrics.xyz)));
 	}

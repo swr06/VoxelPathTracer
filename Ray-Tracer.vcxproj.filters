@@ -666,6 +666,9 @@
     <None Include="Core\Shaders\Volumetrics\ClearDataFloat.comp">
       <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
+    <None Include="Core\Shaders\ContactShadows.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

@@ -31,6 +31,7 @@ uniform usampler3D u_VolumetricColorDataSampler;
 uniform sampler3D u_VolumetricDensityData;
 
 uniform bool u_UsePerlinNoiseForOD;
+uniform bool u_PointVolTriquadraticDensityInterpolation;
 
 uniform vec3 u_ViewerPosition;
 uniform vec2 u_Dimensions;
@@ -230,18 +231,6 @@ float MarchODShadow(vec3 Point, vec3 Lo)
     return exp2(-Transmittance * StepSize); // Exponential transmittance function
 }
 
-// Triquadratic interpolation + cubic spline with a gradient approximation to improve performance 
-// Doesn't work for some reason. it's a todo optimization.
-vec3 sample_triquadratic_gradient_approx(sampler3D channel, vec3 res, vec3 uv) {
-    vec3 q = fract(uv * res);
-    vec3 cc = 0.5 / res;
-    vec3 ww0 = uv - cc;
-    vec3 ww1 = uv + cc;
-    float nx = texture(channel, vec3(ww1.x, uv.y, uv.z)).r - texture(channel, vec3(ww0.x, uv.y, uv.z)).r;
-    float ny = texture(channel, vec3(uv.x, ww1.y, uv.z)).r - texture(channel, vec3(uv.x, ww0.y, uv.z)).r;
-    float nz = texture(channel, vec3(uv.x, uv.y, ww1.z)).r - texture(channel, vec3(uv.x, uv.y, ww0.z)).r;
-	return vec3(nx, ny, nz);
-}
 
 vec3 SampleVolumetricColor(vec3 UV) {
     uint BlockID = texture(u_VolumetricColorDataSampler, UV).x;
@@ -285,6 +274,25 @@ vec3 CustomTriquadraticVolumeInterp(vec3 UV, vec3 BayerNormalized)
 	return max(Interpolated / 8.0, 0.00000001f);
 }
 
+float SampleTriQuadraticDensity(vec3 UV) 
+{
+    vec3 LPVResolution = vec3(384.0f, 128.0f, 384.0f);
+    vec3 FractTexel = fract(UV * LPVResolution);
+    vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / LPVResolution;
+    vec3 W0 = UV - LinearOffset;
+    vec3 W1 = UV + LinearOffset;
+    float Density = texture(u_VolumetricDensityData, vec3(W0.x, W0.y, W0.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W1.x, W0.y, W0.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W1.x, W1.y, W0.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W0.x, W1.y, W0.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W0.x, W1.y, W1.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W1.x, W1.y, W1.z)).x
+    	          + texture(u_VolumetricDensityData, vec3(W1.x, W0.y, W1.z)).x
+		          + texture(u_VolumetricDensityData, vec3(W0.x, W0.y, W1.z)).x;
+	return max(Density / 8.0, 0.00000001f);
+}
+
+
 
 void main() 
 {
@@ -302,14 +310,20 @@ void main()
     float Distance = BaseLinearDepth;
     Distance = clamp(Distance, 0.0f, 96.0f);
 
+    // 
     float SigmaS = 0.3f * 0.0625f * 0.05f * 5.0f; 
+    const float SigmaA = 0.1f;
+    const float SigmaT = 1.25f;
 
     float StepSize = Distance / float(Steps);
 	vec3 DitherNoise = vec3(1.0f);
+    
+    // Bayer is much more noiseless
+    // Easier to denoise as well!
 
     if (u_UseBayer) {
-        DitherNoise = vec3(bayer128(gl_FragCoord.xy));
-        DitherNoise.y = bayer64(gl_FragCoord.xy);
+        DitherNoise = vec3(bayer256(gl_FragCoord.xy));
+        DitherNoise.y = bayer128(gl_FragCoord.xy);
     }
 
     else {
@@ -326,13 +340,14 @@ void main()
     float OutputTransmittance = 1.0f;
     float OutputDensitySum = 1.0f;
 
-    vec3 SampleDither = vec3(bayer16(gl_FragCoord.xy), bayer16(gl_FragCoord.xy)*0.4, bayer16(gl_FragCoord.xy)*0.7);
-
+    vec3 SampleDither = vec3(bayer128(gl_FragCoord.xy), bayer16(gl_FragCoord.xy)*0.4, bayer16(gl_FragCoord.xy)*0.7);
     vec3 VolumetricColorDither = vec3(bayer128(gl_FragCoord.xy));
     VolumetricColorDither *= 1.0f/vec3(384.0f,128.0f,384.0f);
 
     //float CurrentTransmittance = 1.0f;
     //float TotalTransmittance = 1.0f;
+
+    float pdM = mix(24.0f, 24.0f+4.5f, float(u_PointVolTriquadraticDensityInterpolation));
 
     for (int CurrentStep = 0 ; CurrentStep < Steps ; CurrentStep++) {
         
@@ -347,7 +362,18 @@ void main()
         if (AirDensity > 0.001f) {
             float SampleSigmaS = SigmaS * AirDensity; 
             vec3 DensitySamplePosition = (vec3(RayPosition.xyz-vec3(0.125f,0.0f,0.125f))*(1.0f/vec3(384.0f,128.0f,384.0f)))+(SampleDither*0.125f*(1.0f/vec3(384.0f,128.0f,384.0f)));
-            float PointDensity = texture(u_VolumetricDensityData, DensitySamplePosition).x * 24.0f; // Hardware trilinear
+            float PointDensity;
+
+            if (u_PointVolTriquadraticDensityInterpolation) {
+                PointDensity = SampleTriQuadraticDensity(DensitySamplePosition).x; // Triquadratic + Trilinear
+            }
+
+            else {
+                PointDensity = texture(u_VolumetricDensityData, DensitySamplePosition).x; // Hardware trilinear
+            }
+
+            PointDensity *= pdM;
+
             OutputDensitySum += PointDensity;
             vec3 ScatteringColor = vec3(1.0f);
 
@@ -365,6 +391,7 @@ void main()
             float Transmittance = exp(-(SigmaS * AirDensity) * StepSize); // exponential volumetric transmittance function
 			OutputTransmittance *= Transmittance;
             vec3 IntegratedScattering = (S - S * Transmittance) / (SigmaS * AirDensity);  // S-St/Se
+            // vec3 IntegratedScattering = max(exp(-PointDensity * SigmaT), exp(-PointDensity * SigmaT * 0.2f) * 0.75f) * SigmaT * (max(0.5f, SigmaS));
             VolumetricLighting += IntegratedScattering;
 
             // exp2() looks more correct.. somehow?

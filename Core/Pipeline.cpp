@@ -136,6 +136,8 @@ static float PointVolumetricStrength = 0.525f;
 static bool ColoredPointVolumetrics = false;
 static bool PointVolumetricsBayer = true;
 static bool PointVolPerlinOD = false;
+static bool DenoisePointVol = true;
+static bool PointVolTriquadraticDensityInterpolation = false;
 
 
 static float InitialTraceResolution = 1.0f;
@@ -277,6 +279,8 @@ public:
 			//ImGui::Checkbox("Noise type? (0 : Smooth perlin [Faster], 1 : Simplex Fractal [Slower])", &FractalSimplexOD);
 			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
+			ImGui::Checkbox("Denoise?", &DenoisePointVol);
+			ImGui::Checkbox("Triquadratic Density Interpolation (Much slower, Gets rid of all bilinear interpolation artifacts)?", &PointVolTriquadraticDensityInterpolation);
 			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
 			//ImGui::SameLine(); 
 			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) { 
@@ -2843,6 +2847,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetBool("u_UseBayer", PointVolumetricsBayer);
 			PointVolumetrics.SetBool("u_UsePerlinNoiseForOD", PointVolPerlinOD);
 			PointVolumetrics.SetBool("u_FractalSimplexOD", false); // FALSE
+			PointVolumetrics.SetBool("u_PointVolTriquadraticDensityInterpolation", PointVolTriquadraticDensityInterpolation); 
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 
@@ -2866,19 +2871,21 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
-			// Blur
-			VolumetricsComputeBlurred.Bind();
-			Gaussian9TapOptimized.Use();
+			// Denoise 
 
-			Gaussian9TapOptimized.SetInteger("u_Texture", 0);
-			
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+			if (DenoisePointVol) {
+				VolumetricsComputeBlurred.Bind();
+				Gaussian9TapOptimized.Use();
 
-			VAO.Bind();
-			glDrawArrays(GL_TRIANGLES, 0, 6);
-			VAO.Unbind();
+				Gaussian9TapOptimized.SetInteger("u_Texture", 0);
 
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
 			//// Blur 2
 			//
 			//Gaussian5TapOptimized.Use();
@@ -3015,7 +3022,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, CloudData);
 
 		glActiveTexture(GL_TEXTURE16);
-		glBindTexture(GL_TEXTURE_2D, VolumetricsComputeBlurred.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DenoisePointVol ?  VolumetricsComputeBlurred.GetTexture() : VolumetricsCompute.GetTexture());
 
 		glActiveTexture(GL_TEXTURE17);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
