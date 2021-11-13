@@ -2,12 +2,21 @@
 
 #version 450 core
 
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 #define CLOUD_HEIGHT 70
 #define PCF_COUNT 4 // we really dont care about the low sample count because we have taa.
-//#define POISSON_DISK_SAMPLING
 #define PI 3.14159265359
 #define THRESH 1.41414
-
 
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec3 o_Normal;
@@ -43,6 +52,11 @@ uniform sampler2D u_ReflectionCoCgData;
 
 uniform sampler2D u_HighResBL;
 
+// Light Propogation Volume debug stuff
+uniform sampler3D u_LPVLightLevel;
+uniform usampler3D u_LPVColorData;
+uniform int u_LPVDebugState; // Debug state 
+
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
@@ -74,6 +88,7 @@ uniform bool u_SVGFEnabled = true;
 uniform bool u_ShouldDitherUpscale = true;
 
 uniform float u_CloudBoxSize;
+uniform int u_GrassBlockProps[10];
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -84,62 +99,22 @@ layout (std430, binding = 0) buffer SSBO_BlockData
 	int BlockTransparentData[128];
 };
 
-// *****Temporary****** solution to have multi texturing for grass blocks
-// Data stored : 
-// Grass block ID
-// top face index (albedo, normal, pbr),
-// right/left/front/back face index (albedo, normal, pbr),
-// bottom face index (albedo, normal, pbr)
-// 9 + 1 ints total
-
-uniform int u_GrassBlockProps[10];
+layout (std430, binding = 1) buffer SSBO_BlockAverageData
+{
+    vec4 BlockAverageColorData[128]; // Returns the average color per block type 
+};
 
 
+// Functions :
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
+vec3 GetSmoothLPVData(vec3 UV);
+vec3 GetSmoothLPVDensity(vec3 UV);
 
-
+// Constants 
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f, 1.0f, 0.5f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
-
-// 3D poisson disk
-vec3 PoissonDisk3D[16] = vec3[](
-    vec3(0.488937, 0.374798, 0.0314035),
-    vec3(0.112522, 0.0911893, 0.932066),
-    vec3(0.345347, 0.857173, 0.622028),
-    vec3(0.724845, 0.0422376, 0.754479),
-    vec3(0.775262, 0.82693, 0.16596),
-    vec3(0.971221, 0.020539, 0.0113529),
-    vec3(0.010834, 0.171209, 0.379254),
-    vec3(0.577593, 0.514908, 0.977874),
-    vec3(0.170507, 0.840266, 0.0510269),
-    vec3(0.939055, 0.566179, 0.568987),
-    vec3(0.015137, 0.606647, 0.998566),
-    vec3(0.687002, 0.465712, 0.479293),
-    vec3(0.170232, 0.25837, 0.602069),
-    vec3(0.83755 , 0.334819, 0.0497452),
-    vec3(0.795679, 0.742149, 0.878201),
-    vec3(0.180761, 0.585253, 0.245888)
-);
-
-
-// bayer dither
-float bayer2(vec2 a){
-    a = floor(a);
-    return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
-#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
-
-
-
-// GBuffer fetch
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
 const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
@@ -147,6 +122,7 @@ const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
+// Utility
 bool CompareFloatNormal(float x, float y) {
     return abs(x - y) < 0.02f;
 }
@@ -164,11 +140,7 @@ vec3 GetNormalFromID(float n) {
     return Normals[idx];
 }
 
-
-
-
 // Samplers :
-
 vec3 SampleNormal(sampler2D samp, vec2 txc) { 
 	return GetNormalFromID(texture(samp, txc).x);
 }
@@ -186,8 +158,7 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-/////////
-
+// Fragment
 float Noise2d(in vec2 x)
 {
     float xhash = cos(x.x * 37.0);
@@ -427,23 +398,6 @@ float nextFloat(inout int seed, in float min, in float max)
     return min + (max - min) * nextFloat(seed);
 }
 
-
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
-{
-	vec3 inv_dir = 1.0f / rD;
-	vec3 tbot = inv_dir * (boxMin - r0);
-	vec3 ttop = inv_dir * (boxMax - r0);
-	vec3 tmin = min(ttop, tbot);
-	vec3 tmax = max(ttop, tbot);
-	vec2 t = max(tmin.xx, tmin.yz);
-	float t0 = max(t.x, t.y);
-	t = min(tmax.xx, tmax.yz);
-	float t1 = min(t.x, t.y);
-	t_min = t0;
-	t_max = t1;
-	return t1 > max(t0, 0.0);
-}
-
 // http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
 float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 {
@@ -573,75 +527,7 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
     return FinalTexCoords;
 }   
 
-bool CompareVec3(vec3 v1, vec3 v2) {
-	float e = 0.0125f;
-	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
-}
 
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
-{
-	// Hard coded normals, tangents and bitangents
-
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
-				   );
-
-	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
-					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
-	);
-
-    uv = vec2(1.0f);
-
-	if (CompareVec3(normal, Normals[0]))
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[0];
-		bitangent = BiTangents[0];
-    }
-
-    else if (CompareVec3(normal, Normals[1]))
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[1];
-		bitangent = BiTangents[1];
-    }
-
-    else if (CompareVec3(normal, Normals[2]))
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[2];
-		bitangent = BiTangents[2];
-    }
-
-    else if (CompareVec3(normal, Normals[3]))
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[3];
-		bitangent = BiTangents[3];
-    }
-	
-    else if (CompareVec3(normal, Normals[4]))
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[4];
-		bitangent = BiTangents[4];
-    }
-    
-
-    else if (CompareVec3(normal, Normals[5]))
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[5];
-		bitangent = BiTangents[5];
-    }
-}
 
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
@@ -789,24 +675,69 @@ const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f;
 const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f; 
 const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
 
-
-float sum( vec3 v ) { return v.x+v.y+v.z; }
-
-
-vec4 hash4( vec2 p ) { return fract(sin(vec4( 1.0+dot(p,vec2(37.0,17.0)), 
-                                              2.0+dot(p,vec2(11.0,47.0)),
-                                              3.0+dot(p,vec2(41.0,29.0)),
-                                              4.0+dot(p,vec2(23.0,31.0))))*103.0); }
-
-
-
-
-
 // catmull rom texture interpolation 
 vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
+// cook torrance brdf : 
 
+float ndfGGX(float cosLh, float roughness)
+{
+	float alpha = roughness * roughness;
+	float alphaSq = alpha * alpha;
+	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
+	return alphaSq / (PI * denom * denom);
+}
 
+float gaSchlickG1(float cosTheta, float k)
+{
+	return cosTheta / (cosTheta * (1.0 - k) + k);
+}
+
+float gaSchlickGGX(float cosLi, float cosLo, float roughness)
+{
+	float r = roughness + 1.0;
+	float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
+	return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
+}
+
+vec3 fresnelSchlick(vec3 F0, float cosTheta)
+{
+	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
+{
+    const float DIELECTRIC = 0.04f;
+    const float Epsilon = 0.00001;
+    float Shadow = min(shadow, 1.0f);
+
+    vec3 Lo = normalize(u_ViewerPosition - world_pos);
+
+	vec3 N = normal;
+	float cosLo = max(0.0, dot(N, Lo));
+	vec3 Lr = 2.0 * cosLo * N - Lo;
+	vec3 F0 = mix(vec3(DIELECTRIC), albedo, pbr.g);
+
+    vec3 Li = light_dir;
+	vec3 Lradiance = radiance;
+
+	vec3 Lh = normalize(Li + Lo);
+
+	float cosLi = max(0.0, dot(N, Li));
+	float cosLh = max(0.0, dot(N, Lh));
+
+	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
+	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); // use fresnel roughness, gives a slightly better approximation
+	float D = ndfGGX(cosLh, pbr.r);
+	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
+
+	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
+	vec3 diffuseBRDF = kd * albedo;
+
+	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo); specularBRDF = clamp(specularBRDF, 0.0f, 2.0f);
+	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
+    return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
+}
 
 void main()
 {
@@ -943,8 +874,6 @@ void main()
                 }
             }
 
-			
-
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
             float SampledAO = pow(PBRMap.w, 1.25f); // Ambient occlusion map
@@ -961,11 +890,9 @@ void main()
             
             DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
             float Roughness = PBRMap.r;
-            vec3 DiffuseIndirect = (SampledIndirectDiffuse.xyz * AlbedoColor);
-            //vec3 DiffuseIndirect = (SampledIndirectDiffuse.xyz);
-
-            // Compute Specular indirect from spherical harmonic 
-
+			
+            vec3 DiffuseIndirect = u_LPVDebugState == 3 ? (GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor) : 
+                                  (u_LPVDebugState == 4 ? (GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor * 5.0f) : (SampledIndirectDiffuse.xyz * AlbedoColor));
            
             vec3 SpecularIndirect = vec3(0.0f);
             
@@ -1012,18 +939,16 @@ void main()
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
 
-            ////o_Color = SpecularIndirect;
+            
+			
 
+            if (u_LPVDebugState == 1) {
+                o_Color = GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz);
+            }
 
-             ///if (PBRMap.x > 0.897511) 
-            ///{
-            ///    o_Color = vec3(1.0f, 0.0f, 0.0f);
-            ///}
-            ///
-            ///else 
-            ///{
-            ///    o_Color = vec3(0.0f, 1.0f, 0.0f);
-            ///}
+            if (u_LPVDebugState == 2) {
+                o_Color = GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz);
+            }
             
             // Output utility : 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
@@ -1039,11 +964,6 @@ void main()
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
-
-
-
-
-           
 
             return;
         }
@@ -1066,66 +986,106 @@ void main()
     }
 }
 
-// cook torrance brdf : 
 
-float ndfGGX(float cosLh, float roughness)
+// LPV stuff
+
+vec3 SampleLPVColor(vec3 UV) {
+    uint BlockID = texture(u_LPVColorData, UV).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+
+}   
+
+vec3 SampleLPVColor(vec3 UV, float D) {
+    uint BlockID = texture(u_LPVColorData, UV+D*0.5f*(1.0f/vec3(384.0f,128.0f,384.0f))).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+}   
+
+vec3 SampleLPVColorTexel(ivec3 Texel, int LOD) {
+    uint BlockID = texelFetch(u_LPVColorData, Texel, LOD).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+
+}   
+
+vec3 InterpolateLPVColorData(vec3 uv)
 {
-	float alpha = roughness * roughness;
-	float alphaSq = alpha * alpha;
-	float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
-	return alphaSq / (PI * denom * denom);
+    vec3 res = vec3(384.0f, 128.0f, 384.0f);
+    vec3 q = fract(uv * res);
+    ivec3 t = ivec3(uv * res);
+    ivec3 e = ivec3(-1, 0, 1);
+    vec3 q0 = (q+1.0)/2.0;
+    vec3 q1 = q/2.0;	
+    vec3 s000 = SampleLPVColorTexel(t + e.xxx, 0);
+    vec3 s001 = SampleLPVColorTexel(t + e.xxy, 0);
+    vec3 s002 = SampleLPVColorTexel(t + e.xxz, 0);
+    vec3 s012 = SampleLPVColorTexel(t + e.xyz, 0);
+    vec3 s011 = SampleLPVColorTexel(t + e.xyy, 0);
+    vec3 s010 = SampleLPVColorTexel(t + e.xyx, 0);
+    vec3 s020 = SampleLPVColorTexel(t + e.xzx, 0);
+    vec3 s021 = SampleLPVColorTexel(t + e.xzy, 0);
+    vec3 s022 = SampleLPVColorTexel(t + e.xzz, 0);
+    vec3 y00 = mix(mix(s000, s001, q0.z), mix(s001, s002, q1.z), q.z);
+    vec3 y01 = mix(mix(s010, s011, q0.z), mix(s011, s012, q1.z), q.z);
+    vec3 y02 = mix(mix(s020, s021, q0.z), mix(s021, s022, q1.z), q.z);
+	vec3 x0 = mix(mix(y00, y01, q0.y), mix(y01, y02, q1.y), q.y);
+    vec3 s122 = SampleLPVColorTexel(t + e.yzz, 0);
+    vec3 s121 = SampleLPVColorTexel(t + e.yzy, 0);
+    vec3 s120 = SampleLPVColorTexel(t + e.yzx, 0);
+    vec3 s110 = SampleLPVColorTexel(t + e.yyx, 0);
+    vec3 s111 = SampleLPVColorTexel(t + e.yyy, 0);
+    vec3 s112 = SampleLPVColorTexel(t + e.yyz, 0);
+    vec3 s102 = SampleLPVColorTexel(t + e.yxz, 0);
+    vec3 s101 = SampleLPVColorTexel(t + e.yxy, 0);
+    vec3 s100 = SampleLPVColorTexel(t + e.yxx, 0);
+    vec3 y10 = mix(mix(s100, s101, q0.z), mix(s101, s102, q1.z), q.z);
+    vec3 y11 = mix(mix(s110, s111, q0.z), mix(s111, s112, q1.z), q.z);
+    vec3 y12 = mix(mix(s120, s121, q0.z), mix(s121, s122, q1.z), q.z);
+    vec3 x1 = mix(mix(y10, y11, q0.y), mix(y11, y12, q1.y), q.y);
+    vec3 s200 = SampleLPVColorTexel(t + e.zxx, 0);
+    vec3 s201 = SampleLPVColorTexel(t + e.zxy, 0);
+    vec3 s202 = SampleLPVColorTexel(t + e.zxz, 0);
+    vec3 s212 = SampleLPVColorTexel(t + e.zyz, 0);
+    vec3 s211 = SampleLPVColorTexel(t + e.zyy, 0);
+    vec3 s210 = SampleLPVColorTexel(t + e.zyx, 0);
+    vec3 s220 = SampleLPVColorTexel(t + e.zzx, 0);
+    vec3 s221 = SampleLPVColorTexel(t + e.zzy, 0);
+    vec3 s222 = SampleLPVColorTexel(t + e.zzz, 0);
+    vec3 y20 = mix(mix(s200, s201, q0.z), mix(s201, s202, q1.z), q.z);
+    vec3 y21 = mix(mix(s210, s211, q0.z), mix(s211, s212, q1.z), q.z);
+    vec3 y22 = mix(mix(s220, s221, q0.z), mix(s221, s222, q1.z), q.z);
+    vec3 x2 = mix(mix(y20, y21, q0.y), mix(y21, y22, q1.y), q.y);
+    return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
 }
 
-float gaSchlickG1(float cosTheta, float k)
+float InterpLPVDensity(vec3 UV) 
 {
-	return cosTheta / (cosTheta * (1.0 - k) + k);
+    vec3 LPVResolution = vec3(384.0f, 128.0f, 384.0f);
+    vec3 FractTexel = fract(UV * LPVResolution);
+    vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / LPVResolution;
+    vec3 W0 = UV - LinearOffset;
+    vec3 W1 = UV + LinearOffset;
+    float Density = texture(u_LPVLightLevel, vec3(W0.x, W0.y, W0.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W1.x, W0.y, W0.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W1.x, W1.y, W0.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W0.x, W1.y, W0.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W0.x, W1.y, W1.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W1.x, W1.y, W1.z)).x
+    	          + texture(u_LPVLightLevel, vec3(W1.x, W0.y, W1.z)).x
+		          + texture(u_LPVLightLevel, vec3(W0.x, W0.y, W1.z)).x;
+	return max(Density / 8.0, 0.00000001f);
 }
 
-float gaSchlickGGX(float cosLi, float cosLo, float roughness)
-{
-	float r = roughness + 1.0;
-	float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
-	return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
+
+vec3 GetSmoothLPVData(vec3 UV) {    
+    UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
+    return vec3(InterpLPVDensity(UV)*50.0f)*sqrt(InterpolateLPVColorData(UV));
 }
 
-vec3 fresnelSchlick(vec3 F0, float cosTheta)
-{
-	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
+vec3 GetSmoothLPVDensity(vec3 UV) {    
+    UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
+    return vec3(InterpLPVDensity(UV)*54.0f);
 }
 
-vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
-{
-    const float DIELECTRIC = 0.04f;
-    const float Epsilon = 0.00001;
-    float Shadow = min(shadow, 1.0f);
-
-    vec3 Lo = normalize(u_ViewerPosition - world_pos);
-
-	vec3 N = normal;
-	float cosLo = max(0.0, dot(N, Lo));
-	vec3 Lr = 2.0 * cosLo * N - Lo;
-	vec3 F0 = mix(vec3(DIELECTRIC), albedo, pbr.g);
-
-    vec3 Li = light_dir;
-	vec3 Lradiance = radiance;
-
-	vec3 Lh = normalize(Li + Lo);
-
-	float cosLi = max(0.0, dot(N, Li));
-	float cosLh = max(0.0, dot(N, Lh));
-
-	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
-	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); // use fresnel roughness, gives a slightly better approximation
-	float D = ndfGGX(cosLh, pbr.r);
-	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
-
-	vec3 kd = mix(vec3(1.0) - F, vec3(0.0), pbr.g);
-	vec3 diffuseBRDF = kd * albedo;
-
-	vec3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * cosLi * cosLo); specularBRDF = clamp(specularBRDF, 0.0f, 2.0f);
-	vec3 Result = (diffuseBRDF * Lradiance * cosLi) + (specularBRDF * radiance_s * cosLi);
-    return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
-}
+// Bicubic
 
 vec4 cubic(float v){
     vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
@@ -1172,49 +1132,8 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     , sy);
 }
 
-
-vec4 TilelessTexture(sampler2DArray samp, vec3 uvt, float v)
-{
-    vec2 uv = uvt.xy;
-    vec2 iuv = floor( uv );
-    vec2 fuv = fract( uv );
-
-    // generate per-tile transform
-    vec4 ofa = hash4( iuv + vec2(0.0,0.0) );
-    vec4 ofb = hash4( iuv + vec2(1.0,0.0) );
-    vec4 ofc = hash4( iuv + vec2(0.0,1.0) );
-    vec4 ofd = hash4( iuv + vec2(1.0,1.0) );
-    
-    vec2 ddx = dFdx( uv );
-    vec2 ddy = dFdy( uv );
-
-    // transform per-tile uvs
-    ofa.zw = sign(ofa.zw-0.5);
-    ofb.zw = sign(ofb.zw-0.5);
-    ofc.zw = sign(ofc.zw-0.5);
-    ofd.zw = sign(ofd.zw-0.5);
-    
-    // uv's, and derivarives (for correct mipmapping)
-    vec2 uva = uv*ofa.zw + ofa.xy; vec2 ddxa = ddx*ofa.zw; vec2 ddya = ddy*ofa.zw;
-    vec2 uvb = uv*ofb.zw + ofb.xy; vec2 ddxb = ddx*ofb.zw; vec2 ddyb = ddy*ofb.zw;
-    vec2 uvc = uv*ofc.zw + ofc.xy; vec2 ddxc = ddx*ofc.zw; vec2 ddyc = ddy*ofc.zw;
-    vec2 uvd = uv*ofd.zw + ofd.xy; vec2 ddxd = ddx*ofd.zw; vec2 ddyd = ddy*ofd.zw;
-        
-    // fetch and blend
-    vec2 b = smoothstep(0.25,0.75,fuv);
-
-    return mix( mix( textureGrad( samp, vec3(uva,uvt.z), ddxa, ddya ), 
-                     textureGrad( samp, vec3(uvb,uvt.z), ddxb, ddyb ), b.x ), 
-                mix( textureGrad( samp, vec3(uvc,uvt.z), ddxc, ddyc ),
-                     textureGrad( samp, vec3(uvd,uvt.z), ddxd, ddyd ), b.x), b.y );
-}
-
-
-
 // catmull rom interpolation.
-
 #define sqr(x) (x*x)
-
 
 vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
     vec2 res    = textureSize(tex, 0);
@@ -1255,6 +1174,77 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
         col    += textureLod(tex, vec2(uv3.x, uv3.y), 0)*w3.x*w3.y;
 
     return clamp(col, 0.0, 65535.0);
+}
+
+// 
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
+{
+	// Hard coded normals, tangents and bitangents
+
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+    uv = vec2(1.0f);
+
+	if (CompareVec3(normal, Normals[0]))
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (CompareVec3(normal, Normals[1]))
+    {
+        uv = vec2(fract(world_pos.xy));
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (CompareVec3(normal, Normals[2]))
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
+    }
+
+    else if (CompareVec3(normal, Normals[3]))
+    {
+        uv = vec2(fract(world_pos.xz));
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
+    }
+	
+    else if (CompareVec3(normal, Normals[4]))
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
+    }
+    
+
+    else if (CompareVec3(normal, Normals[5]))
+    {
+        uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
+    }
 }
 
 // end of light combine / color pass

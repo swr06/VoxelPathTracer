@@ -63,6 +63,7 @@ static bool JitterSceneForTAA = false;
 
 static bool SmartUpscaleCloudTemporal = true;
 
+static int LPVDebugState = 0;
 
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
@@ -282,6 +283,7 @@ public:
 			ImGui::Checkbox("Denoise?", &DenoisePointVol);
 			ImGui::Checkbox("Triquadratic Density Interpolation (Much slower, Gets rid of all bilinear interpolation artifacts)?", &PointVolTriquadraticDensityInterpolation);
 			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
+			ImGui::SliderInt("LPV Debug State (0 = OFF, 1 = LEVEL, 2 = LEVEL * COLOR, 3 = LEVEL AS INDIRECT, 4 = [LEVEL * COLOR] AS INDIRECT)", &LPVDebugState, 0, 4, "%d");
 			//ImGui::SameLine(); 
 			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) { 
 				VoxelRT_FloodFillDistanceLimit = 4; 
@@ -2468,6 +2470,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_ReflectionCoCgData", 17);
 		ColorShader.SetInteger("u_VXAO", 18);
 		ColorShader.SetInteger("u_HighResBL", 19);
+		
+		ColorShader.SetInteger("u_LPVLightLevel", 20);
+		ColorShader.SetInteger("u_LPVColorData", 21);
+		ColorShader.SetInteger("u_LPVDebugState", LPVDebugState);
+
 		ColorShader.SetInteger("u_ContactHardeningShadows", SoftShadows);
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
@@ -2573,7 +2580,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE19);
 		glBindTexture(GL_TEXTURE_2D, BluenoiseHighResTexture.GetTextureID());
 
+		glActiveTexture(GL_TEXTURE20);
+		glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetDensityVolume());
+
+		glActiveTexture(GL_TEXTURE21);
+		glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetColorVolume());
+
 		BlockDataStorageBuffer.Bind(0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
