@@ -34,7 +34,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing
 - Fully 3D Audio
-- Light Propogation Volumes with support for colored lights
+- Light Propogation Volumes with custom smooth interpolation and support for colored lights
 - Point Light Volumetrics using ray marching and the Light Propogation Volume
 - Contrast Adaptive Sharpening
 - Auto exposure based on a luminance histogram (WIP.)
