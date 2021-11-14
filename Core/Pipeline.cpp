@@ -139,7 +139,7 @@ static bool PointVolumetricsBayer = true;
 static bool PointVolPerlinOD = false;
 static bool DenoisePointVol = true;
 static bool PointVolTriquadraticDensityInterpolation = false;
-
+static bool PointVolGroundTruthColorInterpolation = false;
 
 static float InitialTraceResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
@@ -277,6 +277,7 @@ public:
 			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
 			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
 			ImGui::Checkbox("Use Perlin Noise FBM for Optical Depth?", &PointVolPerlinOD);
+			ImGui::Checkbox("Use Ground Truth Color Interpolation? (EXPENSIVE! LEAVE OFF IF UNSURE.)", &PointVolGroundTruthColorInterpolation);
 			//ImGui::Checkbox("Noise type? (0 : Smooth perlin [Faster], 1 : Simplex Fractal [Slower])", &FractalSimplexOD);
 			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
@@ -2862,6 +2863,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetBool("u_UsePerlinNoiseForOD", PointVolPerlinOD);
 			PointVolumetrics.SetBool("u_FractalSimplexOD", false); // FALSE
 			PointVolumetrics.SetBool("u_PointVolTriquadraticDensityInterpolation", PointVolTriquadraticDensityInterpolation); 
+			PointVolumetrics.SetBool("u_GroundTruthColorInterpolation", PointVolGroundTruthColorInterpolation); 
 
 			PointVolumetrics.SetVector2f("u_Dimensions", glm::vec2(VolumetricsCompute.GetWidth(), VolumetricsCompute.GetHeight()));
 

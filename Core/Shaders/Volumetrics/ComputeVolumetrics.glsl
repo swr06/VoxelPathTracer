@@ -49,6 +49,8 @@ uniform float u_Time;
 uniform float u_Strength;
 uniform bool u_FractalSimplexOD;
 
+uniform bool u_GroundTruthColorInterpolation = false;
+
 // Ssbos 
 layout (std430, binding = 2) buffer SSBO_BlockAverageData
 {
@@ -228,7 +230,7 @@ float MarchODShadow(vec3 Point, vec3 Lo)
         Transmittance += OD_At;
     }
     
-    return exp2(-Transmittance * StepSize); // Exponential transmittance function
+    return exp2(-Transmittance * StepSize); //exp(-Transmittance * StepSize * (0.9f / 1.0f))
 }
 
 
@@ -244,15 +246,80 @@ vec3 SampleVolumetricColor(vec3 UV, float D) {
 }   
 
 vec3 SampleVolumetricColorTexel(ivec3 Texel) {
-    uint BlockID = texture(u_VolumetricColorDataSampler, Texel).x;
+    uint BlockID = texelFetch(u_VolumetricColorDataSampler, Texel, 0).x;
     return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
 
 }   
 
+vec3 SampleVolumetricColorTexel(ivec3 Texel, int LOD) {
+    uint BlockID = texelFetch(u_VolumetricColorDataSampler, Texel, LOD).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+
+}   
+
+vec3 InterpolateVolumetricColorGT(vec3 uv) // Ground truth interpolation
+{
+    vec3 res = vec3(384.0f, 128.0f, 384.0f);
+    vec3 q = fract(uv * res);
+    ivec3 t = ivec3(uv * res);
+    ivec3 e = ivec3(-1, 0, 1);
+    vec3 q0 = (q+1.0)/2.0;
+    vec3 q1 = q/2.0;	
+    vec3 s000 = SampleVolumetricColorTexel(t + e.xxx, 0);
+    vec3 s001 = SampleVolumetricColorTexel(t + e.xxy, 0);
+    vec3 s002 = SampleVolumetricColorTexel(t + e.xxz, 0);
+    vec3 s012 = SampleVolumetricColorTexel(t + e.xyz, 0);
+    vec3 s011 = SampleVolumetricColorTexel(t + e.xyy, 0);
+    vec3 s010 = SampleVolumetricColorTexel(t + e.xyx, 0);
+    vec3 s020 = SampleVolumetricColorTexel(t + e.xzx, 0);
+    vec3 s021 = SampleVolumetricColorTexel(t + e.xzy, 0);
+    vec3 s022 = SampleVolumetricColorTexel(t + e.xzz, 0);
+    vec3 y00 = mix(mix(s000, s001, q0.z), mix(s001, s002, q1.z), q.z);
+    vec3 y01 = mix(mix(s010, s011, q0.z), mix(s011, s012, q1.z), q.z);
+    vec3 y02 = mix(mix(s020, s021, q0.z), mix(s021, s022, q1.z), q.z);
+	vec3 x0 = mix(mix(y00, y01, q0.y), mix(y01, y02, q1.y), q.y);
+    vec3 s122 = SampleVolumetricColorTexel(t + e.yzz, 0);
+    vec3 s121 = SampleVolumetricColorTexel(t + e.yzy, 0);
+    vec3 s120 = SampleVolumetricColorTexel(t + e.yzx, 0);
+    vec3 s110 = SampleVolumetricColorTexel(t + e.yyx, 0);
+    vec3 s111 = SampleVolumetricColorTexel(t + e.yyy, 0);
+    vec3 s112 = SampleVolumetricColorTexel(t + e.yyz, 0);
+    vec3 s102 = SampleVolumetricColorTexel(t + e.yxz, 0);
+    vec3 s101 = SampleVolumetricColorTexel(t + e.yxy, 0);
+    vec3 s100 = SampleVolumetricColorTexel(t + e.yxx, 0);
+    vec3 y10 = mix(mix(s100, s101, q0.z), mix(s101, s102, q1.z), q.z);
+    vec3 y11 = mix(mix(s110, s111, q0.z), mix(s111, s112, q1.z), q.z);
+    vec3 y12 = mix(mix(s120, s121, q0.z), mix(s121, s122, q1.z), q.z);
+    vec3 x1 = mix(mix(y10, y11, q0.y), mix(y11, y12, q1.y), q.y);
+    vec3 s200 = SampleVolumetricColorTexel(t + e.zxx, 0);
+    vec3 s201 = SampleVolumetricColorTexel(t + e.zxy, 0);
+    vec3 s202 = SampleVolumetricColorTexel(t + e.zxz, 0);
+    vec3 s212 = SampleVolumetricColorTexel(t + e.zyz, 0);
+    vec3 s211 = SampleVolumetricColorTexel(t + e.zyy, 0);
+    vec3 s210 = SampleVolumetricColorTexel(t + e.zyx, 0);
+    vec3 s220 = SampleVolumetricColorTexel(t + e.zzx, 0);
+    vec3 s221 = SampleVolumetricColorTexel(t + e.zzy, 0);
+    vec3 s222 = SampleVolumetricColorTexel(t + e.zzz, 0);
+    vec3 y20 = mix(mix(s200, s201, q0.z), mix(s201, s202, q1.z), q.z);
+    vec3 y21 = mix(mix(s210, s211, q0.z), mix(s211, s212, q1.z), q.z);
+    vec3 y22 = mix(mix(s220, s221, q0.z), mix(s221, s222, q1.z), q.z);
+    vec3 x2 = mix(mix(y20, y21, q0.y), mix(y21, y22, q1.y), q.y);
+    return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
+}
 
 // Custom Triquadratic 3D interpolation 
+
+bool NoInterp = false;
 vec3 CustomTriquadraticVolumeInterp(vec3 UV, vec3 BayerNormalized) 
 { 
+    if (NoInterp) {
+        return SampleVolumetricColor(UV);
+    }
+
+    if (u_GroundTruthColorInterpolation) {
+        return InterpolateVolumetricColorGT(UV);
+    }
+
     const vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
     vec3 FractTexel = fract(UV * Resolution);
     vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
@@ -260,7 +327,7 @@ vec3 CustomTriquadraticVolumeInterp(vec3 UV, vec3 BayerNormalized)
     vec3 W1 = UV + LinearOffset;
 
     const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.25f, 0.2f);
-    const float GlobalDitherNoiseWeight = 1.0f;
+    const float GlobalDitherNoiseWeight = 1.414f;
 
     vec3 Interpolated = SampleVolumetricColor(vec3(W0.x, W0.y, W0.z) + BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
     	   + SampleVolumetricColor(vec3(W1.x, W0.y, W0.z) - BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
@@ -360,6 +427,7 @@ void main()
         }
 
         if (AirDensity > 0.001f) {
+
             float SampleSigmaS = SigmaS * AirDensity; 
             vec3 DensitySamplePosition = (vec3(RayPosition.xyz-vec3(0.125f,0.0f,0.125f))*(1.0f/vec3(384.0f,128.0f,384.0f)))+(SampleDither*0.125f*(1.0f/vec3(384.0f,128.0f,384.0f)));
             float PointDensity;
@@ -403,6 +471,13 @@ void main()
     }
 
     const float IsotropicScatter = 0.25f / PI;
+
+    /*
+    vec3 ScatteredTotal  = VolumetricLighting * IsotropicScatter;
+	ScatteredTotal += AmbientScatter * Ambient * IsotropicScatter;
+	ScatteredTotal *= FogColor * 30.0 * (1.0 - TotalTransmittance) * StepSize;
+    */
+
     const float ScattersM = pow(2.0f, 4.0f);
     VolumetricLighting *= ScattersM * u_Strength;
     o_Volumetrics = vec4(clamp(VolumetricLighting,0.0f,4.0f), clamp(OutputDensitySum,0.0f,0.9f/1.0f)); 
@@ -411,3 +486,5 @@ void main()
         o_Volumetrics = vec4(clamp(VolumetricLighting,0.0f,5.0f), clamp(OutputTransmittance,0.0f,0.9f/1.0f)); 
     }
 }
+
+

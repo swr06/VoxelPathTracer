@@ -6,6 +6,7 @@ float bayer2(vec2 a){
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
+
 #define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
@@ -13,19 +14,23 @@ float bayer2(vec2 a){
 #define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
+
 #define CLOUD_HEIGHT 70
 #define PCF_COUNT 4 // we really dont care about the low sample count because we have taa.
 #define PI 3.14159265359
 #define THRESH 1.41414
 
+// Outputs 
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec3 o_Normal;
 layout (location = 2) out vec4 o_PBR;
 
+// Vertex shader inputs 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
 in vec3 v_RayDirection;
 
+// Uniforms
 uniform sampler2D u_DiffuseTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTracePositionTexture;
@@ -90,6 +95,7 @@ uniform bool u_ShouldDitherUpscale = true;
 uniform float u_CloudBoxSize;
 uniform int u_GrassBlockProps[10];
 
+// SSBOS
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -103,7 +109,7 @@ layout (std430, binding = 1) buffer SSBO_BlockAverageData
 {
     vec4 BlockAverageColorData[128]; // Returns the average color per block type 
 };
-
+//
 
 // Functions :
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
@@ -1006,6 +1012,12 @@ vec3 SampleLPVColorTexel(ivec3 Texel, int LOD) {
 
 }   
 
+vec3 SampleLPVColorTexel(ivec3 Texel) {
+    uint BlockID = texelFetch(u_LPVColorData, Texel, 0).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+
+}   
+
 vec3 InterpolateLPVColorData(vec3 uv)
 {
     vec3 res = vec3(384.0f, 128.0f, 384.0f);
@@ -1056,6 +1068,61 @@ vec3 InterpolateLPVColorData(vec3 uv)
     return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
 }
 
+vec3 InterpolateLPVColorDataBicubic(vec3 position) 
+{
+    position *= vec3(384.0f, 128.0f, 384.0f);
+    position = position - 0.5;
+	vec3 f = fract(position);
+	position -= f;
+	vec3 ff = f * f;
+	vec3 w0_1;
+	vec3 w0_2;
+	vec3 w1_1;
+	vec3 w1_2;
+	w0_1 = 1 - f; w0_1 *= w0_1 * w0_1;
+	w1_2 = ff * f;
+	w1_1 = 3 * w1_2 + 4 - 6 * ff;
+	w0_2 = 6 - w1_1 - w1_2 - w0_1;
+	vec3 s1 = w0_1 + w1_1;
+	vec3 s2 = w0_2 + w1_2;
+	vec3 cLo = position.xyz + vec3(-0.5f) + w1_1 / s1;
+	vec3 cHi = position.xyz + vec3(1.5f) + w1_2 / s2;
+	vec3 m = s1 / (s1 + s2);
+	m = 1.0 - m;
+	vec3 lightLoYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cLo.z)), m.x);
+	vec3 lightLoYHiZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cHi.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cHi.z)), m.x);
+	vec3 lightHiYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cHi.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cHi.y, cLo.z)), m.x);
+	vec3 lightHiYHiZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cHi.y, cHi.z)), SampleLPVColorTexel(ivec3(cHi.x, cHi.y, cHi.z)), m.x);
+	vec3 lightLoZ = mix(lightLoYLoZ, lightHiYLoZ, m.y);
+	vec3 lightHiZ = mix(lightLoYHiZ, lightHiYHiZ, m.y);
+	return mix(lightLoZ, lightHiZ, m.z);
+}
+
+vec3 InterpolateLPVColorDithered(vec3 UV) // Very few samples with fantastic results.
+{ 
+    vec3 BayerNormalized = vec3(bayer128(gl_FragCoord.xy),bayer256(gl_FragCoord.xy),bayer128(gl_FragCoord.xy));
+    float cD = BayerNormalized.y;
+    cD /= 256.0f;
+    const vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
+    BayerNormalized /= Resolution;
+    vec3 FractTexel = fract(UV * Resolution);
+    vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
+    vec3 W0 = UV - LinearOffset;
+    vec3 W1 = UV + LinearOffset;
+    const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.35f, 0.25f);
+    const float GlobalDitherNoiseWeight = 4.0f;
+    vec3 Interpolated = SampleLPVColor(vec3(W0.x, W0.y, W0.z) + BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W0.z) - BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W0.z) + BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W0.z) - BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W1.z) + BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W1.z) - BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W1.z) + BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight)
+		   + SampleLPVColor(vec3(W0.x, W0.y, W1.z) - BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight);
+	return max((Interpolated / 8.0)+cD, 0.00000001f);
+}
+
+
 float InterpLPVDensity(vec3 UV) 
 {
     vec3 LPVResolution = vec3(384.0f, 128.0f, 384.0f);
@@ -1075,9 +1142,10 @@ float InterpLPVDensity(vec3 UV)
 }
 
 
+
 vec3 GetSmoothLPVData(vec3 UV) {    
     UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
-    return vec3(InterpLPVDensity(UV)*50.0f)*sqrt(InterpolateLPVColorData(UV));
+    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
 }
 
 vec3 GetSmoothLPVDensity(vec3 UV) {    
