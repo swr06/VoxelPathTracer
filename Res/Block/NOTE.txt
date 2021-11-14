@@ -1,4 +1,4 @@
-The textures with u_ before them are taken from the UMSOEA texture pack! 
-MOST OF THE TEXTURES are taken from "Realism mats!" 
+The textures with u_ before them are taken from the UMSOEA texture pack! Some are also taken from Realism Mats! 
+Most of them are CC0 though.
 This project is educational and is NOT making ANY money, I just used them because they look fantastic.
 If any of the texture devs want their textures removed, please contact me and I will remove them at the earliest.
