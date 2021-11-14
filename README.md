@@ -32,11 +32,12 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Volumetric 3D clouds
 - Particle system
 - Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
-- Alpha testing (Slightly buggy with the diffuse indirect :/) 
+- Alpha testing
 - Fully 3D Audio
-- Point Light Volumetrics using ray marching and an LPV
+- Light Propogation Volumes with custom smooth interpolation and support for colored lights
+- Point Light Volumetrics using ray marching and the Light Propogation Volume
 - Contrast Adaptive Sharpening
-- Auto exposure based on a luminance histogram (Slightly wip!)
+- Auto exposure based on a luminance histogram (WIP.)
 
 # Features to implement (Or atleast.. in mind)
 - Foliage
