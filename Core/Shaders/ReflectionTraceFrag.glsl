@@ -26,6 +26,9 @@ uniform sampler2D u_InitialTraceNormalTexture;
 uniform sampler2D u_BlockIDTex;
 uniform sampler2D u_DataTexture;
 
+uniform float u_SunStrengthModifier;
+uniform float u_MoonStrengthModifier;
+
 //uniform sampler2D u_BlueNoiseTexture;
 
 uniform sampler3D u_VoxelData;
@@ -295,11 +298,9 @@ void GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
     atmosphere_color = atmosphere;
 }
 
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 3.0f;
-const vec3 SUN_AMBIENT = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 4.2f;
-
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.3f; 
-const vec3 NIGHT_AMBIENT  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.76f; 
+vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
+vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
+vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
 
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);

@@ -197,6 +197,12 @@ static bool AmplifyNormalMap = true;
 static int GodRaysStepCount = 12;
 static float GodRaysStrength = 0.5f;
 
+// Color modifiers
+static float SunStrengthModifier = 0.750f;
+static float MoonStrengthModifier = 1.0f;
+static float GISunStrength = 1.0f;
+static float GISkyStrength = 1.125f;
+
 static bool AutoExposure = false;
 static bool ExponentialFog = false;
 
@@ -241,7 +247,10 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			
+			ImGui::SliderFloat("Sun Strength", &SunStrengthModifier, 0.01f, 1.0f);
+			ImGui::SliderFloat("Moon Strength", &MoonStrengthModifier, 0.01f, 2.0f);
+			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
+			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -1235,6 +1244,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		DiffuseTraceShader.SetFloat("u_SunVisibility", sun_visibility);
+		DiffuseTraceShader.SetFloat("u_GISunStrength", GISunStrength);
+		DiffuseTraceShader.SetFloat("u_GISkyStrength", GISkyStrength);
+		DiffuseTraceShader.SetFloat("u_SunVisibility", sun_visibility);
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		DiffuseTraceShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
@@ -2009,7 +2021,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_CurrentFrameMod128", app.GetCurrentFrame()%128);
-
+			ReflectionTraceShader.SetFloat("u_SunStrengthModifier", SunStrengthModifier);
+			ReflectionTraceShader.SetFloat("u_MoonStrengthModifier", MoonStrengthModifier);
 			ReflectionTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 			ReflectionTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 			ReflectionTraceShader.SetMatrix4("u_InverseView", inv_view);
@@ -2493,6 +2506,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
 		ColorShader.SetFloat("u_CloudBoxSize", Clouds::CloudRenderer::GetBoxSize());
+		ColorShader.SetFloat("u_SunStrengthModifier", SunStrengthModifier);
+		ColorShader.SetFloat("u_MoonStrengthModifier", MoonStrengthModifier);
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);

@@ -65,6 +65,8 @@ uniform int u_LPVDebugState; // Debug state
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
+uniform float u_SunStrengthModifier;
+uniform float u_MoonStrengthModifier;
 
 uniform float u_Time;
 uniform float u_GrassblockAlbedoID;
@@ -677,9 +679,9 @@ vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness)
 }
 
 // COLORS //
-const vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f;
-const vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f; 
-const vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.064f; 
+vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
+vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
+vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
 
 // catmull rom texture interpolation 
 vec4 texture_catmullrom(sampler2D tex, vec2 uv);

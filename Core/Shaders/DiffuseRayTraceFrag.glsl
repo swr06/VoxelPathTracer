@@ -66,6 +66,8 @@ uniform int u_CurrentFrame;
 uniform int u_CurrentFrameMod512;
 uniform int u_CurrentFrameMod128;
 uniform bool u_UseBlueNoise;
+uniform float u_GISunStrength;
+uniform float u_GISkyStrength;
 
 uniform float u_SunVisibility;
 
@@ -309,7 +311,6 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(txc, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
 			vec3 PBR = textureLod(u_BlockPBRTextures, vec3(txc, TextureIndexes.r), 2.0f).rgb; // 512, 256, 128, 64, 32, 16
-
 			float Emmisivity = 0.0f;
 
 			if (TextureIndexes.y >= 0.0f)
@@ -335,7 +336,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 			//radiance += (Emmisivity * Albedo)+BRDF;
 			
-			vec3 EmmisivityColor = (Emmisivity * Albedo);
+			vec3 EmmisivityColor = (Emmisivity * mix(1.0,1.0,float(u_SunVisibility)) * Albedo);
 			vec3 SUNBRDF = SunBRDF(IntersectionPosition, LIGHT_COLOR, Albedo, ShadowAt, NDotL, PBR, HitNormal, new_ray.Direction, StrongerLightDirection);
 
 			vec3 NewDirection = vec3(0.0f);
@@ -358,8 +359,8 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 		else 
 		{	
-			float x = mix(3.0f, 1.4f, u_SunVisibility);
-			x = clamp(x*1.0f,0.0f,5.0f);
+			float x = mix(2.333f, 1.05f, u_SunVisibility);
+			x = clamp(x*1.0f*u_GISkyStrength,0.0f,5.0f);
 			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x);
 			RayContribution += sky * RayThroughput;
 			SummedContribution_t += sky;
@@ -486,7 +487,7 @@ void main()
 	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
     vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
 	LIGHT_COLOR = SunStronger ? SunColor : NIGHT_COLOR;
-	LIGHT_COLOR *= 0.45f;
+	LIGHT_COLOR *= 0.4f*u_GISunStrength;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 	Moonstronger = !SunStronger;
 	EmissivityMultiplier = Moonstronger ? 13.0f : 12.0f;
@@ -545,6 +546,8 @@ void main()
 	{
 		vec3 d = vec3(0.0f);
 		vec4 x = CalculateDiffuse(Position.xyz, Normal, d);
+		x.xyz = clamp(x.xyz,0.0f,8.0f);
+
 		radiance += x.xyz;
 		AccumulatedAO += x.w;
 		
