@@ -445,7 +445,7 @@ void VoxelRT::World::RepropogateLPV_()
 
 	Volumetrics::ClearEntireVolume();
 
-	for (auto& e : m_LightPositions) {
+	for (auto& e : LightChunkData) {
 		uint8_t block_at = this->GetBlock(glm::ivec3(glm::floor(glm::vec3(e)))).block;
 		Volumetrics::AddLightToVolume(e, block_at);
 	}

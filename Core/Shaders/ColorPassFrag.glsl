@@ -119,6 +119,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 vec3 GetSmoothLPVData(vec3 UV);
 vec3 GetSmoothLPVDensity(vec3 UV);
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative);
 
 // Constants 
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f, 1.0f, 0.5f);
@@ -778,8 +779,9 @@ void main()
         {
             vec2 UV;
             vec3 Tangent, Bitangent;
+            vec4 UVDerivative;
 
-            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV); 
+            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV, UVDerivative); 
 
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
             int BaseBlockID = GetBlockID(v_TexCoords);
@@ -833,9 +835,15 @@ void main()
             
             } else { UV.y = 1.0f - UV.y; }
 
-            vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
-            vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
-            vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+            //vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
+            //vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
+            //vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
+
+            // Fix texture seam with approximated derivative ->
+            vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
+            vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(UV.xy, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
+            vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
+            
             vec3 NonAmplifiedNormal = NormalMapped;
 
             if (u_AmplifyNormalMap) {
@@ -1255,6 +1263,25 @@ bool CompareVec3(vec3 v1, vec3 v2) {
 	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
 }
 
+vec4 GetUVDerivative(in vec2 P) 
+{
+    vec2 UV = fract(P);
+    vec2 dx = dFdx(UV);
+    vec2 dy = dFdy(UV);
+    vec2 OffsettedUV_1  = fract(UV + 0.25f);
+	vec2 OffsettedUV_2 = fract(UV + 0.5f);
+    vec2 dx2 = dFdx(OffsettedUV_1);
+	vec2 dy2 = dFdy(OffsettedUV_1);
+
+	if(dot(dx, dx) + dot(dy, dy) > dot(dx2, dx2) + dot(dy2, dy2)) 
+    {
+		dx = dx2;
+		dy = dy2;
+	}
+
+    return vec4(dx, dy);
+}
+
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
 {
 	// Hard coded normals, tangents and bitangents
@@ -1315,6 +1342,77 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     else if (CompareVec3(normal, Normals[5]))
     {
         uv = vec2(fract(world_pos.zy));
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
+    }
+}
+
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative)
+{
+	// Hard coded normals, tangents and bitangents
+
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+    uv = vec2(1.0f);
+
+	if (CompareVec3(normal, Normals[0]))
+    {
+        uv = vec2(fract(world_pos.xy));
+        UVDerivative = GetUVDerivative(world_pos.xy);
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (CompareVec3(normal, Normals[1]))
+    {
+        uv = vec2(fract(world_pos.xy));
+        UVDerivative = vec4(GetUVDerivative(world_pos.xy));
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (CompareVec3(normal, Normals[2]))
+    {
+        uv = vec2(fract(world_pos.xz));
+        UVDerivative = vec4(GetUVDerivative(world_pos.xz));
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
+    }
+
+    else if (CompareVec3(normal, Normals[3]))
+    {
+        uv = vec2(fract(world_pos.xz));
+        UVDerivative = vec4(GetUVDerivative(world_pos.xz));
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
+    }
+	
+    else if (CompareVec3(normal, Normals[4]))
+    {
+        uv = vec2(fract(world_pos.zy));
+        UVDerivative = vec4(GetUVDerivative(world_pos.zy));
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
+    }
+    
+
+    else if (CompareVec3(normal, Normals[5]))
+    {
+        uv = vec2(fract(world_pos.zy));
+        UVDerivative = vec4(GetUVDerivative(world_pos.zy));
 		tangent = Tangents[5];
 		bitangent = BiTangents[5];
     }

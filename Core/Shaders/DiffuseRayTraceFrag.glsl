@@ -25,8 +25,6 @@
 #define Bayer128(a) (Bayer64( 0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
-
-
 #define EPSILON 0.0001f
 
 // Outputs diffuse indirect
@@ -36,7 +34,7 @@
 layout (location = 0) out vec4 o_SH; // Projected radiance onto the first 2 spherical harmonics.
 layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
 layout (location = 2) out float o_Utility; // Using the first SH band to get the luminance is slightly erraneous so I store this. Used as an input for the SVGF denoiser
-layout (location = 3) out float o_AO; // VXAO (Exaggerate AO at edges, about 10^64 times better than SSAO)
+layout (location = 3) out float o_AO; // World Space VXAO (Exaggerate AO at edges, many times better than SSAO)
 
 in vec2 v_TexCoords; // screen space 
 in vec3 v_RayDirection;
@@ -102,12 +100,13 @@ layout (std430, binding = 2) buffer BlueNoise_Data
 	int rankingTile[128 * 128 * 8];
 };
 
-// Chunk Lights. Used for test MIS
+// Chunk Light Lists 
 layout (std430, binding = 4) buffer LightChunkDataSSBO
 {
 	vec4 LightChunkPositions[];
 };
 
+// Offset and size data 
 layout (std430, binding = 5) buffer LightChunkDataOffsetsSSBO
 {
 	ivec2 LightChunkDataOffsets[24*8*24]; // 384 / 16, 128 / 16, 384 / 16
@@ -189,7 +188,37 @@ vec2 hash2()
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
-// --
+// -----
+
+float lineDistance(vec2 a, vec2 b, vec2 p) 
+{
+    vec2 pa = p-a;
+    vec2 ba = b-a;
+	float t = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0);
+    return length(pa-ba*t);
+}
+
+void basis(in vec3 n, out vec3 b1, out vec3 b2)
+{
+    float sign_ = sign(n.z);
+	float a = -1.0 / (sign_ + n.z);
+	float b = n.x * n.y * a;
+	b1 = vec3(1.0 + sign_ * n.x * n.x * a, sign_ * b, -sign_ * n.x);
+	b2 = vec3(b, sign_ + n.y * n.y * a, -n.y);
+}
+
+vec3 localToWorld(in vec3 localDir, in vec3 normal) 
+{
+    vec3 a, b;
+    basis( normal, a, b );
+	return localDir.x*a + localDir.y*b + localDir.z*normal;
+}
+
+vec3 sphericalToCartesian(in float rho, in float phi, in float theta)
+{
+    float sinTheta = sin(theta);
+    return vec3(sinTheta * cos(phi), sinTheta * sin(phi), cos(theta)) * rho;
+}
 
 float PdfWtoA(float aPdfW, float aDist2, float aCosThere)
 {
@@ -228,13 +257,27 @@ vec3 uniformDirectionWithinCone(in vec3 d, in float phi, in float sina, in float
 	return (u * cos(phi) + v * sin(phi)) * sina + w * cosa;
 }
 
-float misWeight(in float a, in float b) 
-{
-    float a2 = a * a;
-    float b2 = b * b;
+float misWeightPower( in float a, in float b ) {
+    float a2 = a*a;
+    float b2 = b*b;
     float a2b2 = a2 + b2;
     return a2 / a2b2;
 }
+
+float misWeightBalance(in float a, in float b) 
+{
+    float ab = a + b;
+    return a / ab;
+}
+
+float misWeight(in float pdfA, in float pdfB) {
+#ifdef MIS_HEURISTIC_POWER
+    return misWeightPower(pdfA,pdfB);
+#else
+    return misWeightBalance(pdfA,pdfB);
+#endif
+}
+
 
 // Xi -> Sample points
 vec3 SampleCone(vec2 Xi, float CosThetaMax) 
@@ -342,8 +385,8 @@ bool Moonstronger=false;
 vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
 	float bias = 0.05f;
-	//Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
-	Ray new_ray = Ray(initial_origin + input_normal * bias, GetStochasticDirectLightDir(initial_origin, input_normal));
+	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
+	//Ray new_ray = Ray(initial_origin + input_normal * bias, GetStochasticDirectLightDir(initial_origin, input_normal));
 
 	float ao = 1.0f;
 
@@ -623,9 +666,14 @@ void main()
 	radiance /= SPP;
 	o_SH = TotalSHy;
 	o_CoCg.xy = CoCg;
-	o_Utility = GetLuminance(radiance);
+	o_Utility = max(GetLuminance(radiance),0.01f);
 	o_AO = AccumulatedAO;
 	o_AO = clamp(o_AO,0.0f,1.0f);
+
+	o_SH = clamp(o_SH, -100.0f, 100.0f);
+	o_CoCg = clamp(o_CoCg, -100.0f, 100.0f);
+	o_AO = clamp(o_AO, 0.0f, 1.0f);
+	o_Utility = clamp(o_Utility, 0.001f, 64.0f);
 }
 
 vec3 lerp(vec3 v1, vec3 v2, float t)

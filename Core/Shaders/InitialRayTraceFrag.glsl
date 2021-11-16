@@ -38,6 +38,8 @@ uniform vec3 u_PlayerPosition;
 uniform float u_FOV;
 uniform float u_TanFOV;
 
+uniform float u_Time;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -55,6 +57,14 @@ struct Ray
 
 vec3 MapSize = vec3(WORLD_SIZE_X, WORLD_SIZE_Y, WORLD_SIZE_Z);
 vec2 CalculateUV(vec3 world_pos, in vec3 normal);
+
+// basic fract(sin) pseudo random number generator
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
 
 bool IsInVolume(in vec3 pos)
 {
@@ -365,6 +375,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 
 void GetRayStuff(out vec3 r0, out vec3 rD) {
 
+	vec2 Jitter = hash2() * 1.0f/u_Dimensions;
 	vec2 screenspace = v_TexCoords;
 	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
 	//vec2 TexelSize = 1.0f / u_Dimensions;
@@ -377,6 +388,8 @@ void GetRayStuff(out vec3 r0, out vec3 rD) {
 
 void main()
 {
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED += fract(u_Time) * 100.0f;
 	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
 	
     Ray r;

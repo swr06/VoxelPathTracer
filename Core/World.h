@@ -27,9 +27,9 @@ namespace VoxelRT
 	//	return glm::ivec3(x, y, z);
 	//}
 
-	static int Get1DIndexForLightChunk(int x, int y, int z)
+	inline static int Get1DIndexForLightChunk(int x, int y, int z)
 	{
-		return (z * 24 * 8) + (y * 24) + x;
+		return ((z * 24 * 8) + (y * 24) + x);
 	}
 
 	class World
@@ -75,7 +75,7 @@ namespace VoxelRT
 
 		void InsertToLightList(const glm::vec3& x) {
 
-			m_LightPositions.push_back(glm::vec4(x, 0.0f));
+			//m_LightPositions.push_back(glm::vec4(x, 0.0f));
 
 			// Place light inside chunk data and update offsets
 			int Cx = floor((float)x.x / (float)16); // Cx 
@@ -126,12 +126,19 @@ namespace VoxelRT
 			int Cz = floor((float)x.z / (float)16);
 			int CurrentIDX = Get1DIndexForLightChunk(Cx, Cy, Cz); // Get chunk index
 			auto& StoredOffset = LightChunkOffsets[CurrentIDX]; // get the offset stored 
+			int IterationCount = 0;
 
-			if (StoredOffset.x > 0) // if there were previously placed lights here, insert it at the stored offset
+			if (StoredOffset.x > 0) // if there were previously placed lights here, remove it at the stored offset
 			{
 				bool StopIterating = false;
 
 				while (StopIterating == false) {
+
+					if (IterationCount > 2) {
+						break; 
+					}
+
+					IterationCount++;
 
 					std::vector<glm::vec4>::iterator ChunkIter = std::find(LightChunkData.begin() + StoredOffset.x, LightChunkData.begin() + StoredOffset.x + StoredOffset.y, glm::vec4(x, 0.0f));
 					if (ChunkIter != LightChunkData.end()) // The element was found
@@ -147,6 +154,7 @@ namespace VoxelRT
 
 							if (LightChunkOffsets[x].x >= StoredOffset.x) {
 								LightChunkOffsets[x].x--;
+								LightChunkOffsets[x].x = glm::max(LightChunkOffsets[x].x, 0);
 							}
 						}
 					}
@@ -185,7 +193,7 @@ namespace VoxelRT
 		Texture3D m_DistanceFieldTexture;
 		ParticleSystem::ParticleEmitter m_ParticleEmitter;
 
-		std::vector<glm::vec4> m_LightPositions;
+		//std::vector<glm::vec4> m_LightPositions;
 
 		void RepropogateLPV_();
 		void RebufferLightChunks();

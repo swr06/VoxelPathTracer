@@ -1192,6 +1192,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
 			InitialTraceShader.SetFloat("u_FOV", MainCamera.GetFov());
 			InitialTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
+			InitialTraceShader.SetFloat("u_Time", glfwGetTime());
 			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
 			
 			glActiveTexture(GL_TEXTURE0);
@@ -2872,7 +2873,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			PointVolumetrics.SetInteger("u_LinearDepthTexture", 2);
 			PointVolumetrics.SetInteger("u_VolumetricDensityData", 3);
 			PointVolumetrics.SetInteger("u_VolumetricColorDataSampler", 4);
-			PointVolumetrics.SetInteger("u_LightCount", world->m_LightPositions.size());
+			PointVolumetrics.SetInteger("u_LightCount", world->LightChunkData.size());
 
 			PointVolumetrics.SetFloat("u_Time", glfwGetTime());
 			PointVolumetrics.SetFloat("u_Strength", PointVolumetricStrength);
