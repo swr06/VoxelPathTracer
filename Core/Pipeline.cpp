@@ -72,6 +72,7 @@ static int SelectedColorGradingLUT = -1;
 static bool ColorDither = true;
 static float FilmGrainStrength = 0.0f;
 static float ChromaticAberrationStrength = 0.0f;
+static float ExposureMultiplier = 1.0f;
 
 // pixel padding
 static int PIXEL_PADDING = 20;
@@ -198,7 +199,7 @@ static int GodRaysStepCount = 12;
 static float GodRaysStrength = 0.5f;
 
 // Color modifiers
-static float SunStrengthModifier = 0.750f;
+static float SunStrengthModifier = 0.850f;
 static float MoonStrengthModifier = 1.0f;
 static float GISunStrength = 1.0f;
 static float GISkyStrength = 1.125f;
@@ -317,6 +318,7 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
+			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
 			ImGui::NewLine();
 			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
 			ImGui::NewLine();
@@ -1312,6 +1314,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, world->LightChunkDataSSBO);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, world->LightChunkOffsetSSBO);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2969,7 +2973,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
 		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled&& PointVolumetricStrength > 0.01f);
 		PostProcessingShader.SetFloat("u_LensFlareIntensity", LensFlareIntensity);
-		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure);
+		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure * ExposureMultiplier);
 		PostProcessingShader.SetFloat("u_ChromaticAberrationStrength", ChromaticAberrationStrength);
 		PostProcessingShader.SetFloat("u_GodRaysStrength", GodRaysStrength);
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
@@ -3004,6 +3008,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingShader.SetFloat("u_Time", glfwGetTime());
 		PostProcessingShader.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
+		PostProcessingShader.SetFloat("u_ExposureMultiplier", ExposureMultiplier);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -3214,6 +3219,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		if (app.GetCurrentFrame() % 60 == 0)
 		{
 			world->m_ParticleEmitter.CleanUpList();
+			world->RebufferLightChunks();
 		}
 
 		if (app.GetCurrentFrame() % 197 == 0 && PointVolumetricsToggled) {

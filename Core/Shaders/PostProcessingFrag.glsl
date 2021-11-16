@@ -603,31 +603,41 @@ void FilmGrain(inout vec3 oc)
 // Chromatic aberration.
 vec3 BasicChromaticAberation()
 {
+	const float ChannelCount = 3.0f;
 	float AberationScale = mix(0.0f, 0.5f, u_ChromaticAberrationStrength);
-	vec2 DistanceWeight = v_TexCoords - 0.5;
-    vec2 Aberrated = AberationScale * pow(DistanceWeight, vec2(3.0f, 3.0f));
+	vec2 DistanceWeight = v_TexCoords - 0.5f;
+    vec2 Aberrated = AberationScale * pow(DistanceWeight, vec2(ChannelCount));
     vec3 Final = vec3(0.0f);
+	float TotalWeight = 0.01f;
     
 	// Barrel Distortion
-    for (int i = 1; i <= 8; i++)
+    for (int i = 1; i <= 16; i++)
     {
         float wg = 1.0f / pow(2.0f, float(i)); // Blur Weights, tested.
-        Final.r += texture(u_FramebufferTexture, v_TexCoords - float(i) * Aberrated).r * wg;
-        Final.b += texture(u_FramebufferTexture, v_TexCoords + float(i) * Aberrated).b * wg;
+
+		if (v_TexCoords - float(i) * Aberrated == clamp(v_TexCoords - float(i) * Aberrated, 0.0001f, 0.9999f)) {
+			Final.r += texture(u_FramebufferTexture, v_TexCoords - float(i) * Aberrated).r * wg;
+		}
+
+		if (v_TexCoords + float(i) * Aberrated == clamp(v_TexCoords + float(i) * Aberrated, 0.0001f, 0.9999f)) {
+			Final.b += texture(u_FramebufferTexture, v_TexCoords + float(i) * Aberrated).b * wg;
+		}
+
+		TotalWeight += wg;
     }
     
-	const float TotalWeight = 0.9961f; //(1.0 / pow(2.0f, float(i)) i = 1 -> 8 
+	//const float TotalWeight = 0.9961f; //(1.0 / pow(2.0f, float(i)) i = 1 -> 8 
 	Final.g = texture(u_FramebufferTexture, v_TexCoords).g * TotalWeight;
 	return max(Final,0.0f);
 }
 
-mat3x3 xyzToRGBMatrix = mat3(
+const mat3x3 xyzToRGBMatrix = mat3(
     3.1338561, -1.6168667, -0.4906146,
     -0.9787684,  1.9161415,  0.0334540,
     0.0719453, -0.2289914,  1.4052427
 );
 
-mat3x3 rgbToXYZMatrix = mat3(
+const mat3x3 rgbToXYZMatrix = mat3(
     vec3(0.5149, 0.3244, 0.1607),
     vec3(0.3654, 0.6704, 0.0642),
     vec3(0.0248, 0.1248, 0.8504)
@@ -649,12 +659,13 @@ vec3 rgbToXYZ(in vec3 rgb) {
 
 vec3 PurkinjeEffect(vec3 Color) 
 {
-    vec3 RodResponse = vec3(7.15e-5, 4.81e-1, 3.28e-1);
+	vec3 BaseColor = Color;
+    vec3 RodResponse = vec3(7.15e-5f, 4.81e-1f, 3.28e-1f);
     vec3 XYZ = rgbToXYZ(Color);
     vec3 ScopticLuma = XYZ * (1.33f * (1.0f + (XYZ.y + XYZ.z) / XYZ.x) - 1.68f);
     float Purkinge = dot(RodResponse, xyzToRGB(ScopticLuma));
     Color = mix(Color, Purkinge * vec3(0.5f, 0.7f, 1.0f), exp2(-Purkinge * 2.0f));
-    return max(Color, 0.0);
+    return mix(max(Color, 0.0), BaseColor, 0.5f);
 }
 
 
@@ -761,7 +772,7 @@ void main()
 
 	else 
 	{
-		o_Color = (texture(u_FramebufferTexture, v_TexCoords).rgb) + PointVolumetrics;
+		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() + PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		if (u_PurkinjeEffect) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);

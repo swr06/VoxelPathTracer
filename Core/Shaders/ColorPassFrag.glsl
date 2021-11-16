@@ -979,6 +979,9 @@ void main()
         else 
         {   
             vec3 CloudAndSky = GetAtmosphereAndClouds();
+            float Hash = hash2().x;
+            CloudAndSky += vec3(Hash * exp(-CloudAndSky) * vec3(1.0f) * 0.01f);
+            CloudAndSky *= mix(vec3(1.0f), vec3(Hash), 0.05f / 5.0f);
             o_Color = (CloudAndSky);
             o_Normal = vec3(-1.0f);
             o_PBR.xyz = vec3(-1.0f);

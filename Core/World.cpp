@@ -3,21 +3,22 @@
 #include "VolumetricFloodFill.h"
 #include "BlockDatabase.h"
 
-glm::ivec3 Get3DIdx(int idx)
-{
-	int z = idx / (WORLD_SIZE_X * WORLD_SIZE_Y);
-	idx -= (z * WORLD_SIZE_X * WORLD_SIZE_Y);
-	int y = idx / WORLD_SIZE_X;
-	int x = idx % WORLD_SIZE_X;
-	return glm::ivec3(x, y, z);
-}
-
 void VoxelRT::World::InitializeLightList()
 {
 	//glGenBuffers(1, &m_LightPositionSSBO);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_LightPositionSSBO);
 	//glBufferData(GL_SHADER_STORAGE_BUFFER, 1024 * sizeof(glm::vec4), nullptr, GL_DYNAMIC_DRAW);
 	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	glGenBuffers(1, &LightChunkDataSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkDataSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 64 * 64 * 64 * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW); // 1 mb ssbo
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	glGenBuffers(1, &LightChunkOffsetSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkOffsetSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 2 * sizeof(GLuint) * (24 * 8 * 24), nullptr, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 //void VoxelRT::World::RebufferLightList()
@@ -26,6 +27,19 @@ void VoxelRT::World::InitializeLightList()
 //	//glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (m_LightPositions.size()), &m_LightPositions[0]);
 //	//glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 //}	
+
+void VoxelRT::World::RebufferLightChunks()
+{
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkDataSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (LightChunkData.size()), &LightChunkData[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkOffsetSSBO);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec2) * (LightChunkOffsets.size()), &LightChunkOffsets[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+
 
 void VoxelRT::World::InitializeDistanceGenerator()
 {
