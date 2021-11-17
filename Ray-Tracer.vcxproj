@@ -344,6 +344,7 @@
     <None Include="Core\Shaders\Volumetrics\ClearData.comp" />
     <None Include="Core\Shaders\Volumetrics\ClearDataFloat.comp" />
     <None Include="Core\Shaders\Volumetrics\ComputeVolumetrics.glsl" />
+    <None Include="Core\Shaders\Volumetrics\Denoiser.glsl" />
     <None Include="Core\Shaders\Volumetrics\PrecomputeAverageBlockColor.comp" />
     <None Include="Dependencies\fast_noise\LICENSE" />
     <None Include="Dependencies\fast_noise\README.md" />

@@ -669,6 +669,9 @@
     <None Include="Core\Shaders\ContactShadows.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
+    <None Include="Core\Shaders\Volumetrics\Denoiser.glsl">
+      <Filter>Source Files\Shaders\Volumetrics</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">

@@ -45,6 +45,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 
 	// Volumetrics
 	AddShader("VOLUMETRICS_COMPUTE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/ComputeVolumetrics.glsl");
+	AddShader("VOLUMETRICS_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/Denoiser.glsl");
 	AddShader("GAUSSIAN_9TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian9TapSinglePass.glsl");
 	AddShader("GAUSSIAN_5TAP_OPTIMIZED", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Gaussian5TapSinglePass.glsl");
 	

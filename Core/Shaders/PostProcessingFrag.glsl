@@ -772,7 +772,8 @@ void main()
 
 	else 
 	{
-		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() + PointVolumetrics;
+		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
+		o_Color += PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		if (u_PurkinjeEffect) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);

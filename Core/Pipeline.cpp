@@ -816,6 +816,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& ShadowFilter = ShaderManager::GetShader("SHADOW_FILTER");
 	GLClasses::Shader& VarianceEstimator = ShaderManager::GetShader("VARIANCE_ESTIMATOR");
 	GLClasses::Shader& PointVolumetrics = ShaderManager::GetShader("VOLUMETRICS_COMPUTE");
+	GLClasses::Shader& VolumetricsDenoiser = ShaderManager::GetShader("VOLUMETRICS_DENOISER");
 	GLClasses::Shader& Gaussian9TapOptimized = ShaderManager::GetShader("GAUSSIAN_9TAP_OPTIMIZED");
 	GLClasses::Shader& Gaussian5TapOptimized = ShaderManager::GetShader("GAUSSIAN_5TAP_OPTIMIZED");
 	GLClasses::Shader& BilateralHitDist_1 = ShaderManager::GetShader("BILATERAL_HITDIST1");
@@ -2911,12 +2912,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			if (DenoisePointVol) {
 				VolumetricsComputeBlurred.Bind();
-				Gaussian9TapOptimized.Use();
+				VolumetricsDenoiser.Use();
 
-				Gaussian9TapOptimized.SetInteger("u_Texture", 0);
+				VolumetricsDenoiser.SetInteger("u_InputPointVolumetrics", 0);
+				VolumetricsDenoiser.SetInteger("u_DepthTexture", 1);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, VolumetricsCompute.GetTexture());
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
