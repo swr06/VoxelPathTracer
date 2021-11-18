@@ -58,6 +58,8 @@ uniform float u_Time;
 
 uniform bool u_APPLY_PLAYER_SHADOW;
 
+uniform bool u_UseDirectSampling;
+
 uniform int u_SPP;
 uniform int u_CheckerSPP;
 uniform int u_CurrentFrame;
@@ -188,7 +190,17 @@ vec2 hash2()
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
+float hash1() 
+{
+	return fract(sin(HASH2SEED += 0.1) * 43758.5453123);
+}
+
 // -----
+
+struct MISPDF {
+	float SphericalPDFSample; // Approximated PDF using solid angles and distances
+	float LightChoosePDF; // 1.0f / C
+};
 
 float lineDistance(vec2 a, vec2 b, vec2 p) 
 {
@@ -212,12 +224,6 @@ vec3 localToWorld(in vec3 localDir, in vec3 normal)
     vec3 a, b;
     basis( normal, a, b );
 	return localDir.x*a + localDir.y*b + localDir.z*normal;
-}
-
-vec3 sphericalToCartesian(in float rho, in float phi, in float theta)
-{
-    float sinTheta = sin(theta);
-    return vec3(sinTheta * cos(phi), sinTheta * sin(phi), cos(theta)) * rho;
 }
 
 float PdfWtoA(float aPdfW, float aDist2, float aCosThere)
@@ -270,6 +276,8 @@ float misWeightBalance(in float a, in float b)
     return a / ab;
 }
 
+//#define MIS_HEURISTIC_POWER
+
 float misWeight(in float pdfA, in float pdfB) {
 #ifdef MIS_HEURISTIC_POWER
     return misWeightPower(pdfA,pdfB);
@@ -292,15 +300,26 @@ vec3 SampleCone(vec2 Xi, float CosThetaMax)
     return L;
 }
 
-// Light sampling
+float DistanceSquared(vec3 P1, vec3 P2) {
+	vec3 X = abs(P1 - P2);
+	return dot(X,X);
+}
+
+// Stochastically selects a light from the light chunks 
 // s : boolean valid, P : sample position
-vec3 StochasticallySampleLight(vec3 P, out bool s) 
+
+vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF) 
 {
+	LightSelectPDF = 1.0f;
 	ivec3 block_loc = ivec3(floor(P));
+	
+	// 16 ^ 3 chonks.
 	int cx = int(floor(float(block_loc.x) / float(16)));
 	int cy = int(floor(float(block_loc.y) / float(16)));
 	int cz = int(floor(float(block_loc.z) / float(16)));
+
 	int OffsetArrayFetchLocation = (cz * 24 * 8) + (cy * 24) + cx;
+
 	ivec2 ChunkData = LightChunkDataOffsets[OffsetArrayFetchLocation];
 
 	if (ChunkData.y <= 0 || ChunkData.x <= 0) {
@@ -309,38 +328,219 @@ vec3 StochasticallySampleLight(vec3 P, out bool s)
 	}
 
 	s = true;
-	int Range = abs(ChunkData.x-ChunkData.y);
-	int RandomLight = clamp(int(floor(clamp(hash2().x,0.,1.)*float(Range))),0,Range);
-	vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
+	int Range = abs(ChunkData.y);
 
-	if (abs(distance(RandomPosition,P)) > 24.0f) {
+
+	vec3 BestPosition = vec3(1000.0f);
+	float BestDistance = 1000.0f;
+
+	float IterationMixer = 1.0f - exp(-(float(Range) / (16.0f*16.0f)));
+	int Iterations = clamp(int(floor(mix(3.0f, 24.0f, IterationMixer))),3,24);
+
+	float Hash = hash1();
+	
+	float SmoothCutoff = mix(3.5f, 6.0f, Hash);
+
+	for (int Sample = 0 ; Sample < Iterations ; Sample++) { 
+
+		float xi = hash1();
+		int RandomLight = int(floor(mix(0.0f, float(Range), xi)));
+		RandomLight = clamp(RandomLight, 0, Range);
+		vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
+
+		float d2 = DistanceSquared(P, RandomPosition);
+
+		float Error = abs(d2 - BestDistance);
+
+		if (Error > SmoothCutoff) {
+
+			BestDistance = d2;
+			BestPosition = RandomPosition;
+		}
+
+	}
+
+	if (abs(distance(BestPosition,P)) > 24.0f || BestDistance > 64.0f) {
 		s = false;
 		return vec3(0.0f);
 	}
 
-	return RandomPosition;
-}
+	// Approximate light selection pdf 
+	const float SelectionBias = 5.0f;
 
-vec3 GetStochasticDirectLightDir(vec3 O, vec3 N) {
-	bool Success = false;
-	vec3 SelectedLight = StochasticallySampleLight(O, Success);
-
-	if (!Success) {
-		return cosWeightedRandomHemisphereDirection(N);
-	}
-
-	const vec3 Basis = vec3(0.0f, 1.0f, 1.0f);
-	vec3 L = normalize(SelectedLight - O);
-	vec3 T = normalize(cross(L, Basis));
-	vec3 B = cross(T, L);
-	mat3 TBN = mat3(T, B, L);
-	const float CosTheta = 0.95f; 
-	vec3 ConeSample = TBN * SampleCone(hash2(), CosTheta);
-	return ConeSample;
+	LightSelectPDF = min(Range, SelectionBias) / max(float(Range), 1.0f); 
+	LightSelectPDF = clamp(LightSelectPDF, 0.001f, 1.0f);
+	
+	
+	return BestPosition;
 }
 
 float LambertianPDF(float CosTheta) {
 	return CosTheta / PI; // Simplest form, dot(n,r)/pi 
+}
+
+// Generate PDF based on solid angle
+float SphericalLightPDF(in vec3 x, in vec3 wi, float d, in vec3 n1, vec3 sO, float sR2)
+{
+    float SolidAngle;
+    vec3 w = sO - x; //direction to light center
+	float dc_2 = dot(w, w); //squared distance to light center
+    float dc = sqrt(dc_2); //distance to light center
+    
+    if(dc_2 > sR2) 
+	{
+    	float sin_theta_max_2 = clamp(sR2 / dc_2, 0.0, 1.0);
+		float cos_theta_max = sqrt( 1.0 - sin_theta_max_2 );
+    	SolidAngle = (2.0f * PI) * (1.0 - cos_theta_max);
+    }
+	
+	else 
+	{ 
+    	SolidAngle = (4.0f * PI);
+    }
+    
+    return 1.0f / SolidAngle;
+}
+
+
+struct LightSamplingRecord
+{
+    vec3 w;
+    float d;
+    float pdf;
+};
+
+void SampleLight(vec3 x, vec3 P, vec2 Xi, out LightSamplingRecord sampleRec) 
+{
+	float Xi1 = Xi.x;
+	float Xi2 = Xi.y;
+	float sph_r2 = 1.0f;
+    vec3 sph_p = P;
+    vec3 w = sph_p - x;		
+	float dc_2 = dot(w, w);	
+    float dc = sqrt(dc_2);	
+    float sin_theta_max_2 = sph_r2 / dc_2;
+	float cos_theta_max = sqrt( 1.0 - clamp( sin_theta_max_2, 0.0, 1.0 ) );
+    float cos_theta = mix(cos_theta_max, 1.0, Xi1);
+    float sin_theta_2 = 1.0 - cos_theta*cos_theta;
+    float sin_theta = sqrt(sin_theta_2);
+    sampleRec.w = uniformDirectionWithinCone( w, (2.0f*PI)*Xi2, sin_theta, cos_theta );
+    sampleRec.pdf = 1.0/( (2.0f*PI) * (1.0 - cos_theta_max) );
+    sampleRec.d = dc*cos_theta - sqrt(sph_r2 - dc_2*sin_theta_2);
+}
+
+float signum(float x) {
+	return uintBitsToFloat((floatBitsToUint(x) & 0x80000000u) | floatBitsToUint(1.0));
+}
+
+mat3 GenerateRotationMatrix(vec3 from, vec3 to) 
+{
+	float cosine = dot(from, to);
+
+	float tmp = signum(cosine);
+	tmp = 1.0 / (tmp + cosine);
+
+	vec3 axis = cross(to, from);
+	vec3 tmpv = axis * tmp;
+
+	return mat3(
+		axis.x * tmpv.x + cosine, axis.x * tmpv.y - axis.z, axis.x * tmpv.z + axis.y,
+		axis.y * tmpv.x + axis.z, axis.y * tmpv.y + cosine, axis.y * tmpv.z - axis.x,
+		axis.z * tmpv.x - axis.y, axis.z * tmpv.y + axis.x, axis.z * tmpv.z + cosine
+	);
+}
+
+vec2 ConcentricSampleDisk(vec2 random) 
+{
+    random = 2.0 * random - 1.0;
+    if (all(equal(random, vec2(0)))) return vec2(0);
+
+    float theta, r;
+
+    if (abs(random.x) > abs(random.y)) 
+	{
+        r = random.x;
+        theta = (PI / 4.0f) * (random.y / random.x);
+    }
+	
+	else 
+	{
+        r = random.y;
+        theta = (PI / 2.0f) - (PI / 4.0f) * (random.x / random.y);
+    }
+    return r * vec2(cos(theta), sin(theta));
+}
+
+vec3 SampleLightDisk(vec3 P, vec3 Center, vec3 Normal, vec2 Xi, out float DiskPDF) {
+	
+	// Ideal constants for voxels 
+	const float DiskRadius = 0.45f; 
+	const float Area = PI / 2.0f;
+
+	// Sample concentric disk 
+	vec2 DiskSample = ConcentricSampleDisk(Xi);
+
+	vec3 ScaledPoint = vec3(DiskSample.x, 0.0, DiskSample.y) * DiskRadius;
+	vec3 DiskDirection = normalize(P - Center);
+	mat3 RotationMatrix = GenerateRotationMatrix(vec3(0,1,0), DiskDirection);
+
+	// Rotate Point 
+	ScaledPoint = RotationMatrix * ScaledPoint;
+
+	// Translate 
+	ScaledPoint += Center;
+
+	vec3 ScaledPointToOriginDir = normalize(ScaledPoint - P);
+	float Distance = clamp(distance(P, ScaledPoint), 0.001, 99.0);
+	
+	// Generate Disk based on surface area :
+	DiskPDF = (0.45f + Distance * Distance) / max(Area * dot(DiskDirection, -ScaledPointToOriginDir) * dot(Normal, ScaledPointToOriginDir), 0.001f);
+	
+	return ScaledPointToOriginDir;
+}
+
+//#define SAMPLE_CONE_DL
+
+vec3 GetStochasticDirectLightDir(bool DontGuide, vec3 O, vec3 N, inout float PDF, inout bool SampleSuccess, inout float sPDF) {
+	
+	// Sample lambert : 
+	if (DontGuide) {
+		vec3 Reflected =  cosWeightedRandomHemisphereDirection(N);
+		PDF = 1.0f;
+		sPDF = dot(N, Reflected) / PI;
+
+		return Reflected;
+	}
+	
+	bool Success = false;
+	vec3 SelectedLight = StochasticallySampleLight(O, Success, PDF);
+
+	SampleSuccess = Success;
+
+	if (!Success) {
+		
+		vec3 Reflected =  cosWeightedRandomHemisphereDirection(N);
+		PDF = 1.0f;
+		sPDF = dot(N, Reflected) / PI;
+
+		return Reflected;
+	}
+
+	#ifdef SAMPLE_CONE_DL
+		const vec3 Basis = vec3(0.0f, 1.0f, 1.0f);
+		vec3 L = normalize(SelectedLight - O);
+		vec3 T = normalize(cross(L, Basis));
+		vec3 B = cross(T, L);
+		mat3 TBN = mat3(T, B, L);
+		const float CosTheta = 0.985f; 
+		vec3 ConeSample = TBN * SampleCone(hash2(), CosTheta);
+		return ConeSample;
+	#else 
+		// Sample a perfect sized disk ->
+
+		vec3 SampleDirection = SampleLightDisk(O + N * 0.07f, SelectedLight, N, hash2(), sPDF);
+		return SampleDirection;
+	#endif
 }
 
 // ---
@@ -382,11 +582,15 @@ vec3 DiffuseRayBRDF(vec3 N, vec3 I, vec3 D, float Roughness)
 
 bool Moonstronger=false;
 
-vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
+vec4 CalculateDiffuse(bool GuideSample, in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
-	float bias = 0.05f;
-	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
-	//Ray new_ray = Ray(initial_origin + input_normal * bias, GetStochasticDirectLightDir(initial_origin, input_normal));
+	float bias = 0.06f;
+	float LightSamplePDF = 1.0f; // x/lc (where x is a strength value and lc is the light count)
+	float SamplingPDF = 1.0f;
+	bool SampleSuccessful = false;
+	vec3 Li = GetStochasticDirectLightDir(!GuideSample, initial_origin, input_normal, LightSamplePDF, SampleSuccessful, SamplingPDF);
+	Ray new_ray = Ray(initial_origin + input_normal * bias, Li);
+
 
 	float ao = 1.0f;
 
@@ -584,8 +788,7 @@ vec2 SampleBlueNoise2D(int Index)
 
 void main()
 {
-
-
+	// Compute globals
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
 	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
     vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
@@ -594,7 +797,7 @@ void main()
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 	Moonstronger = !SunStronger;
 	EmissivityMultiplier = Moonstronger ? 13.0f : 12.0f;
-
+	// 
 
 
 	o_AO = 1.0f;
@@ -606,16 +809,19 @@ void main()
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 	#endif
 
+	// XOR shift
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
-	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
-	HASH2SEED += fract(u_Time) * 100.0f;
+
+	// Animate RNG
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 64.0 * 8.0f;
+	HASH2SEED += fract(u_Time) * 128.0f;
 
 	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
 	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
 
-	o_Utility = GetLuminance(vec3(0.0f));
+	o_Utility = GetLuminance(vec3(0.0f)); 
 
 
 	if (Position.w < 0.0f)
@@ -648,7 +854,7 @@ void main()
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		vec3 d = vec3(0.0f);
-		vec4 x = CalculateDiffuse(Position.xyz, Normal, d);
+		vec4 x = CalculateDiffuse(u_UseDirectSampling, Position.xyz, Normal, d);
 		x.xyz = clamp(x.xyz,0.0f,8.0f);
 
 		radiance += x.xyz;
@@ -668,8 +874,9 @@ void main()
 	o_CoCg.xy = CoCg;
 	o_Utility = max(GetLuminance(radiance),0.01f);
 	o_AO = AccumulatedAO;
-	o_AO = clamp(o_AO,0.0f,1.0f);
 
+	// Clamp everything
+	o_AO = clamp(o_AO,0.0f,1.0f);
 	o_SH = clamp(o_SH, -100.0f, 100.0f);
 	o_CoCg = clamp(o_CoCg, -100.0f, 100.0f);
 	o_AO = clamp(o_AO, 0.0f, 1.0f);

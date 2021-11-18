@@ -59,11 +59,16 @@ static VoxelRT::Player MainPlayer;
 int VoxelRT_FloodFillDistanceLimit = 4;
 
 static bool VSync = false;
+
+static bool DiffuseDirectLightSampling = false;
+
 static bool JitterSceneForTAA = false;
 
 static bool SmartUpscaleCloudTemporal = true;
 
 static int LPVDebugState = 0;
+
+static bool LightListDebug = false;
 
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
@@ -248,10 +253,7 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::SliderFloat("Sun Strength", &SunStrengthModifier, 0.01f, 1.0f);
-			ImGui::SliderFloat("Moon Strength", &MoonStrengthModifier, 0.01f, 2.0f);
-			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
-			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
+			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -322,8 +324,13 @@ public:
 			ImGui::NewLine();
 			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
 			ImGui::NewLine();
+
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::SliderFloat("Sun Strength", &SunStrengthModifier, 0.01f, 1.0f);
+			ImGui::SliderFloat("Moon Strength", &MoonStrengthModifier, 0.01f, 2.0f);
+			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
+			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
 			ImGui::SliderInt("PIXEL_PADDING", &PIXEL_PADDING, 0, 128);
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
@@ -415,6 +422,29 @@ public:
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 		} ImGui::End();
+
+		if (LightListDebug) {
+			if (ImGui::Begin("Light List Debug")) {
+
+				glm::ivec3 block_loc = glm::ivec3(glm::floor(MainPlayer.m_Position));
+				int cx = int(floor(float(block_loc.x) / float(16)));
+				int cy = int(floor(float(block_loc.y) / float(16)));
+				int cz = int(floor(float(block_loc.z) / float(16)));
+				int OffsetArrayFetchLocation = (cz * 24 * 8) + (cy * 24) + cx;
+				glm::ivec2 ChunkData = world->LightChunkOffsets[OffsetArrayFetchLocation];
+
+				ImGui::Text("Player Original Position : %f  %f  %f", MainPlayer.m_Position.x, MainPlayer.m_Position.y, MainPlayer.m_Position.z);
+				ImGui::Text("Player Floored Position : %d  %d  %d", block_loc.x, block_loc.y, block_loc.z);
+				ImGui::Text("Player Chunk : %d  %d  %d", cx, cy, cz);
+				ImGui::Text("Fetched Data : %d  %d", ChunkData.x, ChunkData.y);
+
+				for (int i = 0; i < ChunkData.y; i++) {
+					std::stringstream ss;
+					glm::vec3 current_pos = glm::vec3(world->LightChunkData[ChunkData.x + i]);
+					ImGui::Text("%f      %f      %f", current_pos[0], current_pos[1], current_pos[2]);
+				}
+			} ImGui::End();
+		}
 
 		if (ImGui::Begin("Other Settings and properties"))
 		{
@@ -566,6 +596,12 @@ public:
 			VoxelRT::Volumetrics::Reupload();
 			//world->RebufferLightList();
 		}
+		
+		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_F11)
+		{
+			LightListDebug = !LightListDebug;
+		}
+		
 
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_V)
 		{
@@ -1271,6 +1307,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
 		DiffuseTraceShader.SetBool("CHECKERBOARD_SPP", CHECKERBOARD_SPP);
 		DiffuseTraceShader.SetBool("u_APPLY_PLAYER_SHADOW", APPLY_PLAYER_SHADOW_FOR_GI);
+		DiffuseTraceShader.SetBool("u_DirectSampling", DiffuseDirectLightSampling);
+		DiffuseTraceShader.SetBool("u_UseDirectSampling", DiffuseDirectLightSampling);
+		DiffuseTraceShader.SetBool("u_UseMIS", DiffuseDirectLightSampling);
 
 
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);

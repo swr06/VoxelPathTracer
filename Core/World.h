@@ -130,37 +130,33 @@ namespace VoxelRT
 
 			if (StoredOffset.x > 0) // if there were previously placed lights here, remove it at the stored offset
 			{
-				bool StopIterating = false;
+				int RemoveIDX = -1;
 
-				while (StopIterating == false) {
-
-					if (IterationCount > 2) {
-						break; 
+				// Find it
+				for (int i = StoredOffset.x; i < StoredOffset.x + StoredOffset.y; i++) {
+					if (LightChunkData[i].x == x.x && LightChunkData[i].y == x.y && LightChunkData[i].z == x.z) {
+						RemoveIDX = i;
+						break;
 					}
+				}
 
-					IterationCount++;
+				if (RemoveIDX >= 0) {
 
-					std::vector<glm::vec4>::iterator ChunkIter = std::find(LightChunkData.begin() + StoredOffset.x, LightChunkData.begin() + StoredOffset.x + StoredOffset.y, glm::vec4(x, 0.0f));
-					if (ChunkIter != LightChunkData.end()) // The element was found
+					LightChunkData.erase(LightChunkData.begin() + RemoveIDX); // erase it
+					StoredOffset.y = glm::max(StoredOffset.y - 1, 0);
+
+					std::cout << "\n\n REMOVED LIGHT FROM LIGHT CHUNK LIST \n\n";
+
+					for (int x = 0; x < LightChunkOffsets.size(); x++)
 					{
-						LightChunkData.erase(ChunkIter); // erase it
-						StoredOffset.y = glm::max(StoredOffset.y - 1, 0);
-
-						for (int x = 0; x < LightChunkOffsets.size(); x++)
-						{
-							if (x == CurrentIDX) {
-								continue;
-							}
-
-							if (LightChunkOffsets[x].x >= StoredOffset.x) {
-								LightChunkOffsets[x].x--;
-								LightChunkOffsets[x].x = glm::max(LightChunkOffsets[x].x, 0);
-							}
+						if (x == CurrentIDX) {
+							continue;
 						}
-					}
 
-					else {
-						StopIterating = true;
+						if (LightChunkOffsets[x].x >= StoredOffset.x) {
+							LightChunkOffsets[x].x--;
+							LightChunkOffsets[x].x = glm::max(LightChunkOffsets[x].x, 0);
+						}
 					}
 				}
 			}
