@@ -70,6 +70,8 @@ static int LPVDebugState = 0;
 
 static bool LightListDebug = false;
 
+static bool HejlBurgessTonemap = false;
+
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
 static bool PurkinjeEffect = false;
@@ -108,7 +110,7 @@ static bool CHECKERBOARD_SPEC_SPP = false;
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
-static float CAS_SharpenAmount = 0.2 + 0.025f;
+static float CAS_SharpenAmount = 0.3 + 0.025f;
 
 static bool UseDFG = false;
 static bool RemoveTiling = false;
@@ -174,6 +176,7 @@ static bool ShouldAlphaTestShadows = false;
 
 
 static bool TAA = true;
+static bool FXAA = true;
 static bool Bloom = true;
 static bool USE_SVGF = true;
 static bool DO_VARIANCE_SPATIAL = true;
@@ -318,10 +321,7 @@ public:
 
 
 			ImGui::NewLine();
-			ImGui::NewLine();
-			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
-			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
-			ImGui::NewLine();
+			
 			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
 			ImGui::NewLine();
 
@@ -367,12 +367,18 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Text("---- Post Process ----");
+			ImGui::NewLine();
+			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
+			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
+			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
+			ImGui::NewLine();
 			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
 			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
 			ImGui::Checkbox("Color Dither", &ColorDither);
 			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.750f);
 			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 1.0f);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
 			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
@@ -3013,6 +3019,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
+		PostProcessingShader.SetBool("u_HejlBurgess", HejlBurgessTonemap);
 		PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
@@ -3048,6 +3055,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetVector3f("u_VertSunDir", SunDirection);
 		PostProcessingShader.SetBool("u_ComputePlayerShadow", lff);
 		PostProcessingShader.SetBool("u_FilmGrain", FilmGrainStrength>0.001f);
+
 		PostProcessingShader.SetInteger("u_DistanceFieldTexture", 18);
 		PostProcessingShader.SetInteger("u_VoxelVolume", 19);
 
@@ -3183,6 +3191,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetBool("u_ColorGrading", SelectedColorGradingLUT >= 0);
 		FinalShader.SetInteger("u_SelectedLUT", SelectedColorGradingLUT);
 		FinalShader.SetBool("u_ColorDither", ColorDither);
+		FinalShader.SetBool("FXAA", FXAA);
+		FinalShader.SetBool("u_FXAA", FXAA);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
@@ -3221,6 +3231,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CAS_Shader.SetBool("u_ColorDither", ColorDither);
 			CAS_Shader.SetInteger("u_ColorLUT", 1);
 			CAS_Shader.SetInteger("u_SelectedLUT", SelectedColorGradingLUT);
+			CAS_Shader.SetBool("FXAA", FXAA);
+			CAS_Shader.SetBool("u_FXAA", FXAA);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, FXAA_Final.GetTexture());

@@ -339,12 +339,12 @@ vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF)
 
 	float Hash = hash1();
 	
-	float SmoothCutoff = mix(3.5f, 6.0f, Hash);
+	float SmoothCutoff = mix(2.0f, 7.0f, Hash);
 
 	for (int Sample = 0 ; Sample < Iterations ; Sample++) { 
 
-		float xi = hash1();
-		int RandomLight = int(floor(mix(0.0f, float(Range), xi)));
+		vec2 xi = hash2();
+		int RandomLight = int(floor(mix(0.0f, float(Range), xi.x)));
 		RandomLight = clamp(RandomLight, 0, Range);
 		vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
 
@@ -354,6 +354,12 @@ vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF)
 
 		if (Error > SmoothCutoff) {
 
+			BestDistance = d2;
+			BestPosition = RandomPosition;
+		}
+
+		else if (Error < 32.0f && xi.y > 0.97f) // 3% chance of selecting a far ish away light 
+		{
 			BestDistance = d2;
 			BestPosition = RandomPosition;
 		}

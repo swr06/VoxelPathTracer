@@ -1,7 +1,9 @@
+// Shadow/Diffuse/Old Reflection Temporal filter ->
+
 #version 330 core
 
 layout (location = 0) out vec4 o_Color;
-layout (location = 1) out vec2 o_CoCg;
+layout (location = 1) out vec2 o_CoCg; // Optional output 
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -312,7 +314,7 @@ vec3 ClipShadow(vec2 Reprojected)
     }
 
 	vec3 HistoryShadow = texture(u_PreviousColorTexture, Reprojected).xyz;
-	return clipAABB(HistoryShadow, MinColor, MaxColor);
+	return clipAABB(HistoryShadow, MinColor-0.025f, MaxColor+0.025f);
 }
 
 // Used to test shadow clip
@@ -365,7 +367,7 @@ void main()
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
-			float t = u_ShadowTemporal ? 1.0f : 1.1f;
+			float t = u_ShadowTemporal ? 0.640f : 1.1f;
 
 			if (d > t) 
 			{

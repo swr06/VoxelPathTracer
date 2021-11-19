@@ -30,6 +30,7 @@ uniform int u_Padding;
 uniform int u_SelectedLUT;
 
 uniform bool u_CAS;
+uniform bool u_FXAA;
 
 uniform bool u_ColorGrading;
 uniform bool u_ColorDither;
@@ -147,7 +148,7 @@ void FXAA311(inout vec3 color)
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = 0.85250f; 
+	float subpixelQuality = DetectEdge() ? 1.1f : 0.75f; 
 	int iterations = 12;
 	vec2 texCoord = TexCoords;
 	
@@ -419,7 +420,9 @@ void main()
 	const bool CustomFXAA = false;
 	bool fxaa = false;
 
-	FXAA311(Color);
+	if (u_FXAA) {
+		FXAA311(Color);
+	}
 
 	o_Color = Color;
 

@@ -748,6 +748,16 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
+vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
+{
+    uv = uv * res;
+    vec2 uv_floor = floor(uv + 0.5);
+    vec2 uv_fract = fract(uv + 0.5);
+    vec2 uv_aa = fwidth(uv) * width * 0.5;
+    uv_fract = smoothstep(vec2(0.5) - uv_aa, vec2(0.5) + uv_aa, uv_fract);
+    return (uv_floor + uv_fract - 0.5) / res;
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
@@ -839,11 +849,15 @@ void main()
             //vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
             //vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
 
+            vec2 SmoothstepUV = SmoothStepUV(UV,vec2(512.0f),1.5f);
+
             // Fix texture seam with approximated derivative ->
-            vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
-            vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(UV.xy, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
-            vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
             
+            vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(SmoothstepUV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
+            vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(SmoothstepUV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
+            vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(SmoothstepUV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
+            
+
             vec3 NonAmplifiedNormal = NormalMapped;
 
             if (u_AmplifyNormalMap) {

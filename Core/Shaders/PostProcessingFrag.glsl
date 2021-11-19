@@ -81,6 +81,7 @@ uniform int u_GodRaysStepCount = 12;
 
 uniform int u_CurrentFrame;
 
+uniform bool u_HejlBurgess;
 
 uniform sampler2D u_FramebufferTexture;
 
@@ -668,6 +669,33 @@ vec3 PurkinjeEffect(vec3 Color)
     return mix(max(Color, 0.0), BaseColor, 0.5f);
 }
 
+#define CONE_OVERLAP_SIMULATION 0.25
+
+const mat3 HejlBurgessConeOverlapMatrix2Deg = mat3(
+    mix(vec3(1.0, 0.0, 0.0), vec3(0.5595088340965042, 0.39845359892109633, 0.04203756698239944), vec3(CONE_OVERLAP_SIMULATION)),
+    mix(vec3(0.0, 1.0, 0.0), vec3(0.43585871315661756, 0.5003841413971261, 0.06375714544625634), vec3(CONE_OVERLAP_SIMULATION)),
+    mix(vec3(0.0, 0.0, 1.0), vec3(0.10997368482498855, 0.15247972169325025, 0.7375465934817612), vec3(CONE_OVERLAP_SIMULATION))
+);
+
+const mat3 InverseHejlBurgessConeOverlapMatrix2Deg = inverse(HejlBurgessConeOverlapMatrix2Deg);
+
+vec3 TonemapHejlBurgess(in vec3 color) 
+{
+	color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
+	return color;
+}
+
+const vec3 lumacoeff_rec709 = vec3(0.2125, 0.7154, 0.0721);
+
+vec3 vibrance(in vec3 color) {
+    float lum = dot(color, lumacoeff_rec709);
+    vec3 mask = (color - vec3(lum));
+    mask = clamp(mask, 0.0, 1.0);
+    float lum_mask = dot(lumacoeff_rec709, mask);
+    lum_mask = 1.0 - lum_mask;
+    return mix(vec3(lum), color, (1.0 + 0.2) * lum_mask);
+}
+
 
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
@@ -767,7 +795,16 @@ void main()
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
 		}
 
-		o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure + 0.01f).rgb;
+		if (u_HejlBurgess) {
+			o_Color *= 0.275f * (Exposure * 0.5f);
+			o_Color = TonemapHejlBurgess(o_Color * HejlBurgessConeOverlapMatrix2Deg) * InverseHejlBurgessConeOverlapMatrix2Deg;
+			o_Color = vibrance(o_Color);
+			o_Color = mix(vibrance(o_Color), o_Color, 0.5f);
+		}
+
+		else {
+			o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure * 0.9f).rgb;
+		}
 	}
 
 	else 
