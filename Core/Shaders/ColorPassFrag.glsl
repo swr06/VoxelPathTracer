@@ -49,6 +49,8 @@ uniform sampler2D u_VXAO;
 uniform bool u_UseDFG;
 uniform bool u_RemoveTiling;
 
+uniform bool u_DEBUGDiffuseGI;
+uniform bool u_DEBUGSpecGI;
 uniform sampler2D u_DiffuseSHy;
 uniform sampler2D u_DiffuseCoCg;
 
@@ -978,6 +980,14 @@ void main()
 
             if (u_LPVDebugState == 2) {
                 o_Color = GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz);
+            }
+
+            if (u_DEBUGDiffuseGI) {
+                o_Color = 1.0f - exp(-SampledIndirectDiffuse);
+            }
+
+            if (u_DEBUGSpecGI) {
+                o_Color = 1.0f - exp(-SpecularIndirect);
             }
             
             // Output utility : 

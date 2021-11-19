@@ -305,82 +305,6 @@ float DistanceSquared(vec3 P1, vec3 P2) {
 	return dot(X,X);
 }
 
-// Stochastically selects a light from the light chunks 
-// s : boolean valid, P : sample position
-
-vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF) 
-{
-	LightSelectPDF = 1.0f;
-	ivec3 block_loc = ivec3(floor(P));
-	
-	// 16 ^ 3 chonks.
-	int cx = int(floor(float(block_loc.x) / float(16)));
-	int cy = int(floor(float(block_loc.y) / float(16)));
-	int cz = int(floor(float(block_loc.z) / float(16)));
-
-	int OffsetArrayFetchLocation = (cz * 24 * 8) + (cy * 24) + cx;
-
-	ivec2 ChunkData = LightChunkDataOffsets[OffsetArrayFetchLocation];
-
-	if (ChunkData.y <= 0 || ChunkData.x <= 0) {
-		s = false;
-		return vec3(0.0f);
-	}
-
-	s = true;
-	int Range = abs(ChunkData.y);
-
-
-	vec3 BestPosition = vec3(1000.0f);
-	float BestDistance = 1000.0f;
-
-	float IterationMixer = 1.0f - exp(-(float(Range) / (16.0f*16.0f)));
-	int Iterations = clamp(int(floor(mix(3.0f, 24.0f, IterationMixer))),3,24);
-
-	float Hash = hash1();
-	
-	float SmoothCutoff = mix(2.0f, 7.0f, Hash);
-
-	for (int Sample = 0 ; Sample < Iterations ; Sample++) { 
-
-		vec2 xi = hash2();
-		int RandomLight = int(floor(mix(0.0f, float(Range), xi.x)));
-		RandomLight = clamp(RandomLight, 0, Range);
-		vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
-
-		float d2 = DistanceSquared(P, RandomPosition);
-
-		float Error = abs(d2 - BestDistance);
-
-		if (Error > SmoothCutoff) {
-
-			BestDistance = d2;
-			BestPosition = RandomPosition;
-		}
-
-		else if (Error < 32.0f && xi.y > 0.97f) // 3% chance of selecting a far ish away light 
-		{
-			BestDistance = d2;
-			BestPosition = RandomPosition;
-		}
-
-	}
-
-	if (abs(distance(BestPosition,P)) > 24.0f || BestDistance > 64.0f) {
-		s = false;
-		return vec3(0.0f);
-	}
-
-	// Approximate light selection pdf 
-	const float SelectionBias = 5.0f;
-
-	LightSelectPDF = min(Range, SelectionBias) / max(float(Range), 1.0f); 
-	LightSelectPDF = clamp(LightSelectPDF, 0.001f, 1.0f);
-	
-	
-	return BestPosition;
-}
-
 float LambertianPDF(float CosTheta) {
 	return CosTheta / PI; // Simplest form, dot(n,r)/pi 
 }
@@ -477,6 +401,90 @@ vec2 ConcentricSampleDisk(vec2 random)
     return r * vec2(cos(theta), sin(theta));
 }
 
+// Stochastically selects a light from the light chunks 
+// s : boolean valid, P : sample position
+
+vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF, out ivec3 LightPositionFetch) 
+{
+	s = true;
+
+	LightSelectPDF = 1.0f;
+	ivec3 block_loc = ivec3(floor(P));
+	
+	// 16 ^ 3 chonks.
+	int cx = int(floor(float(block_loc.x) / float(16)));
+	int cy = int(floor(float(block_loc.y) / float(16)));
+	int cz = int(floor(float(block_loc.z) / float(16)));
+
+	int OffsetArrayFetchLocation = (cz * 24 * 8) + (cy * 24) + cx;
+
+	ivec2 ChunkData = LightChunkDataOffsets[OffsetArrayFetchLocation];
+
+	if (ChunkData.y <= 0 || ChunkData.x <= 0) {
+		s = false;
+		return vec3(0.0f);
+	}
+
+	s = true;
+	int Range = abs(ChunkData.y);
+
+
+	vec3 BestPosition = vec3(1000.0f);
+	float BestDistance = 1000.0f;
+
+	float IterationMixer = 1.0f - exp(-(float(Range) / (16.0f*16.0f)));
+	int Iterations = clamp(int(floor(mix(3.0f, 24.0f, IterationMixer))),3,24);
+
+	float Hash = hash1();
+	
+	float SmoothCutoff = mix(2.0f, 7.0f, Hash);
+
+	for (int Sample = 0 ; Sample < Iterations ; Sample++) { 
+
+		vec2 xi = hash2();
+		int RandomLight = int(floor(mix(0.0f, float(Range), xi.x)));
+		RandomLight = clamp(RandomLight, 0, Range);
+		vec3 RandomPosition = LightChunkPositions[ChunkData.x + RandomLight].xyz;
+
+		float d2 = DistanceSquared(P, RandomPosition);
+
+		float Error = abs(d2 - BestDistance);
+
+		if (Error > SmoothCutoff) {
+
+			BestDistance = d2;
+			BestPosition = RandomPosition;
+		}
+
+		else if (Error < 32.0f && xi.y > 0.97f) // 3% chance of selecting a far ish away light 
+		{
+			BestDistance = d2;
+			BestPosition = RandomPosition;
+		}
+
+	}
+
+	LightPositionFetch = ivec3(floor(BestPosition));
+
+	if (abs(distance(BestPosition,P)) > 24.0f || BestDistance > 64.0f) {
+		s = false;
+		return vec3(0.0f);
+	}
+
+	// Todo : Use a CDF to get an accurate probability density function
+
+	// Approximate light selection pdf 
+	const float SelectionBias = 5.0f;
+
+	LightSelectPDF = min(Range, SelectionBias) / max(float(Range), 1.0f); 
+	LightSelectPDF = clamp(LightSelectPDF, 0.001f, 1.0f);
+	
+	s = true;
+
+	return BestPosition;
+}
+
+
 vec3 SampleLightDisk(vec3 P, vec3 Center, vec3 Normal, vec2 Xi, out float DiskPDF) {
 	
 	// Ideal constants for voxels 
@@ -507,19 +515,19 @@ vec3 SampleLightDisk(vec3 P, vec3 Center, vec3 Normal, vec2 Xi, out float DiskPD
 
 //#define SAMPLE_CONE_DL
 
-vec3 GetStochasticDirectLightDir(bool DontGuide, vec3 O, vec3 N, inout float PDF, inout bool SampleSuccess, inout float sPDF) {
+vec3 GetStochasticDirectLightDir(bool DontGuide, vec3 O, vec3 N, inout float PDF, inout bool SampleSuccess, inout float sPDF, out ivec3 LightPositionFetch) {
 	
 	// Sample lambert : 
 	if (DontGuide) {
 		vec3 Reflected =  cosWeightedRandomHemisphereDirection(N);
 		PDF = 1.0f;
 		sPDF = dot(N, Reflected) / PI;
-
+	
 		return Reflected;
 	}
 	
 	bool Success = false;
-	vec3 SelectedLight = StochasticallySampleLight(O, Success, PDF);
+	vec3 SelectedLight = StochasticallySampleLight(O, Success, PDF, LightPositionFetch);
 
 	SampleSuccess = Success;
 
@@ -588,14 +596,14 @@ vec3 DiffuseRayBRDF(vec3 N, vec3 I, vec3 D, float Roughness)
 
 bool Moonstronger=false;
 
-vec4 CalculateDiffuse(bool GuideSample, in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
 {
 	float bias = 0.06f;
-	float LightSamplePDF = 1.0f; // x/lc (where x is a strength value and lc is the light count)
-	float SamplingPDF = 1.0f;
-	bool SampleSuccessful = false;
-	vec3 Li = GetStochasticDirectLightDir(!GuideSample, initial_origin, input_normal, LightSamplePDF, SampleSuccessful, SamplingPDF);
-	Ray new_ray = Ray(initial_origin + input_normal * bias, Li);
+	//float LightSamplePDF = 1.0f; // x/lc (where x is a strength value and lc is the light count)
+	//float SamplingPDF = 1.0f;
+	//bool SampleSuccessful = false;
+	//vec3 Li = GetStochasticDirectLightDir(!GuideSample, initial_origin, input_normal, LightSamplePDF, SampleSuccessful, SamplingPDF);
+	Ray new_ray = Ray(initial_origin + input_normal * bias, cosWeightedRandomHemisphereDirection(input_normal));
 
 
 	float ao = 1.0f;
@@ -716,6 +724,91 @@ vec4 CalculateDiffuse(bool GuideSample, in vec3 initial_origin, in vec3 input_no
 	return g_AverageBounces ? vec4(SummedContribution_t / float(MAX_BOUNCE_LIMIT), ao) : vec4(RayContribution, ao); 
 }
 
+float GetLuminance(vec3 color) 
+{
+    return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 DirectSample(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
+{
+	float bias = 0.06f;
+
+	// PDF of the stochastic light sample ->
+	float LightSamplePDF = 1.0f;
+
+	// PDF of the disk sample ->
+	float SamplingPDF = 1.0f;
+	
+	// Success?
+	bool SampleSuccessful = false;
+
+	// The light chosen to sample 
+	ivec3 LightPosition = ivec3(0);
+
+	// Normalized sample direction ->
+	vec3 Wi = GetStochasticDirectLightDir(false, initial_origin, input_normal, LightSamplePDF, SampleSuccessful, SamplingPDF, LightPosition);
+	odir = Wi;
+
+	if (!SampleSuccessful) {
+		return vec3(0.0f);
+	}
+
+	Ray new_ray = Ray(initial_origin + input_normal * bias, Wi);
+
+
+	vec3 HitNormal; 
+	float HitBlock;
+
+	// Intersect Shadow ray ->
+	float T = VoxelTraversalDF(new_ray.Origin, new_ray.Direction, HitNormal, HitBlock, MAX_VOXEL_DIST);
+
+	// Intersection 
+	int tex_ref = clamp(int(floor(HitBlock * 255.0f)), 0, 127); 
+	bool Intersect = T > 0.0f;
+	vec3 IntersectionPosition = new_ray.Origin + (new_ray.Direction * T);
+
+
+	vec3 Lo = vec3(0.0f);
+
+	if (Intersect && HitBlock > 0) 
+	{ 
+		vec2 txc; 
+		CalculateUV(IntersectionPosition, HitNormal, txc);
+		vec2 TextureIndexes = vec2(
+			float(BlockAlbedoData[tex_ref]),
+			float(BlockEmissiveData[tex_ref])
+		);
+
+		vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(txc, TextureIndexes.r), 3.0f).rgb; // 512, 256, 128, 64, 32, 16
+		float Emmisivity = 0.0f;
+
+		if (TextureIndexes.y >= 0.0f)
+		{
+			float SampledEmmisivity = texture(u_BlockEmissiveTextures, vec3(txc, TextureIndexes.y)).r;
+			Emmisivity = SampledEmmisivity * EmissivityMultiplier * u_DiffuseLightIntensity;
+		}
+
+		// Fetch incoming radiance ->
+		vec3 Li = (Emmisivity * mix(1.0,1.0,float(u_SunVisibility)) * Albedo);
+		
+		float CosTheta = clamp(dot(HitNormal, Wi), 0.0f, 1.0f); 
+		float LambertianPDF = max(CosTheta / PI, 0.00001f);
+		const vec3 LambertBRDF = vec3(1.0f / PI);  // Lambert brdf 
+
+		float EvaluatedWeight = 1.0f;
+
+		float DiskPDF = SamplingPDF;
+		float DiskPDFSquared = DiskPDF * DiskPDF;
+
+		//EvaluatedWeight = misWeight(DiskPDF, LambertianPDF);
+
+		Lo += Li * (1.0f / DiskPDF) * PI; //(Li * weightDisk * (1.0f / DiskPDF));
+	} 
+
+
+	return Lo; 
+}
+
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -749,11 +842,6 @@ float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
 	ReturnValue[4] = Co;
 	ReturnValue[5] = Cg;
 	return ReturnValue;
-}
-
-float GetLuminance(vec3 color) 
-{
-    return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
 bool CompareFloatNormal(float x, float y) {
@@ -857,13 +945,18 @@ void main()
 		SPP*=2; // We DONT cast shadow rays if the moon is stronger, so we save two shadow rays per diffuse ray, double the spp to make up for this
 	}
 
+	
+	
 	for (int s = 0 ; s < SPP ; s++)
 	{
+		vec3 DirectSampleDir;
+	    //vec3 DirectSample = DirectSample(Position.xyz, Normal, DirectSampleDir);
 		vec3 d = vec3(0.0f);
-		vec4 x = CalculateDiffuse(u_UseDirectSampling, Position.xyz, Normal, d);
+		vec4 x = u_UseDirectSampling ? vec4(DirectSample(Position.xyz, Normal, DirectSampleDir), 1.0f) : CalculateDiffuse(Position.xyz, Normal, d);
 		x.xyz = clamp(x.xyz,0.0f,8.0f);
 
 		radiance += x.xyz;
+		
 		AccumulatedAO += x.w;
 		
 		float SH[6] = IrridianceToSH(x.xyz, d);

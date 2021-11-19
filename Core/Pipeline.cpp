@@ -56,7 +56,11 @@
 
 static VoxelRT::Player MainPlayer;
 
-int VoxelRT_FloodFillDistanceLimit = 4;
+int VoxelRT_FloodFillDistanceLimit = 4; // Used in other files as an extern
+
+// Debug
+static bool DEBUGDiffuseGI = false;
+static bool DEBUGSpecGI = false;
 
 static bool VSync = false;
 
@@ -186,6 +190,7 @@ static bool DO_SVGF_TEMPORAL = true;
 
 static bool BrutalFXAA = true;
 
+
 static bool GodRays = false;
 static bool FakeGodRays = false;
 static bool RoughReflections = true;
@@ -257,6 +262,8 @@ public:
 		if (ImGui::Begin("Settings"))
 		{
 			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
+			ImGui::Checkbox("DEBUG Diffuse GI", &DEBUGDiffuseGI);
+			ImGui::Checkbox("DEBUG Specular GI", &DEBUGSpecGI);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -2567,6 +2574,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
+		ColorShader.SetBool("u_DEBUGDiffuseGI", DEBUGDiffuseGI);
+		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGSpecGI);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", UseDFG);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
