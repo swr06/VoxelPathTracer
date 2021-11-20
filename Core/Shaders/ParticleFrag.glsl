@@ -56,7 +56,9 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
 
 vec2 GetBlockSamplePosition()
 {
-	vec4 ProjectedPosition = u_CameraViewProjection * vec4(v_BlockPosition, 1.0f);
+	vec3 BlockPosition = v_BlockPosition;
+//	BlockPosition -= vec3(0.5f);
+	vec4 ProjectedPosition = u_CameraViewProjection * vec4(BlockPosition, 1.0f);
 	ProjectedPosition.xyz /= ProjectedPosition.w;
 	return ProjectedPosition.xy * 0.5f + 0.5f; // Convert to screen space!
 }
@@ -75,6 +77,7 @@ vec3 GetPositionAt(vec2 ScreenSpace)
 
 void main()
 {
+	// Project ->
 	vec2 ScreenSpaceCoordinates = gl_FragCoord.xy / u_Dimensions.xy;
 	vec3 WorldPosition = GetPositionAt(ScreenSpaceCoordinates).xyz;
 	vec4 ProjectedPosition = u_CameraViewProjection * vec4(WorldPosition, 1.0f);
@@ -98,7 +101,7 @@ void main()
 	// We need to approximate whether the block is in shadow and the gi from screen space info
 	// So the following code is meant to find the best sample coordinate 
 	float DistanceError = distance(WorldPosition, v_WorldPosition);
-	const float ErrorThresh = floor(1.41421); // sqrt(2)
+	const float ErrorThresh = sqrt(2.0f); // sqrt(2)
 	vec2 SamplePosition = DistanceError < ErrorThresh ? ScreenSpaceCoordinates : GetBlockSamplePosition();
 	
 	// Apply the player shadow as well :p
@@ -114,5 +117,7 @@ void main()
 	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;
 
 	Color = mix(Color * SUN_COLOR, Color * NIGHT_COLOR, SunVisibility); 
-	o_Color = vec4(1.0f - exp(-Color), clamp(ParticleAlpha, 0.0f, 1.0f));
+	
+	vec3 Tonemap = 1.0f - exp(-Color);
+	o_Color = vec4(Tonemap, clamp(ParticleAlpha, 0.0f, 1.0f));
 }

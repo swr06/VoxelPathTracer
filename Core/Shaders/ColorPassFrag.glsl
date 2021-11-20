@@ -7,6 +7,8 @@ float bayer2(vec2 a){
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
+
+
 #define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
@@ -53,6 +55,8 @@ uniform bool u_DEBUGDiffuseGI;
 uniform bool u_DEBUGSpecGI;
 uniform sampler2D u_DiffuseSHy;
 uniform sampler2D u_DiffuseCoCg;
+
+uniform float u_TextureDesatAmount;
 
 uniform sampler2D u_ReflectionSHData;
 uniform sampler2D u_ReflectionCoCgData;
@@ -169,6 +173,28 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
+// Used to get a color for a temperature ->
+vec3 planckianLocus(float t) 
+{
+	vec4 vx = vec4(-0.2661239e9,-0.2343580e6,0.8776956e3,0.179910);
+	vec4 vy = vec4(-1.1063814,-1.34811020,2.18555832,-0.20219683);
+	float it = 1./t;
+	float it2= it*it;
+	float x = dot(vx,vec4(it*it2,it2,it,1.));
+	float x2 = x*x;
+	float y = dot(vy,vec4(x*x2,x2,x,1.));
+	float z = 1. - x - y;
+	
+	mat3 xyzToSrgb = mat3(
+		 3.2404542,-1.5371385,-0.4985314,
+		-0.9692660, 1.8760108, 0.0415560,
+		 0.0556434,-0.2040259, 1.0572252
+	);
+
+	vec3 srgb = vec3(x/y,1.,z/y) * xyzToSrgb;
+	return max(srgb,0.);
+}
+
 // Fragment
 float Noise2d(in vec2 x)
 {
@@ -195,16 +221,44 @@ float NoisyStarField(in vec2 UV, float Threshold)
     return StarVal;
 }
 
+
+vec3 Rotate(vec3 vector, vec3 from, vec3 to) 
+{
+	float cosTheta = dot(from, to);
+	vec3 axis = normalize(cross(from, to));
+	vec2 sc = vec2(sqrt(1.0 - cosTheta * cosTheta), cosTheta);
+	return sc.y * vector + sc.x * cross(axis, vector) + (1.0 - sc.y) * dot(axis, vector) * axis;
+}
+
+vec2 hash23(vec3 p3) 
+{
+    p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += dot(p3, p3.yzx + 19.19f);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+
+vec3 hash33(vec3 p3) {
+	p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += dot(p3, p3.yxz + 19.19);
+    return fract((p3.xxy + p3.yxx) * p3.zyx);
+}
+
 float StableStarField(in vec2 UV, float NoiseThreshold)
 {
+    // bilinear offset ->
     float FractUVx = fract(UV.x);
     float FractUVy = fract(UV.y);
     vec2 floorSample = floor(UV);
+
+    // Sample 4 points ->
     float v1 = NoisyStarField(floorSample, NoiseThreshold);
     float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
     float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
     float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
-    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy) // interp
+
+    // Basic Bilinear interpolation :
+    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
 					+ v2 * (1.0 - FractUVx) * FractUVy
 					+ v3 * FractUVx * (1.0 - FractUVy)
 					+ v4 * FractUVx * FractUVy;
@@ -216,16 +270,59 @@ float rand(vec2 co){
     return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-float ShadeStars(vec3 fragpos)
-{
-    fragpos.y = abs(fragpos.y);
-	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	vec2 uv = fragpos.xz / (1.0f + elevation);
-    float star = StableStarField(uv * 700.0f, 0.96);
-    star *= 0.06f;
-    float rand_val = rand(fragpos.xy);
-	return clamp(star, 0.0f, 100000.0f) * 3.46f;
-}
+//#define STAR_AA
+
+
+#ifndef STAR_AA
+    vec3 ShadeStars(vec3 fragpos)
+    {
+        vec3 v = fragpos * 256.0f;
+        v = Rotate(v,u_StrongerLightDirection,vec3(0.0f,0.0f,1.0f));
+        v = vec3(floor(v));
+        vec3 hash = hash33(v);
+        fragpos.y = abs(fragpos.y);
+	    float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	    vec2 uv = fragpos.xz / (1.0f + elevation);
+        float scale = mix(500.0f, 1100.0f, hash.y);
+        float star = StableStarField(uv * scale, 0.9756f);
+        float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x,1.5f),0.0f,1.0f));
+        vec3 Color = planckianLocus(RandomTemperature);
+        star *= 0.06f;
+        float rand_val = rand(fragpos.xy);
+        float twinkle = fract(u_Time * 0.5f * hash.z);
+        twinkle = clamp(pow(twinkle, 3.0f) * 1.5f, 0.1f, 1.0f);
+	    return clamp(star, 0.0f, 100000.0f) * mix(2.2f, 7.2f, twinkle) * 2.35f * Color;
+    }
+#else 
+    vec3 ShadeStars(vec3 in_fragpos)
+    {
+        const vec2 Offsets[4] = vec2[4](vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(1.0f));
+        vec3 Sum = vec3(0.0f);
+
+        for (int Sample = 0 ; Sample < 4 ; Sample++) {
+
+            vec3 fragpos = in_fragpos;
+            vec3 v = fragpos * 256.0f;
+            v = Rotate(v,u_StrongerLightDirection,vec3(0.0f,0.0f,1.0f));
+            v = vec3(floor(v));
+            vec2 hash = hash23(v);
+            fragpos.y = abs(fragpos.y);
+	        float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	        vec2 uv = fragpos.xz / (1.0f + elevation);
+            uv += (1.0f/Offsets[Sample])*4.0f;
+            float scale = mix(500.0f, 1100.0f, hash.y);
+            float star = StableStarField(uv * scale, 0.9756f);
+            float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x,1.5f),0.0f,1.0f));
+            vec3 Color = planckianLocus(RandomTemperature);
+            star *= 0.06f;
+            float rand_val = rand(fragpos.xy);
+	        vec3 final = clamp(star, 0.0f, 100000.0f) * 6.96f*Color ;
+            Sum+=final;
+        }
+
+        return Sum;
+    }
+#endif
 
 //
 // ray box intersection function 
@@ -760,6 +857,13 @@ vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
     return (uv_floor + uv_fract - 0.5) / res;
 }
 
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
@@ -859,6 +963,7 @@ void main()
             vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(SmoothstepUV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
             vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(SmoothstepUV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
             
+            AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
 
             vec3 NonAmplifiedNormal = NormalMapped;
 

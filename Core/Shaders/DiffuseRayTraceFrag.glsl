@@ -944,7 +944,6 @@ void main()
 	if (Moonstronger) {
 		SPP*=2; // We DONT cast shadow rays if the moon is stronger, so we save two shadow rays per diffuse ray, double the spp to make up for this
 	}
-
 	
 	
 	for (int s = 0 ; s < SPP ; s++)

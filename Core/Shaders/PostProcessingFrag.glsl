@@ -67,7 +67,9 @@ uniform bool u_Bloom = false;
 uniform bool u_RTAO = false;
 uniform bool u_ExponentialFog = false;
 uniform bool u_PointVolumetricsToggled = false;
-uniform bool u_PurkinjeEffect = false;
+
+
+uniform float u_PurkingeEffectStrength;
 
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
@@ -666,7 +668,7 @@ vec3 PurkinjeEffect(vec3 Color)
     vec3 ScopticLuma = XYZ * (1.33f * (1.0f + (XYZ.y + XYZ.z) / XYZ.x) - 1.68f);
     float Purkinge = dot(RodResponse, xyzToRGB(ScopticLuma));
     Color = mix(Color, Purkinge * vec3(0.5f, 0.7f, 1.0f), exp2(-Purkinge * 2.0f));
-    return mix(max(Color, 0.0), BaseColor, 0.5f);
+    return mix(max(Color, 0.0), BaseColor, clamp(1.0f-u_PurkingeEffectStrength,0.0f,1.0f));
 }
 
 #define CONE_OVERLAP_SIMULATION 0.25
@@ -685,9 +687,10 @@ vec3 TonemapHejlBurgess(in vec3 color)
 	return color;
 }
 
-const vec3 lumacoeff_rec709 = vec3(0.2125, 0.7154, 0.0721);
 
-vec3 vibrance(in vec3 color) {
+vec3 vibrance(in vec3 color) 
+{
+	const vec3 lumacoeff_rec709 = vec3(0.2125, 0.7154, 0.0721);
     float lum = dot(color, lumacoeff_rec709);
     vec3 mask = (color - vec3(lum));
     mask = clamp(mask, 0.0, 1.0);
@@ -791,7 +794,7 @@ void main()
 
 		o_Color = InputColor;
 		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
-		if (u_PurkinjeEffect) {
+		if (u_PurkingeEffectStrength > 0.01f) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
 		}
 
@@ -812,7 +815,7 @@ void main()
 		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
 		o_Color += PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
-		if (u_PurkinjeEffect) {
+		if (u_PurkingeEffectStrength>0.01f) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
 		}
 		o_Color = BasicTonemap(o_Color);
@@ -867,6 +870,7 @@ void main()
 		FilmGrain(o_Color);
 	}
 	
+
 
 	// used to test out ways to animate blue noise
 

@@ -200,6 +200,12 @@ void main()
 			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.85f) : (Moved ? 0.8f : 0.9f); 
 
+			bool FuckingSmooth = RoughnessAt <= 0.05f;
+
+			if (FuckingSmooth && Moved) {
+				BlendFactor = 0.0f;
+			}
+
 			// mix sh
 			o_SH = mix(CurrentColor, PrevSH, BlendFactor);
 

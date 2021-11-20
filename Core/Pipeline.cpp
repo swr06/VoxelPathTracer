@@ -76,9 +76,10 @@ static bool LightListDebug = false;
 
 static bool HejlBurgessTonemap = false;
 
+static float TextureDesatAmount = 0.1f;
 static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
-static bool PurkinjeEffect = false;
+static float PurkingeEffectStrength = 0.0f;
 static int SelectedColorGradingLUT = -1;
 static bool ColorDither = true;
 static float FilmGrainStrength = 0.0f;
@@ -377,7 +378,9 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
+			ImGui::SliderFloat("Desaturation Amount", &TextureDesatAmount, 0.0f, 1.0f);
 			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
+			ImGui::SliderFloat("Purkinje Effect Strength", &PurkingeEffectStrength, 0.0f, 1.0f);
 			ImGui::NewLine();
 			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
 			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
@@ -394,7 +397,6 @@ public:
 			ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
-			ImGui::Checkbox("Purkinje Effect?", &PurkinjeEffect);
 			ImGui::NewLine();
 			ImGui::NewLine();
 
@@ -2566,6 +2568,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetFloat("u_CloudBoxSize", Clouds::CloudRenderer::GetBoxSize());
 		ColorShader.SetFloat("u_SunStrengthModifier", SunStrengthModifier);
 		ColorShader.SetFloat("u_MoonStrengthModifier", MoonStrengthModifier);
+		ColorShader.SetFloat("u_TextureDesatAmount", TextureDesatAmount);
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
@@ -3029,7 +3032,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
 		PostProcessingShader.SetBool("u_HejlBurgess", HejlBurgessTonemap);
-		PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
+		//PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
 		PostProcessingShader.SetBool("u_PointVolumetricsToggled", PointVolumetricsToggled&& PointVolumetricStrength > 0.01f);
@@ -3037,6 +3040,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetFloat("u_Exposure", ComputedExposure * ExposureMultiplier);
 		PostProcessingShader.SetFloat("u_ChromaticAberrationStrength", ChromaticAberrationStrength);
 		PostProcessingShader.SetFloat("u_GodRaysStrength", GodRaysStrength);
+		PostProcessingShader.SetFloat("u_PurkingeEffectStrength", PurkingeEffectStrength);
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
