@@ -24,7 +24,8 @@ float TexelFetchNormalized(vec2 uv) {
 
 float GetGBufferWeight(vec2 UV, float base_depth)
 {
-    return clamp(pow(1.0f / abs(texture(u_DepthTexture,UV).x - base_depth), 32.0f),0.01f,1.0f);
+	return 1.0f;
+    return clamp(pow(1.0f / abs(texture(u_DepthTexture,UV).x - base_depth), 1.0f),0.0125f,1.0f);
 }
 
 void GaussianVertical(vec2 uv, float BaseDepth, float wg, inout vec3 OutPointVolumetrics) 
@@ -42,17 +43,17 @@ void GaussianVertical(vec2 uv, float BaseDepth, float wg, inout vec3 OutPointVol
     vec3 PointVolumetrics = vec3(0.0f);
     vec4 SunVolumetrics = vec4(0.0f);
 
-    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv).xyz * 0.2270270270f;
-    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv + (OffsetOne * OneOverResolution)).xyz * 0.3162162162f;
-    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv - (OffsetOne * OneOverResolution)).xyz * 0.3162162162f;
-    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv + (OffsetTwo * OneOverResolution)).xyz * 0.0702702703f;
-    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv - (OffsetTwo * OneOverResolution)).xyz * 0.0702702703f;
+    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv).xyz * 0.2270270270f * Weights[0];
+    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv + (OffsetOne * OneOverResolution)).xyz * 0.3162162162f  * Weights[0];
+    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv - (OffsetOne * OneOverResolution)).xyz * 0.3162162162f  * Weights[0];
+    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv + (OffsetTwo * OneOverResolution)).xyz * 0.0702702703f  * Weights[0];
+    PointVolumetrics += SampleTextureClamped(u_InputPointVolumetrics, uv - (OffsetTwo * OneOverResolution)).xyz * 0.0702702703f  * Weights[0];
 
     // Weight the above weighted sum with the gaussian horizontal weight :
     OutPointVolumetrics += PointVolumetrics * wg; 
 }
   
-void Spatial(vec2 UV, float BaseDepth, out vec3 PointVolumetrics) 
+void Denoise(vec2 UV, float BaseDepth, out vec3 PointVolumetrics) 
 {
     vec2 OneOverResolution = 1.0f / textureSize(u_InputPointVolumetrics, 0);
 
@@ -70,9 +71,7 @@ void Spatial(vec2 UV, float BaseDepth, out vec3 PointVolumetrics)
 
 void main() 
 {
-    float BaseDepth = TexelFetchNormalized( v_TexCoords).x; // for gbuffer weight
-    Spatial(v_TexCoords, BaseDepth, o_PointVolumetrics);
-
-    // clamp
+    float BaseDepth = texture(u_DepthTexture, v_TexCoords).x; // for gbuffer weight
+    Denoise(v_TexCoords, BaseDepth, o_PointVolumetrics);
     o_PointVolumetrics = clamp(o_PointVolumetrics, 0.0f, 16.0f);
 }

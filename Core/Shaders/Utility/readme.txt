@@ -1,1 +1,1 @@
-These are all utility functions/data that can be used in the shaders for whatever
+Useful utility functions and data.
