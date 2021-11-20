@@ -5,7 +5,7 @@
 #define WORLD_SIZE_Z 384
 
 layout (location = 0) out float o_Shadow;
-layout (location = 1) out float o_IntersectionTransversal;
+layout (location = 1) out float o_IntersectionTransversal; // -> Used as an input to the denoiser 
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -421,7 +421,8 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 JitteredLightDirection = normalize(u_LightDirection);
+	vec3 NormalizedDir = normalize(u_LightDirection);
+	vec3 JitteredLightDirection = NormalizedDir;
 
 
 
@@ -456,12 +457,21 @@ void main()
 		// 0.98906604617 -> physically based
 		// 0.999825604617
 		const float CosTheta = 0.9999505604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
-		vec3 ConeSample = TBN * SampleCone(Xi.xy, CosTheta);
+		vec3 ConeSample = TBN * SampleCone(Xi.xy, CosTheta); 
         JitteredLightDirection = ConeSample;
 	}
 
 	vec3 RayDirection = (JitteredLightDirection);
 	vec3 SampledNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
+	
+	float NDotL = dot(SampledNormal, RayDirection);
+
+	if (NDotL <= 0.01f) {
+		o_Shadow = 1.0f;
+		o_IntersectionTransversal = 32.0f / 100.0f; // -> Any transversal. Doesn't matter 
+		return;
+	}
+
 	vec3 Bias = SampledNormal * vec3(0.06f);
 	
 	if (true) //(u_DoFullTrace)

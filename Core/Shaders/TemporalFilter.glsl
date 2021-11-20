@@ -314,10 +314,12 @@ vec3 ClipShadow(vec2 Reprojected)
     }
 
 	vec3 HistoryShadow = texture(u_PreviousColorTexture, Reprojected).xyz;
-	return clipAABB(HistoryShadow, MinColor-0.025f, MaxColor+0.025f);
+
+	 // Bias to avoid noticable clipping, while at the same time reducing ghosting
+	return clipAABB(HistoryShadow, MinColor-0.05f, MaxColor+0.05f);
 }
 
-// Used to test shadow clip
+// Clips based on variance 
 vec3 VarianceClip(vec2 Reproj, vec3 CenterCurrent) 
 {
 	vec2 Offsets[4] = vec2[4](vec2(-1.0,  0.0), 
@@ -367,7 +369,7 @@ void main()
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
 			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
-			float t = u_ShadowTemporal ? 0.640f : 1.1f;
+			float t = u_ShadowTemporal ? 0.5f - 0.01f : 1.1f;
 
 			if (d > t) 
 			{

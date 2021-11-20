@@ -2,23 +2,7 @@
 
 #version 450 core
 
-float bayer2(vec2 a){
-    a = floor(a);
-    return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
-
-
-
-#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
-#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
-
 #define CLOUD_HEIGHT 70
-#define PCF_COUNT 4 // we really dont care about the low sample count because we have taa.
 #define PI 3.14159265359
 #define THRESH 1.41414
 
@@ -102,6 +86,20 @@ uniform bool u_ShouldDitherUpscale = true;
 
 uniform float u_CloudBoxSize;
 uniform int u_GrassBlockProps[10];
+
+// Bayer dither
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 
 // SSBOS
 layout (std430, binding = 0) buffer SSBO_BlockData
@@ -276,22 +274,39 @@ float rand(vec2 co){
 #ifndef STAR_AA
     vec3 ShadeStars(vec3 fragpos)
     {
+        // Rotate view vector with respect to sun direction
         vec3 v = fragpos * 256.0f;
-        v = Rotate(v,u_StrongerLightDirection,vec3(0.0f,0.0f,1.0f));
+        v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
+        
+        // floor it to maintain temporal coherency
         v = vec3(floor(v));
+
+        // Hash 
         vec3 hash = hash33(v);
+
+        // Negatives make everything shit itself 
         fragpos.y = abs(fragpos.y);
+
+        // Calculate elevation and approximate uv
 	    float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	    vec2 uv = fragpos.xz / (1.0f + elevation);
+
+        // Add some variation to the scale 
         float scale = mix(500.0f, 1100.0f, hash.y);
-        float star = StableStarField(uv * scale, 0.9756f);
-        float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x,1.5f),0.0f,1.0f));
+        float star = StableStarField(uv * scale, 0.96f);
+
+        // Use the planckian locus scale to get a celestial temperature from value 
+        float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x, 1.5f), 0.0f, 1.0f));
         vec3 Color = planckianLocus(RandomTemperature);
+        
+        // Twinkle
+        float twinkle = sin(u_Time * 2.0f * hash.z);
+        twinkle = twinkle * twinkle;
+
         star *= 0.06f;
-        float rand_val = rand(fragpos.xy);
-        float twinkle = fract(u_Time * 0.5f * hash.z);
-        twinkle = clamp(pow(twinkle, 3.0f) * 1.5f, 0.1f, 1.0f);
-	    return clamp(star, 0.0f, 100000.0f) * mix(2.2f, 7.2f, twinkle) * 2.35f * Color;
+
+        vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+	    return FinalStar;
     }
 #else 
     vec3 ShadeStars(vec3 in_fragpos)
@@ -1386,12 +1401,12 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
     return clamp(col, 0.0, 65535.0);
 }
 
-// 
 bool CompareVec3(vec3 v1, vec3 v2) {
 	float e = 0.0125f;
 	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
 }
 
+// Use a derivative to fix the uv seam ->
 vec4 GetUVDerivative(in vec2 P) 
 {
     vec2 UV = fract(P);

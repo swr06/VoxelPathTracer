@@ -1186,7 +1186,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		if (UpdatePlayerCollision) {
+		if (UpdatePlayerCollision && app.GetCurrentFrame() > 8) {
 			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
 		}
 
