@@ -890,7 +890,7 @@ void main()
 	LIGHT_COLOR *= 0.4f*u_GISunStrength;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 	Moonstronger = !SunStronger;
-	EmissivityMultiplier = Moonstronger ? 13.0f : 12.0f;
+	EmissivityMultiplier = Moonstronger ? 15.0f : 12.0f;
 	// 
 
 

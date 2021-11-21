@@ -9,9 +9,10 @@ in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 
-uniform sampler2D u_CurrentColorTexture;
+uniform sampler2D u_CurrentColorTexture; // -> Current SHy 
+uniform sampler2D u_PreviousColorTexture; // -> Previous SHy
+
 uniform sampler2D u_CurrentPositionTexture;
-uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
 uniform sampler2D u_CurrentCoCg;
@@ -23,6 +24,8 @@ uniform sampler2D u_PreviousNormalTexture;
 uniform sampler2D u_PBRTex;
 uniform sampler2D u_SpecularHitDist;
 uniform sampler2D u_PrevSpecularHitDist;
+
+uniform sampler2D u_EmissivityIntersectionMask;
 
 uniform sampler2D u_NormalTexture;
 
@@ -42,6 +45,10 @@ uniform vec3 u_CurrentCameraPos;
 
 uniform bool u_ReflectionTemporal = false;
 uniform bool TEMPORAL_SPEC = false;
+
+// Firefly rejection ->
+uniform bool u_FireflyRejection;
+uniform bool u_AggressiveFireflyRejection;
 
 vec2 Dimensions;
 
@@ -129,6 +136,102 @@ void ComputeClamped(vec2 r, out vec4 sh, out vec2 cocg) {
 	cocg = clamp(texture(u_PrevCoCg, r).xy, MinCoCg, MaxCoCg);
 }
 
+float SHToY(vec4 shY)
+{
+    return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic
+}
+
+float SHToY(float shY)
+{
+    return max(0, 3.544905f * shY); // get luminance (Y) from the first spherical harmonic
+}
+
+vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
+{
+    vec3 StandardDeviation = vec3(sqrt(max(0.00001f, VarianceEstimate))); // Calculate standard deviation 
+    vec3 Threshold = 0.1f + Mean + StandardDeviation * 8.0;
+    vec3 ErrorEstimate = vec3(max(vec3(0.0f), Radiance - Threshold));
+    return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); 
+}
+
+void FireflyReject(inout vec4 InputSH, inout vec2 InputCoCg) 
+{
+	float Y = SHToY(InputSH);
+	int SampleThreshold = u_AggressiveFireflyRejection ? 3 : 4;
+
+	vec2 Offsets[4] = vec2[4](vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(-1.0f, 0.0f), vec2(0.0f, -1.0f));
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+
+	vec4 NonLitSHySum = vec4(0.0f);
+	vec2 NonLitCoCgSum = vec2(0.0f);
+	float MinY = 1000.0f;
+	int UnlitSampleSum = 0;
+	
+	for (int i = 0 ; i < 4 ; i++) {
+		vec2 SampleCoord = v_TexCoords + Offsets[i] * TexelSize;
+		float Mask = texture(u_EmissivityIntersectionMask, SampleCoord).x;
+		vec4 SHy = texture(u_CurrentColorTexture, SampleCoord);
+
+		if (Mask < 0.01f) {
+			NonLitSHySum += SHy;
+			NonLitCoCgSum += texture(u_CurrentCoCg, SampleCoord).xy;
+			UnlitSampleSum++;
+		}
+
+		float yy = SHToY(SHy);
+		MinY = min(MinY, yy);
+	}
+
+	if (UnlitSampleSum >= SampleThreshold) {
+
+		// Average ->
+		NonLitSHySum /= float(UnlitSampleSum);
+		NonLitCoCgSum /= float(UnlitSampleSum);
+
+		InputSH = NonLitSHySum;
+		InputCoCg = NonLitCoCgSum;
+	}
+
+	return;
+}
+
+void FireflyRejectLuminosity(inout vec4 InputSH, inout vec2 InputCoCg) 
+{
+	float Y = SHToY(InputSH);
+
+	vec2 Offsets[4] = vec2[4](vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(-1.0f, 0.0f), vec2(0.0f, -1.0f));
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+	int SampleThreshold = u_AggressiveFireflyRejection ? 3 : 4;
+
+	vec4 NonLitSHy = vec4(0.0f);
+	vec2 NonLitCoCg = vec2(0.0f);
+	float MinY = 1000.0f;
+	int Count = 0;
+	
+	for (int i = 0 ; i < 4 ; i++) {
+		vec2 SampleCoord = v_TexCoords + Offsets[i] * TexelSize;
+		vec4 SHy = texture(u_CurrentColorTexture, SampleCoord);
+
+		float yy = SHToY(SHy);
+		float yerror = abs(yy - Y);
+
+		if (yerror > 0.25f) {
+			NonLitSHy = SHy;
+			NonLitCoCg = texture(u_CurrentCoCg, SampleCoord).xy;
+			Count++;
+		}
+
+		MinY = min(MinY, yy);
+	}
+
+	if (Count >= SampleThreshold) {
+		InputSH = NonLitSHy;
+		InputCoCg = NonLitCoCg;
+	}
+
+	return;
+}
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -136,13 +239,25 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = SampleNormal(u_NormalTexture, v_TexCoords);
+	vec4 CurrentSHy = texture(u_CurrentColorTexture, CurrentCoord).rgba;
+	vec2 CurrentCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+	
+	// Firefly rejection ->
+
+	if (u_FireflyRejection) {
+		float Mask = texture(u_EmissivityIntersectionMask, v_TexCoords).x;
+
+		if (Mask > 0.05f) 
+		{
+			FireflyReject(CurrentSHy, CurrentCoCg);
+		}
+	}
 
 	if (CurrentPosition.a > 0.0f&&TEMPORAL_SPEC)
 	{
 		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
 
 		float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
-		vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 
 		bool LessValid = false;
 		vec2 Reprojected; 
@@ -207,25 +322,20 @@ void main()
 			}
 
 			// mix sh
-			o_SH = mix(CurrentColor, PrevSH, BlendFactor);
-
-			// store cocg
-			vec2 CurrentCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+			o_SH = mix(CurrentSHy, PrevSH, BlendFactor);
 			o_CoCg = mix(CurrentCoCg, PrevCoCg, BlendFactor);
 		}
 
 		else 
 		{
-			o_SH = CurrentColor.xyzw;
-			vec2 CurrentCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+			o_SH = CurrentSHy.xyzw;
 			o_CoCg = CurrentCoCg;
 		}
 	}
 
 	else 
 	{
-		o_SH = texture(u_CurrentColorTexture, v_TexCoords);
-		vec2 CurrentCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+		o_SH = CurrentSHy;
 		o_CoCg = CurrentCoCg;
 	}
 }

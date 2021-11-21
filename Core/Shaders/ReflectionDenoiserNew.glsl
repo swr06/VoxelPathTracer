@@ -118,11 +118,12 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
     return GetNormalFromID(texture(samp, txc).x);
 }
 
-
-// Basic clamp firefly reject
-vec4 FireflyReject(vec4 Col)
+vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
 {
-	return vec4(clamp(Col.xyz, 0.0f, 1.0f + 0.8f), Col.w);
+    vec3 StandardDeviation = vec3(sqrt(max(0.00001f, VarianceEstimate))); // Calculate standard deviation 
+    vec3 Threshold = 0.1f + Mean + StandardDeviation * 8.0;
+    vec3 ErrorEstimate = vec3(max(vec3(0.0f), Radiance - Threshold));
+    return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); // -> Dim based on variance error 
 }
 
 vec2 CalculateUV(vec3 world_pos, in vec3 normal);

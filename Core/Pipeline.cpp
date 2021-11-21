@@ -107,6 +107,7 @@ static bool SVGF_LARGE_KERNEL = false;
 
 static bool DenoiseSunShadows = true;
 
+
 static bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
 
 static bool CHECKERBOARD_SPP = true;
@@ -196,6 +197,8 @@ static bool GodRays = false;
 static bool FakeGodRays = false;
 static bool RoughReflections = true;
 static bool DenoiseReflections = true;
+static bool ReflectionFireflyRejection = true;
+static bool AggressiveFireflyRejection = true;
 static bool RenderParticles = true;
 static bool Bloom_HQ = false;
 
@@ -287,7 +290,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
-			ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
+			//ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
 			ImGui::NewLine();
 			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
 			ImGui::NewLine();
@@ -346,29 +349,24 @@ public:
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
 			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
 			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
-			ImGui::SliderFloat("RTAO Resolution ", &RTAOResolution, 0.1f, 0.9f);
-			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
+
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
-		//	ImGui::Checkbox("Brutal FXAA? (Smoother edges, might overblur.)", &BrutalFXAA);
 			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
 			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
-			
-			//ImGui::Checkbox("Do second spatial filtering pass (For indirect, more expensive, reduces noise) ?", &DoSecondSpatialPass);
-			
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
+			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
+			ImGui::NewLine();
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
-			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
+			ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
+			ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+			ImGui::NewLine();
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
-
-			ImGui::Checkbox("RTAO_1?", &VXAO);
-			ImGui::Checkbox("Do RTAO (RTAO_1 not availible when SVGF filtering is disabled!)", &RTAO);
-
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 
 
@@ -396,7 +394,13 @@ public:
 			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
 			ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
-			ImGui::Checkbox("Bloom (Expensive!) ?", &Bloom);
+			ImGui::Checkbox("Bloom?", &Bloom);
+			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
+
+			ImGui::NewLine();
+			ImGui::Checkbox("RTAO_1 Other?", &VXAO);
+			ImGui::Checkbox("Do RTAO (RTAO_1 not availible when SVGF filtering is disabled!)", &RTAO);
+			ImGui::SliderFloat("RTAO Resolution (Leave as-is if SVGF is on.)", &RTAOResolution, 0.1f, 0.9f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 
@@ -706,8 +710,8 @@ const glm::ivec3 HistoryLUT[4] = {
 };
 
 
-GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
@@ -1186,7 +1190,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		if (UpdatePlayerCollision && app.GetCurrentFrame() > 8) {
+		if (UpdatePlayerCollision && app.GetCurrentFrame() > 4) {
 			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
 		}
 
@@ -2219,6 +2223,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_PrevSpecularHitDist", 8);
 			SpecularTemporalFilter.SetInteger("u_NormalTexture", 9);
 			SpecularTemporalFilter.SetInteger("u_PreviousNormalTexture", 10);
+			SpecularTemporalFilter.SetInteger("u_EmissivityIntersectionMask", 11);
 
 
 			SpecularTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
@@ -2231,6 +2236,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			SpecularTemporalFilter.SetBool("u_ReflectionTemporal", true);
 			SpecularTemporalFilter.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
+			SpecularTemporalFilter.SetBool("u_FireflyRejection", ReflectionFireflyRejection);
+			SpecularTemporalFilter.SetBool("u_AggressiveFireflyRejection", AggressiveFireflyRejection);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -2271,6 +2278,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE10);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE11);
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(3));
 
 
 			VAO.Bind();

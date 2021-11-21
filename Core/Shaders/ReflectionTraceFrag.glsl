@@ -16,6 +16,7 @@
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_HitDistance;
+layout (location = 3) out float o_EmissivityHitMask; // -> Used as input to the firefly rejection filter 
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -509,6 +510,8 @@ void main()
 	{
 		o_SH = vec4(0.0f);
 		o_CoCg.xy = vec2(0.0f, 0.0f);
+		o_EmissivityHitMask = 0.0f;
+		o_HitDistance = -1.0f;
 		return;
 	}
 
@@ -550,6 +553,8 @@ void main()
 
 	float AveragedHitDistance = 0.001f;
 	float TotalMeaningfulHits = 0.0f;
+
+	float EmissivityMask = 0.0f;
 
 	for (int s = 0 ; s < SPP ; s++)
 	{
@@ -697,12 +702,13 @@ void main()
 				
 				if (Emissivity > 0.2f)
 				{
-					float m = SPP <= 5 ? 16.5f : 12.0f;
+					float m = 20.0f;
 					float lbiasx = 0.02501f;
                     float lbiasy = 0.03001f;
                     Emissivity *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
 					DirectLighting = Albedo * max(Emissivity * m, 2.0f);
+					EmissivityMask = 1.0f;
 				}
 			}
 			
@@ -745,6 +751,7 @@ void main()
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
 	o_HitDistance = TotalMeaningfulHits > 0.01f ? AveragedHitDistance : -1.0f;
+	o_EmissivityHitMask = EmissivityMask;
 }
 
 bool IsInVolume(in vec3 pos)
