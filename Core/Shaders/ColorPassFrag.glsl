@@ -553,7 +553,9 @@ float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 
 bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 {
-    float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+	float x = 0.5 - 0.4f;
+	vec3 VP = u_ViewerPosition + vec3(-x, -x, +x);
+    float t = capIntersect(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
     return t > 0.0f;
 }
 
@@ -568,28 +570,43 @@ bool InScreenSpace(vec2 x)
     return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
 }
 
+
+vec3 SampleCone(vec2 Xi, float CosThetaMax) 
+{
+    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
+    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
+    float phi = Xi.y * PI * 2.0;
+    vec3 L;
+    L.x = SinTheta * cos(phi);
+    L.y = SinTheta * sin(phi);
+    L.z = CosTheta;
+    return L;
+}
+
 int RNG_SEED;
 
 float ComputeShadow(vec3 world_pos, vec3 flat_normal)
 {
     vec2 Txc = ReprojectShadow(world_pos);
     float BaseShadow = texture(u_ShadowTexture, Txc).r;
+	
     float Shadow = BaseShadow;
     float PlayerShadow  = 0.0f;
-    int PlayerShadowSamples = 12;
+    int PlayerShadowSamples = 6;
 
     vec3 BiasedWorldPos = world_pos - (flat_normal * 0.255f);
     if (u_ContactHardeningShadows) {
+		vec3 L = normalize(u_StrongerLightDirection);
+		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
+		vec3 B = cross(T, L);
+		mat3 TBN = mat3(T, B, L);
+	
         for (int i = 0 ; i < PlayerShadowSamples ; i++)
         {
             vec2 Hash = hash2();
-	        vec2 Hash2 = hash2();
-            vec3 JitteredLightDirection = u_StrongerLightDirection;
-            JitteredLightDirection.x += Hash.x * 0.03;
-	        JitteredLightDirection.z += Hash.y * 0.03;
-	        JitteredLightDirection.y += abs(Hash2.y * 0.01);
-	        JitteredLightDirection = normalize(JitteredLightDirection);
-            PlayerShadow += float(GetPlayerIntersect(BiasedWorldPos.xyz, JitteredLightDirection.xyz));
+	        const float CosTheta = 0.9999905604617f; // -> changed to reduce variance. THIS IS NOT PHYSICALLY CORRECT
+			vec3 ConeSample = TBN * SampleCone(Hash.xy, CosTheta); 
+            PlayerShadow += float(GetPlayerIntersect(BiasedWorldPos.xyz, ConeSample.xyz));
         }
 
         PlayerShadow /= float(PlayerShadowSamples);
@@ -603,6 +620,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
     return clamp(BaseShadow + PlayerShadow, 0.0f, 1.0f);
 }
 
+
 bool IsInScreenSpaceBounds(in vec2 tx)
 {
     if (tx.x > 0.0f && tx.y > 0.0f && tx.x < 1.0f && tx.y < 1.0f)
@@ -613,10 +631,16 @@ bool IsInScreenSpaceBounds(in vec2 tx)
     return false;
 }
 
+//
 float GetDisplacementAt(in vec2 txc, in float pbridx) 
 {
     return texture(u_BlockPBRTextures, vec3(vec2(txc.x, txc.y), pbridx)).b * 0.35f;
 }
+
+// Parallax occlusion mapping 
+// Exponential ray step 
+// Tried dithering ray step, which resulted in not-good results (introduces noise which is hard to tackle as you need this to be temporally coherent)
+// - to avoid artifacts
 
 vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float pbridx) // View direction should be in tangent space!
 { 
@@ -651,7 +675,7 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
 }   
 
 
-
+// handles roughness, atleast.
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
     float cosTheta = max(dot(norm, Eye), 0.0);
@@ -706,7 +730,7 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
-
+// Spatially upscales indirect data ->
 void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg)
 {
 
@@ -763,6 +787,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
 }
 
+
 vec3 saturate(vec3 x)
 {
     return clamp(x, 0.0f, 1.0f);
@@ -782,8 +807,8 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
-// from unreal
-vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness) 
+// Approximates dfg term ->
+vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness) // from unreal 
 {
     const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
     const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);

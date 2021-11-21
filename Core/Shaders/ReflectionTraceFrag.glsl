@@ -371,6 +371,7 @@ vec3 SHToIrradianceA(vec4 shY, vec2 CoCg)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
+// Shift x texture coordinate if the current step is a checker step ->
 vec2 GetCheckerboardedUV()
 {
 	vec2 Screenspace = v_TexCoords;
@@ -379,7 +380,7 @@ vec2 GetCheckerboardedUV()
 	return Screenspace;
 }
 
-
+// Fetch correct texture ids 
 vec4 GetTextureIDs(int BlockID) 
 {
 	return vec4(float(BlockAlbedoData[BlockID]),
@@ -388,6 +389,7 @@ vec4 GetTextureIDs(int BlockID)
 				float(BlockEmissiveData[BlockID]));
 }
 
+// Samples the block id data texture 
 int GetBlockID(vec2 txc)
 {
 	float id = texture(u_BlockIDTex, txc).r;
@@ -421,6 +423,7 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
     return GetNormalFromID(texture(samp, txc).x);
 }
 
+// Reprojects hit coordinate to screen space to try and infer indirect lighting and the visibility term for the direct brdf ->
 vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success, out vec4 PositionAt)
 {
     vec4 ProjectedPosition = u_Projection * u_View * vec4(HitPosition, 1.0f);
@@ -434,12 +437,14 @@ vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool
     return ProjectedPosition.xy;
 }
 
+// rng ->
 float HASH2SEED = 0.0f;
 vec2 hash2() 
 {
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
+// Samples blue noise data ->
 float SampleBlueNoise1D(ivec2 Pixel, int Index, int Dimension) {
 	return samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(Pixel, Index, Dimension);
 }
@@ -456,6 +461,9 @@ vec2 SampleBlueNoise2D(int Index)
 	return Noise;
 }
 
+
+// Gets the most closest reflection direction to help reduce variance 
+// *NOT* physically correct as this will add bias which is not accounted for in the pdf 
 vec3 GetReflectionDirection(vec3 N, float R) {
 
 	// Gets a reflection vector that is closest to the normal
@@ -477,6 +485,7 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 	return BestDirection;
 }
 
+
 void main()
 {
 	float TIME = TEMPORAL_SPEC ? u_Time : 1.0f;
@@ -494,6 +503,8 @@ void main()
 		SPP = int(mix(u_SPP, (u_SPP + u_SPP % 2) / 2, float(CheckerStep)));
 	}
 
+
+
 	SPP = clamp(SPP, 1, 16);
 
 	int total_hits = 0;
@@ -504,8 +515,9 @@ void main()
 	// no checkering here 
 	vec2 suv = v_TexCoords;
 
+	// Current gbuffer texel is the sky ->
 	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
-
+	
 	if (SampledWorldPosition.w < 0.0f)
 	{
 		o_SH = vec4(0.0f);
@@ -515,6 +527,7 @@ void main()
 		return;
 	}
 
+
 	vec3 InitialTraceNormal = SampleNormalFromTex(u_InitialTraceNormalTexture, suv).rgb;
 	vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
 
@@ -522,12 +535,13 @@ void main()
 	vec3 iTan, iBitan;
 	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
 	iUV.y = 1.0f - iUV.y;
-	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba;
+	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba; // -> Base pbr data 
+
 
 	float RoughnessAt = PBRMap.r;
 	float MetalnessAt = PBRMap.g;
-	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition);
-	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal));
+	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
+	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal)); 
 	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.05500f; // Apply bias.
     NormalMappedInitial = normalize(NormalMappedInitial);
@@ -553,6 +567,8 @@ void main()
 
 	float AveragedHitDistance = 0.001f;
 	float TotalMeaningfulHits = 0.0f;
+	
+	
 
 	float EmissivityMask = 0.0f;
 
@@ -658,36 +674,44 @@ void main()
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
+			bool PlayerInShadow = GetPlayerIntersect(HitPosition + Normal*0.035f, NormalizedStrongerDir);
+			
 			// Compute shadow rays for only 1/4 the reflection samples because performance :p
 			if ((ShadowItr < max(SPP / 4, 1))) 
 			{
-				// Try to reuse screen space shadow info : 
+				if (!PlayerInShadow) {
+			
+					// Try to reuse screen space shadow info to avoid casting a shadow ray : 
+					if (ReprojectionSuccessful && u_ReprojectToScreenSpace && InThresholdedScreenSpace(ScreenSpaceReprojected))
+					{
+						ComputedShadow = texture(u_ShadowTrace, ScreenSpaceReprojected).x;
+					}
 
-				if (ReprojectionSuccessful && u_ReprojectToScreenSpace && InThresholdedScreenSpace(ScreenSpaceReprojected))
-				{
-					ComputedShadow = texture(u_ShadowTrace, ScreenSpaceReprojected).x;
+					else 
+					{
+						ComputedShadow = GetShadowAt(HitPosition + Normal*0.055f, NormalizedStrongerDir);
+					}
 				}
-
-				else 
-				{
-					ComputedShadow = GetShadowAt(HitPosition + Normal*0.055f, NormalizedStrongerDir);
+				
+				else {
+				
+					ComputedShadow = 1.0f;
 				}
 
 				ShadowItr = ShadowItr + 1;
 			}
 
-			else
-			{
-				// basically free so why the fuck not
-				ComputedShadow += GetPlayerIntersect(HitPosition + Normal*0.035f, NormalizedStrongerDir) ? 1.0f : 0.0f;
-				ComputedShadow = clamp(ComputedShadow, 0.0f, 1.0f);
-			}
+			
+			const float AmbientBias = 1.25f;
+			Ambient = (Ambient * AmbientBias * clamp(AO, 0.1f, 1.0f)) * vec3(Albedo);
 
-
-			Ambient = Ambient * vec3(Albedo);
-
-
-			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f);
+			// Basic normal mapping ->
+			// Sampled at a lower LOD
+			vec3 NormalMapped = TBN * (textureLod(u_BlockNormalTextures, vec3(UV,texture_ids.y), 3).rgb * 2.0f - 1.0f); 
+			
+			// Calculate cook torrance brdf ->
+			// This is not a 100% accurate, mostly for performance sake (and to reduce variance)
+			
 			vec3 DirectLighting =  Ambient + CalculateDirectionalLight(HitPosition, 
 								   NormalizedStrongerDir, 
 								   Radiance, 
@@ -703,27 +727,35 @@ void main()
 				if (Emissivity > 0.2f)
 				{
 					float m = 20.0f;
+					
+					// Fix light leak at the edges ->
 					float lbiasx = 0.02501f;
                     float lbiasy = 0.03001f;
                     Emissivity *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
+					
+					// Compute direct lighting 
 					DirectLighting = Albedo * max(Emissivity * m, 2.0f);
+					
+					// Set emissivity mask 
+					// This is used as in input to the denoiser
 					EmissivityMask = 1.0f;
 				}
 			}
 			
 			vec3 Computed;
 			Computed = DirectLighting;
-			Computed *= AO;
 
 			if (u_ReflectPlayer) {
 				ComputePlayerReflection(refpos, R, Computed, T);
 			}
-
+			
+			// Project to 2nd level spherical harmonic 
 			float[6] SH = IrridianceToSH(Computed, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
 			TotalCoCg += vec2(SH[4], SH[5]);
 
+			// Store hit distance for reprojection and denoiser ->
 			AveragedHitDistance += T; TotalMeaningfulHits += 1.0f;
 		}
 
@@ -743,16 +775,24 @@ void main()
 		total_hits++;
 	}
 
-	// division by zero makes some gpus go insane
 	AveragedHitDistance /= max(TotalMeaningfulHits, 0.01f);
-	
 	TotalSH /= max(float(total_hits), 1.0f);
 	TotalCoCg /= max(float(total_hits), 1.0f);
+	
+	// Store ->
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
 	o_HitDistance = TotalMeaningfulHits > 0.01f ? AveragedHitDistance : -1.0f;
 	o_EmissivityHitMask = EmissivityMask;
+	
+	// Clamp ->
+	o_SH = clamp(o_SH, -100.0f, 100.0f);
+	o_CoCg = clamp(o_CoCg, -50.0f, 50.0f);
+	o_HitDistance = clamp(o_HitDistance, -10.0f, 200.0f);
+	o_EmissivityHitMask = clamp(o_EmissivityHitMask, 0.0f, 1.0f);
 }
+
+// Intersection ->
 
 bool IsInVolume(in vec3 pos)
 {
@@ -869,6 +909,9 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
+
+// Ray capsule intersection test ->
+
 // http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
 float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 {
@@ -909,10 +952,13 @@ vec3 capNormal(in vec3 pos, in vec3 a, in vec3 b, in float r)
 
 bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 {
-     float t = capIntersect(WorldPos, d, u_ViewerPosition, u_ViewerPosition + vec3(0.0f, 1.0f, 0.0f), 0.5f);
-     return t > 0.0f;
+    float x = 0.4;
+	vec3 VP = u_ViewerPosition + vec3(-x, -x, +x);
+    float t = capIntersect(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+    return t > 0.0f;
 }
 
+// Basic triplanar uv mapping ->
 vec3 TriplanarPlayerSprite(vec3 p, vec3 n)
 {
 	float TextureScale = 3.0f;
@@ -1074,3 +1120,5 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
         uv = vec2(fract(world_pos.xy));
     }
 }
+
+// End 
