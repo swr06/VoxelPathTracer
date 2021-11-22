@@ -1,14 +1,14 @@
 #version 330 core
 
-#define CLOUD_THICKNESS 940.0f
-#define CLOUD_HEIGHT 1000.0
-#define CLOUD_TOP (CLOUD_HEIGHT + CLOUD_THICKNESS)
-
 #define PI 3.14159265359
+#define pi PI
 #define TAU (3.14159265359 * 2.0f)
+#define tau TAU
 #define HALF_PI (3.14159265359 * 0.5f)
+
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
+
 #define CHECKERBOARDING
 
 // sample at lower lods for the lighting 
@@ -49,6 +49,7 @@ uniform float u_CirrusScale;
 
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
+uniform vec3 u_ViewerPosition;
 uniform float BoxSize;
 uniform float u_DetailIntensity;
 
@@ -61,28 +62,34 @@ uniform vec3 u_DetailParams; // scale, enabled, exponent
 uniform bool u_Checker;
 uniform bool u_UseBayer;
 uniform vec2 u_WindowDimensions;
+uniform vec2 u_JitterValue;
 uniform float u_TimeScale = 1.0f;
-
 
 uniform bool u_HighQualityClouds;
 uniform bool u_CurlNoiseOffset;
 
+uniform vec3 u_StepCounts;
+uniform bool CHECKER_STEP_COUNT;
+
+uniform float u_SunVisibility;
+
+
+// 
 const float ACCUM_MULTIPLIER = 50.0f;
+const float DENSITY_MULTIPLIER = 50.0f;
+//
 
+// Physical values ->
 
+const float EarthRadius = 600000.0f;
+const float SphereInnerRadius = 5000.0f;
+const float SphereOuterRadius = 17000.0f;
+const float PlanetRadius = 6371e3;
+const float AtmosphereRadius = 6471e3;
 
-// used for dither tests 
-const vec3 NoiseKernel[6] = vec3[] 
-(
-	vec3( 0.38051305,  0.92453449, -0.02111345),
-	vec3(-0.50625799, -0.03590792, -0.86163418),
-	vec3(-0.32509218, -0.94557439,  0.01428793),
-	vec3( 0.09026238, -0.27376545,  0.95755165),
-	vec3( 0.28128598,  0.42443639, -0.86065785),
-	vec3(-0.16852403,  0.14748697,  0.97460106)
-);
-// ~_~
-
+const float CloudAltitudeMin = 1500.0f;
+const float CloudThickness = 1600.0f;
+const float CloudAltitudeMax = CloudAltitudeMin + CloudThickness;
 
 // Ray struct 
 struct Ray
@@ -91,7 +98,22 @@ struct Ray
 	vec3 Direction;
 };
 
+
 vec2 g_BayerIncrement; // animate the bayer dither to use the temporal filter more effectively
+
+// constants 
+const float LOG2 = log(2.0);
+const float InverseLOG2 = 1.0 / LOG2;
+
+
+
+float clamp01(float x) {
+	return clamp(x,0.0f,1.0f);
+}
+
+float GetCloudFade(float Distance) {
+	return exp2(-Distance * 0.00001f);
+}
 
 float Bayer2(vec2 a) 
 {
@@ -99,43 +121,10 @@ float Bayer2(vec2 a)
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
 
-vec3 GetSkyColorAt(vec3 rd) 
-{
-    vec3 unit_direction = normalize(rd);
-
-    float t = 0.5f * (unit_direction.y + 1.0);
-    return (1.0 - t) * vec3(1.0, 1.0, 1.0) +  t * vec3(0.5, 0.7, 1.0);
-}
-
 float ConvertValueRange(in float v, in vec2 r1, in vec2 r2)
 {
 	float ret = (((v - r1.x) * (r2.y - r2.x)) / (r1.y - r1.x)) + r2.x;
 	return ret;
-}
-
-vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
-{
-	vec3 t0 = (boundsMin - rayOrigin) * invRaydir;
-	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
-	vec3 tmin = min(t0, t1);
-	vec3 tmax = max(t0, t1);
-	float dstA = max(max(tmin.x, tmin.y), tmin.z);
-	float dstB = min(tmax.x, min(tmax.y, tmax.z));
-	float dstToBox = max(0, dstA);
-	float dstInsideBox = max(0, dstB - dstToBox);
-	return vec2(dstToBox, dstInsideBox);
-}
-
-float RayBasePlaneIntersection(vec3 r0, vec3 rd) 
-{
-    const vec3 P = vec3(0.0, CLOUD_HEIGHT, 0.0);
-    return clamp(dot(P - r0, vec3(0.0f, -1.0f ,0.0f)) / dot(rd, vec3(0.0f, -1.0f, 0.0f)), -1.0f, 9991999.0f);
-}
-
-float RayBasePlaneIntersectionTop(vec3 r0, vec3 rd)
-{
-    const vec3 P = vec3(0.0, CLOUD_TOP, 0.0);
-    return clamp(dot(P - r0, vec3(0.0f, -1.0f ,0.0f)) / dot(rd, vec3(0.0f, -1.0f, 0.0f)), -1.0f, 9991999.0f);
 }
 
 
@@ -150,35 +139,30 @@ vec4 SampleNoise(in vec3 p)
 	return sampled_noise;
 }
 
-const mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
-
-vec2 hash( vec2 p ) {
-	p = vec2(dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)));
-	return -1.0 + 2.0*fract(sin(p)*43758.5453123);
+float MiePhase(float x, float g){
+    float gg = g * g;
+    float xx = x * x;
+    return (3.0 / (8.0 * pi) * (1.0 - gg) / (2.0 + gg)) * (1.0 + xx) / pow(1.0 + gg - 2.0 * g * x, 1.5);
 }
 
-// basic fbm
-float noise( in vec2 p ) {
-    const float K1 = 0.366025404; // (sqrt(3)-1)/2;
-    const float K2 = 0.211324865; // (3-sqrt(3))/6;
-	vec2 i = floor(p + (p.x+p.y)*K1);	
-    vec2 a = p - i + (i.x+i.y)*K2;
-    vec2 o = (a.x>a.y) ? vec2(1.0,0.0) : vec2(0.0,1.0); //vec2 of = 0.5 + 0.5*vec2(sign(a.x-a.y), sign(a.y-a.x));
-    vec2 b = a - o + K2;
-	vec2 c = a - 1.0 + 2.0*K2;
-    vec3 h = max(0.5-vec3(dot(a,a), dot(b,b), dot(c,c) ), 0.0 );
-	vec3 n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));
-    return dot(n, vec3(70.0));	
+float hg_phase(float c, float g)
+{
+    return ((1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * c, 1.5)) / (4.0 * pi);
 }
 
-float fbm(vec2 n) {
-	float total = 0.0, amplitude = 0.1;
-	for (int i = 0; i < 7; i++) {
-		total += noise(n) * amplitude;
-		n = m * n;
-		amplitude *= 0.4;
-	}
-	return total;
+float hg(float c, float t)
+{
+    const float g0 = 0.15;
+    const float g1 = 0.75;
+    float phase0 = hg_phase(c,  pow(g0, t + 1.0));
+    float phase1 = hg_phase(c, -pow(g0, t + 1.0));
+    return mix(phase0, phase1, g1);
+}
+
+float phaseg(float x, float g)
+{
+    float gg = g * g;
+    return (gg * -0.25 /3.14 + 0.25 /3.14) * pow(-2.0 * (g * x) + (gg + 1.0), -1.5);
 }
 
 #define DETAIL
@@ -202,267 +186,304 @@ vec3 SampleWeather(vec3 pos)
 	return texture(u_CloudWeatherMap, pos.xz).xyz;
 }
 
+
+
+float map(float n, float start1, float stop1, float start2, float stop2) {
+    return ((n - start1) / (stop1 - start1)) * (stop2 - start2) + start2;
+}
+
+// Found using trial and error 
+// Not accurate 
+float GetHeightWeight(vec3 P, float Wx) 
+{
+	float Altitude = (P.y - CloudAltitudeMin) / CloudThickness;
+	float Weight = remap(Altitude, 0.0f, 0.4f, 0.0f, 1.0f) * remap(Altitude, 0.6f, 1.0f, 1.0f, 0.0f);
+	return saturate(pow(Weight, 1.0f));
+}
+
+float GetHeightFraction(vec3 P) 
+{
+	float Altitude = (P.y - CloudAltitudeMin) / CloudThickness;
+	return Altitude; //(length(inPos - sphereCenter) - SPHERE_INNER_RADIUS)/(SPHERE_OUTER_RADIUS - SPHERE_INNER_RADIUS);
+}
+
+
 float SampleDensity(vec3 p, float lod)
 {
-	lod = clamp(lod, 0.0f, 1.0f);
-	vec3 OriginalP=p;
+	lod = clamp(lod, 0.0f, 4.0f);
+
+	vec3 OriginalP = p;
+	float HeightFraction = GetHeightFraction(p);
+
+
+	p.xyz += vec3(100.0f, 10.0f, 250.0f);
+	p.xyz *= 0.001f;
 	p.xyz *= 425.0f;
 
-	vec3 TimeOffset = vec3((u_Time*u_TimeScale) * 24.694206942069420694206942069420f, 0.0f, (u_Time*u_TimeScale) * 4.694206942069420694206942069420f);
+	//float CloudDensity = getDensityForCloud(HeightFraction, 1.0f);
+	//float DensityHeightRatio = (CloudDensity / HeightFraction);
+
+	float Ts = 1.5f;
+
+	vec3 TimeOffset = vec3((u_Time*u_TimeScale*Ts) * 30.69f, 0.0f, (u_Time*u_TimeScale*Ts) * 4.420f);
     vec3 pos = p + TimeOffset;
+
     float NOISE_SCALE = max(1.0f * 0.0004f, 0.00001f);
-    vec4 LowFreqNoise = textureLod(u_CloudNoise, pos * NOISE_SCALE, lod);
+    
+	vec4 LowFreqNoise = textureLod(u_CloudNoise, pos * NOISE_SCALE * 0.64f, lod);
+
+	// Construct base shape fbm ->
     float LowFreqFBM = (LowFreqNoise.g * 0.625f) +
                        (LowFreqNoise.b * 0.25f)  +
                        (LowFreqNoise.a * 0.125f);
+
+	LowFreqFBM = pow(LowFreqFBM, 1.0f);
 	
-	// trial and error took over from here :')
+
 	float BaseShape = remap(LowFreqNoise.r, (-(1.0f - LowFreqFBM)) * u_Modifiers.x, 1.0f, 0.0f, 1.0f);
-	vec3 Weather = SampleWeather(p*0.0008f);
-	float CloudCoverage = Weather.x / 8.0f;
+	
+
+	// Sample weather map ->
+
+	vec3 Weather = SampleWeather(p * 0.005f);
+
+	// Erode base shape with height gradient ->
+
+	float HeightWeight = GetHeightWeight(OriginalP, Weather.x);
+	BaseShape *= HeightWeight ;
+
+
+	float CloudCoverage = Weather.x / 4.0f;
+
 	float RemappedToCoverage = remap(BaseShape, CloudCoverage, 1.0, 0.0, 1.0);
 
 	if (u_CurlNoiseOffset) {
 		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,pos.xz).xyz);
-		p += CurlNoise*2.0f;
+
+		// Offset by decoded curl noise ->
+		p += CurlNoise * 5.0f;
 	}
 	
-	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, lod).xyzw;
+	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, clamp(lod-1,0.0f,8.0)).xyzw;
+
+	// construct high freq fbm ->
 	float HighFreqFBM = (DetailNoise.g * 0.625f) +
                        (DetailNoise.b * 0.25f)  +
                        (DetailNoise.a * 0.125f);
 
+	HighFreqFBM = pow(HighFreqFBM, 1.2f);
+
 	RemappedToCoverage = RemappedToCoverage - (HighFreqFBM) * pow((1.0f - RemappedToCoverage), u_DetailParams.z);
 	RemappedToCoverage = remap(RemappedToCoverage / 0.5f, (HighFreqFBM) * 0.2f, 1.0f, 0.0f, 1.0f);
-	return clamp((RemappedToCoverage*u_Coverage), 0.0f, 1.0f);
+	
+	// Multiply by coverage ->
+	return clamp((RemappedToCoverage * u_Coverage), 0.0f, 1.0f);
 } 
 
-float hg(float a, float g) 
+
+// Normalized sun direction ->
+vec3 NormalizedSUNDIR;
+
+
+float RaymarchLight(vec3 Point)
 {
-    float g2 = g * g;
-    return (1.0f - g2) / (4 * PI * pow(1.0f + g2 - 2.0f * g * (a), 1.5));
-}
+	vec3 Direction = NormalizedSUNDIR;
+	float RayLength = 22.0f;
+    float Accum = 0.0f;
+	int StepCount = clamp(int(u_StepCounts.y), 2, 32);
 
-vec3 Beer(in vec3 v)
-{
-	return exp(-v);
-}
+	Point += Bayer8(gl_FragCoord.xy)*Direction;
 
-float Beer (in float v)
-{
-	return exp(-v);
-}
+    for(int i = 0; i < StepCount; i++)
+	{
+        Accum += RayLength * SampleDensity(Point, 1.0f);
 
-float hgPhase(float x, float g)
-{
-    float g2 = g * g;
-	return 0.25 * ((1.0 - g2) * pow(1.0 + g2 - 2.0*g*x, -1.5));
-}
+		// Exponential step size ->
+        RayLength *= 1.5; 
 
-float phase2Lobes(float x)
-{
-    const float m = 0.6;
-    const float gm = 0.8;
-    
-	float lobe1 = hgPhase(x, 0.8 * gm);
-    float lobe2 = hgPhase(x, -0.5 * gm);
-    
-    return mix(lobe2, lobe1, m);
-}
+		Point += Direction * RayLength;
+    }
 
-
-
-int MIN = -2147483648;
-int MAX = 2147483647;
-int RNG_SEED;
-
-int xorshift(in int value) 
-{
-    // Xorshift*32
-    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
-    value ^= value << 13;
-    value ^= value >> 17;
-    value ^= value << 5;
-    return value;
-}
-
-int nextInt(inout int seed) 
-{
-    seed = xorshift(seed);
-    return seed;
-}
-
-float nextFloat(inout int seed) 
-{
-    seed = xorshift(seed);
-    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
-    return abs(fract(float(seed) / 3141.592653));
-}
-
-float nextFloat(inout int seed, in float max) 
-{
-    return nextFloat(seed) * max;
-}
-
-float nextFloat(inout int seed, in float min, in float max) 
-{
-    return min + (max - min) * nextFloat(seed);
+    return Accum;
 }
 
 float RaymarchAmbient(vec3 Point)
 {
 	const vec3 Direction = normalize(vec3(0.0f, 1.0f, 0.0f));
-	float Accum = 0.0; 
-	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
-	int LightSteps = u_HighQualityClouds ? 8 : 4;
-	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
-    vec3 RayStep = Direction;
-	float StepSize = 1.0f / float(LightSteps);
-    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
+	float RayLength = 22.0f;
+    float Accum = 0.0f;
+	int StepCount = clamp(int(u_StepCounts.z),2, 32);
 
-	for(int Step = 0; Step < LightSteps; Step++)
+	Point += Bayer4(gl_FragCoord.xy)*Direction;
+
+    for(int i = 0; i < StepCount; i++)
 	{
-		Increment *= 1.5f;
-		Accum += SampleDensity(CurrentPoint * 0.002f, AMBIENT_LOD) * StepSize; 
-		CurrentPoint += RayStep * Increment;
-	}
+        Accum += RayLength * SampleDensity(Point, 2.0f);
 
-	const float SunAbsorbption = 1.0f;
-	return Accum * 60.0f * ACCUM_MULTIPLIER;
+		// Exponential step size ->
+        RayLength *= 1.5;
+
+		Point += Direction * RayLength;
+    }
+
+    return Accum;
 }
 
-float PowHalf(int n) 
+float RaymarchBounced(vec3 Point)
 {
-	return pow(0.5f, float(n));
-}
+	const vec3 Direction = normalize(vec3(0.0f, -1.0f, 0.0f));
+	float RayLength = 22.0f;
+    float Accum = 0.0f;
+	int StepCount = 2;
 
-vec3 NormalizedSUNDIR;
+	Point += Bayer4(gl_FragCoord.xy)*Direction;
 
-float RaymarchLight(vec3 Point)
-{
-	vec3 Direction = NormalizedSUNDIR;
-	float Accum = 0.0; 
-	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
-	int LightSteps = u_HighQualityClouds ? 12 : 6;
-	float Increment = u_HighQualityClouds ? 14.0f : 20.0f;
-    vec3 RayStep = Direction;
-	float StepSize = 1.0f / float(LightSteps);
-    vec3 CurrentPoint = Point + RayStep * Increment * Dither;
-
-	for(int Step = 0; Step < LightSteps; Step++)
+    for(int i = 0; i < StepCount; i++)
 	{
-		Increment *= 1.5f;
-		Accum += SampleDensity(CurrentPoint * 0.002f, LIGHT_LOD) * StepSize; 
-		CurrentPoint += RayStep * Increment;
-	}
+        Accum += RayLength * SampleDensity(Point, 2.0f);
 
-	const float SunAbsorbption = 1.0f;
-	return Accum * 70.0f * ACCUM_MULTIPLIER;
+		// Exponential step size ->
+        RayLength *= 1.5;
+
+		Point += Direction * RayLength;
+    }
+
+    return Accum;
 }
 
-// Thanks to jess for suggesting this
-float ScatterIntegral(float x, float coeff)
+// Phase functions ->
+float phaseg8(float x) 
 {
-    float a = -coeff * (1.0 / log(2.0));
-    float b = -1.0 / coeff;
-    float c =  1.0 / coeff;
-
-    return exp2(a * x) * b + c;
+	const float g = 0.8 * 0.7f;
+	const float g2 = g * g;
+	const float g3 = log2((g2 * -0.25 + 0.25) * 0.8f);
+	const float g4 = 1.0 + g2;
+	const float g5 = -2.0 * g;
+	return exp2(log2(g5 * x + g4) * -1.5 + g3);
 }
 
-float henyey_greenstein_phase_func(float mu)
+float phasegm5(float x) 
 {
-	// Henyey-Greenstein phase function factor [-1, 1]
-	// represents the average cosine of the scattered directions
-	// 0 is isotropic scattering
-	// > 1 is forward scattering, < 1 is backwards
-	const float g = 0.76;
-
-	return
-	                     (1. - g*g)
-	/ //---------------------------------------------
-	     ((4. + PI) * pow(1. + g*g - 2.*g*mu, 1.5));
+	const float g = -0.5 * 0.7f;
+	const float g2 = g * g;
+	const float g3 = log2((g2 * -0.25 + 0.25) * (1.0 - 0.8f));
+	const float g4 = 1.0 + g2;
+    const float g5 = -2.0 * g;
+    return exp2(log2(g5 * x + g4) * -1.5 + g3);
 }
 
-float hg2(float a, float g) 
+float phase2lobes(float x) 
 {
-      float g2 = g * g;
-      return (1.0f - g2) / (4.0f * 3.1415f * pow(1.0f + g2 - 2.0f * g * (a), 1.5f));
+    return phaseg8(x) + phasegm5(x);
 }
 
-float powder(float od) 
+float powder2(float sampleDensity, float VoL) {
+	float powd = 1.0 - exp2(-sampleDensity * 2.0);
+	return mix(1.0, powd, clamp01(-VoL * 0.5 + 0.5));
+}
+
+vec3 RadianceBasic(vec3 Point, float DensitySample, float Phase, float CosTheta)
 {
-    return 8.0f * (1.0f - 0.97f * exp(-10.0f * od));
+	vec3 SunColor = vec3(1.0f);
+	vec3 SkyColor = vec3(1.0f);
+
+	// 2.0 * PI for multiple scattering 
+	// Beer powder term is also accounted for ->
+	vec3 SunLighting = SunColor * RaymarchLight(Point) * powder2(DensitySample, CosTheta) * Phase * (2.0f * PI);
+
+	// Use isotropic phase ->
+	vec3 SkyLighting = SkyColor * RaymarchAmbient(Point) * 0.25f * PI; 
+
+	return SunLighting + SkyLighting;
 }
 
-float henyeyGreensteinPhase(float cosTheta, float g) 
+// Powder terms ->
+float Powder(float d) {
+	return 1.0f - 0.97f * exp(-10.0f * d);
+}
+
+float PowderSecondary(float d) {
+	return 1.0f - exp(-2.0f * d);
+}
+
+// Powder terms ->
+float PowderDirect(float d, float costheta) 
 {
-	const float norm = 1.0f / TAU;
-	float gg = g * g;
-	return norm * ((1.0f - gg) / pow(1.0f + gg - 2.0f * g * cosTheta, 3.0f / 2.0f));
+	const float G = 0.75f;
+	float MiePhase = MiePhase(costheta, G);
+	float Powder = PowderSecondary(d);
+	Powder = mix(Powder, 1.5f, MiePhase);
+	Powder = mix(Powder, 1.0f, costheta*0.5f+0.5f)*Powder;
+	return Powder;
 }
 
-float CloudPhaseFunction(float cosTheta, in float an, in float od) 
+float PowderIndirect(float d, float costheta) 
 {
-    float frontLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.45f, od + 1.0f));
-    float backLobe = henyeyGreensteinPhase(cosTheta * an, -pow(0.45f, od + 1.0f));
-    float peakLobe = henyeyGreensteinPhase(cosTheta * an, pow(0.9f, od + 1.0f));
-    return mix(mix(frontLobe, backLobe, 0.25f), peakLobe, 0.15f);
+	float Powder = PowderSecondary(d);
+	Powder = mix(Powder, 1.0f, costheta*0.5f+0.5f)*Powder;
+	return Powder;
 }
 
-float CloudAmbientPhase(float cosTheta, in float an, in float od) 
-{
-    float frontLobe = henyeyGreensteinPhase(cosTheta*an, pow(0.35f, od + 1.0f));
-    float backLobe  = henyeyGreensteinPhase(cosTheta*an, -pow(0.35f, od + 1.0f));
-    return mix(frontLobe, backLobe, 0.5f);
-}
-
-// exponential dropoff : 
-// 1, 0.5, 0.25, 0.125 etc
-const float[8] ScatterKernel = float[8](
-				pow(0.5f, float(0)),
-				pow(0.5f, float(1)),
-				pow(0.5f, float(2)),
-				pow(0.5f, float(3)),
-				pow(0.5f, float(4)),
-				pow(0.5f, float(5)),
-				pow(0.5f, float(6)),
-				pow(0.5f, float(7))
+// Scatter kernel 
+const vec3 ScatterKernel[8] = vec3[8](
+	  vec3(pow(0.6f, 0.0f), pow(0.3f, 0.0f), pow(0.8f, 0.0f)),
+	  vec3(pow(0.6f, 1.0f), pow(0.3f, 1.0f), pow(0.8f, 1.0f)),
+	  vec3(pow(0.6f, 2.0f), pow(0.3f, 2.0f), pow(0.8f, 2.0f)),
+	  vec3(pow(0.6f, 3.0f), pow(0.3f, 3.0f), pow(0.8f, 3.0f)),
+	  vec3(pow(0.6f, 4.0f), pow(0.3f, 4.0f), pow(0.8f, 4.0f)),
+	  vec3(pow(0.6f, 5.0f), pow(0.3f, 5.0f), pow(0.8f, 5.0f)),
+	  vec3(pow(0.6f, 6.0f), pow(0.3f, 6.0f), pow(0.8f, 6.0f)),
+	  vec3(pow(0.6f, 7.0f), pow(0.3f, 7.0f), pow(0.8f, 7.0f))
 );
 
-vec3 GetScatter(float DensitySample, float CosTheta, float CosThetaUp, float Phase, vec3 Point, vec3 SunColor, int CurrentStep)
+vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittance, float TotalTransmittance, vec3 Costheta, vec3 MarchTransmittance)
 {
-	const float SunBrightness = 3.0f;
-    float BeersPowderSample = powder(DensitySample);
-    float BeersPowder = mix(BeersPowderSample, 1.0, CosTheta * 0.5f + 0.5f);
-	float BeersPowderSky = mix(BeersPowderSample, 1.0, CosThetaUp * 0.5f + 0.5f);
-	float AmbientMarchResult = RaymarchAmbient(Point);
-	float LightMarchResult = RaymarchLight(Point);
+	vec3 PowderPhaseTerms = vec3(PowderDirect(MarchTransmittance.x, Costheta.x), PowderIndirect(MarchTransmittance.y, Costheta.y), PowderIndirect(MarchTransmittance.z, Costheta.z));
 
-	float CloudShadowCoefficient = 0.275f; // Increase to have a stronger shadow
-	vec2 Scatter = vec2(0.0f);
+	float OneMinusTransmittance = 1.0f - SampleTransmittance;
+	float BasePowder = Powder(DensitySample);
 
-	// fake second scatter :
-	for(int ScatterStep = 0; ScatterStep < 8; ScatterStep++)
+	vec3 IntegratedScattering = vec3(0.0f);
+
+	// Account for multiple scattering ->
+	// Artificially lower the extinction coefficient (Used a summation of multiple scales)
+
+	for (int ScatterStep = 0 ; ScatterStep < 8 ; ScatterStep++) 
 	{
-		float PhaseSun = pow(CloudPhaseFunction(CosTheta, ScatterKernel[ScatterStep], LightMarchResult)*1.05f, 1.0f);
-		float PhaseAmbient = CloudAmbientPhase(CosThetaUp, ScatterKernel[ScatterStep], AmbientMarchResult) * PI;
-		vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),
-		              PhaseAmbient * BeersPowderSky * exp(-AmbientMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]));
-		//vec2 S = vec2(PhaseSun * BeersPowder * exp(-LightMarchResult * CloudShadowCoefficient * ScatterKernel[ScatterStep]),0.0f);
+		// x -> Attenuation 
+		// y -> Contribution / Absorption
+		// z -> Eccentricity extinction 
 		
-		Scatter += S * ScatterKernel[ScatterStep];
-   }
+		vec3 Kernel = ScatterKernel[ScatterStep]; 
 
-	vec3 SunLight = SunColor * Scatter.x;
-	float SkyShadow = Scatter.y * (PI * 0.5f);
-    return (SunLight+SkyShadow);
+		// Compute transmittance at each scatter step ->
+		float sTransmittance = TotalTransmittance * (OneMinusTransmittance * Kernel.x);
+		
+		// Weight transmittance by scatter weights ->
+		float dTransmittance = sTransmittance * exp(-MarchTransmittance.x * Kernel.y);
+		float idTransmittance = sTransmittance * exp(-MarchTransmittance.y * Kernel.y);
+		float sidTransmittance = sTransmittance * exp(-MarchTransmittance.z);
+
+		// henyey greenstein phase ->
+		vec2 PhaseFunctions;
+		PhaseFunctions.x = hg(Costheta.x * Kernel.z, MarchTransmittance.x);
+		PhaseFunctions.y = hg(Costheta.y * Kernel.z, MarchTransmittance.y) * 2.0f;
+
+		// Integrate scattering -> 
+		// Transmittance * Powder * Phase (henyey greenstein) 
+
+		IntegratedScattering.x += dTransmittance * PowderPhaseTerms.x * PhaseFunctions.x;
+		IntegratedScattering.y += idTransmittance * PowderPhaseTerms.y * PhaseFunctions.y;
+		IntegratedScattering.z += sidTransmittance * BasePowder;
+	}
+
+	return IntegratedScattering;
 }
 
 vec3 ComputeRayDirection()
 {
-	// Branchless checkerboarding!
 	vec2 ScreenSpace = v_TexCoords;
+	ScreenSpace += (u_JitterValue*4.0f) / u_Dimensions;
 	float TexelSizeX = 1.0f / u_Dimensions.x;
 	ScreenSpace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX) * float(u_Checker);
 	vec4 Clip = vec4(ScreenSpace * 2.0f - 1.0f, -1.0, 1.0);
@@ -473,168 +494,181 @@ vec3 ComputeRayDirection()
 
 bool SampleValid(in vec2 txc)
 {
-    const ivec2 Kernel[8] = ivec2[8]
-	(
-		ivec2(-1.0, -1.0),
-		ivec2( 0.0, -1.0),
-		ivec2( 1.0, -1.0),
-		ivec2(-1.0,  0.0),
-		ivec2( 1.0,  0.0),
-		ivec2(-1.0,  1.0),
-		ivec2( 0.0,  1.0),
-		ivec2( 1.0,  1.0)
-	);
-
 	ivec2 basecoord = ivec2(floor(txc*textureSize(u_PositionTex,0).xy));
 
-    for (int i = 0 ; i < 8 ; i++)
+    for (int x = -1 ; x <= 1 ; x++)
     {
-		ivec2 samplecoord = basecoord+Kernel[i];
-        //if (texture(u_PositionTex, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
-		if (texelFetch(u_PositionTex, samplecoord,0).x <= 0.0f)
-        {
-            return true;
-        }
+		for (int y = -2 ; y <= 2 ; y++) {
+		
+			ivec2 Kernel = ivec2(x,y);
+
+			ivec2 samplecoord = basecoord+Kernel;
+			if (texelFetch(u_PositionTex, samplecoord,0).x <= 0.0f)
+			{
+				return true;
+			}
+		}
     }
 
     return false;
 }
 
-float GetCirrusDensityAt(vec3 P)
+vec2 RSI(vec3 origin, vec3 dir, float radius)
 {
-	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
-	const float ts = 0.1f;
-	SamplePosition += vec2(u_Time * 0.16666f * ts, u_Time * 0.5f * ts).yx;
-	float CirrusDensity = texture(u_CirrusClouds, SamplePosition).x;
-	CirrusDensity = 1.0f - pow(CirrusDensity, 0.125f);
-	return (CirrusDensity * 0.9f * u_CirrusStrength);
-}
+	float B = dot(origin, dir);
+	float C = dot(origin, origin) - radius * radius;
+	float D = B * B - C;
 
-float powder_cirrus(float od)
-{
-	return 1.0f - exp2(-od * 2.0f);
-}
+	vec2 intersection;
 
-const float Log2 = log(2.0);
-
-vec3 MarchCirrus(vec3 P, float CosTheta) 
-{
-	float BaseOpticalDepth = GetCirrusDensityAt(P);
-	float hg = phase2Lobes(CosTheta); //simple.
-
-	float Accum = 0.0; 
-	float Dither = Bayer8(gl_FragCoord.xy+g_BayerIncrement);
-	int LightSteps = 2; 
-	float Increment = 8.0f;
-    vec3 RayStep = NormalizedSUNDIR;
-	float StepSize = 1.0f / float(LightSteps);
-    vec3 CurrentPoint = P + RayStep * Increment * Dither;
-
-	// sum up density in like 2 or 3 points 
-	// this doesnt matter too much as the analytical stuff will be doing most of the work.
-	for(int Step = 0; Step < LightSteps; Step++)
+	if (D < 0.0)
 	{
-		Increment *= 1.5f;
-		Accum += GetCirrusDensityAt(CurrentPoint)*3.2f; 
-		CurrentPoint += RayStep * Increment;
+		intersection = vec2(-1.0, -1.0);
+	} 
+	
+	else
+	{
+		D = sqrt(D);
+		intersection = -B + vec2(-D, D); 
 	}
 
-	// we use a crude multi scatter approximation to avoid an extra march loop
-	// works well enough since the cirrus clouds arent the most visible.
-
-	float MultiScatterApproximation = ScatterIntegral(BaseOpticalDepth, 1.11f);  
-	float SunVisibility = exp(-Accum * StepSize); 
-	float BeersPowder = powder(BaseOpticalDepth * Log2);
-	vec3 SkyLightBasic = vec3(0.75f) * 0.25f * (1.0f / PI);
-	vec3 SunLight = vec3(1.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f);
-	return (SunLight + SkyLightBasic) * MultiScatterApproximation * (PI) * 0.75f * 0.135f;
+	return intersection;
 }
 
-
-const float IsotropicScatter = 0.25f / PI;
+const float IsotropicPhaseFunction = 0.25f / PI;
+const bool DoFade = true;
 
 void main()
 {
 	NormalizedSUNDIR = normalize(u_SunDirection);
-	o_Data = vec4(0.0f);
+	o_Data = vec4(0.0f, 0.0f, 0.0f, 1.0f / 2.0f);
 	
+	vec3 CameraPosition = u_InverseView[3].xyz;
+	vec3 Direction = normalize(ComputeRayDirection());
+
+	vec3 AtmosphereAtViewRay = texture(u_Atmosphere, Direction).xyz;
+
 	// We dont need to ray cast the clouds if there is a hit at the current position
 	if (!SampleValid(v_TexCoords))
 	{
+		o_Data.xyz = AtmosphereAtViewRay;
+		o_Data.w = 0.2f;
 		return;
 	}
 
 	int Frame = u_CurrentFrame % 30;
 	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f); 
-	g_BayerIncrement=BayerIncrement;
+	g_BayerIncrement = BayerIncrement;
 
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time * 120.0f));
+	// March from aerian perspective
+	vec3 AerialPerspective = vec3(0.0, PlanetRadius + CameraPosition.y, 0.0);
 
-	const int StepCount = u_HighQualityClouds ? 16 : 8;
+	// Planet sphere ->
+	vec2 EarthSphere = RSI(AerialPerspective, Direction, PlanetRadius * 0.99995f);
 
+	// Atmosphere spheres ->
+    vec2 SphereMin = RSI(AerialPerspective, Direction, PlanetRadius + CloudAltitudeMin);
+    vec2 SphereMax = RSI(AerialPerspective, Direction, PlanetRadius + CloudAltitudeMax);
 
-	// xorshift once : 
-	RNG_SEED ^= RNG_SEED << 13;
-    RNG_SEED ^= RNG_SEED >> 17;
-    RNG_SEED ^= RNG_SEED << 5;
+	if (SphereMin.y >= 49000.0f && DoFade)
+	{
+		o_Data.xyz = AtmosphereAtViewRay;
+		o_Data.w = 0.2f;
+		return;
+	}
+
+	// Calculate traversal distances ->
+	vec2 TraversalDistance = vec2(0.0f);
+	TraversalDistance.x = CameraPosition.y > CloudAltitudeMax ? SphereMax.x : SphereMin.y;
+	TraversalDistance.y = CameraPosition.y > CloudAltitudeMax ? SphereMin.x : SphereMax.y;
+
+	// March range ->
+	float Range = (1.0 - clamp01((CameraPosition.y - CloudAltitudeMax) * 0.1)) * (1.0 - saturate((CloudAltitudeMin - CameraPosition.y) * 0.1));
 	
-	vec3 CameraPosition = u_InverseView[3].xyz;
-	vec3 Direction = normalize(ComputeRayDirection());
+	// Project rays ->
+	vec3 ProjectedInner = Direction * TraversalDistance.x;
+    ProjectedInner = ProjectedInner * (1.0 - Range);
+	vec3 ProjectedOuter = Direction * TraversalDistance.y;
+    ProjectedOuter = mix(ProjectedOuter, Direction * CloudAltitudeMin * 12.0, Range);
 
-	float T1 = RayBasePlaneIntersection(CameraPosition, Direction);
-    vec3 StartPosition = CameraPosition + Direction * T1;
-    float T2 = RayBasePlaneIntersectionTop(CameraPosition, Direction);
-    vec3 EndPosition = CameraPosition + Direction * T2;
-    vec3 RayStep = (EndPosition - StartPosition) / float(StepCount);
-	float dither = Bayer64(gl_FragCoord.xy+BayerIncrement);
-	vec3 CurrentPoint = StartPosition + RayStep * dither;
-	float StepSize = length(RayStep);
+	float Hash = Bayer32(gl_FragCoord.xy + vec2(u_CurrentFrame * (0.9f/1.0f), u_CurrentFrame * 0.5));
 	
+	
+	int StepCount = clamp(int(u_StepCounts.x),2,64);
+
+
+	if (CHECKER_STEP_COUNT) {
+
+		bool IsCheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == 0;
+		int HalfStepCount = clamp(int(u_StepCounts.x/2),2,64);
+		StepCount = clamp(int(mix(HalfStepCount, StepCount, float(IsCheckerStep))),2,64);
+
+	}
+
+	vec3 Increment = (ProjectedOuter - ProjectedInner) / StepCount;
+	float StepSize = 1.0f * length(Increment);
+
+	const vec3 AmbientDirection = normalize(vec3(0.0f, 1.0f, 0.0f));
+	const vec3 SecondaryBounceDirection = normalize(vec3(0.0f, -1.0f, 0.0f));
+
+	// For phase and powder terms ->
+	float VDotL = dot(Direction, NormalizedSUNDIR);
+	float VDotAmbient = dot(Direction, AmbientDirection);
+	float LDotSecondaryBounce = dot(NormalizedSUNDIR, SecondaryBounceDirection);
+	vec3 CosTheta = vec3(VDotL, VDotAmbient, LDotSecondaryBounce);
+
+	// Transmittance, Scattering 
 	float Transmittance = 1.0f;
-	float CosAngle = dot(normalize(u_SunDirection), normalize(Direction));
 
+	// x -> DirectScattering, y -> IndirectScattering, z -> Bounced direct scattering 
+	vec3 IntegratedScattering = vec3(0.0f);
 
-	//vec3 SkyLight = texture(u_Atmosphere, vec3(g_Direction.x, g_Direction.y, g_Direction.z)).rgb;
-	vec3 SkyLight = vec3(0.0f);
-	vec3 Scattering = vec3(0.0f);
-	vec3 SunColor = vec3(1.0f);
-
-
-	float CosTheta = dot(Direction, normalize(u_SunDirection));
-	const vec3 NormalizedUp = normalize(vec3(0.0f, 1.0f, 0.0f));
-	float CosThetaUp = dot(Direction, NormalizedUp);
-
-	const float Phase2Lobes = 1.0f;
+	// Start from projected inner sphere ->
+	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		float DensitySample = SampleDensity(CurrentPoint * 0.002f, BASE_LOD);
-
-		if (DensitySample < 0.001f)
-		{
-			continue;
+		if (Transmittance < 0.02f) {
+			break;
 		}
 
-		DensitySample *= 37.0f;
-		Scattering += GetScatter(DensitySample, CosTheta, CosThetaUp, Phase2Lobes, CurrentPoint, SunColor, i) * Transmittance;
-		Transmittance *= exp(-DensitySample * StepSize);
-		CurrentPoint += RayStep;
+		float DensityAtPosition = SampleDensity(RayPosition, 0.0f) * 1.2f;
+		float CurrentTransmittance = exp2(-DensityAtPosition);
+		//float CurrentTransmittance = exp(-DensityAtPosition);
+
+		// Ray march ->
+		float DirectDensity = RaymarchLight(RayPosition) * 1.28f;
+		float IndirectDensity = RaymarchAmbient(RayPosition) * 1.1f;
+		float IndirectSecondBounceDensity = RaymarchBounced(RayPosition) / 2.0f; 
+
+		vec3 ScatterAtPoint = ComputeScattering(RayPosition, DensityAtPosition, CurrentTransmittance, Transmittance, CosTheta, vec3(DirectDensity, IndirectDensity, IndirectSecondBounceDensity));
+
+		IntegratedScattering += ScatterAtPoint;
+		Transmittance *= CurrentTransmittance;
+		RayPosition += Increment;
 	}
+
+	vec3 SunColor = mix(vec3(45.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
+	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.3f)) * 3.0f;
+
+	vec3 TotalScattering = vec3(0.0f);
+	TotalScattering += IntegratedScattering.x * SunColor;
+	TotalScattering += IntegratedScattering.y * SkyColor;
+	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
 	
-	// scatter boost
-	Scattering = pow(Scattering, vec3(1.0f/5.0f)); 
-	Scattering = clamp(Scattering, 0.0f, 1.0f);
-
-	// mix cirrus
-	if (u_CirrusStrength > 0.02f) {
-		// cirrus 
-		vec3 CirrusMarchResult = MarchCirrus(mix(StartPosition, EndPosition, 0.5f), CosTheta); 
-
-		// Mix the cirrus and weight by transmittance 
-		Scattering = mix(Scattering, CirrusMarchResult, Transmittance);
+	vec4 FinalData = vec4(TotalScattering, Transmittance);
+	
+	if (DoFade) 
+	{
+		float Fade = 1.0f-(exp(-(SphereMin.y/11000.0f)));
+		Fade = clamp(Fade, 0.0f, 1.0f);
+		Fade = Fade * Fade;
+		Fade = clamp(Fade, 0.0f, 1.0f);
+		vec4 Identity = vec4(AtmosphereAtViewRay, 0.0f);
+		FinalData = mix(FinalData, Identity, Fade);
 	}
 
-	// store it!
-	o_Data = vec4(Scattering, Transmittance);
-	o_Data.xyzw = clamp(o_Data.xyzw, 0.0f, 1.0f);
+	// Output :
+	o_Data = vec4(FinalData);
+
 }

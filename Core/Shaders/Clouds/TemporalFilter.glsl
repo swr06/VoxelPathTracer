@@ -1,5 +1,5 @@
 #version 330 core
-#define DENOISE
+//#define DENOISE
 //#define BE_USELESS
 
 layout (location = 0) out vec4 o_Color;
@@ -25,6 +25,7 @@ uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_CurrentPositionData;
 uniform sampler2D u_PrevPositionData;
 
+
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 uniform mat4 u_Projection;
@@ -36,7 +37,6 @@ uniform float u_MixModifier = 0.8;
 uniform float u_Time;
 
 uniform bool u_Clamp;
-uniform bool u_SmartUpscale;
 
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
@@ -205,20 +205,103 @@ vec4 SpatialFilterCloud(vec4 CurrentColor) {
     return TotalColor / max(TotalWeight, 0.01f);
 }
 
+// Luminosity weights ->
+// Effective as fuck.
+vec4 SpatialUpscaleCloud2(sampler2D samp, vec2 txc, bool LargeKernel, bool StrictExponent, out vec4 MinData, out vec4 MaxData) 
+{
+    vec2 TexelSize = 1.0f/textureSize(samp,0).xy;
+    vec4 BaseData = texture(samp, txc);
+    float BaseLuminance = Luminance(BaseData.xyz);
+    float TotalWeight = 1.0f;
+    vec4 TotalData = BaseData;
+
+    int KernelSize = LargeKernel ? 2 : 1;
+
+    float LumaExp = StrictExponent ? 64.0f : 40.0f;
+
+    MinData = vec4(1000.0f);
+    MaxData = vec4(-1000.0f);
+
+    for (int x = -KernelSize ; x <= KernelSize ; x++) 
+    {
+        for (int y = -KernelSize ; y <= KernelSize ; y++) {
+
+            if (x == 0 && y == 0) { continue ; }
+            vec2 SampleCoord = txc+vec2(x,y)*TexelSize;
+            
+            if (SampleCoord != clamp(SampleCoord, 0.001f, 0.999f)) {
+                continue;
+            }
+
+            vec4 SampleData = texture(samp, SampleCoord).xyzw;
+            float LumaAt = Luminance(SampleData.xyz);
+            float LumaError = 1.0f - clamp(abs(LumaAt - BaseLuminance) / 3.0f, 0.0f, 1.0f);
+            float Weight = pow(abs(LumaError), LumaExp);
+            TotalData += SampleData * Weight;
+            TotalWeight += Weight;
+
+            MinData = min(SampleData, MinData);
+            MaxData = max(SampleData, MaxData);
+        }
+    }
+
+    MinData = min(BaseData, MinData);
+    MaxData = max(BaseData, MaxData);
+
+    TotalData /= TotalWeight;
+    return TotalData;
+}
+
+
+
+
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv, vec2 texSize );
 vec4 texture2D_bicubic(sampler2D tex, vec2 uv);
+
+bool SampleValid(in vec2 txc)
+{
+    const ivec2 Kernel[8] = ivec2[8]
+	(
+		ivec2(-1.0, -1.0),
+		ivec2( 0.0, -1.0),
+		ivec2( 1.0, -1.0),
+		ivec2(-1.0,  0.0),
+		ivec2( 1.0,  0.0),
+		ivec2(-1.0,  1.0),
+		ivec2( 0.0,  1.0),
+		ivec2( 1.0,  1.0)
+	);
+
+	ivec2 basecoord = ivec2(floor(txc*textureSize(u_CurrentPositionData,0).xy));
+
+    for (int i = 0 ; i < 8 ; i++)
+    {
+		ivec2 samplecoord = basecoord+Kernel[i];
+        //if (texture(u_PositionTex, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
+		if (texelFetch(u_CurrentPositionData, samplecoord,0).x <= 0.0f)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void main()
 {
 	vec4 CurrentColor = vec4(0.0f);
 
-    if (u_SmartUpscale) {
+    vec4 MinData = vec4(1000.0f), MaxData = vec4(-1000.0f);
+
+    if (false) {
         CurrentColor = SpatialUpscaleCloud(u_CurrentColorTexture, v_TexCoords).xyzw;
     } 
     
     else {
-        CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).xyzw;
+        CurrentColor = SpatialUpscaleCloud2(u_CurrentColorTexture, v_TexCoords, false, false, MinData, MaxData).xyzw;
+        
+        //CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).xyzw;
     }
 
 
@@ -229,7 +312,9 @@ void main()
 
 	vec3 PlayerPosition = u_InverseView[3].xyz;
 
-	if (CurrentColor.w > -0.5f)
+    bool SampleIsValid = true;//SampleValid(v_TexCoords);
+
+	if (CurrentColor.w > -0.5f && true)
 	{
 		// Reproject clouds by assuming it lies in a plane some x units in front of the camera :
 		vec3 CurrentVirtualPosition = PlayerPosition + normalize(GetRayDirectionAt(v_TexCoords)) * 500.0f;
@@ -240,17 +325,20 @@ void main()
 		ProjectedCurrent = ProjectedCurrent * 0.5f + 0.5f;
         vec4 PrevColor;
 
-        if (u_SmartUpscale) {
+        if (false) {
             PrevColor = SpatialUpscaleCloud(u_PreviousColorTexture, PreviousCoord).xyzw;
         }
         
         else 
         {
             PrevColor = texture_catmullrom(u_PreviousColorTexture, PreviousCoord).xyzw;
+            //PrevColor = SpatialUpscaleCloud2(u_PreviousColorTexture, PreviousCoord, false, true).xyzw;
+
         }
 
 		if (u_Clamp) {
-			PrevColor.xyz = ClampColor(PrevColor.xyz);
+			//PrevColor.xyz = ClampColor(PrevColor.xyz);
+            PrevColor = clamp(PrevColor, MinData - 0.2f, MaxData + 0.2f);
 		}
 
 		float T_Base = texture(u_CurrentPositionData, v_TexCoords).r;
@@ -284,6 +372,7 @@ void main()
 
 	else 
 	{
+
 		#ifdef DENOISE 
 	    if (!u_SmartUpscale) {
 			o_Color = SpatialBasic();
@@ -297,6 +386,7 @@ void main()
 			o_Color = CurrentColor;
 		#endif
 	}
+
 }
 
 

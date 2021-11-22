@@ -283,6 +283,7 @@ float rand(vec2 co){
 
         // Hash 
         vec3 hash = hash33(v);
+        vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
 
         // Negatives make everything shit itself 
         fragpos.y = abs(fragpos.y);
@@ -293,7 +294,7 @@ float rand(vec2 co){
 
         // Add some variation to the scale 
         float scale = mix(500.0f, 1100.0f, hash.y);
-        float star = StableStarField(uv * scale, 0.96f);
+        float star = StableStarField(uv * scale, 0.97f);
 
         // Use the planckian locus scale to get a celestial temperature from value 
         float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x, 1.5f), 0.0f, 1.0f));
@@ -303,7 +304,8 @@ float rand(vec2 co){
         float twinkle = sin(u_Time * 2.0f * hash.z);
         twinkle = twinkle * twinkle;
 
-        star *= 0.06f;
+        star *= 0.12f;
+
 
         vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
 	    return FinalStar;
@@ -386,8 +388,9 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     star_visibility = 1.0f - star_visibility;
     vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
+    stars *= 3.0f;
 
-    atmosphere += stars*4.0f*true_transmittance;
+    atmosphere += stars*(1.0f*true_transmittance);
 
     atmosphere_color = atmosphere;
 
@@ -431,34 +434,46 @@ vec4 CAS(sampler2D Texture, vec2 uv, float SharpeningAmount)
     return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
 }
 
+// catmull rom texture interpolation 
+vec4 texture_catmullrom(sampler2D tex, vec2 uv);
+
 // fetch sky
 vec3 GetAtmosphereAndClouds()
 {
-    vec2 ij = floor(mod(gl_FragCoord.xy, vec2(2.0) ));
-	float idx = ij.x + 2.0*ij.y;
-	vec4 m = step( abs(vec4(idx)-vec4(0,1,2,3)), vec4(0.5) ) * vec4(0.75,0.25,0.00,0.50);
-	float d = m.x+m.y+m.z+m.w; // dither.
-    float base_bayer = bayer4(gl_FragCoord.xy);
-    vec3 NormalizedDir = normalize(v_RayDirection);
-    float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
-    CloudFade = pow(CloudFade * 2.75f, 3.25f);
-    CloudFade = clamp(CloudFade, 0.0f, 1.0f);
+    //vec2 ij = floor(mod(gl_FragCoord.xy, vec2(2.0) ));
+	//float idx = ij.x + 2.0*ij.y;
+	//vec4 m = step( abs(vec4(idx)-vec4(0,1,2,3)), vec4(0.5) ) * vec4(0.75,0.25,0.00,0.50);
+	//float d = m.x+m.y+m.z+m.w; // dither.
+    //float base_bayer = bayer4(gl_FragCoord.xy);
+    //float CloudFade  = mix(0.0f, 1.0f, max(NormalizedDir.y, 0.00001f));
+    //CloudFade = pow(CloudFade * 2.75f, 3.25f);
+    //CloudFade = clamp(CloudFade, 0.0f, 1.0f);
+    //float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    //const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
+    //vec3 S = vec3(1.45f);
+    //float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
+    //S = mix(S, D, DuskVisibility);
+    //vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.2f, SunVisibility); 
+	//vec4 SampledCloudData = texture(u_CloudData, v_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
+	////vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
+	////vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f);
+    //SampledCloudData.xyz *= CloudFade;
+    //float Transmittance = SampledCloudData.w;
+    //vec3 Scatter = SampledCloudData.xyz*1.2f ;
+    //vec3 Sky = vec3(0.0f);
+    //bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f, Transmittance);
+    //Sky = Sky * max(Transmittance, 0.9f);
+    //return vec3(Sky + Scatter*M)+(d/255.0f); // + dither.
+
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-    const vec3 D = (vec3(355.0f, 10.0f, 0.0f) / 255.0f) * 0.4f;
-    vec3 S = vec3(1.45f);
-    float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
-    S = mix(S, D, DuskVisibility);
-    vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.2f, SunVisibility); 
-	vec4 SampledCloudData = texture(u_CloudData, v_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
-	//vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
-	//vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f);
-    SampledCloudData.xyz *= CloudFade;
-    float Transmittance = SampledCloudData.w;
-    vec3 Scatter = SampledCloudData.xyz*1.2f ;
+    vec3 ScatterColor = mix(vec3(1.0f) + 0.001f, (vec3(46.0f, 142.0f, 300.0f) / 255.0f) * 0.160f, SunVisibility); 
+    vec3 NormalizedDir = normalize(v_RayDirection);
+    float Dither = bayer128(gl_FragCoord.xy);
+	vec4 SampledCloudData = texture_catmullrom(u_CloudData, v_TexCoords + (Dither / 512.0f)).rgba; 
     vec3 Sky = vec3(0.0f);
-    bool v = GetAtmosphere(Sky, NormalizedDir, Transmittance*6.5f, Transmittance);
-    Sky = Sky * max(Transmittance, 0.9f);
-    return vec3(Sky + Scatter*M)+(d/255.0f); // + dither.
+    bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w*20.5f, SampledCloudData.w);
+    return Sky * max(SampledCloudData.w, 0.1f) + (((SampledCloudData.xyz * ScatterColor) + (Dither / 128.0f)));
+
 }
 
 vec3 FetchSky() { return GetAtmosphereAndClouds(); }
@@ -823,8 +838,7 @@ vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthM
 vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
 vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
 
-// catmull rom texture interpolation 
-vec4 texture_catmullrom(sampler2D tex, vec2 uv);
+
 
 // cook torrance brdf : 
 

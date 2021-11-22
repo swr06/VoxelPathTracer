@@ -2,8 +2,10 @@
 
 #include "../GLClasses/Texture.h"
 
+#include "../TAAJitter.h"
+
 static float CloudResolution = 1.0f;
-static bool Checkerboard = true;
+bool Checkerboard = false;
 static float Coverage = 0.128f;
 static float BoxSize = 220.0f;
 static float DetailStrength = 0.0f;
@@ -80,13 +82,21 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, bool smartupscale, float cirrusstrength, float CirrusScale)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility)
 {
+	Checkerboard = false;
+
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
-	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	//static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	//static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	//static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	
+	
+	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+
 
 	glm::mat4 CurrentProjection = MainCamera.GetProjectionMatrix();
 	glm::mat4 CurrentView = MainCamera.GetViewMatrix();
@@ -96,12 +106,17 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	Clouds::CloudFBO& CloudFBO = (CurrentFrame % 2 == 0) ? CloudFBO_1 : CloudFBO_2;
 	Clouds::CloudFBO& PrevCloudFBO = (CurrentFrame % 2 == 0) ? CloudFBO_2 : CloudFBO_1;
 
-	CloudTemporalFBO1.SetSize(AppWidth * 0.75f, AppHeight * 0.75f);
-	CloudTemporalFBO2.SetSize(AppWidth * 0.75f, AppHeight * 0.75f);
-	float HalfCloudRes = Checkerboard ? (CloudResolution * 0.5f) : CloudResolution;
-	CloudFBO.SetDimensions(AppWidth * HalfCloudRes, AppHeight * HalfCloudRes);
-	PrevCloudFBO.SetDimensions(AppWidth * HalfCloudRes, AppHeight * HalfCloudRes);
-	CheckerUpscaled.SetSize(AppWidth * CloudResolution, AppHeight * CloudResolution);
+	
+
+
+	
+	CloudTemporalFBO1.SetSize(AppWidth * CloudResolution * 2.0f, AppHeight * CloudResolution * 2.0f);
+	CloudTemporalFBO2.SetSize(AppWidth * CloudResolution * 2.0f, AppHeight * CloudResolution * 2.0f);
+	CloudFBO.SetDimensions(AppWidth * CloudResolution, AppHeight * CloudResolution);
+	PrevCloudFBO.SetDimensions(AppWidth * CloudResolution, AppHeight * CloudResolution);
+
+
+	glm::vec2 JitterValue = VoxelRT::GetTAAJitter(CurrentFrame, glm::vec2(AppWidth * CloudResolution, AppHeight * CloudResolution));
 
 	GLClasses::Shader& CloudShader = *CloudShaderPtr;
 	GLClasses::Shader& TemporalFilter = *CloudTemporalFilterPtr;
@@ -133,6 +148,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("u_TimeScale", TimeScale);
 		CloudShader.SetFloat("u_CirrusStrength", cirrusstrength);
 		CloudShader.SetFloat("u_CirrusScale", CirrusScale);
+		CloudShader.SetFloat("u_SunVisibility", SunVisibility);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
@@ -140,6 +156,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
 		CloudShader.SetVector3f("u_DetailParams", glm::vec3(DetailParams));
 		CloudShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
+		CloudShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+		CloudShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
+		CloudShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetInteger("u_PositionTex", 5);
@@ -148,6 +167,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
 		CloudShader.SetBool("u_CurlNoiseOffset", curlnoise);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
+		CloudShader.SetVector2f("u_JitterValue", glm::vec2(JitterValue));
+		CloudShader.SetVector3f("u_StepCounts", glm::vec3(StepCounts));
+		CloudShader.SetBool("CHECKER_STEP_COUNT", CHECKER_STEP_COUNT);
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_3D, CloudNoise->GetTextureID());
@@ -177,28 +199,28 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 	}
-
-	if (Checkerboard)
-	{
-		CheckerUpscaler.Use();
-		CheckerUpscaled.Bind();
-
-		CheckerUpscaler.SetInteger("u_CurrentFrame", CurrentFrame);
-		CheckerUpscaler.SetInteger("u_ColorTexture", 0);
-		CheckerUpscaler.SetInteger("u_PreviousColorTexture", 2);
-		CheckerUpscaler.SetMatrix4("u_PreviousProjection", PrevProjection);
-		CheckerUpscaler.SetMatrix4("u_PreviousView", PrevView);
-
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, CloudFBO.GetCloudTexture());
-		
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, PrevCloudFBO.GetCloudTexture());
-
-		VAO.Bind();
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		VAO.Unbind();
-	}
+	//
+	//if (Checkerboard)
+	//{
+	//	CheckerUpscaler.Use();
+	//	CheckerUpscaled.Bind();
+	//
+	//	CheckerUpscaler.SetInteger("u_CurrentFrame", CurrentFrame);
+	//	CheckerUpscaler.SetInteger("u_ColorTexture", 0);
+	//	CheckerUpscaler.SetInteger("u_PreviousColorTexture", 2);
+	//	CheckerUpscaler.SetMatrix4("u_PreviousProjection", PrevProjection);
+	//	CheckerUpscaler.SetMatrix4("u_PreviousView", PrevView);
+	//
+	//	glActiveTexture(GL_TEXTURE0);
+	//	glBindTexture(GL_TEXTURE_2D, CloudFBO.GetCloudTexture());
+	//	
+	//	glActiveTexture(GL_TEXTURE2);
+	//	glBindTexture(GL_TEXTURE_2D, PrevCloudFBO.GetCloudTexture());
+	//
+	//	VAO.Bind();
+	//	glDrawArrays(GL_TRIANGLES, 0, 6);
+	//	VAO.Unbind();
+	//}
 
 	//// Temporally filter the clouds
 	{
@@ -219,8 +241,6 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 		TemporalFilter.SetBool("u_Clamp", Clamp);
-		TemporalFilter.SetBool("u_Bicubic", smartupscale&&Checkerboard);
-		TemporalFilter.SetBool("u_SmartUpscale", smartupscale&& Checkerboard);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);
@@ -250,11 +270,6 @@ void Clouds::CloudRenderer::RecompileShaders()
 	CloudShaderPtr->Recompile();
 	CloudTemporalFilterPtr->Recompile();
 	CloudCheckerUpscalerPtr->Recompile();
-}
-
-void Clouds::CloudRenderer::SetChecker(bool v)
-{
-	Checkerboard = v;
 }
 
 void Clouds::CloudRenderer::SetCoverage(float v)
