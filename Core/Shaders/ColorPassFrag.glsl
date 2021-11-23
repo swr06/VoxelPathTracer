@@ -242,7 +242,7 @@ vec3 hash33(vec3 p3) {
     return fract((p3.xxy + p3.yxx) * p3.zyx);
 }
 
-float StableStarField(in vec2 UV, float NoiseThreshold)
+float BilinearStarSample(in vec2 UV, float NoiseThreshold)
 {
     // bilinear offset ->
     float FractUVx = fract(UV.x);
@@ -255,7 +255,7 @@ float StableStarField(in vec2 UV, float NoiseThreshold)
     float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
     float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
 
-    // Basic Bilinear interpolation :
+    // Basic Bilinear interpolation to reduce aliasing :
     float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
 					+ v2 * (1.0 - FractUVx) * FractUVy
 					+ v3 * FractUVx * (1.0 - FractUVy)
@@ -293,8 +293,8 @@ float rand(vec2 co){
 	    vec2 uv = fragpos.xz / (1.0f + elevation);
 
         // Add some variation to the scale 
-        float scale = mix(500.0f, 1100.0f, hash.y);
-        float star = StableStarField(uv * scale, 0.97f);
+        float scale = mix(600.0f, 1100.0f, hash.y);
+        float star = BilinearStarSample(uv * scale, 0.98f);
 
         // Use the planckian locus scale to get a celestial temperature from value 
         float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x, 1.5f), 0.0f, 1.0f));
@@ -388,9 +388,9 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     star_visibility = 1.0f - star_visibility;
     vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
     stars = clamp(stars, 0.0f, 1.3f);
-    stars *= 3.0f;
+    stars *= 6.0f;
 
-    atmosphere += stars*(1.0f*true_transmittance);
+    atmosphere += stars*(1.0f*true_transmittance*true_transmittance);
 
     atmosphere_color = atmosphere;
 
