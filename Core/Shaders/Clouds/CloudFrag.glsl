@@ -28,7 +28,7 @@
 
 layout (location = 0) out vec4 o_Data;
 
-in vec2 v_TexCoords;
+in vec2 v_TexCoords;;
 
 uniform float u_Time;
 uniform int u_CurrentFrame;
@@ -77,6 +77,7 @@ uniform bool CHECKER_STEP_COUNT;
 
 uniform float u_SunVisibility;
 
+vec2 g_TexCoords;
 
 // 
 const float ACCUM_MULTIPLIER = 50.0f;
@@ -489,8 +490,8 @@ vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittanc
 
 vec3 ComputeRayDirection()
 {
-	vec2 ScreenSpace = v_TexCoords;
-	ScreenSpace += (u_JitterValue*4.0f) / u_Dimensions;
+	vec2 ScreenSpace = g_TexCoords;
+	//ScreenSpace += (u_JitterValue*4.0f) / u_Dimensions;
 	float TexelSizeX = 1.0f / u_Dimensions.x;
 	ScreenSpace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX) * float(u_Checker);
 	vec4 Clip = vec4(ScreenSpace * 2.0f - 1.0f, -1.0, 1.0);
@@ -599,6 +600,11 @@ const bool DoFade = true;
 
 void main()
 {
+	g_TexCoords = v_TexCoords;
+	g_TexCoords += (u_JitterValue*1.4f) / u_Dimensions;
+	
+	
+	
 	NormalizedSUNDIR = normalize(u_SunDirection);
 	o_Data = vec4(0.0f, 0.0f, 0.0f, 1.0f / 2.0f);
 	
@@ -608,7 +614,7 @@ void main()
 	vec3 AtmosphereAtViewRay = texture(u_Atmosphere, Direction).xyz;
 
 	// We dont need to ray cast the clouds if there is a hit at the current position
-	if (!SampleValid(v_TexCoords))
+	if (!SampleValid(g_TexCoords))
 	{
 		o_Data.xyz = AtmosphereAtViewRay;
 		o_Data.w = 0.2f;
