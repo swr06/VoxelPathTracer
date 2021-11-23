@@ -336,9 +336,9 @@ void main()
 
         }
 
-		if (u_Clamp) {
+		if (true) {
 			//PrevColor.xyz = ClampColor(PrevColor.xyz);
-            PrevColor = clamp(PrevColor, MinData - 0.2f, MaxData + 0.2f);
+            PrevColor = clamp(PrevColor, MinData - 0.3f, MaxData + 0.3f);
 		}
 
 		float T_Base = texture(u_CurrentPositionData, v_TexCoords).r;
@@ -351,7 +351,7 @@ void main()
 			&& PreviousCoord.y > 0.0 + ReprojectBias && PreviousCoord.y < 1.0 - ReprojectBias && 
 			OcclusionValidity)
 		{
-			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.94750f);
+			o_Color = mix(CurrentColor.xyzw, PrevColor.xyzw, 0.96f);
 		}
 
 		else 

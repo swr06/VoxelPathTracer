@@ -47,6 +47,10 @@ uniform sampler2D u_CirrusClouds;
 uniform float u_CirrusStrength;
 uniform float u_CirrusScale;
 
+uniform bool u_LodLighting;
+
+uniform float u_CloudDetailFBMPower;
+
 uniform float u_Coverage;
 uniform vec3 u_SunDirection;
 uniform vec3 u_ViewerPosition;
@@ -210,7 +214,7 @@ float GetHeightFraction(vec3 P)
 
 float SampleDensity(vec3 p, float lod)
 {
-	lod = clamp(lod, 0.0f, 4.0f);
+	lod = clamp(lod, 0.0f, 5.0f);
 
 	vec3 OriginalP = p;
 	float HeightFraction = GetHeightFraction(p);
@@ -223,7 +227,7 @@ float SampleDensity(vec3 p, float lod)
 	//float CloudDensity = getDensityForCloud(HeightFraction, 1.0f);
 	//float DensityHeightRatio = (CloudDensity / HeightFraction);
 
-	float Ts = 1.5f;
+	float Ts = 0.8f;
 
 	vec3 TimeOffset = vec3((u_Time*u_TimeScale*Ts) * 30.69f, 0.0f, (u_Time*u_TimeScale*Ts) * 4.420f);
     vec3 pos = p + TimeOffset;
@@ -271,7 +275,7 @@ float SampleDensity(vec3 p, float lod)
                        (DetailNoise.b * 0.25f)  +
                        (DetailNoise.a * 0.125f);
 
-	HighFreqFBM = pow(HighFreqFBM, 1.2f);
+	HighFreqFBM = pow(HighFreqFBM, 1.2f * u_CloudDetailFBMPower);
 
 	RemappedToCoverage = RemappedToCoverage - (HighFreqFBM) * pow((1.0f - RemappedToCoverage), u_DetailParams.z);
 	RemappedToCoverage = remap(RemappedToCoverage / 0.5f, (HighFreqFBM) * 0.2f, 1.0f, 0.0f, 1.0f);
@@ -296,7 +300,7 @@ float RaymarchLight(vec3 Point)
 
     for(int i = 0; i < StepCount; i++)
 	{
-        Accum += RayLength * SampleDensity(Point, 1.0f);
+        Accum += RayLength * SampleDensity(Point, u_LodLighting ? 3.0f : 1.0f);
 
 		// Exponential step size ->
         RayLength *= 1.5; 
@@ -318,7 +322,7 @@ float RaymarchAmbient(vec3 Point)
 
     for(int i = 0; i < StepCount; i++)
 	{
-        Accum += RayLength * SampleDensity(Point, 2.0f);
+        Accum += RayLength * SampleDensity(Point, u_LodLighting ? 3.0f : 1.0f);
 
 		// Exponential step size ->
         RayLength *= 1.5;
@@ -340,7 +344,7 @@ float RaymarchBounced(vec3 Point)
 
     for(int i = 0; i < StepCount; i++)
 	{
-        Accum += RayLength * SampleDensity(Point, 2.0f);
+        Accum += RayLength * SampleDensity(Point, u_LodLighting ? 3.0f : 1.0);
 
 		// Exponential step size ->
         RayLength *= 1.5;
@@ -436,6 +440,9 @@ const vec3 ScatterKernel[8] = vec3[8](
 	  vec3(pow(0.6f, 7.0f), pow(0.3f, 7.0f), pow(0.8f, 7.0f))
 );
 
+
+float PhaseMultiplier = 1.0f;
+
 vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittance, float TotalTransmittance, vec3 Costheta, vec3 MarchTransmittance)
 {
 	vec3 PowderPhaseTerms = vec3(PowderDirect(MarchTransmittance.x, Costheta.x), PowderIndirect(MarchTransmittance.y, Costheta.y), PowderIndirect(MarchTransmittance.z, Costheta.z));
@@ -466,8 +473,8 @@ vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittanc
 
 		// henyey greenstein phase ->
 		vec2 PhaseFunctions;
-		PhaseFunctions.x = hg(Costheta.x * Kernel.z, MarchTransmittance.x);
-		PhaseFunctions.y = hg(Costheta.y * Kernel.z, MarchTransmittance.y) * 2.0f;
+		PhaseFunctions.x = hg(Costheta.x * Kernel.z, MarchTransmittance.x) * PhaseMultiplier;
+		PhaseFunctions.y = hg(Costheta.y * Kernel.z, MarchTransmittance.y) * 2.4f * max(1.0f, PhaseMultiplier * 0.5f);
 
 		// Integrate scattering -> 
 		// Transmittance * Powder * Phase (henyey greenstein) 
@@ -535,6 +542,58 @@ vec2 RSI(vec3 origin, vec3 dir, float radius)
 	return intersection;
 }
 
+float GetCirrusDensityAt(vec3 P)
+{
+	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
+	const float ts = 0.1f;
+	SamplePosition += vec2(u_Time * 0.16666f * ts, u_Time * 0.5f * ts).yx;
+	float CirrusDensity = texture(u_CirrusClouds, SamplePosition).x;
+	CirrusDensity = 1.0f - pow(CirrusDensity, 0.125f);
+	return (CirrusDensity * 0.9f * u_CirrusStrength);
+}
+
+float ScatterIntegral(float x, float coeff)
+{
+    float a = -coeff * (1.0 / log(2.0));
+    float b = -1.0 / coeff;
+    float c =  1.0 / coeff;
+
+    return exp2(a * x) * b + c;
+}
+
+float powder_cirrus(float od)
+{
+	return 1.0f - exp2(-od * 2.0f);
+}
+
+const float Log2 = log(2.0);
+
+vec3 MarchCirrus(vec3 P, float CosTheta) 
+{
+	float BaseOpticalDepth = GetCirrusDensityAt(P) * 1.5f;
+	float hg = hg_phase(BaseOpticalDepth, CosTheta);
+	float Accum = 0.0; 
+	int LightSteps = 4; 
+	float Increment = 8.0f;
+    vec3 RayStep = NormalizedSUNDIR;
+	float StepSize = 1.0f / float(LightSteps);
+    vec3 CurrentPoint = P + RayStep * Increment;
+
+	for(int Step = 0; Step < LightSteps; Step++)
+	{
+		Increment *= 1.5f;
+		Accum += GetCirrusDensityAt(CurrentPoint)*3.2f; 
+		CurrentPoint += RayStep * Increment;
+	}
+
+	float TotalScattering = ScatterIntegral(BaseOpticalDepth, 1.11f);  
+	float SunVisibility = exp(-Accum * StepSize); 
+	float BeersPowder = powder_cirrus(BaseOpticalDepth * Log2);
+	vec3 SkyLightBasic = vec3(0.75f) * 0.25f * (1.0f / PI);
+	vec3 SunLight = vec3(1.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f);
+	return (SunLight + SkyLightBasic) * TotalScattering * (PI) * 0.75f * 0.135f;
+}
+
 const float IsotropicPhaseFunction = 0.25f / PI;
 const bool DoFade = true;
 
@@ -591,10 +650,12 @@ void main()
 	vec3 ProjectedOuter = Direction * TraversalDistance.y;
     ProjectedOuter = mix(ProjectedOuter, Direction * CloudAltitudeMin * 12.0, Range);
 
+	// Low frequency hash ->
 	float Hash = Bayer32(gl_FragCoord.xy + vec2(u_CurrentFrame * (0.9f/1.0f), u_CurrentFrame * 0.5));
 	
 	
 	int StepCount = clamp(int(u_StepCounts.x),2,64);
+
 
 
 	if (CHECKER_STEP_COUNT) {
@@ -648,14 +709,19 @@ void main()
 		RayPosition += Increment;
 	}
 
-	vec3 SunColor = mix(vec3(45.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
+	vec3 SunColor = mix(vec3(38.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
 	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.3f)) * 3.0f;
+
+	// Add scattering components ->
 
 	vec3 TotalScattering = vec3(0.0f);
 	TotalScattering += IntegratedScattering.x * SunColor;
 	TotalScattering += IntegratedScattering.y * SkyColor;
 	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
 	
+
+	// Store ->
+
 	vec4 FinalData = vec4(TotalScattering, Transmittance);
 	
 	if (DoFade) 
@@ -664,7 +730,7 @@ void main()
 		Fade = clamp(Fade, 0.0f, 1.0f);
 		Fade = Fade * Fade;
 		Fade = clamp(Fade, 0.0f, 1.0f);
-		vec4 Identity = vec4(AtmosphereAtViewRay, 0.0f);
+		vec4 Identity = vec4(AtmosphereAtViewRay, 0.3f);
 		FinalData = mix(FinalData, Identity, Fade);
 	}
 

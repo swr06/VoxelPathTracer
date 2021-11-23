@@ -472,7 +472,8 @@ vec3 GetAtmosphereAndClouds()
 	vec4 SampledCloudData = texture_catmullrom(u_CloudData, v_TexCoords + (Dither / 512.0f)).rgba; 
     vec3 Sky = vec3(0.0f);
     bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w*20.5f, SampledCloudData.w);
-    return Sky * max(SampledCloudData.w, 0.1f) + (((SampledCloudData.xyz * ScatterColor) + (Dither / 128.0f)));
+    float transmittance = max(SampledCloudData.w, 0.07525f);
+    return (Sky * transmittance) + (((SampledCloudData.xyz * ScatterColor) + (Dither / 1024.0f)));
 
 }
 

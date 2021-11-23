@@ -82,20 +82,20 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes)
 {
 	Checkerboard = false;
 
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
-	//static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
-	//static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
-	//static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
+	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
 	
 	
-	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
-	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+	//static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+	//static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
+	//static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
 
 
 	glm::mat4 CurrentProjection = MainCamera.GetProjectionMatrix();
@@ -108,10 +108,10 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 	
 
+	float TemporalResolution = CloudForceSupersample ? CloudSuperSampleRes : CloudResolution * 2.0f;
+	CloudTemporalFBO1.SetSize(AppWidth * TemporalResolution, AppHeight * TemporalResolution);
+	CloudTemporalFBO2.SetSize(AppWidth * TemporalResolution, AppHeight * TemporalResolution);
 
-	
-	CloudTemporalFBO1.SetSize(AppWidth * CloudResolution * 2.0f, AppHeight * CloudResolution * 2.0f);
-	CloudTemporalFBO2.SetSize(AppWidth * CloudResolution * 2.0f, AppHeight * CloudResolution * 2.0f);
 	CloudFBO.SetDimensions(AppWidth * CloudResolution, AppHeight * CloudResolution);
 	PrevCloudFBO.SetDimensions(AppWidth * CloudResolution, AppHeight * CloudResolution);
 
@@ -148,6 +148,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("u_TimeScale", TimeScale);
 		CloudShader.SetFloat("u_CirrusStrength", cirrusstrength);
 		CloudShader.SetFloat("u_CirrusScale", CirrusScale);
+		CloudShader.SetFloat("u_CloudDetailFBMPower", CloudDetailFBMPower);
 		CloudShader.SetFloat("u_SunVisibility", SunVisibility);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_SliceCount", 256);
@@ -166,6 +167,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetBool("u_UseBayer", Bayer);
 		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
 		CloudShader.SetBool("u_CurlNoiseOffset", curlnoise);
+		CloudShader.SetBool("u_LodLighting", lodlighting);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_JitterValue", glm::vec2(JitterValue));
 		CloudShader.SetVector3f("u_StepCounts", glm::vec3(StepCounts));

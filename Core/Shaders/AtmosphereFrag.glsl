@@ -10,22 +10,22 @@ in vec3 v_RayDirection;
 uniform float u_Time;
 uniform vec3 u_SunDirection;
 
-float phase_mie(float g, float c, float cc) 
+float MiePhase(float g, float c, float cc) 
 {
 	float gg = g * g;
-	float a = (1.0 - gg) * (1.0 + cc);
-	float b = 1.0 + gg - 2.0 * g * c;
-	b *= sqrt( b );
-	b *= 2.0 + gg;	
-	return 1.5 * a / b;
+	float a = (1.0f - gg) * (1.0f + cc);
+	float b = 1.0f + gg - 2.0 * g * c;
+	b *= sqrt(b);
+	b *= 2.0f + gg;	
+	return 1.5f * a / b;
 }
 
-float phase_reyleigh(float cc) 
+float ReyleighPhase(float cc) 
 {
-	return 0.75 * (1.0 + cc);
+	return 0.75f * (1.0f + cc);
 }
 
-vec2 RaySphereIntersection( vec3 p, vec3 dir, float r ) 
+vec2 RSI(vec3 p, vec3 dir, float r) 
 {
 	float b = dot(p, dir);
 	float c = dot(p, p) - r * r;
@@ -41,146 +41,143 @@ vec2 RaySphereIntersection( vec3 p, vec3 dir, float r )
 	return vec2( -b - d, -b + d );
 }
 
-float density(vec3 p)
+float SampleDensity(vec3 p)
 {
 	const float R = 1.0;
 	const float SCALE_H = 4.0 / (R - R_INNER);
 	const float SCALE_L = 1.0 / (R - R_INNER);
-
-	return exp(-(length(p) - R_INNER) * SCALE_H) * 2.0;
+	return exp(-(length(p) - R_INNER) * SCALE_H) * 2.0f;
 }
 
-float optic(vec3 p, vec3 q) 
+float SampleOpticalDepth(vec3 p, vec3 q) 
 {
-	const int numOutscatter = 1;
+	const int Steps = 3;
 
-	const float R = 1.0;
-	const float SCALE_L = 1.0 / (R - R_INNER);
+	vec3 Increment = (q - p) / float(Steps);
+	Increment /= 4.0f;
+	vec3 v = p + Increment * 0.5f;
+	float Accumulated = 0.0f;
 
-	vec3 step = (q - p) / float(numOutscatter);
-	step *= 0.3;
-
-	vec3 v = p + step * 0.5;
-	float sum = 0.0;
-
-	for (int i = 0; i < numOutscatter; i++) 
+	for (int i = 0; i < Steps; i++) 
 	{
-		sum += density(v);
-		v += step;
+		Accumulated += SampleDensity(v);
+		v += Increment;
 	}
 
-	sum *= length(step) * SCALE_L;
-	return sum;
+	float StepSize = length(Increment);
+	Accumulated *= StepSize * (1.0 / (1.0f - R_INNER));
+	return Accumulated;
 }
 
-vec3 in_scatter(vec3 o, vec3 dir, vec2 e, vec3 l, const float mieAmount, const float rayleighAmount) 
+vec3 PrimaryScatter(vec3 Origin, vec3 Direction, vec2 e, vec3 l, const float MieAmount, const float RayleighAmount) 
 {
-	const float numInscatter = 4;
+	const float PI = 3.14159265359f;
+	const float R = 1.0f;
+	const float SCALE_L = 1.0f / (R - R_INNER);
+	const vec3 RayleighScatterCoefficient = vec3(0.2f, 0.45f, 1.0f);	
+	const float G_M = -0.75f;
+
+	const float Steps = 8;
+	const float K_R = 0.186f * RayleighAmount;
+	const float K_M = 0.035f * MieAmount;
 	
-	const float PI = 3.14159265359;
+	// Fake boost :
+	float boosty = clamp((l.y + 0.1f), 0.0f, 1.0f) * 0.95f + 0.05f;
+	boosty = 1.0f / sin(boosty);
+	float Length = (e.y * (1.0 + boosty * 0.0)) / float(Steps);
+	
+	vec3 Increment = Direction * Length;
+	Increment *= 2.0f;
 
-	const float R = 1.0;
-	const float SCALE_L = 1.0 / (R - R_INNER);
+	vec3 RayPosition = Origin;
+	vec3 v = RayPosition + Direction * (Length * (0.5f + boosty * 0.0f));
 
-	const float K_R = 0.186 * rayleighAmount;
-	const float K_M = 0.035 * mieAmount;
-	const float E = 14.3;
-	const vec3 C_R = vec3(0.2, 0.45, 1.0);	//Rayleigh scattering coefficients
-	const float G_M = -0.75;
+	vec3 Accumulated = vec3(0.0f);
 
-	float boosty = clamp((l.y + 0.1), 0.0f, 1.0f) * 0.95 + 0.05;
-	boosty = 1.0 / sin(boosty);
-
-	float len = (e.y * (1.0 + boosty * 0.0)) / float(numInscatter);
-	vec3 step = dir * len;
-	step *= 2.0;
-	vec3 p = o;
-
-	vec3 v = p + dir * (len * (0.5 + boosty * 0.0));
-	vec3 sum = vec3(0.0);
-
-	for ( int i = 0; i < numInscatter; i++ ) 
+	for (int i = 0; i < Steps; i++) 
 	{
-		vec2 f = RaySphereIntersection( v, l, R );
+		vec2 f = RSI(v, l, R);
 		vec3 u = v + l * f.y;
-		
-		float n = (optic(p, v) + optic(v, u)) * (PI * 4.0);
-		sum += density(v) * exp(-n * (K_R * C_R + K_M));
-		v += step;
+		float n = (SampleOpticalDepth(RayPosition, v) + SampleOpticalDepth(v, u)) * (PI * 4.0f);
+		Accumulated += SampleDensity(v) * exp(-n * (K_R * RayleighScatterCoefficient + K_M));
+		v += Increment;
 	}
 
-	sum *= len * SCALE_L;
-	float c  = dot(dir, -l);
+	Accumulated *= Length * SCALE_L;
+
+	float c = dot(Direction, -l);
 	float cc = c * c;
-	return sum * (K_R * C_R * phase_reyleigh(cc) + K_M * phase_mie(G_M, c, cc)) * E;
+	vec2 Phase = vec2(ReyleighPhase(cc),MiePhase(G_M, c, cc));
+	return Accumulated * (K_R * RayleighScatterCoefficient * Phase.x + K_M * Phase.y) * 13.0f;
 }
 
-vec3 in_scatter2(vec3 o, vec3 dir, vec2 e, vec3 l) 
+vec3 SecondScatter(vec3 o, vec3 dir, vec2 e, vec3 l) 
 {
-	const float numInscatter = 2;
-	
+	const float Steps = 4;
 	const float PI = 3.14159265359;
-
 	const float R = 1.0;
 	const float SCALE_L = 1.0 / (R - R_INNER);
-
 	const float K_R = 0.166;
 	const float K_M = 0.00;
 	const float E = 14.3;
-	const vec3 C_R = vec3(0.2, 0.6, 1.0);	//Rayleigh scattering coefficients
+	const vec3 C_R = vec3(0.2, 0.6, 1.0);	
 	const float G_M = -0.65;
 
-	float len = (e.y) / float(numInscatter);
+	float len = (e.y) / float(Steps);
 	vec3 step = dir * len;
 	step *= 2.0;
 	vec3 p = o;
 
-	//float boosty = 1.0 - abs(l.y);
+	// Fake boost :
 	float boosty = clamp((l.y + 0.1), 0.0f, 1.0f) * 0.95 + 0.05;
 	boosty = 1.0 / sin(boosty);
+
+
 	vec3 v = p + dir * (len * (0.5 + boosty * 0.0));
 	vec3 sum = vec3(0.0);
 
-	for (int i = 0; i < numInscatter; i++) 
+	for (int i = 0; i < Steps; i++) 
 	{
-		vec2 f = RaySphereIntersection(v, l, R);
+		vec2 f = RSI(v, l, R);
 		vec3 u = v + l * f.y;
-		float n = (optic(p, v) + optic(v, u)) * (PI * 4.0);
-		sum += density(v) * exp(-n * (K_R * C_R + K_M));
+		float n = (SampleOpticalDepth(p, v) + SampleOpticalDepth(v, u)) * (PI * 4.0);
+		sum += SampleDensity(v) * exp(-n * (K_R * C_R + K_M));
 		v += step;
 	}
 
+
 	sum *= len * SCALE_L;
-	float c  = dot(dir, -l);
+	float c = dot(dir, -l);
 	float cc = c * c;
-	return sum * (K_R * C_R * phase_reyleigh(cc) + K_M * phase_mie(G_M, c, cc)) * E;
+
+	vec2 Phase = vec2(ReyleighPhase(cc), MiePhase(G_M, c, cc)); 
+	return sum * (K_R * C_R * Phase.x + K_M * Phase.y) * E;
 }
 
 vec3 AtmosphericScattering(vec3 rayDir, vec3 lightVector, const float mieAmount)
 {
+	// Constants :
 	const float PI = 3.14159265359;
 	const float DEG_TO_RAD = PI / 180.0;
-
-	//Scatter constants
 	const float K_R = 0.166;
 	const float K_M = 0.0025;
 	const float E = 14.3;
 	const vec3 C_R = vec3(0.3, 0.7, 1.0);	//Rayleigh scattering coefficients
 	const float G_M = -0.85;
-
 	const float R = 1.0;
 	const float SCALE_H = 4.0 / (R - R_INNER);
 	const float SCALE_L = 1.0 / (R - R_INNER);
-
 	const int NUM_OUT_SCATTER = 10;
 	const float FNUM_OUT_SCATTER = 10.0;
-
 	const int NUM_IN_SCATTER = 10;
 	const float FNUM_IN_SCATTER = 10.0;
 
-	vec3 eye = vec3(0.0, mix(R_INNER, 1.0, 0.05), 0.0);
+	vec3 Eye = vec3(0.0, mix(R_INNER, 1.0, 0.05), 0.0);
+	vec3 OriginalRayDirection = rayDir;
 
-	vec3 originalRayDir = rayDir;
+	// Fake boost :
+	float boosty = clamp((lightVector.y), 0.0f, 1.0f) * 0.90 + 0.10;
+	boosty = 1.0 / sin(boosty);
 
 	if (rayDir.y < 0.0)
 	{
@@ -188,20 +185,22 @@ vec3 AtmosphericScattering(vec3 rayDir, vec3 lightVector, const float mieAmount)
 		rayDir.y *= rayDir.y;
 	}
 
-	vec3 up = vec3(0.0, 1.0, 0.0);
-	vec2 e = RaySphereIntersection(eye, rayDir, R);
-	vec2 eup = RaySphereIntersection(eye, up, R);
-	vec3 atmosphere = in_scatter(eye, rayDir, e, lightVector, mieAmount, 1.0);
-	vec3 secondary = in_scatter2(eye, up, eup, lightVector);
-	vec3 ambient = vec3(0.3, 0.5, 1.0);
-	vec3 ground = vec3(0.1, 0.1, 0.1) * 0.05;
-	float boosty = clamp((lightVector.y), 0.0f, 1.0f) * 0.90 + 0.10;
-	boosty = 1.0 / sin(boosty);
+	vec3 Up = vec3(0.0f, 1.0f, 0.0f);
+	vec2 IntersectedEye = RSI(Eye, rayDir, R);
+	vec2 IntersectedUp = RSI(Eye, Up, R);
 
-	atmosphere += dot(secondary, vec3(0.66)) * ambient;
-	atmosphere *= vec3(0.8, 0.89, 1.0);
-	atmosphere = pow(atmosphere, vec3(1.2));
-	return atmosphere;
+	// March!
+	vec3 MarchedAtmosphere = PrimaryScatter(Eye, rayDir, IntersectedEye, lightVector, mieAmount, 1.0);
+	vec3 Secondary = SecondScatter(Eye, Up, IntersectedUp, lightVector);
+	
+	vec3 AmbientTerm = vec3(0.3f, 0.5f, 1.0f);
+
+	MarchedAtmosphere += dot(Secondary, vec3(0.66)) * AmbientTerm;
+	MarchedAtmosphere *= vec3(0.8, 0.89, 1.0);
+	MarchedAtmosphere = pow(MarchedAtmosphere, vec3(1.2));
+
+
+	return MarchedAtmosphere;
 }
 
 void main()
@@ -209,5 +208,5 @@ void main()
 	vec3 col = AtmosphericScattering(normalize(v_RayDirection), normalize(u_SunDirection), 0.12f);
 	vec3 col2 = AtmosphericScattering(normalize(v_RayDirection), normalize(vec3(-u_SunDirection.x, -u_SunDirection.y, u_SunDirection.z)), 0.5f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-	o_Color = vec4(mix(col*0.5525f, col2*((vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.06f), SunVisibility), 1.0f);
+	o_Color = vec4(mix(col*0.5f, col2*((vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.05f), SunVisibility), 1.0f);
 }
