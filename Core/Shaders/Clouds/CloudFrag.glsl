@@ -660,7 +660,7 @@ void main()
 
 	if (CHECKER_STEP_COUNT) {
 
-		bool IsCheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == 0;
+		bool IsCheckerStep = int(gl_FragCoord.x + gl_FragCoord.y) % 2 == (u_CurrentFrame%2);
 		int HalfStepCount = clamp(int(u_StepCounts.x/2),2,64);
 		StepCount = clamp(int(mix(HalfStepCount, StepCount, float(IsCheckerStep))),2,64);
 
