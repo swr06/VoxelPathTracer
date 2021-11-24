@@ -364,12 +364,12 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
     vec3 ray_dir = normalize(in_ray_dir);
     
-    if (transmittance > 0.7f) {
+    if (transmittance > 0.9f) {
 
         if(dot(ray_dir, sun_dir) > 0.999825f)
         {
             atmosphere_color = ATMOSPHERE_SUN_COLOR; 
-            o_PBR.w = float(2.6f);
+            o_PBR.w = float(1.0f);
             return true;
         }
         

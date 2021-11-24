@@ -553,15 +553,15 @@ float GetCirrusDensityAt(vec3 P)
 	return (CirrusDensity * 0.9f * u_CirrusStrength);
 }
 
-float ScatterIntegral(float x, float coeff)
+float ResolveScatter(float x, float coeff)
 {
     float a = -coeff * (1.0 / log(2.0));
     float b = -1.0 / coeff;
     float c =  1.0 / coeff;
-
     return exp2(a * x) * b + c;
 }
 
+// cirrus powder ->
 float powder_cirrus(float od)
 {
 	return 1.0f - exp2(-od * 2.0f);
@@ -572,7 +572,9 @@ const float Log2 = log(2.0);
 vec3 MarchCirrus(vec3 P, float CosTheta) 
 {
 	float BaseOpticalDepth = GetCirrusDensityAt(P) * 1.5f;
-	float hg = hg_phase(BaseOpticalDepth, CosTheta);
+
+	// Phase term ->
+	float hg = hg_phase(BaseOpticalDepth, CosTheta) * 1.2f; 
 	float Accum = 0.0; 
 	int LightSteps = 4; 
 	float Increment = 8.0f;
@@ -587,21 +589,24 @@ vec3 MarchCirrus(vec3 P, float CosTheta)
 		CurrentPoint += RayStep * Increment;
 	}
 
-	float TotalScattering = ScatterIntegral(BaseOpticalDepth, 1.11f);  
+	float TotalScattering = ResolveScatter(BaseOpticalDepth, 1.11f);  
 	float SunVisibility = exp(-Accum * StepSize); 
 	float BeersPowder = powder_cirrus(BaseOpticalDepth * Log2);
 	vec3 SkyLightBasic = vec3(0.75f) * 0.25f * (1.0f / PI);
-	vec3 SunLight = vec3(1.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f);
+	const float odod = 0.9f / 1.0f;
+	vec3 SunLight = vec3(2.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f) * odod;
 	return (SunLight + SkyLightBasic) * TotalScattering * (PI) * 0.75f * 0.135f;
 }
 
 const float IsotropicPhaseFunction = 0.25f / PI;
 const bool DoFade = true;
 
+
+
 void main()
 {
 	g_TexCoords = v_TexCoords;
-	g_TexCoords += (u_JitterValue*1.4f) / u_Dimensions;
+	g_TexCoords += (u_JitterValue*3.0f) / u_Dimensions;
 	
 	
 	
@@ -692,9 +697,16 @@ void main()
 
 	// Start from projected inner sphere ->
 	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
+	RayPosition += Increment * 0.1f;
+	
+	vec3 CirrusPosition = vec3(0.0f);
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
+		if (i == StepCount / 2) {
+			CirrusPosition = RayPosition;
+		}
+	
 		if (Transmittance < 0.02f) {
 			break;
 		}
@@ -716,7 +728,7 @@ void main()
 	}
 
 	vec3 SunColor = mix(vec3(38.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.3f)) * 3.0f;
+	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.0f)) * 4.0f;
 
 	// Add scattering components ->
 
@@ -724,6 +736,21 @@ void main()
 	TotalScattering += IntegratedScattering.x * SunColor;
 	TotalScattering += IntegratedScattering.y * SkyColor;
 	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
+	
+
+	// Cirrus..? 
+
+	// wip 
+
+	if (Transmittance > 0.95f && false) {
+		if (u_CirrusClouds) {
+			
+			vec3 CirrusMarch = MarchCirrus(CirrusPosition, CosTheta.x);
+
+			TotalScattering = mix(TotalScattering, CirrusMarch, Transmittance);
+
+		}
+	}
 	
 
 	// Store ->

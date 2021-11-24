@@ -129,14 +129,14 @@ static bool RemoveTiling = false;
 
 static bool CloudsEnabled = true;
 static float CloudCoverage = 1.0f;
-static bool CloudBayer = true;
+static const bool CloudBayer = true;
 static float CloudDetailScale = 1.1f;
-static float CloudErosionWeightExponent = 0.55f;
-static float CloudDetailFBMPower = 1.425f;
+static float CloudErosionWeightExponent = 0.56f;
+static float CloudDetailFBMPower = 1.125f;
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
-static glm::vec2 CloudModifiers = glm::vec2(-0.87500, 0.1250f); 
+static glm::vec2 CloudModifiers = glm::vec2(-0.82500, 0.1250f); 
 static bool CurlNoiseOffset = false;
 static float CirrusScale = 2.0f;
 static float CirrusStrength = 0.390f;
@@ -148,6 +148,7 @@ static bool CloudForceSupersample = true;
 static float CloudForceSupersampleRes = 0.75f;
 static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
+static bool CloudSpatialUpscale = true;
 
 //
 
@@ -422,7 +423,8 @@ public:
 			ImGui::Text("Volumetric clouds : ");
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
-			ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
+			//ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
+			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
 			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
 			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
 			ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
@@ -2539,7 +2541,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
 				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), 
-				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes);
+				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale);
 
 			//Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
