@@ -543,14 +543,34 @@ vec2 RSI(vec3 origin, vec3 dir, float radius)
 	return intersection;
 }
 
+// Cirrus clouds ->
+
 float GetCirrusDensityAt(vec3 P)
 {
 	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
-	const float ts = 0.1f;
+	const float ts = 0.05f;
+
 	SamplePosition += vec2(u_Time * 0.16666f * ts, u_Time * 0.5f * ts).yx;
-	float CirrusDensity = texture(u_CirrusClouds, SamplePosition).x;
-	CirrusDensity = 1.0f - pow(CirrusDensity, 0.125f);
-	return (CirrusDensity * 0.9f * u_CirrusStrength);
+	SamplePosition /= 1.4f;
+
+	float CirrusDensity = texture(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y)).x;
+
+	bool CirrusDetail = false;
+
+	if (CirrusDetail) {
+
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*3.2f,SamplePosition.y)).x;
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y)).x;
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.2)).x;
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.9)).x;
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*2.9)).x;
+		CirrusDensity += texture(u_CirrusClouds, vec2(SamplePosition.x*3.7f,SamplePosition.y*2.9)).x;
+		CirrusDensity /= 7.0f;
+
+	}
+
+	CirrusDensity = 1.0f - pow(CirrusDensity, 1.0 / mix(1.0f,15.0f,clamp(u_CirrusStrength,0.0f,1.0f)));
+	return (CirrusDensity * 1.0f * 0.2f);
 }
 
 float ResolveScatter(float x, float coeff)
@@ -562,40 +582,69 @@ float ResolveScatter(float x, float coeff)
 }
 
 // cirrus powder ->
-float powder_cirrus(float od)
+float PlanarPowder(float od)
 {
-	return 1.0f - exp2(-od * 2.0f);
+	return 1.0f - exp(-2.0f * od);
 }
 
-const float Log2 = log(2.0);
+float CalculatePlanarLightDensity(vec3 P, vec3 D) {
+	
+	float RayLength = 15.0f;
+    float Accumulated = 0.0;
+	int Steps = 7;
 
-vec3 MarchCirrus(vec3 P, float CosTheta) 
+    for(int i = 0; i < Steps; i++)
+	{
+        Accumulated += RayLength * GetCirrusDensityAt(P);
+        P += D * RayLength;
+    }
+
+    return Accumulated;
+
+}
+
+// Integrates lighting for cirrus clouds ->
+
+vec4 MarchCirrus(vec3 P, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColor) 
 {
+	const vec3 Up = normalize(vec3(0.0f,1.0f,0.0f));
+
+	// Base shape ->
 	float BaseOpticalDepth = GetCirrusDensityAt(P) * 1.5f;
 
-	// Phase term ->
-	float hg = hg_phase(BaseOpticalDepth, CosTheta) * 1.2f; 
-	float Accum = 0.0; 
-	int LightSteps = 4; 
-	float Increment = 8.0f;
-    vec3 RayStep = NormalizedSUNDIR;
-	float StepSize = 1.0f / float(LightSteps);
-    vec3 CurrentPoint = P + RayStep * Increment;
+	// Compute transmittance ->
+	float Transmittance = exp2(-BaseOpticalDepth); 
 
-	for(int Step = 0; Step < LightSteps; Step++)
-	{
-		Increment *= 1.5f;
-		Accum += GetCirrusDensityAt(CurrentPoint)*3.2f; 
-		CurrentPoint += RayStep * Increment;
-	}
+	float LightMarch = CalculatePlanarLightDensity(P, NormalizedSUNDIR);
+	float SkyMarch = CalculatePlanarLightDensity(P, Up);
 
-	float TotalScattering = ResolveScatter(BaseOpticalDepth, 1.11f);  
-	float SunVisibility = exp(-Accum * StepSize); 
-	float BeersPowder = powder_cirrus(BaseOpticalDepth * Log2);
-	vec3 SkyLightBasic = vec3(0.75f) * 0.25f * (1.0f / PI);
-	const float odod = 0.9f / 1.0f;
-	vec3 SunLight = vec3(2.0f) * SunVisibility * BeersPowder * 1.0f * clamp(hg, 0.5f, 0.9f) * (PI / 2.0f) * odod;
-	return (SunLight + SkyLightBasic) * TotalScattering * (PI) * 0.75f * 0.135f;
+	// Powder ->
+	float PowderTerm = PlanarPowder(LightMarch);
+    PowderTerm = mix(PowderTerm, 4.0f, MiePhase(CosTheta.x, 0.76f));
+    PowderTerm = mix(PowderTerm, 1.0f, CosTheta.x * 0.5f + 0.5f) * PowderTerm;
+
+	float AmbientPowderTerm = PlanarPowder(SkyMarch);
+    AmbientPowderTerm = mix(AmbientPowderTerm, 1.0f, CosTheta.y * 0.5f + 0.5f) * AmbientPowderTerm;
+
+	// Phase terms ->
+	float DirectPhase = hg(CosTheta.x, LightMarch) * 1.1f;
+    float AmbientPhase = hg(CosTheta.y, SkyMarch) * 1.9f;
+
+	// Transmittance terms ->
+	float DirectTransmittance = Transmittance * exp(-LightMarch);
+	float IndirectTransmittance = Transmittance * exp(-SkyMarch);
+
+	// Combine ->
+
+	float DirectLighting = DirectTransmittance * DirectPhase * PowderTerm * 2.0f;
+	float IndirectLighting = IndirectTransmittance * AmbientPhase * AmbientPowderTerm * 2.0f;
+
+	vec3 Scattering = vec3(0.0f);
+	Scattering += DirectLighting * (SunLightColor * 0.1f);
+	Scattering += IndirectLighting * (SkyColor);
+
+
+	return vec4(Scattering, Transmittance);
 }
 
 const float IsotropicPhaseFunction = 0.25f / PI;
@@ -699,13 +748,9 @@ void main()
 	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
 	RayPosition += Increment * 0.1f;
 	
-	vec3 CirrusPosition = vec3(0.0f);
 
 	for (int i = 0 ; i < StepCount ; i++)
 	{
-		if (i == StepCount / 2) {
-			CirrusPosition = RayPosition;
-		}
 	
 		if (Transmittance < 0.02f) {
 			break;
@@ -737,25 +782,29 @@ void main()
 	TotalScattering += IntegratedScattering.y * SkyColor;
 	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
 	
-
 	// Cirrus..? 
 
-	// wip 
+	float FinalTransmittance = 1.0f;
 
-	if (Transmittance > 0.95f && false) {
-		if (u_CirrusClouds) {
+	FinalTransmittance *= Transmittance;
+
+	// Cirrus -> 
+
+	if (u_CirrusStrength > 0.012f) {
 			
-			vec3 CirrusMarch = MarchCirrus(CirrusPosition, CosTheta.x);
+		vec3 CirrusPosition = CameraPosition + Direction * SphereMin.y;
 
-			TotalScattering = mix(TotalScattering, CirrusMarch, Transmittance);
+		vec4 CirrusMarch = MarchCirrus(CirrusPosition, vec2(CosTheta.x, CosTheta.y), SunColor * 0.2f, SkyColor / 3.0f);
 
-		}
+		TotalScattering += CirrusMarch.xyz * FinalTransmittance;
+
+		FinalTransmittance *= CirrusMarch.w;
 	}
 	
 
 	// Store ->
 
-	vec4 FinalData = vec4(TotalScattering, Transmittance);
+	vec4 FinalData = vec4(TotalScattering, FinalTransmittance);
 	
 	if (DoFade) 
 	{

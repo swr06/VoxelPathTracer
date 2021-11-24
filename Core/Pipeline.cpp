@@ -138,8 +138,8 @@ static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
 static glm::vec2 CloudModifiers = glm::vec2(-0.82500, 0.1250f); 
 static bool CurlNoiseOffset = false;
-static float CirrusScale = 2.0f;
-static float CirrusStrength = 0.390f;
+static float CirrusScale = 1.414f;
+static float CirrusStrength = 0.25f;
 static float CloudTimeScale = 1.0f;
 static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
 static bool CloudCheckerStepCount = false;
@@ -448,7 +448,7 @@ public:
 			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
 
 			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
-			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 6.0f);
+			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
 
 			
 			ImGui::NewLine();

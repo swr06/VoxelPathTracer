@@ -208,5 +208,5 @@ void main()
 	vec3 col = AtmosphericScattering(normalize(v_RayDirection), normalize(u_SunDirection), 0.12f);
 	vec3 col2 = AtmosphericScattering(normalize(v_RayDirection), normalize(vec3(-u_SunDirection.x, -u_SunDirection.y, u_SunDirection.z)), 0.5f);
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-	o_Color = vec4(mix(col*0.5f, col2*((vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.05f), SunVisibility), 1.0f);
+	o_Color = vec4(mix(col*0.5f*vec3(1.), col2*((vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 0.05f), SunVisibility), 1.0f);
 }
