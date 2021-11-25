@@ -5,19 +5,18 @@
 #define TAU (3.14159265359 * 2.0f)
 #define tau TAU
 #define HALF_PI (3.14159265359 * 0.5f)
-
 #define ONE_OVER_PI (1.0f / 3.14159265359f)
 #define INVERSE_PI (1.0f / 3.14159265359f)
-
+#define clamp01(x) (clamp(x,0.0f,1.0f))
+#define max0(x) (max(x,0.0f))
+#define saturate(x) clamp01(x)
 #define CHECKERBOARDING
 
-// sample at lower lods for the lighting 
-// it does not matter too much.
-#define LIGHT_LOD 1.5f 
-#define AMBIENT_LOD 1.75f 
+#define LIGHT_LOD 3.0f 
+#define AMBIENT_LOD 3.0f 
 #define BASE_LOD 0.0f
-//#define DITHER_POS_WITH_CURL_NOISE
 
+// Low frequency hash ->
 #define Bayer4(a)   (Bayer2(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer8(a)   (Bayer4(  0.5 * (a)) * 0.25 + Bayer2(a))
 #define Bayer16(a)  (Bayer8(  0.5 * (a)) * 0.25 + Bayer2(a))
@@ -28,7 +27,7 @@
 
 layout (location = 0) out vec4 o_Data;
 
-in vec2 v_TexCoords;;
+in vec2 v_TexCoords;
 
 uniform float u_Time;
 uniform int u_CurrentFrame;
@@ -61,7 +60,7 @@ uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
 uniform vec2 u_Modifiers;
-uniform vec3 u_DetailParams; // scale, enabled, exponent
+uniform vec3 u_DetailParams; 
 
 uniform bool u_Checker;
 uniform bool u_UseBayer;
@@ -104,16 +103,23 @@ struct Ray
 };
 
 
-vec2 g_BayerIncrement; // animate the bayer dither to use the temporal filter more effectively
 
 // constants 
 const float LOG2 = log(2.0);
 const float InverseLOG2 = 1.0 / LOG2;
 
 
-
-float clamp01(float x) {
-	return clamp(x,0.0f,1.0f);
+// By iq ->
+// Gives much better quality at effectively no extra cost.
+vec4 TextureSmooth(sampler2D samp, vec2 uv) 
+{
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return texture(samp, uv).xyzw;
 }
 
 float GetCloudFade(float Distance) {
@@ -124,12 +130,6 @@ float Bayer2(vec2 a)
 {
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
-}
-
-float ConvertValueRange(in float v, in vec2 r1, in vec2 r2)
-{
-	float ret = (((v - r1.x) * (r2.y - r2.x)) / (r1.y - r1.x)) + r2.x;
-	return ret;
 }
 
 
@@ -155,6 +155,7 @@ float hg_phase(float c, float g)
     return ((1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * c, 1.5)) / (4.0 * pi);
 }
 
+// henyey greenstein ->
 float hg(float c, float t)
 {
     const float g0 = 0.15;
@@ -172,9 +173,6 @@ float phaseg(float x, float g)
 
 #define DETAIL
 
-float saturate(float x) {
-	return clamp(x,0.0f,1.0f);
-}
 
 vec3 DecodeCurlNoise(vec3 c)
 {
@@ -188,7 +186,7 @@ float RemapClamped(float original_value, float original_min, float original_max,
 
 vec3 SampleWeather(vec3 pos)
 {
-	return texture(u_CloudWeatherMap, pos.xz).xyz;
+	return TextureSmooth(u_CloudWeatherMap, pos.xz).xyz;
 }
 
 
@@ -220,15 +218,25 @@ float SampleDensity(vec3 p, float lod)
 	vec3 OriginalP = p;
 	float HeightFraction = GetHeightFraction(p);
 
+	p.xyz += vec3(500.0f, 0.0f, 750.0f);
 
-	p.xyz += vec3(100.0f, 10.0f, 250.0f);
+
+	// Curl noise ->
+
+	if (u_CurlNoiseOffset) {
+
+		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.001f * 425.0f).xyz);
+		p += CurlNoise * 16.0f;
+	}
+
+
 	p.xyz *= 0.001f;
 	p.xyz *= 425.0f;
 
 	//float CloudDensity = getDensityForCloud(HeightFraction, 1.0f);
 	//float DensityHeightRatio = (CloudDensity / HeightFraction);
 
-	float Ts = 0.8f;
+	float Ts = 0.9f;
 
 	vec3 TimeOffset = vec3((u_Time*u_TimeScale*Ts) * 30.69f, 0.0f, (u_Time*u_TimeScale*Ts) * 4.420f);
     vec3 pos = p + TimeOffset;
@@ -261,13 +269,6 @@ float SampleDensity(vec3 p, float lod)
 	float CloudCoverage = Weather.x / 4.0f;
 
 	float RemappedToCoverage = remap(BaseShape, CloudCoverage, 1.0, 0.0, 1.0);
-
-	if (u_CurlNoiseOffset) {
-		vec3 CurlNoise = DecodeCurlNoise(texture(u_CurlNoise,pos.xz).xyz);
-
-		// Offset by decoded curl noise ->
-		p += CurlNoise * 5.0f;
-	}
 	
 	vec4 DetailNoise = textureLod(u_CloudDetailedNoise, vec3(p * NOISE_SCALE * 9.0f) * u_DetailParams.x, clamp(lod-1,0.0f,8.0)).xyzw;
 
@@ -289,6 +290,8 @@ float SampleDensity(vec3 p, float lod)
 // Normalized sun direction ->
 vec3 NormalizedSUNDIR;
 
+vec2 GlobalBayer;
+
 
 float RaymarchLight(vec3 Point)
 {
@@ -297,7 +300,7 @@ float RaymarchLight(vec3 Point)
     float Accum = 0.0f;
 	int StepCount = clamp(int(u_StepCounts.y), 2, 32);
 
-	Point += Bayer8(gl_FragCoord.xy)*Direction;
+	Point += GlobalBayer.x*Direction;
 
     for(int i = 0; i < StepCount; i++)
 	{
@@ -319,7 +322,7 @@ float RaymarchAmbient(vec3 Point)
     float Accum = 0.0f;
 	int StepCount = clamp(int(u_StepCounts.z),2, 32);
 
-	Point += Bayer4(gl_FragCoord.xy)*Direction;
+	Point += GlobalBayer.y * Direction;
 
     for(int i = 0; i < StepCount; i++)
 	{
@@ -341,7 +344,7 @@ float RaymarchBounced(vec3 Point)
     float Accum = 0.0f;
 	int StepCount = 2;
 
-	Point += Bayer4(gl_FragCoord.xy)*Direction;
+	Point += GlobalBayer.y * Direction;
 
     for(int i = 0; i < StepCount; i++)
 	{
@@ -546,20 +549,6 @@ vec2 RSI(vec3 origin, vec3 dir, float radius)
 // Cirrus clouds ->
 
 
-// By iq ->
-// Gives much better quality at effectively no extra cost.
-vec4 BetterTexture(sampler2D samp, vec2 uv) 
-{
-    vec2 textureResolution = textureSize(samp, 0).xy;
-	uv = uv*textureResolution + 0.5;
-	vec2 iuv = floor(uv);
-	vec2 fuv = fract(uv);
-	uv = iuv + fuv*fuv*(3.0-2.0*fuv); 
-	uv = (uv - 0.5)/textureResolution;
-	return texture(samp, uv).xyzw;
-}
-
-
 float GetCirrusDensityAt(vec3 P)
 {
 	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
@@ -570,25 +559,25 @@ float GetCirrusDensityAt(vec3 P)
 
 	// Curl Noise offset ->
 
-	vec3 CurlNoise = DecodeCurlNoise(BetterTexture(u_CurlNoise,vec2(SamplePosition.x*2.2f,SamplePosition.y*1.7f)).xyz);
+	vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,vec2(SamplePosition.x*2.2f,SamplePosition.y*1.7f)).xyz);
 	
 	// Offset ->
 	SamplePosition += clamp(pow(CurlNoise.xy, vec2(4.0f)) * 0.1f * 0.5 * 1.1f, -8.0f, 8.0f);
 
 
 	// Shape noise ->
-	float CirrusDensity = BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y*0.92525f)).x;
+	float CirrusDensity = TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y*0.92525f)).x;
 
 	bool CirrusDetail = false;
 
 	if (CirrusDetail) {
 
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*3.2f,SamplePosition.y)).x;
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y)).x;
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.2)).x;
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.9)).x;
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*2.9)).x;
-		CirrusDensity += BetterTexture(u_CirrusClouds, vec2(SamplePosition.x*3.7f,SamplePosition.y*2.9)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*3.2f,SamplePosition.y)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*1.4f,SamplePosition.y)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.2)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*1.9)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*1.7f,SamplePosition.y*2.9)).x;
+		CirrusDensity += TextureSmooth(u_CirrusClouds, vec2(SamplePosition.x*3.7f,SamplePosition.y*2.9)).x;
 		CirrusDensity /= 7.0f;
 
 	}
@@ -638,7 +627,7 @@ vec4 MarchCirrus(vec3 P, vec3 V, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColo
 	const vec3 Up = normalize(vec3(0.0f,1.0f,0.0f));
 
 	// Base shape ->
-	//float BaseOpticalDepth = GetCirrusDensityAt(P) * 1.5f;
+	//float BaseOpticalDepth = GetCirrusDensityAt(P) * 2.0f;
 
 	// Base shape ->
 
@@ -697,11 +686,17 @@ const bool DoFade = true;
 void main()
 {
 	g_TexCoords = v_TexCoords;
+
+	// For temporal super sampling ->
 	g_TexCoords += (u_JitterValue*3.0f) / u_Dimensions;
 	
 	
+	// Bayer ->
+	GlobalBayer = vec2(Bayer8(gl_FragCoord.xy), Bayer4(gl_FragCoord.xy));
 	
 	NormalizedSUNDIR = normalize(u_SunDirection);
+	
+	
 	o_Data = vec4(0.0f, 0.0f, 0.0f, 1.0f / 2.0f);
 	
 	vec3 CameraPosition = u_InverseView[3].xyz;
@@ -719,7 +714,7 @@ void main()
 
 	int Frame = u_CurrentFrame % 30;
 	vec2 BayerIncrement = vec2(Frame * 1.0f, Frame * 0.5f); 
-	g_BayerIncrement = BayerIncrement;
+//	g_BayerIncrement = BayerIncrement;
 
 	// March from aerian perspective
 	vec3 AerialPerspective = vec3(0.0, PlanetRadius + CameraPosition.y, 0.0);
@@ -777,7 +772,12 @@ void main()
 	// For phase and powder terms ->
 	float VDotL = dot(Direction, NormalizedSUNDIR);
 	float VDotAmbient = dot(Direction, AmbientDirection);
+	
+	// The secondary bounce approximation is handled by marching downwards and using a phase function 
+	// The phase function here depends on the angle between the sun direction and the downwards vector 
 	float LDotSecondaryBounce = dot(NormalizedSUNDIR, SecondaryBounceDirection);
+
+
 	vec3 CosTheta = vec3(VDotL, VDotAmbient, LDotSecondaryBounce);
 
 	// Transmittance, Scattering 
@@ -788,7 +788,7 @@ void main()
 
 	// Start from projected inner sphere ->
 	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
-	RayPosition += Increment * 0.1f;
+	RayPosition += Increment * 0.5f;
 	
 	for (int i = 0 ; i < StepCount ; i++)
 	{
@@ -797,12 +797,19 @@ void main()
 			break;
 		}
 
-		float DensityAtPosition = SampleDensity(RayPosition, 0.0f) * 1.2f;
+		float DensityAtPosition = SampleDensity(RayPosition, 0.0f) * 1.2525f;
+		
+		if (DensityAtPosition < 0.012f) {
+			RayPosition += Increment;
+
+			continue;
+		}
+		
 		float CurrentTransmittance = exp2(-DensityAtPosition);
 		//float CurrentTransmittance = exp(-DensityAtPosition);
 
 		// Ray march ->
-		float DirectDensity = RaymarchLight(RayPosition) * 1.28f;
+		float DirectDensity = RaymarchLight(RayPosition) * 1.42069f;
 		float IndirectDensity = RaymarchAmbient(RayPosition) * 1.1f;
 		float IndirectSecondBounceDensity = RaymarchBounced(RayPosition) / 2.0f; 
 
@@ -815,7 +822,7 @@ void main()
 
 	vec3 SunColor = mix(vec3(38.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
 	vec3 CirrusSunColor = mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.0f)) * 4.0f;
+	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.0f))*5.0f;
 
 	// Add scattering components ->
 
@@ -823,11 +830,9 @@ void main()
 	TotalScattering += IntegratedScattering.x * SunColor;
 	TotalScattering += IntegratedScattering.y * SkyColor;
 	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
-	
-	// Cirrus..? 
+
 
 	float FinalTransmittance = 1.0f;
-
 	FinalTransmittance *= Transmittance;
 
 	// Cirrus -> 
@@ -838,8 +843,10 @@ void main()
 
 		vec4 CirrusMarch = MarchCirrus(CirrusPosition, Direction, vec2(CosTheta.x, CosTheta.y), CirrusSunColor * 0.225f, SkyColor / 3.2525f);
 
-		TotalScattering += CirrusMarch.xyz * FinalTransmittance;
+		// Combine ->
+		TotalScattering += CirrusMarch.xyz * FinalTransmittance; 
 
+		// Account for cirrus transmittance ->
 		FinalTransmittance *= CirrusMarch.w;
 	}
 	
@@ -848,17 +855,16 @@ void main()
 
 	vec4 FinalData = vec4(TotalScattering, FinalTransmittance);
 	
+	// Fade ->
 	if (DoFade) 
 	{
 		float Fade = 1.0f-(exp(-(SphereMin.y/11000.0f)));
 		Fade = clamp(Fade, 0.0f, 1.0f);
 		Fade = Fade * Fade;
 		Fade = clamp(Fade, 0.0f, 1.0f);
-		vec4 Identity = vec4(AtmosphereAtViewRay, 0.3f);
+		vec4 Identity = vec4(AtmosphereAtViewRay, 0.333f);
 		FinalData = mix(FinalData, Identity, Fade);
 	}
 
-	// Output :
 	o_Data = vec4(FinalData);
-
 }
