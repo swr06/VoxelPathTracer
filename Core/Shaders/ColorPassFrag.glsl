@@ -34,6 +34,7 @@ uniform sampler2D u_VXAO;
 
 uniform bool u_UseDFG;
 uniform bool u_RemoveTiling;
+uniform bool u_CloudCatmullRomUpsampling;
 
 uniform bool u_DEBUGDiffuseGI;
 uniform bool u_DEBUGSpecGI;
@@ -242,25 +243,53 @@ vec3 hash33(vec3 p3) {
     return fract((p3.xxy + p3.yxx) * p3.zyx);
 }
 
-float BilinearStarSample(in vec2 UV, float NoiseThreshold)
+vec3 hash33uint(vec3 q){
+    uvec3 p = uvec3(ivec3(q));
+          p = p * uvec3(374761393U, 1103515245U, 668265263U) + p.zxy + p.yzx;
+          p = p.yzx * (p.zxy ^ (p >> 3U));
+
+    return vec3(p ^ (p >> 16U)) * (1 / vec3(0xffffffffU));
+}
+
+float BilinearStarSample(in vec2 InUV, const float NoiseThreshold)
 {
-    // bilinear offset ->
-    float FractUVx = fract(UV.x);
-    float FractUVy = fract(UV.y);
-    vec2 floorSample = floor(UV);
+    vec2 Offsets[5] = vec2[5](vec2(0.0f),
+                              vec2(0.0f, 1.0f),
+                              vec2(0.0f, -1.0f),
+                              vec2(1.0f, 0.0f),
+                              vec2(-1.0f, 0.0f));
 
-    // Sample 4 points ->
-    float v1 = NoisyStarField(floorSample, NoiseThreshold);
-    float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
-    float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
-    float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
+    const float Weights[5] = float[5](1.0f,0.25f,0.25f,0.25f,0.25f);
 
-    // Basic Bilinear interpolation to reduce aliasing :
-    float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
-					+ v2 * (1.0 - FractUVx) * FractUVy
-					+ v3 * FractUVx * (1.0 - FractUVy)
-					+ v4 * FractUVx * FractUVy;
-	return StarVal;
+    float StarTotal = 0.0f;
+    float TotalW = 0.0f;
+
+    for (int i = 0 ; i < 5 ; i++) {
+        // bilinear offset ->
+        vec2 UV = InUV.xy + Offsets[i] * (1.0f / u_Dimensions);
+        float FractUVx = fract(UV.x);
+        float FractUVy = fract(UV.y);
+        vec2 floorSample = floor(UV);
+
+        // Sample 4 points ->
+        float v1 = NoisyStarField(floorSample, NoiseThreshold);
+        float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
+        float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
+        float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
+
+        // Basic Bilinear interpolation to reduce aliasing :
+        float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
+					    + v2 * (1.0 - FractUVx) * FractUVy
+					    + v3 * FractUVx * (1.0 - FractUVy)
+					    + v4 * FractUVx * FractUVy;
+
+        float w = Weights[i];
+	    StarTotal += StarVal*w;
+        TotalW += w;
+    }
+
+    StarTotal /= max(0.01f,TotalW);
+    return StarTotal;
 }
 
 // fract-sin noise
@@ -271,75 +300,44 @@ float rand(vec2 co){
 //#define STAR_AA
 
 
-#ifndef STAR_AA
-    vec3 ShadeStars(vec3 fragpos)
-    {
-        // Rotate view vector with respect to sun direction
-        vec3 v = fragpos * 256.0f;
-        v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
+vec3 ShadeStars(vec3 fragpos)
+{
+    // Rotate view vector with respect to sun direction
+    vec3 v = fragpos * 256.0f;
+    v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
         
-        // floor it to maintain temporal coherency
-        v = vec3(floor(v));
+    // floor it to maintain temporal coherency
+    v = vec3(floor(v));
 
-        // Hash 
-        vec3 hash = hash33(v);
-        vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
+    // Hash 
+    vec3 hash = hash33(v);
+    vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
 
-        // Negatives make everything shit itself 
-        fragpos.y = abs(fragpos.y);
+    // Negatives make everything shit itself 
+    fragpos.y = abs(fragpos.y);
 
-        // Calculate elevation and approximate uv
-	    float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	    vec2 uv = fragpos.xz / (1.0f + elevation);
+    // Calculate elevation and approximate uv
+	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	vec2 uv = fragpos.xz / (1.0f + elevation);
 
-        // Add some variation to the scale 
-        float scale = mix(600.0f, 1100.0f, hash.y);
-        float star = BilinearStarSample(uv * scale, 0.98f);
+    // Add some variation to the scale 
+    float scale = mix(600.0f, 900.0f, hash.y);
+    float star = BilinearStarSample(uv * scale, 0.98f);
 
-        // Use the planckian locus scale to get a celestial temperature from value 
-        float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x, 1.5f), 0.0f, 1.0f));
-        vec3 Color = planckianLocus(RandomTemperature);
+    // Use the planckian locus scale to get a celestial temperature from value 
+    float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
+    vec3 Color = planckianLocus(RandomTemperature);
         
-        // Twinkle
-        float twinkle = sin(u_Time * 2.0f * hash.z);
-        twinkle = twinkle * twinkle;
+    // Twinkle
+    float twinkle = sin(u_Time * 2.0f * hash.z);
+    twinkle = twinkle * twinkle;
 
-        star *= 0.12f;
+    star *= 0.15f;
 
 
-        vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
-	    return FinalStar;
-    }
-#else 
-    vec3 ShadeStars(vec3 in_fragpos)
-    {
-        const vec2 Offsets[4] = vec2[4](vec2(0.0f, 0.0f), vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(1.0f));
-        vec3 Sum = vec3(0.0f);
-
-        for (int Sample = 0 ; Sample < 4 ; Sample++) {
-
-            vec3 fragpos = in_fragpos;
-            vec3 v = fragpos * 256.0f;
-            v = Rotate(v,u_StrongerLightDirection,vec3(0.0f,0.0f,1.0f));
-            v = vec3(floor(v));
-            vec2 hash = hash23(v);
-            fragpos.y = abs(fragpos.y);
-	        float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	        vec2 uv = fragpos.xz / (1.0f + elevation);
-            uv += (1.0f/Offsets[Sample])*4.0f;
-            float scale = mix(500.0f, 1100.0f, hash.y);
-            float star = StableStarField(uv * scale, 0.9756f);
-            float RandomTemperature = mix(2500.0f, 9000.0f, clamp(pow(hash.x,1.5f),0.0f,1.0f));
-            vec3 Color = planckianLocus(RandomTemperature);
-            star *= 0.06f;
-            float rand_val = rand(fragpos.xy);
-	        vec3 final = clamp(star, 0.0f, 100000.0f) * 6.96f*Color ;
-            Sum+=final;
-        }
-
-        return Sum;
-    }
-#endif
+    vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+	return FinalStar;
+}
 
 //
 // ray box intersection function 
@@ -364,7 +362,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
     vec3 ray_dir = normalize(in_ray_dir);
     
-    if (transmittance > 0.9f) {
+    if (true_transmittance > 0.325f) {
 
         if(dot(ray_dir, sun_dir) > 0.999825f)
         {
@@ -400,37 +398,45 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
 
 // Contrast adaptive sharpening 
-float CASWeight(vec3 x) {
+float LuminosityWeight(vec3 x) {
     //return GetSat(x);
-    return max(dot(x, vec3(0.2125f, 0.7154f, 0.0721f)), 0.01f);
+    return clamp(pow(max(dot(x, vec3(0.2125f, 0.7154f, 0.0721f)), 0.01f), 32.0f), 0.01f, 1.0f);
     //return max(x.g, EPSILON);
 }
 
-vec4 CAS(sampler2D Texture, vec2 uv, float SharpeningAmount)
+vec4 BetterTexture(sampler2D samp, vec2 uv) 
 {
-    ivec2 Pixel = ivec2(floor(uv*textureSize(Texture,0)));
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0-2.0*fuv); 
+	uv = (uv - 0.5)/textureResolution;
+	return texture(samp, uv).xyzw;
+}
 
-    // Samples 
-    vec4 a = texelFetch(Texture, Pixel + ivec2(0, -1), 0).rgba;
-    vec4 b = texelFetch(Texture, Pixel + ivec2(-1, 0), 0).rgba;
-    vec4 c = texelFetch(Texture, Pixel + ivec2(0, 0), 0).rgba;
-    vec4 d = texelFetch(Texture, Pixel + ivec2(1, 0), 0).rgba;
-    vec4 e = texelFetch(Texture, Pixel + ivec2(0, 1), 0).rgba;
+vec4 UpscaleCloudDetail(vec4 c)
+{
+    vec2 TexelSize = 1.0f / textureSize(u_CloudData,0);
 
-    // Weight by luminance 
-    float WeightA = CASWeight(a.xyz);
-    float WeightB = CASWeight(b.xyz);
-    float WeightC = CASWeight(c.xyz);
-    float WeightD = CASWeight(d.xyz);
-    float WeightE = CASWeight(e.xyz);
+    vec4 a = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(0, -1)).rgba, 0.0f, 1.0f);
+    vec4 b = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(-1, 0)).rgba, 0.0f, 1.0f);
+    vec4 d = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(1, 0)).rgba, 0.0f, 1.0f);
+    vec4 e = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(0, 1)).rgba, 0.0f, 1.0f);
 
-    // Calculate bounds :
+    float WeightA = LuminosityWeight(a.xyz);
+    float WeightB = LuminosityWeight(b.xyz);
+    float WeightC = LuminosityWeight(c.xyz);
+    float WeightD = LuminosityWeight(d.xyz);
+    float WeightE = LuminosityWeight(e.xyz);
+
+    // Find min and max ->
     float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
     float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
 
-    // Apply weights :
-    float FinalSharpenAmount = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
-    float w = FinalSharpenAmount * mix(-0.125f, -0.2f, SharpeningAmount);
+    // Calculate deviation ->
+    float Deviation = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
+    float w = Deviation * mix(-0.125f, -0.2f, 0.35f);
     return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
 }
 
@@ -469,7 +475,23 @@ vec3 GetAtmosphereAndClouds()
     vec3 ScatterColor = mix(vec3(1.0f) + 0.001f, (vec3(46.0f, 142.0f, 300.0f) / 255.0f) * 0.160f, SunVisibility); 
     vec3 NormalizedDir = normalize(v_RayDirection);
     float Dither = bayer128(gl_FragCoord.xy);
-	vec4 SampledCloudData = texture_catmullrom(u_CloudData, v_TexCoords + (Dither / 512.0f)).rgba; 
+
+    vec2 SampleCoord = v_TexCoords + (Dither / 512.0f);
+
+
+	vec4 SampledCloudData;
+
+    if (u_CloudCatmullRomUpsampling) {
+        SampledCloudData = texture_catmullrom(u_CloudData, SampleCoord).rgba;
+	}
+    
+    else {
+        SampledCloudData = BetterTexture(u_CloudData, SampleCoord).rgba;
+    }
+
+    //vec4 Detail = UpscaleCloudDetail(SampledCloudData);
+    //SampledCloudData.xyz = mix(SampledCloudData.xyz, Detail.xyz, 1.0f - SampledCloudData.w);
+
     vec3 Sky = vec3(0.0f);
     bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w*20.5f, SampledCloudData.w);
     float transmittance = max(SampledCloudData.w, 0.07525f);
@@ -1058,8 +1080,7 @@ void main()
                 if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
                     v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
                 {
-					 // prevents some aliasing. I DONT FUCKING KNOW AT THIS POINT.
-                    float ao = texture_catmullrom(u_VXAO, v_TexCoords).x;
+                    float ao = BetterTexture(u_VXAO, v_TexCoords).x;
 					
 					// Multiply indirect diffuse by ao 
                     SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 1.85f), 0.1f, 1.0f));
@@ -1127,7 +1148,7 @@ void main()
                 vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
                 vec3 IndirectSpecularBRDF = DFG * clamp(Tint, 0.0f, 1.0f);
 
-                o_Color = DirectLighting + DiffuseIndirect;
+                o_Color = DirectLighting + DiffuseIndirect * (1.0f - IndirectSpecularBRDF);
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
 

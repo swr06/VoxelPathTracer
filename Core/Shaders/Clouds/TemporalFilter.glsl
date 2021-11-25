@@ -206,9 +206,6 @@ vec4 SpatialFilterCloud(vec4 CurrentColor) {
     return TotalColor / max(TotalWeight, 0.01f);
 }
 
-// Luminosity weights ->
-// Effective as fuck.
-
 
 vec4 BetterTexture(sampler2D samp, vec2 uv) 
 {
@@ -221,6 +218,8 @@ vec4 BetterTexture(sampler2D samp, vec2 uv)
 	return texture(samp, uv).xyzw;
 }
 
+// Luminosity weights ->
+// Effective as fuck.
 
 vec4 SpatialUpscaleCloud2(sampler2D samp, vec2 txc, bool LargeKernel, bool StrictAssExponent, out vec4 MinData, out vec4 MaxData) 
 {

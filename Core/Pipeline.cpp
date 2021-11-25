@@ -128,7 +128,7 @@ static bool RemoveTiling = false;
 // Clouds :
 
 static bool CloudsEnabled = true;
-static float CloudCoverage = 1.0f;
+static float CloudCoverage = 1.1f;
 static const bool CloudBayer = true;
 static float CloudDetailScale = 1.1f;
 static float CloudErosionWeightExponent = 0.56f;
@@ -136,10 +136,10 @@ static float CloudDetailFBMPower = 1.125f;
 static bool CloudDetailWeightEnabled = false;
 static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
-static glm::vec2 CloudModifiers = glm::vec2(-0.82500, 0.1250f); 
+static glm::vec2 CloudModifiers = glm::vec2(-0.950, 0.1250f); 
 static bool CurlNoiseOffset = false;
-static float CirrusScale = 1.414f;
-static float CirrusStrength = 0.25f;
+static float CirrusScale = 1.6667f;
+static float CirrusStrength = 0.09f;
 static float CloudTimeScale = 1.0f;
 static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
 static bool CloudCheckerStepCount = false;
@@ -149,6 +149,7 @@ static float CloudForceSupersampleRes = 0.75f;
 static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
 static bool CloudSpatialUpscale = true;
+static bool CloudFinalCatmullromUpsample = false;
 
 //
 
@@ -450,6 +451,7 @@ public:
 			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
 			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
 
+			ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -2620,6 +2622,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGSpecGI);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", UseDFG);
+		ColorShader.SetBool("u_CloudCatmullRomUpsampling", CloudFinalCatmullromUpsample);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
