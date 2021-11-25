@@ -29,7 +29,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Screen Space Ambient Occlusion 
 - Ray Traced Ambient Occlusion
 - Bloom (Mip based) 
-- Volumetric 3D clouds (with temporal and spatial upscaling/filtering)
+- Volumetric 3D clouds (Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
 - Particle system
 - Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing
