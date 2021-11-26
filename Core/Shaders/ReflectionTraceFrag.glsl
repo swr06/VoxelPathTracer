@@ -30,6 +30,8 @@ uniform sampler2D u_DataTexture;
 uniform float u_SunStrengthModifier;
 uniform float u_MoonStrengthModifier;
 
+uniform sampler2D u_ProjectedClouds;
+
 //uniform sampler2D u_BlueNoiseTexture;
 
 uniform sampler3D u_VoxelData;
@@ -42,6 +44,8 @@ uniform sampler2D u_DiffuseCoCg;
 uniform sampler2D u_ShadowTrace;
 
 uniform sampler2D u_IndirectAO;
+
+uniform bool u_CloudReflections;
 
 
 uniform bool u_RoughReflections;
@@ -285,18 +289,78 @@ vec2 Hammersley(uint i, uint N)
 	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
 }
 
+vec4 TextureSmooth(sampler2D samp, vec2 uv) 
+{
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return texture(samp, uv).xyzw;
+}
+
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
+{
+	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
+	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
+	vec2 CurrentCoordinate;
+
+	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
+    {
+		Direction /= max(abs(Direction.x), 0.001f);
+		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
+    {
+		Direction /= max(abs(Direction.y), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else 
+    {
+		Direction /= max(abs(Direction.z), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
+		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
+	}
+
+	return CurrentCoordinate / max(TextureSize, 0.01f);
+}
+
+vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
+{
+	if (!u_CloudReflections) {
+		return Sky;
+	}
+
+	vec2 TextureSize = vec2(textureSize(u_ProjectedClouds,0).xy);
+	vec2 ProjectedDirection = ProjectDirection(R, TextureSize);
+
+	if (ProjectedDirection != clamp(ProjectedDirection, 0.001f, 0.999f)) {
+		return Sky;
+	}
+
+	float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    vec3 ScatterColor = mix(vec3(1.0f) + 0.001f, (vec3(46.0f, 142.0f, 300.0f) / 255.0f) * 0.325f, SunVisibility); 
+	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
+	vec3 Return = Sky * max(0.1f, CloudFetch.w) + (CloudFetch.xyz * ScatterColor * 1.1f);
+	return Return;
+}	
+
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
 
-void GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir)
+void GetAtmosphere(inout vec3 Out, in vec3 V)
 {
-    vec3 sun_dir = normalize(u_SunDirection); 
-    vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
-
-    vec3 ray_dir = normalize(in_ray_dir);
-    vec3 atmosphere = texture(u_Skymap, ray_dir).rgb;
-
-    atmosphere_color = atmosphere;
+    vec3 SunDirection = normalize(u_SunDirection); 
+    vec3 MoonDirection = vec3(-SunDirection.x, -SunDirection.y, SunDirection.z); 
+    vec3 NormalizedV = normalize(V);
+    vec3 SampledSky = texture(u_Skymap, NormalizedV).rgb;
+	SampledSky = RetrieveProjectedClouds(SampledSky, NormalizedV);
+    Out = SampledSky;
 }
 
 vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;

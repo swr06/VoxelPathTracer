@@ -53,6 +53,10 @@ uniform sampler3D u_LPVLightLevel;
 uniform usampler3D u_LPVColorData;
 uniform int u_LPVDebugState; // Debug state 
 
+
+uniform sampler2D u_DebugTexture; 
+
+
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
@@ -941,6 +945,10 @@ vec3 BasicSaturation(vec3 Color, float Adjustment)
     return mix(Luminosity, Color, Adjustment);
 }
 
+
+vec2 ProjectDirection(vec3 Direction);
+
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
@@ -1170,7 +1178,7 @@ void main()
             if (u_DEBUGSpecGI) {
                 o_Color = 1.0f - exp(-SpecularIndirect);
             }
-            
+          
             // Output utility : 
             o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
@@ -1186,7 +1194,7 @@ void main()
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
 
-            return;
+            //return;
         }
 
         else 
@@ -1208,6 +1216,13 @@ void main()
         o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
     }
+
+    if (!true) {
+        //vec4 DebugData = texture(u_DebugTexture, ProjectDirection(v_RayDirection)).xyzw;
+        vec4 DebugData = texture(u_DebugTexture, v_TexCoords).xyzw;
+        o_Color = DebugData.xyz;
+    }
+
 }
 
 
@@ -1621,6 +1636,39 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 		tangent = Tangents[5];
 		bitangent = BiTangents[5];
     }
+}
+
+
+
+vec2 ProjectDirection(vec3 Direction) 
+{
+    vec2 TextureSize = vec2(textureSize(u_DebugTexture,0).xy);
+	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
+	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
+	vec2 CurrentCoordinate;
+
+	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
+    {
+		Direction /= max(abs(Direction.x), 0.001f);
+		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
+    {
+		Direction /= max(abs(Direction.y), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else 
+    {
+		Direction /= max(abs(Direction.z), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
+		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
+	}
+
+	return CurrentCoordinate / max(TextureSize, 0.01f);
 }
 
 // end of light combine / color pass

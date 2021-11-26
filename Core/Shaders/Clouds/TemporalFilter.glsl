@@ -1,14 +1,19 @@
-#version 330 core
+#version 430 core
 //#define DENOISE
 //#define BE_USELESS
 
 layout (location = 0) out vec4 o_Color;
+
+// Equi rectangular projected clouds ->
+layout(rgba8, binding = 4) uniform image2D o_EquiangularProjection;
+
 
 // Bayer dither 
 float bayer2(vec2 a){
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
 }
+
 #define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
@@ -41,6 +46,8 @@ uniform bool u_SpatialUpscale;
 
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
+
+uniform bool u_UpdateProjection;
 
 vec2 Reprojection(vec3 pos) 
 {
@@ -302,6 +309,42 @@ bool SampleValid(in vec2 txc)
     return false;
 }
 
+const float PI = 3.141592653f;
+
+
+vec2 ProjectDirection(vec3 Direction) 
+{
+    vec2 TextureSize = vec2(imageSize(o_EquiangularProjection).xy);
+	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
+	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
+	vec2 CurrentCoordinate;
+
+	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
+    {
+		Direction /= max(abs(Direction.x), 0.001f);
+		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
+    {
+		Direction /= max(abs(Direction.y), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else 
+    {
+		Direction /= max(abs(Direction.z), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
+		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
+	}
+
+	return CurrentCoordinate / max(TextureSize, 0.01f);
+}
+
+ 
+
 vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv);
 
 void main()
@@ -327,12 +370,15 @@ void main()
 
 	vec3 PlayerPosition = u_InverseView[3].xyz;
 
+    vec3 RayDirection = normalize(GetRayDirectionAt(v_TexCoords));
+
     bool SampleIsValid = true;//SampleValid(v_TexCoords);
 
 	if (CurrentColor.w > -0.5f && true)
 	{
 		// Reproject clouds by assuming it lies in a plane some x units in front of the camera :
-		vec3 CurrentVirtualPosition = PlayerPosition + normalize(GetRayDirectionAt(v_TexCoords)) * 500.0f;
+
+		vec3 CurrentVirtualPosition = PlayerPosition + RayDirection * 500.0f;
 		vec2 ProjectedCurrent = ProjectCurrent(CurrentVirtualPosition);
 		vec2 ProjectedPrevious = Reprojection(CurrentVirtualPosition.xyz);
 		
@@ -409,6 +455,21 @@ void main()
 		#endif
 	}
 
+    // Project and store in equiangular texture for gi ->
+
+    const bool StoreEquiangular = true;
+
+    if (StoreEquiangular && u_UpdateProjection) {
+
+        vec2 UVProjection = ProjectDirection(RayDirection);
+
+        if (UVProjection == clamp(UVProjection, 0.001f, 0.999f)) {
+
+            ivec2 PixelProjection;
+            PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
+            imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, clamp(o_Color.w, 0.5f, 1.0f)));
+        }
+    }
 }
 
 

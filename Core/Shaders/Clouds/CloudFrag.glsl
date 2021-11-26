@@ -56,6 +56,8 @@ uniform vec3 u_ViewerPosition;
 uniform float BoxSize;
 uniform float u_DetailIntensity;
 
+uniform float u_AmbientDensityMultiplier = 1.0f;
+
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
@@ -322,7 +324,7 @@ float RaymarchAmbient(vec3 Point)
     float Accum = 0.0f;
 	int StepCount = clamp(int(u_StepCounts.z),2, 32);
 
-	Point += GlobalBayer.y * Direction;
+	Point += GlobalBayer.x * Direction;
 
     for(int i = 0; i < StepCount; i++)
 	{
@@ -334,7 +336,7 @@ float RaymarchAmbient(vec3 Point)
 		Point += Direction * RayLength;
     }
 
-    return Accum;
+    return Accum * 0.15f;
 }
 
 float RaymarchBounced(vec3 Point)
@@ -356,7 +358,7 @@ float RaymarchBounced(vec3 Point)
 		Point += Direction * RayLength;
     }
 
-    return Accum;
+    return Accum * 0.5f;
 }
 
 // Phase functions ->
@@ -548,9 +550,59 @@ vec2 RSI(vec3 origin, vec3 dir, float radius)
 
 // Cirrus clouds ->
 
+float BasicNoise2D(vec2 p) 
+{
+    return fract(sin(dot(p,vec2(127.1,311.7))) * 43758.5453);
+}
 
+// Bilinear noise interpolation ->
+float InterpolateNoise(vec2 uv)
+{
+    float intX = floor(uv.x);
+    float fractX = fract(uv.x);
+    float intY = floor(uv.y);
+    float fractY = fract(uv.y);
+    float v1 = BasicNoise2D(vec2(intX, intY));
+    float v2 = BasicNoise2D(vec2(intX + 1.0, intY));
+    float v3 = BasicNoise2D(vec2(intX, intY + 1.0));
+    float v4 = BasicNoise2D(vec2(intX + 1.0, intY + 1.0));
+    float i1 = mix(v1, v2, fractX);
+    float i2 = mix(v3, v4, fractX);
+    return mix(i1, i2, fractY);
+}
+
+// Basic 2D fbm ->
+float FBM2D(vec2 uv) 
+{
+	// Precomputed LUT ->
+
+    const float Persistence = 0.5f;
+	
+	const float FrequencyLUT[8] = float[8](pow(2.0f, 0.0f), pow(2.0f, 1.0f), pow(2.0f, 2.0f), pow(2.0f, 3.0f), 
+										   pow(2.0f, 4.0f), pow(2.0f, 5.0f), pow(2.0f, 6.0f), pow(2.0f, 7.0f));
+
+	const float AmplitudeLUT[8] = float[8](pow(Persistence, 0.0f), pow(Persistence, 1.0f), pow(Persistence, 2.0f), pow(Persistence, 3.0f), 
+										   pow(Persistence, 4.0f), pow(Persistence, 5.0f), pow(Persistence, 6.0f), pow(Persistence, 7.0f));
+
+    float Total = 0.0f;
+    int OctaveCount = 7;
+
+    for(int i = 1; i <= OctaveCount; i++) 
+	{
+        float F = FrequencyLUT[i];
+        float A = AmplitudeLUT[i];
+        Total += InterpolateNoise(uv * F) * A;
+    }
+
+    return Total;
+}
+
+
+// Planar density function ->
 float GetCirrusDensityAt(vec3 P)
 {
+	vec3 OriginalP = P;
+
 	vec2 SamplePosition = P.xz * (0.001f / 2.0f) * u_CirrusScale;
 	const float ts = 0.0336f;
 
@@ -582,10 +634,22 @@ float GetCirrusDensityAt(vec3 P)
 
 	}
 
-	const float WeatherWeight = 1.0f;
+	float WeatherWeight = 1.0f;
 
 	CirrusDensity = 1.0f - pow(CirrusDensity, 1.0 / mix(1.0f,15.0f,clamp(u_CirrusStrength * 1.25f,0.0f,1.0f)));
-	return (CirrusDensity * 1.0f * 0.2f);
+	
+	// Weighted sum ->
+	float DensityCurl = CurlNoise.x * 0.35f + CurlNoise.y * 0.15f + CurlNoise.z * 0.5f;
+	DensityCurl *= DensityCurl;
+	CirrusDensity *= remap(DensityCurl * 0.5f + 0.5f, 0.0f, 0.4f, 0.2525f, 1.7f);
+	
+	// White noise fbm ->
+	//vec2 FBMUV = OriginalP.xz*0.0025f;
+	//WeatherWeight *= 1.0f - FBM2D(FBMUV);
+	//WeatherWeight = pow(WeatherWeight, 2.0f);
+	//CirrusDensity *= clamp(remap(WeatherWeight, 0.0f, 0.2f, 0.0f, 7.0f), 0.5f, 2.0f);
+
+	return (CirrusDensity * 1.0f * 0.11925);
 }
 
 float ResolveScatter(float x, float coeff)
@@ -810,8 +874,8 @@ void main()
 
 		// Ray march ->
 		float DirectDensity = RaymarchLight(RayPosition) * 1.42069f;
-		float IndirectDensity = RaymarchAmbient(RayPosition) * 1.1f;
-		float IndirectSecondBounceDensity = RaymarchBounced(RayPosition) / 2.0f; 
+		float IndirectDensity = u_AmbientDensityMultiplier > 0.01 ? RaymarchAmbient(RayPosition) * 1.96969420f * u_AmbientDensityMultiplier : 0.0f;
+		float IndirectSecondBounceDensity = u_AmbientDensityMultiplier > 0.01 ? RaymarchBounced(RayPosition) * 0.5f * u_AmbientDensityMultiplier : 0.0f; 
 
 		vec3 ScatterAtPoint = ComputeScattering(RayPosition, DensityAtPosition, CurrentTransmittance, Transmittance, CosTheta, vec3(DirectDensity, IndirectDensity, IndirectSecondBounceDensity));
 
@@ -820,9 +884,12 @@ void main()
 		RayPosition += Increment;
 	}
 
+
+	// Fetch colors ->
 	vec3 SunColor = mix(vec3(38.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
 	vec3 CirrusSunColor = mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.0f, 1.0f, 0.0f))).xyz,vec3(1.0f))*5.0f;
+	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.01f,1.0f,0.01f))).xyz,vec3(1.1f))*8.0f*vec3(0.96f,0.96f,1.0f);
+
 
 	// Add scattering components ->
 

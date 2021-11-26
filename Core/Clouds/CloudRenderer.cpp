@@ -82,7 +82,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLClasses::VertexArray& VAO,
 	const glm::vec3& SunDirection,
 	GLuint BlueNoise,
-	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale)
+	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers,
+	bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, float CloudDetailFBMPower, 
+	bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale, float AmbientDensityMultiplier, GLuint EquiangularCloudMap, bool update_projection)
 {
 	Checkerboard = false;
 
@@ -148,6 +150,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("u_TimeScale", TimeScale);
 		CloudShader.SetFloat("u_CirrusStrength", cirrusstrength);
 		CloudShader.SetFloat("u_CirrusScale", CirrusScale);
+		CloudShader.SetFloat("u_AmbientDensityMultiplier", AmbientDensityMultiplier);
 		CloudShader.SetFloat("u_CloudDetailFBMPower", CloudDetailFBMPower);
 		CloudShader.SetFloat("u_SunVisibility", SunVisibility);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
@@ -245,6 +248,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetBool("u_Clamp", Clamp);
 		TemporalFilter.SetBool("u_CloudSpatialUpscale", CloudSpatialUpscale);
 		TemporalFilter.SetBool("u_SpatialUpscale", CloudSpatialUpscale);
+		TemporalFilter.SetBool("u_UpdateProjection", update_projection);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);
@@ -260,6 +264,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, pos_tex_prev);
+
+		glBindImageTexture(4, EquiangularCloudMap, 0, 0, 0, GL_READ_WRITE, GL_RGBA8);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

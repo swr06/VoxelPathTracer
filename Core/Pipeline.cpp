@@ -66,6 +66,8 @@ static bool DiffuseDirectLightSampling = false;
 
 static bool JitterSceneForTAA = false;
 
+static bool CloudReflections = true;
+
 //static bool SmartUpscaleCloudTemporal = true;
 
 static int LPVDebugState = 0;
@@ -136,8 +138,8 @@ static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
 static glm::vec2 CloudModifiers = glm::vec2(-0.950, 0.1250f); 
 static bool CurlNoiseOffset = false;
-static float CirrusScale = 1.6667f;
-static float CirrusStrength = 0.09f;
+static float CirrusScale = 1.8667f;
+static float CirrusStrength = 0.11f;
 static float CloudTimeScale = 1.0f;
 static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
 static bool CloudCheckerStepCount = false;
@@ -148,6 +150,7 @@ static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
 static bool CloudSpatialUpscale = true;
 static bool CloudFinalCatmullromUpsample = false;
+static float CloudAmbientDensityMultiplier = 1.2f;
 
 //
 
@@ -422,8 +425,8 @@ public:
 			ImGui::NewLine();
 			ImGui::Text("Volumetric clouds : ");
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
-			//ImGui::Checkbox("Use Bayer Dither for clouds? (Uses white noise if disabled)", &CloudBayer);
 			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
 			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
 			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
@@ -433,6 +436,7 @@ public:
 
 			//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
+			ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
 			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
 			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
 			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
@@ -1053,8 +1057,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::ComputeShader ComputeAutoExposure;
 	ComputeAutoExposure.CreateComputeShader("Core/Shaders/ComputeExposure.comp");
 	ComputeAutoExposure.Compile();
-	
+
 	////////////
+
+	// Equi rectangular projected cloud map ->
+
+	GLClasses::Framebuffer CloudProjection(512 * 3, 512 * 3, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE }, true);
+	CloudProjection.CreateFramebuffer();
+
+	CloudProjection.Bind();
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	CloudProjection.Unbind();
+
+	// 
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
@@ -2098,6 +2114,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_RoughReflections", RoughReflections);
 			ReflectionTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
 			ReflectionTraceShader.SetBool("u_ReflectPlayer", REFLECT_PLAYER);
+			ReflectionTraceShader.SetBool("u_CloudReflections", CloudReflections);
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -2111,6 +2128,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 			ReflectionTraceShader.SetInteger("u_IndirectAO", 17);
+			ReflectionTraceShader.SetInteger("u_ProjectedClouds", 18);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_CurrentFrameMod128", app.GetCurrentFrame()%128);
@@ -2179,6 +2197,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			glActiveTexture(GL_TEXTURE17);
 			glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(3));
+
+			glActiveTexture(GL_TEXTURE18);
+			glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
 
@@ -2537,12 +2558,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLuint CloudData = 0;
 		if (CloudsEnabled)
 		{
+			bool UpdateCloudProjection = (CloudReflections) || app.GetCurrentFrame() % 2 == 0;
+
 			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
 				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), 
-				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale);
+				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, 
+				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection);
 
 			//Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
@@ -2625,7 +2649,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
-
+		ColorShader.SetInteger("u_DebugTexture", 22);
 
 
 
@@ -2705,6 +2729,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE21);
 		glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetColorVolume());
+		
+
+		glActiveTexture(GL_TEXTURE22);
+		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
 
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
