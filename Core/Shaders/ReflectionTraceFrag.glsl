@@ -583,7 +583,9 @@ void main()
 
 	// Jitter ->
 	vec2 g_TexCoords = v_TexCoords;
-	vec2 JitteredUV = g_TexCoords + ((u_Halton * 2.5f / u_Dimensions) * float(u_TemporalFilterReflections));
+	vec2 Jitter = u_Halton;
+	Jitter = clamp(Jitter * 1.0f, -8.0f, 8.0f);
+	vec2 JitteredUV = g_TexCoords + ((Jitter / u_Dimensions) * float(u_TemporalFilterReflections));
 	//float JitteredGBuffer = texelFetch(u_PositionTexture, ivec2(JitteredUV * textureSize(u_PositionTexture, 0)), 0).x;
 	if (true) {
 		g_TexCoords = JitteredUV;
@@ -638,8 +640,8 @@ void main()
 
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.5f);  // Bias 
 
-	vec4 DiffuseSH = texture(u_DiffuseSH, g_TexCoords).rgba;
-	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, g_TexCoords).rg;
+	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
+	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
 	vec3 BaseIndirectDiffuse = SHToIrradianceA(DiffuseSH, DiffuseCoCg);
 
 	float AveragedHitDistance = 0.001f;

@@ -150,6 +150,7 @@ void main()
 	vec2 BlurredCoCg = vec2(0.0f);
 
 	vec4 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyzw;
+	
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	int BaseBlockID = GetBlockID(v_TexCoords);
 	bool BaseIsSky = BasePosition.w < 0.0f;
@@ -168,29 +169,37 @@ void main()
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz, 1.0f));
 	float d = length(ViewSpaceBase);
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 1e-6f);
-	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), (1.0f-RoughnessAt)*4.0f), 0.0f, 1.0f);
-	int EffectiveRadius = int(floor(Radius * 12.0f));
-	EffectiveRadius = clamp(EffectiveRadius, 1, 12+2);
+	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
+	int EffectiveRadius = int(floor(Radius * 15.0f));
+	EffectiveRadius = clamp(EffectiveRadius, 1, 15);
 
 	// reduce noise on too rough objects 
 	bool BaseTooRough = RoughnessAt > 0.897511f;
-	EffectiveRadius = BaseTooRough ? 12 : EffectiveRadius;
+	EffectiveRadius = BaseTooRough ? 15 : EffectiveRadius;
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
+	
 	float Scale = 1.0f;
-
-	Scale = mix(1.0f, 4.0f, u_ResolutionScale);
+	Scale = mix(1.0f, 3.2525f, u_ResolutionScale / 1.25f);
+	
 	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
-		float SampleOffset = Jitter + Sample;
+		float SampleOffset = (Jitter * 0.5) + Sample;
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * Scale * TexelSize));
+		vec2 Mask = u_Dir ? vec2(1.0f, 0.0f) : vec2(0.0, 1.0f);
 		
 		float bias = 0.01f;
 		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 
 		{
 
 			vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
+			bool SampleIsSky = SamplePosition.w < 0.0f;
+			
+			if (SampleIsSky != BaseIsSky) {
+				continue;
+			}
+			
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
 
 			float PositionError = dot(PositionDifference, PositionDifference);

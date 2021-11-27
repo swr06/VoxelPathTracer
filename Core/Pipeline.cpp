@@ -113,6 +113,7 @@ static bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
 
 static bool CHECKERBOARD_SPP = true;
 static bool CHECKERBOARD_SPEC_SPP = false;
+static bool InferSpecularDetailSpatially = false;
 
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
@@ -146,7 +147,7 @@ static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
 static bool CloudCheckerStepCount = false;
 static bool CloudLODLighting = true;
 static bool CloudForceSupersample = true;
-static float CloudForceSupersampleRes = 0.75f;
+static float CloudForceSupersampleRes = 0.83f;
 static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
 static bool CloudSpatialUpscale = true;
@@ -216,6 +217,7 @@ static bool RoughReflections = true;
 static bool DenoiseReflections = true;
 static bool ReflectionFireflyRejection = true;
 static bool AggressiveFireflyRejection = true;
+static bool SmartReflectionClip = true;
 static bool RenderParticles = true;
 static bool Bloom_HQ = false;
 
@@ -282,39 +284,124 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::SliderInt("DEBUG Trace Level (0 : None, 1 : Indirect Diffuse, 2 : Specular", &DEBUGTraceLevel, 0, 2);
+			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
+			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
+			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
+			ImGui::Text("Player Velocity : %f, %f, %f", MainPlayer.m_Velocity[0], MainPlayer.m_Velocity[1], MainPlayer.m_Velocity[2]);
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
+			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
+			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.1f); 
+
+			ImGui::NewLine();
+			if (ImGui::Button("Reset Speed/Sensitivity")) 
+			{
+				MainPlayer.Speed = 0.045f;
+				MainPlayer.Sensitivity = 0.25f;
+			}
+
+			ImGui::NewLine();
+			ImGui::Checkbox("VSync", &VSync);
+			ImGui::NewLine();
+			ImGui::NewLine();
+
+			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular", &DEBUGTraceLevel, 0, 2);
+			
+			// Sun/Moon ->
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("--- Sun/Moon Settings ---");
+			ImGui::NewLine();
+			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
+			ImGui::NewLine();
+			ImGui::SliderFloat("Sun Strength", &SunStrengthModifier, 0.01f, 1.0f);
+			ImGui::SliderFloat("Moon Strength", &MoonStrengthModifier, 0.01f, 2.0f);
+			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
+			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
+
+
+			// Initial hit
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("--- Initial hit Settings ---");
+			ImGui::NewLine();
+			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
+			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
+			ImGui::NewLine();
+
+
+			// Indirect diffuse ->
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("--- Indirect Diffuse Settings ---");
+			ImGui::NewLine();
 			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
+			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
+			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
+			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
+			ImGui::SliderFloat("Diffuse Indirect Supersample Res", &DiffuseIndirectSuperSampleRes, 0.0f, 1.5f);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
-			ImGui::SliderFloat("Diffuse Indirect Supersample Res", &DiffuseIndirectSuperSampleRes, 0.0f, 1.0f);
+			ImGui::Checkbox("Use Blue noise for tracing?", &USE_BLUE_NOISE_FOR_TRACING);
+			ImGui::NewLine();
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
+			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::Checkbox("AGGRESSIVE_DISOCCLUSION_HANDLING ", &AGGRESSIVE_DISOCCLUSION_HANDLING);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
 			ImGui::Checkbox("SVGF_LARGE_KERNEL ", &SVGF_LARGE_KERNEL);
 			ImGui::Checkbox("DO_SVGF_TEMPORAL ", &DO_SVGF_TEMPORAL);
 			ImGui::Checkbox("DO_VARIANCE_SVGF_SPATIAL ", &DO_VARIANCE_SPATIAL);
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
-			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 
+			// Reflections ->
+			ImGui::NewLine();
+			ImGui::Text("--- Reflections/Indirect Specular Settings --");
+			ImGui::NewLine();
+			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 24);
+			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
+			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
+			ImGui::Checkbox("Rough reflections?", &RoughReflections);
+			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
+			ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
+			ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
+			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
+			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
+			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
+			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
+			ImGui::NewLine();
 
-			ImGui::Checkbox("Use Blue noise for tracing?", &USE_BLUE_NOISE_FOR_TRACING);
-			ImGui::Checkbox("Use new specular spatial filter? (Doesn't overblur. Might produce more noise.)", &USE_NEW_SPECULAR_SPATIAL);
+			// Shadows ->
 			ImGui::NewLine();
-			
-			
 			ImGui::NewLine();
+			ImGui::Text("--- Ray Traced Direct Shadows Settings --");
+			ImGui::NewLine();
+			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
+			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
+			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
+			ImGui::NewLine();
+			ImGui::NewLine();
+
+			ImGui::Text("--- Misc Settings --");
+			ImGui::NewLine();
+			ImGui::SliderInt("Pixel Padding Amount", &PIXEL_PADDING, 0, 128);
+			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
+			ImGui::Checkbox("Particles?", &RenderParticles);
+			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
+			ImGui::NewLine();
 			ImGui::NewLine();
 
-
+			ImGui::Text("--- Point Light Volumetrics Settings ---");
 			ImGui::NewLine();
-			ImGui::Text("----- Point Light Volumetrics -----");
 			ImGui::Checkbox("Point Volumetric Fog? ", &PointVolumetricsToggled);
 			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
 			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
@@ -345,62 +432,24 @@ public:
 			ImGui::PopStyleColor(2);
 			//
 
-			ImGui::Text("----------------");
 
 
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("--- Post Process Settings ---");
 			ImGui::NewLine();
 			
-			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
-			ImGui::NewLine();
+			if (USE_SVGF) {
+				ImGui::Checkbox("Ray traced ambient occlusion? (RTAO)", &VXAO);
+			}
 
-			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
-			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
-			ImGui::SliderFloat("Sun Strength", &SunStrengthModifier, 0.01f, 1.0f);
-			ImGui::SliderFloat("Moon Strength", &MoonStrengthModifier, 0.01f, 2.0f);
-			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
-			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
-			ImGui::SliderInt("PIXEL_PADDING", &PIXEL_PADDING, 0, 128);
-			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
-			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
-			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
-			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
-			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
-			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
-			ImGui::NewLine();
-			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
-			ImGui::NewLine();
-			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
-			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
-			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
-			ImGui::NewLine();
-			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
-			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
-			ImGui::NewLine();
+			else {
+				ImGui::Checkbox("Secondary RTAO", &RTAO);
+				ImGui::SliderFloat("Secondary RTAO Resolution", &RTAOResolution, 0.1f, 0.5f);
+			}
 
-			// Reflections ->
-			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
-			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.0f);
-			ImGui::Checkbox("Rough reflections?", &RoughReflections);
-			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
-			ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
-			ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
-			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
-			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
-			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
-			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
-			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
-			
-			
-			ImGui::NewLine();
-			ImGui::Checkbox("Particles?", &RenderParticles);
-			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
-			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
-
-
-			ImGui::NewLine();
-			ImGui::NewLine();
-			ImGui::Text("---- Post Process ----");
-			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
@@ -426,18 +475,14 @@ public:
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
 			ImGui::Checkbox("Bloom?", &Bloom);
 			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
-
-			ImGui::NewLine();
-			ImGui::Checkbox("RTAO_1 Other?", &VXAO);
-			ImGui::Checkbox("Do RTAO (RTAO_1 not availible when SVGF filtering is disabled!)", &RTAO);
-			ImGui::SliderFloat("RTAO Resolution (Leave as-is if SVGF is on.)", &RTAOResolution, 0.1f, 0.9f);
-			ImGui::NewLine();
 			ImGui::NewLine();
 
 
 			ImGui::NewLine();
 			ImGui::NewLine();
-			ImGui::Text("Volumetric clouds : ");
+			ImGui::NewLine();
+			ImGui::Text("--- Volumetric cloud Settings ---");
+			ImGui::NewLine();
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
 			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
@@ -478,15 +523,16 @@ public:
 
 			ImGui::NewLine();
 			ImGui::NewLine();
-			ImGui::Text("WIP and not-recommended stuff : ");
-			ImGui::NewLine();
+			ImGui::Text("--- WIP and not-recommended stuff ---");
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
+			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
 			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
+			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
 		} ImGui::End();
 
 		if (LightListDebug) {
@@ -599,9 +645,7 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
-			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
-			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 1.0f);
-			ImGui::Checkbox("VSync", &VSync);
+			
 
 			if (ImGui::Button("Reset"))
 			{
@@ -1153,6 +1197,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			DiffuseRawTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
 			DiffusePreTemporal_SpatialFBO.SetSize(PADDED_WIDTH* DiffuseTraceResolution, PADDED_HEIGHT* DiffuseTraceResolution);
 			
+			DiffuseIndirectSuperSampleRes = glm::max(DiffuseIndirectSuperSampleRes, DiffuseTraceResolution);
 			DiffuseTemporalFBO1.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
 			DiffuseTemporalFBO2.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
 			DiffuseDenoiseFBO.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
@@ -1189,7 +1234,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionHitDataDenoised.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			
-			
+			ReflectionSuperSampleResolution = glm::max(ReflectionTraceResolution, ReflectionSuperSampleResolution);
 			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
 			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
 			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
@@ -2037,6 +2082,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.375250f : 0.95f);
 			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
 			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
+			MainTemporalFilter.SetBool("u_ShouldFilterShadows", DenoiseSunShadows);
 
 			MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
 			MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -2307,6 +2353,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 			SpecularTemporalFilter.SetBool("u_FireflyRejection", ReflectionFireflyRejection);
 			SpecularTemporalFilter.SetBool("u_AggressiveFireflyRejection", AggressiveFireflyRejection);
+			SpecularTemporalFilter.SetBool("u_SmartClip", SmartReflectionClip);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -2666,6 +2713,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGTraceLevel==2);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", UseDFG);
+		ColorShader.SetBool("u_InferSpecularDetailSpatially", InferSpecularDetailSpatially);
 		ColorShader.SetBool("u_CloudCatmullRomUpsampling", CloudFinalCatmullromUpsample);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);

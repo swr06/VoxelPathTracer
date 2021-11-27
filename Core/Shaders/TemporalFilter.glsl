@@ -38,6 +38,7 @@ uniform vec3 u_CurrentCameraPos;
 uniform bool u_ReflectionTemporal = false;
 uniform bool u_DiffuseTemporal = false;
 uniform bool u_ShadowTemporal = false;
+uniform bool u_ShouldFilterShadows = false;
 uniform float u_ClampBias = 0.025f;
 
 
@@ -390,6 +391,10 @@ void main()
 			if (u_ShadowTemporal) {  
 				CurrentColor = clamp(CurrentColor + 0.005f, 0.0f, 1.0f);  // Bias
 				PrevColor = clamp(PrevColor + 0.005f, 0.0f, 1.0f);  // Bias
+
+				if (!u_ShouldFilterShadows) {
+					BlendFactor = 0.0f;
+				}
 			}
 
 			o_Color = mix(CurrentColor, PrevColor, BlendFactor);

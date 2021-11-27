@@ -88,6 +88,7 @@ uniform bool u_AmplifyNormalMap;
 uniform bool u_DoVXAO = true;
 uniform bool u_SVGFEnabled = true;
 uniform bool u_ShouldDitherUpscale = true;
+uniform bool u_InferSpecularDetailSpatially = false;
 
 uniform float u_CloudBoxSize;
 uniform int u_GrassBlockProps[10];
@@ -772,9 +773,24 @@ bool IsAtEdge(in vec2 txc)
     return false;
 }
 
-// Spatially upscales indirect data ->
-void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg)
+float SHToY(vec4 shY)
 {
+    return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic
+}
+
+// Spatially upscales indirect data ->
+void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, bool fuckingsmooth)
+{
+    const bool BE_FUCKING_USELESS = false;
+
+    if (BE_FUCKING_USELESS) {
+        vec2 SampleCoord = v_TexCoords;
+        SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
+		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
+        SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
+        SpecularCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy;
+        return;
+    }
 
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
@@ -782,18 +798,22 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
     vec2 TotalSpecCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
 
-    const vec2 Offsets[4] = vec2[](
+    const vec2 Offsets[5] = vec2[5](
         vec2(0.0f, 1.0f),
         vec2(1.0f, 0.0f),
+        vec2(0.0f),
         vec2(-1.0f, 0.0f),
         vec2(0.0, -1.0f)
     );
+
+    //vec4 SpecularSamplesSHy[5];
+    //vec2 SpecularSamplesCoCg[5];
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
 	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
 
 
-	for (int s = 0 ; s < 4 ; s++) {
+	for (int s = 0 ; s < 5 ; s++) {
 		
         vec2 SampleCoord = v_TexCoords + (vec2(Offsets[s])) * TexelSize;
 		float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
@@ -811,22 +831,48 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 		Weight = max(Weight, 0.01f);
         float SpecularWeight = Weight;
 
-
 		TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
 		TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
+        //SpecularSamplesSHy[s] = texture(u_ReflectionSHData, SampleCoord).xyzw;
+        //SpecularSamplesCoCg[s] = texture(u_ReflectionCoCgData, SampleCoord).xy;
+
         TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
         TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
+
 		TotalWeight += Weight;
 	}
 
+    TotalWeight = max(TotalWeight, 0.01f);
+
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
+
     TotalSpecSH = TotalSpecSH / TotalWeight;
     TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
-
     SpecularSHy = TotalSpecSH;
     SpecularCoCg = TotalSpecCoCg;
 
+    //bool InferSpecDetail = u_InferSpecularDetailSpatially;
+    //
+    //if (!fuckingsmooth || !InferSpecDetail) {
+    //    return;
+    //}
+    //
+    //// Approximate detail ->
+    //
+    //float WeightA = clamp(pow(SHToY(SpecularSamplesSHy[0]), 64.0f), 0.01f, 0.99f);
+    //float WeightB = clamp(pow(SHToY(SpecularSamplesSHy[1]), 64.0f), 0.01f, 0.99f);
+    //float WeightC = clamp(pow(SHToY(TotalSpecSH), 64.0), 0.01f, 0.99f);
+    //float WeightD = clamp(pow(SHToY(SpecularSamplesSHy[3]), 64.0f), 0.01f, 0.99f);
+    //float WeightE = clamp(pow(SHToY(SpecularSamplesSHy[4]), 64.0f), 0.01f, 0.99f);
+    //
+    //float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
+    //float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
+    //float Deviation = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
+    //float w = Deviation * mix(-0.125f, -0.2f, 0.95f);
+    //
+    //SpecularSHy = (w * (SpecularSamplesSHy[0] + SpecularSamplesSHy[1] + SpecularSamplesSHy[3] + SpecularSamplesSHy[4]) + TotalSpecSH) / (4.0f * w + 1.0f);
+    //SpecularCoCg = (w * (SpecularSamplesCoCg[0] + SpecularSamplesCoCg[1] + SpecularSamplesCoCg[3] + SpecularSamplesCoCg[4]) + TotalSpecCoCg) / (4.0f * w + 1.0f);
 }
 
 
@@ -1070,7 +1116,7 @@ void main()
             vec2 ShCoCg;
             vec4 SpecularSH;
             vec2 SpecularCoCg;
-            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg);
+            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg, PBRMap.x <= 0.1);
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);

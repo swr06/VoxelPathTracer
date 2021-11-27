@@ -1,6 +1,7 @@
 #version 330 core
 
 #define USE_NEW_REPROJECTION 1
+#define EPS 0.01f
 
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
@@ -45,6 +46,7 @@ uniform vec3 u_CurrentCameraPos;
 
 uniform bool u_ReflectionTemporal = false;
 uniform bool TEMPORAL_SPEC = false;
+uniform bool u_SmartClip = true;
 
 // Firefly rejection ->
 uniform bool u_FireflyRejection;
@@ -108,32 +110,78 @@ vec3 SampleNormal(sampler2D samp, vec2 txc) {
 	return GetNormalFromID(texture(samp, txc).x);
 }
 
-void ComputeClamped(vec2 r, out vec4 sh, out vec2 cocg) {
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
+{
+    float Y = max(0, 3.544905f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
+
+float remap(float original_value, float original_min, float original_max, float new_min, float new_max)
+{
+    return new_min + (clamp((original_value - original_min) / (original_max - original_min), 0.0f, 1.0f) * (new_max - new_min));
+}
+
+void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected, float Roughness) {
 	
 	vec4 MinSH = vec4(1000.0f), MaxSH = vec4(-1000.0f);
 	vec2 MinCoCg = vec2(1000.0f), MaxCoCg = vec2(-1000.0f);
+	vec3 MinRadiance = vec3(1000.0f);
+	vec3 MaxRadiance = vec3(-1000.0f);
 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
 
 	for (int x = -1; x <= 1 ; x++) {
 		for (int y = -1 ; y <= 1 ; y++) {
 			
-			vec2 SampleCoord = r + vec2(x,y) * TexelSize;
+			vec2 SampleCoord = Reprojected + vec2(x,y) * TexelSize;
+			float Mask = texture(u_EmissivityIntersectionMask, SampleCoord).x;
+
+			bool MaskE = Mask < 0.01f;
+
 			vec4 SampleSH = texture(u_CurrentColorTexture, SampleCoord);
 			vec2 SampleCoCg = texture(u_CurrentCoCg, SampleCoord).xy;
-			MinSH = min(SampleSH, MinSH);
-			MaxSH = max(SampleSH, MaxSH);
-			MinCoCg = min(SampleCoCg, MinCoCg);
-			MaxCoCg = max(SampleCoCg, MaxCoCg);
+			
+			vec3 Irradiance = SHToIrridiance(SampleSH, SampleCoCg);
+			
+			if (MinRadiance != min(Irradiance, MinRadiance)) {
+				MinSH = SampleSH;
+				MinCoCg = SampleCoCg;
+				MinRadiance = min(Irradiance, MinRadiance);
+			}
+			
+			if (MaxRadiance != max(Irradiance, MaxRadiance) && MaskE) {
+				MaxSH = SampleSH;
+				MaxCoCg = SampleCoCg;
+				MaxRadiance = max(Irradiance, MaxRadiance);
+			}
 		}
 	}
 
-	float bias = 0.0f;
-	MinCoCg -= bias; MinSH -= bias;
-	MaxCoCg += bias; MaxSH += bias;
+	float RemappedRoughness = remap(Roughness * Roughness, 0.0f, 0.25f * 0.25f, 0.0f, 1.0f);
+	float Bias = mix(0.01f, 0.075f, RemappedRoughness);
+	MinRadiance -= Bias;
+	MaxRadiance += Bias;
 
-	sh = clamp(texture(u_PreviousColorTexture, r), MinSH, MaxSH);
-	cocg = clamp(texture(u_PrevCoCg, r).xy, MinCoCg, MaxCoCg);
+	vec3 BaseRadiance = SHToIrridiance(PreviousSH, PreviousCoCg);
+	vec3 ClampedRadiance = clamp(BaseRadiance, MinRadiance, MaxRadiance);
+
+	if (ClampedRadiance != BaseRadiance) {
+		if (distance(ClampedRadiance, MinRadiance) > distance(ClampedRadiance, MaxRadiance)) {
+			PreviousSH = MaxSH;
+			PreviousCoCg = MaxCoCg;
+		}
+
+		else {
+			PreviousSH = MinSH;
+			PreviousCoCg = MinCoCg;
+		}
+	}
 }
 
 float SHToY(vec4 shY)
@@ -145,6 +193,7 @@ float SHToY(float shY)
 {
     return max(0, 3.544905f * shY); // get luminance (Y) from the first spherical harmonic
 }
+
 
 vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
 {
@@ -232,6 +281,8 @@ void FireflyRejectLuminosity(inout vec4 InputSH, inout vec2 InputCoCg)
 	return;
 }
 
+
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -264,7 +315,7 @@ void main()
 
 		const bool UseNewReprojection = bool(USE_NEW_REPROJECTION);
 		
-		if (RoughnessAt < 0.35f && HitDistanceCurrent > 0.0f && UseNewReprojection)
+		if (RoughnessAt < 0.40f && HitDistanceCurrent > 0.0f && UseNewReprojection)
 		{
 			// Reconstruct the reflected position to properly reproject
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
@@ -315,11 +366,16 @@ void main()
 			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.85f) : (Moved ? 0.8f : 0.9f); 
 
-			bool FuckingSmooth = RoughnessAt <= 0.05f;
+			bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 
-			if (FuckingSmooth && Moved) {
-				BlendFactor = 0.0f;
+			if (FuckingSmooth && Moved && u_SmartClip) {
+
+				// Clip sample ->
+				SmartClip(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
+				BlendFactor *= 1.35f;
 			}
+
+			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);
 
 			// mix sh
 			o_SH = mix(CurrentSHy, PrevSH, BlendFactor);

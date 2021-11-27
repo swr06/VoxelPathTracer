@@ -229,7 +229,7 @@ float SampleDensity(vec3 p, float lod)
 
 		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.0004f).xyz);
 		//CurlNoise = pow(CurlNoise, vec3(1.0f));
-		p += CurlNoise * 64.0f;
+		p += CurlNoise * 32.0f;
 	}
 
 
@@ -337,7 +337,7 @@ float RaymarchAmbient(vec3 Point)
 		Point += Direction * RayLength;
     }
 
-    return Accum * 0.15f;
+    return Accum * 0.1f;
 }
 
 float RaymarchBounced(vec3 Point)
@@ -926,7 +926,7 @@ void main()
 	// Fade ->
 	if (DoFade) 
 	{
-		float Fade = 1.0f-(exp(-(SphereMin.y/11000.0f)));
+		float Fade = 1.0f-(exp(-(SphereMin.y/15000.0f)));
 		Fade = clamp(Fade, 0.0f, 1.0f);
 		Fade = Fade * Fade;
 		Fade = clamp(Fade, 0.0f, 1.0f);
