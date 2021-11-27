@@ -64,6 +64,8 @@ static bool VSync = false;
 
 static bool DiffuseDirectLightSampling = false;
 
+static float DiffuseIndirectSuperSampleRes = 0.25f;
+
 static bool JitterSceneForTAA = false;
 
 static bool CloudReflections = true;
@@ -77,7 +79,6 @@ static bool LightListDebug = false;
 static bool HejlBurgessTonemap = false;
 
 static float TextureDesatAmount = 0.1f;
-static bool TemporalUpscale = false;
 static bool PreTemporalSpatialPass = true;
 static float PurkingeEffectStrength = 0.0f;
 static int SelectedColorGradingLUT = -1;
@@ -175,6 +176,7 @@ static float DiffuseTraceResolution = 0.250f;
 
 static float ShadowTraceResolution = 0.500f;
 static float ReflectionTraceResolution = 0.250; 
+static float ReflectionSuperSampleResolution = 0.250f;
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
@@ -280,18 +282,14 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
-			//ImGui::Checkbox("DEBUG Diffuse GI", &DEBUGDiffuseGI);
-			//ImGui::Checkbox("DEBUG Specular GI", &DEBUGSpecGI);
 			ImGui::SliderInt("DEBUG Trace Level (0 : None, 1 : Indirect Diffuse, 2 : Specular", &DEBUGTraceLevel, 0, 2);
+			
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
-			ImGui::Checkbox("Temporally Upscale Indirect Diffuse Trace?", &TemporalUpscale);
 			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
-			ImGui::NewLine();
-			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
-			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
-			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
-			ImGui::NewLine();
+			ImGui::SliderFloat("Diffuse Indirect Supersample Res", &DiffuseIndirectSuperSampleRes, 0.0f, 1.0f);
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
 			ImGui::Checkbox("AGGRESSIVE_DISOCCLUSION_HANDLING ", &AGGRESSIVE_DISOCCLUSION_HANDLING);
 			ImGui::Checkbox("DO_SVGF_SPATIAL ", &DO_SVGF_SPATIAL);
@@ -301,18 +299,20 @@ public:
 			ImGui::Checkbox("WIDE_SVGF_SPATIAL ", &WiderSVGF);
 			ImGui::SliderFloat("SVGF : Color Phi Bias", &ColorPhiBias, 0.5f, 6.0f);
 			ImGui::NewLine();
+			ImGui::NewLine();
+
+
 			ImGui::Checkbox("Use Blue noise for tracing?", &USE_BLUE_NOISE_FOR_TRACING);
 			ImGui::Checkbox("Use new specular spatial filter? (Doesn't overblur. Might produce more noise.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::NewLine();
-			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
-			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
-			//ImGui::SliderFloat("RESOLUTION SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 1.0f);
+			
+			
 			ImGui::NewLine();
 			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
-			ImGui::NewLine();
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
-			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
+
+
 			ImGui::NewLine();
 			ImGui::Text("----- Point Light Volumetrics -----");
 			ImGui::Checkbox("Point Volumetric Fog? ", &PointVolumetricsToggled);
@@ -320,18 +320,19 @@ public:
 			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
 			ImGui::Checkbox("Use Perlin Noise FBM for Optical Depth?", &PointVolPerlinOD);
 			ImGui::Checkbox("Use Ground Truth Color Interpolation? (EXPENSIVE! LEAVE OFF IF UNSURE.)", &PointVolGroundTruthColorInterpolation);
-			//ImGui::Checkbox("Noise type? (0 : Smooth perlin [Faster], 1 : Simplex Fractal [Slower])", &FractalSimplexOD);
 			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
 			ImGui::Checkbox("Denoise?", &DenoisePointVol);
 			ImGui::Checkbox("Triquadratic Density Interpolation (Much slower, Gets rid of all bilinear interpolation artifacts)?", &PointVolTriquadraticDensityInterpolation);
 			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
 			ImGui::SliderInt("LPV Debug State (0 = OFF, 1 = LEVEL, 2 = LEVEL * COLOR, 3 = LEVEL AS INDIRECT, 4 = [LEVEL * COLOR] AS INDIRECT)", &LPVDebugState, 0, 4, "%d");
-			//ImGui::SameLine(); 
+			
 			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) { 
 				VoxelRT_FloodFillDistanceLimit = 4; 
 				world->RepropogateLPV_();
 			}
+
+
 
 			//
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ImColor(128, 0, 0)));
@@ -362,24 +363,34 @@ public:
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
-			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 0.8f);
+			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
 			ImGui::SliderFloat("Sun Time ", &SunTick, 0.1f, 256.0f);
-
+			ImGui::NewLine();
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
+			ImGui::NewLine();
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
-			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
 			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
-			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
-			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
+			ImGui::NewLine();
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
 			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
 			ImGui::NewLine();
+
+			// Reflections ->
+			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 16);
+			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.0f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 			ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
 			ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
+			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
+			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
+			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
+			
+			
 			ImGui::NewLine();
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
@@ -392,6 +403,9 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
+			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
+			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
+			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::SliderFloat("Desaturation Amount", &TextureDesatAmount, 0.0f, 1.0f);
 			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
 			ImGui::SliderFloat("Purkinje Effect Strength", &PurkingeEffectStrength, 0.0f, 1.0f);
@@ -1136,14 +1150,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 			VolumetricsComputeBlurred.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 			
-			float DiffuseResolution2 = TemporalUpscale ? DiffuseTraceResolution * 2.0f : DiffuseTraceResolution;;
 			DiffuseRawTraceFBO.SetSize(PADDED_WIDTH * DiffuseTraceResolution, PADDED_HEIGHT * DiffuseTraceResolution);
 			DiffusePreTemporal_SpatialFBO.SetSize(PADDED_WIDTH* DiffuseTraceResolution, PADDED_HEIGHT* DiffuseTraceResolution);
-			DiffuseTemporalFBO1.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
-			DiffuseTemporalFBO2.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
-			DiffuseDenoiseFBO.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
-			DiffuseDenoisedFBO2.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
-			VarianceFBO.SetSize(PADDED_WIDTH * DiffuseResolution2, PADDED_HEIGHT * DiffuseResolution2);
+			
+			DiffuseTemporalFBO1.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
+			DiffuseTemporalFBO2.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
+			DiffuseDenoiseFBO.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
+			DiffuseDenoisedFBO2.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
+			VarianceFBO.SetSize(PADDED_WIDTH * DiffuseIndirectSuperSampleRes, PADDED_HEIGHT * DiffuseIndirectSuperSampleRes);
 
 
 			if (TAA)
@@ -1173,11 +1187,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			ReflectionTraceFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionTraceFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
-			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
-			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
-			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
-			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionHitDataDenoised.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
+			
+			
+			ReflectionTemporalFBO_1.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
+			ReflectionTemporalFBO_2.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
+			ReflectionDenoised_1.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
+			ReflectionDenoised_2.SetSize(PADDED_WIDTH * ReflectionSuperSampleResolution, PADDED_HEIGHT * ReflectionSuperSampleResolution);
 
 			if (GodRays)
 			{
@@ -1333,6 +1349,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_BlockPBRTextures", 8);
 		DiffuseTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
 		DiffuseTraceShader.SetInteger("u_DistanceFieldTexture", 13);
+		DiffuseTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
@@ -1374,8 +1391,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetBool("u_DirectSampling", DiffuseDirectLightSampling);
 		DiffuseTraceShader.SetBool("u_UseDirectSampling", DiffuseDirectLightSampling);
 		DiffuseTraceShader.SetBool("u_UseMIS", DiffuseDirectLightSampling);
-
-
+		DiffuseTraceShader.SetBool("u_Supersample", abs(DiffuseIndirectSuperSampleRes - DiffuseTraceResolution) > 0.05f);
 		DiffuseTraceShader.SetMatrix4("u_VertInverseView", inv_view);
 		DiffuseTraceShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 		DiffuseTraceShader.SetMatrix4("u_InverseView", inv_view);
@@ -1724,6 +1740,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetFloat("u_ColorPhiBias", ColorPhiBias);
 					SVGF_Spatial.SetFloat("u_Time", glfwGetTime());
 					SVGF_Spatial.SetFloat("u_DeltaTime", DeltaTime);
+					SVGF_Spatial.SetFloat("u_ResolutionScale", DiffuseIndirectSuperSampleRes);
 
 					glActiveTexture(GL_TEXTURE0);
 					glBindTexture(GL_TEXTURE_2D, PrevDenoiseFBO.GetTexture());
@@ -2109,12 +2126,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
 			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 			ReflectionTraceShader.SetVector2f("u_Dimensions", glm::vec2(ReflectionTraceFBO.GetWidth(), ReflectionTraceFBO.GetHeight()));
+			ReflectionTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
 			ReflectionTraceShader.SetFloat("u_Time", glfwGetTime());
 			ReflectionTraceShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 			ReflectionTraceShader.SetBool("u_RoughReflections", RoughReflections);
 			ReflectionTraceShader.SetBool("u_UseBlueNoise", USE_BLUE_NOISE_FOR_TRACING);
 			ReflectionTraceShader.SetBool("u_ReflectPlayer", REFLECT_PLAYER);
 			ReflectionTraceShader.SetBool("u_CloudReflections", CloudReflections);
+			ReflectionTraceShader.SetBool("u_TemporalFilterReflections", TEMPORAL_SPEC);
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			ReflectionTraceShader.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -2372,6 +2391,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
+				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -2431,6 +2451,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_PrevProjection", PreviousProjection);
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
+				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
 
 				BlockDataStorageBuffer.Bind(0);
 

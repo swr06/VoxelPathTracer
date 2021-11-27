@@ -13,4 +13,5 @@ namespace VoxelRT {
 	void GenerateJitterStuff();
 	glm::mat4 GetTAAJitterMatrix(int CurrentFrame, const glm::vec2& resolution);
 	glm::vec2 GetTAAJitter(int CurrentFrame, const glm::vec2& resolution);
+	glm::vec2 GetTAAJitterSecondary(int CurrentFrame);
 }

@@ -1118,7 +1118,7 @@ void main()
             vec3 SpecularIndirect = vec3(0.0f);
             
             if (InBiasedSS) {
-                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, NonAmplifiedNormal); 
+                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, NormalMapped.xyz); 
             }
 
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 

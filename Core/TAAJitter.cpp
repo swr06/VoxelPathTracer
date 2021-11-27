@@ -39,3 +39,9 @@ glm::vec2 VoxelRT::GetTAAJitter(int CurrentFrame, const glm::vec2& resolution)
 	glm::vec2 Jitter = HaltonSequenceData[CurrentFrame % 64];
 	return Jitter;
 }
+
+glm::vec2 VoxelRT::GetTAAJitterSecondary(int CurrentFrame)
+{
+	glm::vec2 Jitter = HaltonSequenceData[CurrentFrame % 32];
+	return Jitter;
+}

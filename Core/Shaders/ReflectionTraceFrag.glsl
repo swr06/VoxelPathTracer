@@ -48,6 +48,9 @@ uniform sampler2D u_IndirectAO;
 uniform bool u_CloudReflections;
 
 
+uniform bool u_TemporalFilterReflections;
+
+
 uniform bool u_RoughReflections;
 uniform bool CHECKERBOARD_SPEC_SPP;
 
@@ -85,6 +88,8 @@ uniform int u_CurrentFrameMod128;
 
 uniform bool TEMPORAL_SPEC=false;
 uniform bool u_ReflectPlayer;
+
+uniform vec2 u_Halton;
 
 
 layout (std430, binding = 0) buffer SSBO_BlockData
@@ -576,11 +581,18 @@ void main()
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
 
-	// no checkering here 
-	vec2 suv = v_TexCoords;
+	// Jitter ->
+	vec2 g_TexCoords = v_TexCoords;
+	vec2 JitteredUV = g_TexCoords + ((u_Halton * 2.5f / u_Dimensions) * float(u_TemporalFilterReflections));
+	//float JitteredGBuffer = texelFetch(u_PositionTexture, ivec2(JitteredUV * textureSize(u_PositionTexture, 0)), 0).x;
+	if (true) {
+		g_TexCoords = JitteredUV;
+	}
+
+
 
 	// Current gbuffer texel is the sky ->
-	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, suv); // initial intersection point
+	vec4 SampledWorldPosition = GetPositionAt(u_PositionTexture, g_TexCoords); // initial intersection point
 	
 	if (SampledWorldPosition.w < 0.0f)
 	{
@@ -592,8 +604,8 @@ void main()
 	}
 
 
-	vec3 InitialTraceNormal = SampleNormalFromTex(u_InitialTraceNormalTexture, suv).rgb;
-	vec4 data = GetTextureIDs(GetBlockID(v_TexCoords));
+	vec3 InitialTraceNormal = SampleNormalFromTex(u_InitialTraceNormalTexture, g_TexCoords).rgb;
+	vec4 data = GetTextureIDs(GetBlockID(g_TexCoords));
 
 	vec2 iUV; 
 	vec3 iTan, iBitan;
@@ -606,8 +618,9 @@ void main()
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
 	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal)); 
-	vec3 NormalMappedInitial = tbn*(texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.05500f; // Apply bias.
+	
+	vec3 NormalMappedInitial = tbn * (texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04f; // Apply bias.
     NormalMappedInitial = normalize(NormalMappedInitial);
 	
 	float ComputedShadow = 0.0f;
@@ -625,8 +638,8 @@ void main()
 
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.5f);  // Bias 
 
-	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
-	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
+	vec4 DiffuseSH = texture(u_DiffuseSH, g_TexCoords).rgba;
+	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, g_TexCoords).rg;
 	vec3 BaseIndirectDiffuse = SHToIrradianceA(DiffuseSH, DiffuseCoCg);
 
 	float AveragedHitDistance = 0.001f;

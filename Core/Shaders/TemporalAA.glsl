@@ -112,6 +112,21 @@ vec3 ycocg2rgb(in vec3 ycocg)
     return vec3(r, g, b);
 }
 
+float Luminance(vec3 RGB )
+{
+    return dot(RGB, vec3(0.2126f, 0.7152f, 0.0722f));
+}
+
+vec3 Reinhard(vec3 RGB )
+{
+    return vec3(RGB) / (vec3(1.0f) + Luminance(RGB));
+}
+
+vec3 InverseReinhard(vec3 RGB)
+{
+    return RGB / (vec3(1.0f) - Luminance(RGB));
+}
+
 
 vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
 {

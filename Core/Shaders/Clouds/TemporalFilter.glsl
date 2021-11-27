@@ -467,7 +467,8 @@ void main()
 
             ivec2 PixelProjection;
             PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
-            imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, clamp(o_Color.w, 0.5f, 1.0f)));
+            float ClampedTransmittance = clamp(o_Color.w, 0.2f, 1.0f);
+            imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, ClampedTransmittance));
         }
     }
 }

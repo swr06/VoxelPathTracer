@@ -41,7 +41,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CompileShaders();
 	CloudCirrus->CreateTexture("Res/Misc/cirrus_density.png", false, false);
 
-	CloudNoise->CreateTexture(96, 96, 96, nullptr); // (32 * 3) ^ 3
+	CloudNoise->CreateTexture(64, 64, 64, nullptr); // (32 * 3) ^ 3
 	CloudNoiseDetail->CreateTexture(32, 32, 32, nullptr);
 
 	std::cout << "\nRendering noise textures!\n";
@@ -51,7 +51,7 @@ void Clouds::CloudRenderer::Initialize()
 	CurlCloudNoise.CreateFramebuffer();
 	CurlCloudNoise.SetSize(128, 128);
 
-	Clouds::RenderNoise(*CloudNoise, 96, false);
+	Clouds::RenderNoise(*CloudNoise, 64, false);
 	Clouds::RenderNoise(*CloudNoiseDetail, 32, true);
 
 	Clouds::RenderCurlNoise(CurlCloudNoise);

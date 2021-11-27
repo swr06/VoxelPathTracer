@@ -227,8 +227,9 @@ float SampleDensity(vec3 p, float lod)
 
 	if (u_CurlNoiseOffset) {
 
-		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.001f * 425.0f).xyz);
-		p += CurlNoise * 16.0f;
+		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.0004f).xyz);
+		//CurlNoise = pow(CurlNoise, vec3(1.0f));
+		p += CurlNoise * 64.0f;
 	}
 
 

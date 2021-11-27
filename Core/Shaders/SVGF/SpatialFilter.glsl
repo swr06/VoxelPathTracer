@@ -43,6 +43,7 @@ uniform mat4 u_InverseProjection;
 uniform float u_ColorPhiBias = 2.0f;
 uniform float u_DeltaTime;
 uniform float u_Time;
+uniform float u_ResolutionScale;
 
 const float POSITION_THRESH = 4.0f;
 
@@ -196,16 +197,21 @@ void main()
 
 	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.00625?pow(VarianceEstimate,2.2f):VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
+
 	//float Bayer = bayer2(gl_FragCoord.xy);
 
 	// 9 samples, with 5 atrous passes and 1 initial pass
 	int KernelSampleSize = u_LargeKernel ? 2 : 1;
 
+	// Resolution scale weight ->
+	float AdditionalScale = mix(1.0f, 2.4f, u_ResolutionScale);
+
 	for (int x = -KernelSampleSize ; x <= KernelSampleSize ; x++)
 	{
 		for (int y = -KernelSampleSize ; y <= KernelSampleSize ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + ((vec2(x, y) * float(u_Step)) + (vec2(Jitter)*0.5f)) * TexelSize ;
+			vec2 SampleCoord = v_TexCoords + (((vec2(x, y) * float(u_Step) * AdditionalScale) + (vec2(Jitter) * 0.5f))) * TexelSize ;
+			
 			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
 

@@ -37,6 +37,7 @@ layout (location = 2) out float o_Utility; // Using the first SH band to get the
 layout (location = 3) out float o_AO; // World Space VXAO (Exaggerate AO at edges, many times better than SSAO)
 
 in vec2 v_TexCoords; // screen space 
+
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 
@@ -54,7 +55,9 @@ uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform vec2 u_Dimensions;
+uniform vec2 u_Halton;
 uniform float u_Time;
+uniform bool u_Supersample;
 
 uniform bool u_APPLY_PLAYER_SHADOW;
 
@@ -113,6 +116,10 @@ layout (std430, binding = 5) buffer LightChunkDataOffsetsSSBO
 {
 	ivec2 LightChunkDataOffsets[24*8*24]; // 384 / 16, 128 / 16, 384 / 16
 };
+
+
+vec2 g_TexCoords = vec2(0.0f);
+
 
 float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
 {
@@ -883,6 +890,13 @@ vec2 SampleBlueNoise2D(int Index)
 void main()
 {
 	// Compute globals
+
+	g_TexCoords = v_TexCoords;
+
+	if (u_Supersample) {
+		g_TexCoords += (u_Halton * 0.75f) / u_Dimensions;
+	}
+
 	bool SunStronger = -u_SunDirection.y < 0.01f ? true : false;
 	float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 2.9), 0.0f, 1.0f);
     vec3 SunColor = mix(SUN_COLOR, DUSK_COLOR, DuskVisibility);
@@ -909,11 +923,11 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 
 	// Animate RNG
-	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 64.0 * 8.0f;
+	HASH2SEED = (g_TexCoords.x * g_TexCoords.y) * 64.0 * 8.0f;
 	HASH2SEED += fract(u_Time) * 128.0f;
 
-	vec4 Position = GetPositionAt(u_PositionTexture, v_TexCoords);
-	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, v_TexCoords).x);
+	vec4 Position = GetPositionAt(u_PositionTexture, g_TexCoords);
+	vec3 Normal = GetNormalFromID(texture(u_NormalTexture, g_TexCoords).x);
 
 	o_Utility = GetLuminance(vec3(0.0f)); 
 

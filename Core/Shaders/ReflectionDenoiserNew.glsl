@@ -32,6 +32,9 @@ uniform mat4 u_Projection;
 
 uniform float u_Time;
 
+
+uniform float u_ResolutionScale;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -173,14 +176,15 @@ void main()
 	bool BaseTooRough = RoughnessAt > 0.897511f;
 	EffectiveRadius = BaseTooRough ? 12 : EffectiveRadius;
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
-	float Scale = 1.225f;
+	float Scale = 1.0f;
 
-	EffectiveRadius = clamp(EffectiveRadius,1,14);
+	Scale = mix(1.0f, 4.0f, u_ResolutionScale);
+	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
 		float SampleOffset = Jitter + Sample;
-		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * TexelSize));
+		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * Scale * TexelSize));
 		
 		float bias = 0.01f;
 		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 
@@ -188,7 +192,9 @@ void main()
 
 			vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
+
 			float PositionError = dot(PositionDifference, PositionDifference);
+
 			if (PositionError > 1.069420f || SamplePosition.w < 0.0f) { 
 				continue;
 			}
