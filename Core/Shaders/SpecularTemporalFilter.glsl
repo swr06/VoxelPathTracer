@@ -127,7 +127,24 @@ float remap(float original_value, float original_min, float original_max, float 
     return new_min + (clamp((original_value - original_min) / (original_max - original_min), 0.0f, 1.0f) * (new_max - new_min));
 }
 
+vec3 ClipToAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
+{
+    vec3 pClip = 0.5 * (maxColor + minColor); 
+    vec3 eClip = 0.5 * (maxColor - minColor); 
+    vec3 vClip = prevColor - pClip;
+    vec3 vUnit = vClip / eClip;
+    vec3 aUnit = abs(vUnit);
+    float denom = max(aUnit.x, max(aUnit.y, aUnit.z));
+    return denom > 1.0 ? pClip + vClip / denom : prevColor;
+}
+
 void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected, float Roughness) {
+	
+	const float RoughnessThreshold = 0.275f + 0.01f;
+	
+	if (Roughness > 0.5f + 0.01f) {
+		return;
+	}
 	
 	vec4 MinSH = vec4(1000.0f), MaxSH = vec4(-1000.0f);
 	vec2 MinCoCg = vec2(1000.0f), MaxCoCg = vec2(-1000.0f);
@@ -135,6 +152,8 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 	vec3 MaxRadiance = vec3(-1000.0f);
 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
+	
+	float AdditionalMaxBias = 0.0f;
 
 	for (int x = -1; x <= 1 ; x++) {
 		for (int y = -1 ; y <= 1 ; y++) {
@@ -143,6 +162,10 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 			float Mask = texture(u_EmissivityIntersectionMask, SampleCoord).x;
 
 			bool MaskE = Mask < 0.01f;
+			
+			if (!MaskE) {
+				AdditionalMaxBias += 0.05f;
+			}
 
 			vec4 SampleSH = texture(u_CurrentColorTexture, SampleCoord);
 			vec2 SampleCoCg = texture(u_CurrentCoCg, SampleCoord).xy;
@@ -155,7 +178,7 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 				MinRadiance = min(Irradiance, MinRadiance);
 			}
 			
-			if (MaxRadiance != max(Irradiance, MaxRadiance) && MaskE) {
+			if (MaxRadiance != max(Irradiance, MaxRadiance)) {
 				MaxSH = SampleSH;
 				MaxCoCg = SampleCoCg;
 				MaxRadiance = max(Irradiance, MaxRadiance);
@@ -163,13 +186,42 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 		}
 	}
 
-	float RemappedRoughness = remap(Roughness * Roughness, 0.0f, 0.25f * 0.25f, 0.0f, 1.0f);
-	float Bias = mix(0.01f, 0.075f, RemappedRoughness);
-	MinRadiance -= Bias;
-	MaxRadiance += Bias;
+	bool ADD_BIAS = true;
+	
+	if (ADD_BIAS) {
+	
+		
+		bool Smoothish = Roughness < RoughnessThreshold;
+		bool Roughish = Roughness > RoughnessThreshold && Roughness < 0.50f + 0.01f;
+		
+		if (Smoothish) {
+		
+			float PercievedRoughness = Roughness * Roughness;
+			const float RoughnessThresholdSquared = RoughnessThreshold * RoughnessThreshold;
+			
+			float RemappedRoughness = remap(PercievedRoughness, 0.0f, RoughnessThresholdSquared, 0.0f, 1.0f);
+			
+			float Bias = mix(0.01f, 0.085f, RemappedRoughness);
+			
+			if (Roughness > 0.1925f) {
+				Bias *= 1.75f;
+			}
+			
+			MinRadiance -= Bias;
+			MaxRadiance += Bias + AdditionalMaxBias;
+		}
+		
+		else if (Roughish) 
+		{
+			MinRadiance -= 0.35f;
+			MaxRadiance += 0.35f + (AdditionalMaxBias * 1.1f);
+		}
+	}
 
+	// Clipping ->
 	vec3 BaseRadiance = SHToIrridiance(PreviousSH, PreviousCoCg);
-	vec3 ClampedRadiance = clamp(BaseRadiance, MinRadiance, MaxRadiance);
+	vec3 ClampedRadiance = ClipToAABB(BaseRadiance, MinRadiance, MaxRadiance);
+	//vec3 ClampedRadiance = clamp(BaseRadiance, MinRadiance, MaxRadiance);
 
 	if (ClampedRadiance != BaseRadiance) {
 		if (distance(ClampedRadiance, MinRadiance) > distance(ClampedRadiance, MaxRadiance)) {
@@ -182,16 +234,19 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 			PreviousCoCg = MinCoCg;
 		}
 	}
+	
+	
+	return;
 }
 
 float SHToY(vec4 shY)
 {
-    return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic
+    return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic band <-
 }
 
 float SHToY(float shY)
 {
-    return max(0, 3.544905f * shY); // get luminance (Y) from the first spherical harmonic
+    return max(0, 3.544905f * shY); // get luminance (Y) from the first spherical harmonic band <-
 }
 
 
@@ -362,17 +417,29 @@ void main()
 
 			PrevSH = texture(u_PreviousColorTexture, Reprojected);
 			PrevCoCg = texture(u_PrevCoCg, Reprojected).xy;
+			
+			vec4 PrevSHBck = PrevSH;
+			vec2 PrevCoCgBck = PrevCoCg;
 
-			bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
+			bool Moved = distance(u_CurrentCameraPos, u_PrevCameraPos) > 0.02f;
+			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.85f) : (Moved ? 0.8f : 0.9f); 
 
-			bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
+			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
+			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
 
-			if (FuckingSmooth && Moved && u_SmartClip) {
+			if (TryClipping && Moved && u_SmartClip) {
 
 				// Clip sample ->
 				SmartClip(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
-				BlendFactor *= 1.35f;
+				//BlendFactor *= 1.4f;
+				
+				if (RoughnessAt > 0.26f) 
+				{
+					PrevSH = mix(PrevSHBck, PrevSH, 0.75f);
+					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.75f);
+					BlendFactor *= 1.0f;
+				}
 			}
 
 			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);

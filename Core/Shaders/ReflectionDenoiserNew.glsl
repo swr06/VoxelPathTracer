@@ -181,7 +181,19 @@ void main()
 	float Scale = 1.0f;
 	Scale = mix(1.0f, 3.2525f, u_ResolutionScale / 1.25f);
 	
-	EffectiveRadius = clamp(EffectiveRadius,1,15);
+	int RadiusBias = 0;
+	
+	if (RoughnessAt > 0.4f) {
+		RadiusBias = 1;
+	}
+	
+	if (RoughnessAt > 0.6f) {
+		RadiusBias = 2;
+	}
+	
+	
+	
+	EffectiveRadius = clamp(EffectiveRadius + RadiusBias,1,15);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
