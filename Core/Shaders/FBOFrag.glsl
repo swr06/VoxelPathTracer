@@ -112,6 +112,28 @@ vec3 srgbToLinear(vec3 color) {
     return linearRGB;
 }
 
+vec3 Reinhard(vec3 RGB )
+{
+    return vec3(RGB) / (vec3(1.0f) + GetLuminance(RGB));
+}
+
+vec3 InverseReinhard(vec3 RGB)
+{
+    return RGB / (vec3(1.0f) - GetLuminance(RGB));
+}
+
+float GetLuminosityWeightFXAA(vec3 color, bool edge) 
+{
+	float LuminanceRaw = dot(color, vec3(0.299, 0.587, 0.114));
+
+	if (!edge) {
+		return LuminanceRaw;
+	}
+
+	float Weight = dot(Reinhard(sqrt(color)), vec3(0.299, 0.587, 0.114));
+	return sqrt(Weight);
+}
+
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
 bool DetectEdge()
@@ -148,17 +170,23 @@ void FXAA311(inout vec3 color)
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	float subpixelQuality = DetectEdge() ? 1.1f : 0.75f; 
+	bool IsAtEdge = DetectEdge();
+	float subpixelQuality = IsAtEdge ? 1.3f : 0.75f; 
 	int iterations = 12;
 	vec2 texCoord = TexCoords;
+
+	//if (IsAtEdge) {
+	//	color = vec3(1.0f, 0.0f, 0.0f);
+	//	return;
+	//}
 	
 	vec2 view = 1.0 / vec2(textureSize(u_FramebufferTexture, 0));
 	
-	float lumaCenter = GetLuminance(color);
-	float lumaDown  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0, -1.0) * view, 0.0).rgb);
-	float lumaUp    = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0,  1.0) * view, 0.0).rgb);
-	float lumaLeft  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  0.0) * view, 0.0).rgb);
-	float lumaRight = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  0.0) * view, 0.0).rgb);
+	float lumaCenter = GetLuminosityWeightFXAA(color, IsAtEdge);
+	float lumaDown  = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0, -1.0) * view, 0.0).rgb, IsAtEdge);
+	float lumaUp    = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2( 0.0,  1.0) * view, 0.0).rgb, IsAtEdge);
+	float lumaLeft  = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  0.0) * view, 0.0).rgb, IsAtEdge);
+	float lumaRight = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  0.0) * view, 0.0).rgb, IsAtEdge);
 	
 	float lumaMin = min(lumaCenter, min(min(lumaDown, lumaUp), min(lumaLeft, lumaRight)));
 	float lumaMax = max(lumaCenter, max(max(lumaDown, lumaUp), max(lumaLeft, lumaRight)));
@@ -166,10 +194,10 @@ void FXAA311(inout vec3 color)
 	float lumaRange = lumaMax - lumaMin;
 	
 	if (lumaRange > max(edgeThresholdMin, lumaMax * edgeThresholdMax)) {
-		float lumaDownLeft  = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0, -1.0) * view, 0.0).rgb);
-		float lumaUpRight   = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  1.0) * view, 0.0).rgb);
-		float lumaUpLeft    = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  1.0) * view, 0.0).rgb);
-		float lumaDownRight = GetLuminance(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0, -1.0) * view, 0.0).rgb);
+		float lumaDownLeft  = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0, -1.0) * view, 0.0).rgb, IsAtEdge);
+		float lumaUpRight   = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0,  1.0) * view, 0.0).rgb, IsAtEdge);
+		float lumaUpLeft    = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2(-1.0,  1.0) * view, 0.0).rgb, IsAtEdge);
+		float lumaDownRight = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, texCoord + vec2( 1.0, -1.0) * view, 0.0).rgb, IsAtEdge);
 		
 		float lumaDownUp    = lumaDown + lumaUp;
 		float lumaLeftRight = lumaLeft + lumaRight;
@@ -219,8 +247,8 @@ void FXAA311(inout vec3 color)
 		vec2 uv1 = currentUv - offset;
 		vec2 uv2 = currentUv + offset;
 
-		float lumaEnd1 = GetLuminance(textureLod(u_FramebufferTexture, uv1, 0.0).rgb);
-		float lumaEnd2 = GetLuminance(textureLod(u_FramebufferTexture, uv2, 0.0).rgb);
+		float lumaEnd1 = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, uv1, 0.0).rgb, IsAtEdge);
+		float lumaEnd2 = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, uv2, 0.0).rgb, IsAtEdge);
 		lumaEnd1 -= lumaLocalAverage;
 		lumaEnd2 -= lumaLocalAverage;
 		
@@ -238,11 +266,11 @@ void FXAA311(inout vec3 color)
 		if (!reachedBoth) {
 			for(int i = 2; i < iterations; i++) {
 				if (!reached1) {
-					lumaEnd1 = GetLuminance(textureLod(u_FramebufferTexture, uv1, 0.0).rgb);
+					lumaEnd1 = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, uv1, 0.0).rgb, IsAtEdge);
 					lumaEnd1 = lumaEnd1 - lumaLocalAverage;
 				}
 				if (!reached2) {
-					lumaEnd2 = GetLuminance(textureLod(u_FramebufferTexture, uv2, 0.0).rgb);
+					lumaEnd2 = GetLuminosityWeightFXAA(textureLod(u_FramebufferTexture, uv2, 0.0).rgb, IsAtEdge);
 					lumaEnd2 = lumaEnd2 - lumaLocalAverage;
 				}
 				

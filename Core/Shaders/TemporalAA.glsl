@@ -165,9 +165,15 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
     }
 
 	BestOffset = FindBestPixel ? BestOffset : vec2(0.0f);
+
+	float Bias = 0.0001f;
+	MinColor -= Bias;
+	MaxColor += Bias;
+
+
 	vec3 Color = texture(u_PreviousColorTexture, Reprojected + BestOffset * TexelSize).xyz;
    // return ycocg2rgb(clipAABB(rgb2ycocg(Color), rgb2ycocg(MinColor), rgb2ycocg(MaxColor))).xyz;
-     return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
+    return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
 }
 
 
@@ -310,7 +316,7 @@ void main()
 
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.325f;
+		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.4f;
 		BlendFactor = u_BlockModified ? 0.075f : BlendFactor;
 		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.001f, 0.95f));
 	}

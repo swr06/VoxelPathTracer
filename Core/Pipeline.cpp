@@ -454,7 +454,6 @@ public:
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
-			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::SliderFloat("Desaturation Amount", &TextureDesatAmount, 0.0f, 1.0f);
 			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
 			ImGui::SliderFloat("Purkinje Effect Strength", &PurkingeEffectStrength, 0.0f, 1.0f);
@@ -465,6 +464,7 @@ public:
 			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.750f);
 			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 1.0f);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
 			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
@@ -1317,7 +1317,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
 
-		if (app.GetCurrentFrame() % 3 == 0)
+		if (app.GetCurrentFrame() % 4 == 0)
 		{
 			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
 		}
@@ -1340,8 +1340,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 			InitialTraceShader.SetMatrix4("u_InverseView", inv_view);
-			InitialTraceShader.SetMatrix4("u_InverseProjection", JitterSceneForTAA ? glm::inverse(JitterMatrix * MainCamera.GetProjectionMatrix()) : 
-																 glm::inverse(MainCamera.GetProjectionMatrix()));
+			InitialTraceShader.SetMatrix4("u_InverseProjection",  glm::inverse(MainCamera.GetProjectionMatrix()));
 			InitialTraceShader.SetInteger("u_VoxelDataTexture", 0);
 			InitialTraceShader.SetInteger("u_AlbedoTextures", 1);
 			InitialTraceShader.SetInteger("u_RenderDistance", RenderDistance);
@@ -1356,6 +1355,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			InitialTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
 			InitialTraceShader.SetFloat("u_Time", glfwGetTime());
 			InitialTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTest);
+			InitialTraceShader.SetBool("u_JitterSceneForTAA", JitterSceneForTAA);
 			
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());

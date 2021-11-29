@@ -304,6 +304,7 @@ float rand(vec2 co){
 
 //#define STAR_AA
 
+vec2 ProjectDirection(vec3 Direction, vec2);
 
 vec3 ShadeStars(vec3 fragpos)
 {
@@ -319,25 +320,30 @@ vec3 ShadeStars(vec3 fragpos)
     vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
 
     // Negatives make everything shit itself 
-    fragpos.y = abs(fragpos.y);
+    //fragpos.y = abs(fragpos.y);
 
     // Calculate elevation and approximate uv
-	float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	vec2 uv = fragpos.xz / (1.0f + elevation);
-
-    // Add some variation to the scale 
-    float scale = mix(600.0f, 900.0f, hash.y);
-    float star = BilinearStarSample(uv * scale, 0.98f);
+	
+	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	//vec2 uv = //fragpos.xz / (1.0f + elevation);
+	
+	
+	fragpos = floor(fragpos * 100.0f);
+	vec2 uv = clamp(ProjectDirection(fragpos, vec2(4096)) * 2.0f, 0.0f, 1.0f);
+	
+	// Add some variation to the scale 
+    float scale = mix(800.0f, 1400.0f, hash.y);
+    float star = BilinearStarSample(uv * scale, 0.99f);
 
     // Use the planckian locus scale to get a celestial temperature from value 
     float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
     vec3 Color = planckianLocus(RandomTemperature);
         
     // Twinkle
-    float twinkle = sin(u_Time * 2.0f * hash.z);
+    float twinkle = cos(u_Time * 2.0f * hash.z);
     twinkle = twinkle * twinkle;
 
-    star *= 0.15f;
+    star *= 0.35f;
 
 
     vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
@@ -359,6 +365,8 @@ vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRay
 	float dstInsideBox = max(0, dstB - dstToBox);
 	return vec2(dstToBox, dstInsideBox);
 }
+
+
 
 bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transmittance, float true_transmittance)
 {
@@ -498,7 +506,14 @@ vec3 GetAtmosphereAndClouds()
     //SampledCloudData.xyz = mix(SampledCloudData.xyz, Detail.xyz, 1.0f - SampledCloudData.w);
 
     vec3 Sky = vec3(0.0f);
+
     bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w*20.5f, SampledCloudData.w);
+
+    if (!u_CloudsEnabled) {
+
+        return Sky;
+    }
+
     float transmittance = max(SampledCloudData.w, 0.07525f);
     return (Sky * transmittance) + (((SampledCloudData.xyz * ScatterColor) + (Dither / 1024.0f)));
 
@@ -992,7 +1007,7 @@ vec3 BasicSaturation(vec3 Color, float Adjustment)
 }
 
 
-vec2 ProjectDirection(vec3 Direction);
+
 
 
 void main()
@@ -1022,7 +1037,8 @@ void main()
         bool InBiasedSS =  (v_TexCoords.x > 0.0 + Bias && v_TexCoords.x < 1.0 - Bias 
 		 && v_TexCoords.y > 0.0 + Bias && v_TexCoords.y < 1.0f - Bias);
 
-        if (!IsAtEdge(v_TexCoords))
+        //if (!IsAtEdge(v_TexCoords))
+        if (true)
         {
             vec2 UV;
             vec3 Tangent, Bitangent;
@@ -1246,12 +1262,9 @@ void main()
         else 
         {   
             vec3 CloudAndSky = GetAtmosphereAndClouds();
-            float Hash = hash2().x;
-            CloudAndSky += vec3(Hash * exp(-CloudAndSky) * vec3(1.0f) * 0.01f);
-            CloudAndSky *= mix(vec3(1.0f), vec3(Hash), 0.05f / 5.0f);
-            o_Color = (CloudAndSky);
-            o_Normal = vec3(-1.0f);
-            o_PBR.xyz = vec3(-1.0f);
+			o_Color = (CloudAndSky);
+			o_Normal = vec3(-1.0f);
+			o_PBR.xyz = vec3(-1.0f);
         }
     }
 
@@ -1686,9 +1699,9 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 
 
 
-vec2 ProjectDirection(vec3 Direction) 
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
 {
-    vec2 TextureSize = vec2(textureSize(u_DebugTexture,0).xy);
+    //vec2 TextureSize = vec2(textureSize(u_DebugTexture,0).xy);
 	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
 	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
 	vec2 CurrentCoordinate;

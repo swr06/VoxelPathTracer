@@ -31,6 +31,7 @@ uniform int u_RenderDistance;
 
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform bool u_JitterSceneForTAA;
 
 uniform vec2 u_CurrentTAAJitter;
 
@@ -373,18 +374,46 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
+// 2, 3 as primes ->
+float Halton(int i, int b)
+{
+    float f = 1.0;
+    float r = 0.0;
+    while(i > 0)
+    {
+        f = f / float(b);
+        r = r + f * float(i % b);
+        i = i / b;
+    }
+    return r;
+}
+
+vec2 BasicHaltonJitter(vec2 fragCoord, int frame)
+{
+    int num = 8;
+    return (vec2(
+    	Halton(frame % num + int(fragCoord.x) % num + 1, 2),
+    	Halton(frame % num + int(fragCoord.y) % num + 1, 3)) - vec2(0.5f));
+}
+
 void GetRayStuff(out vec3 r0, out vec3 rD) {
 
-	vec2 Jitter = hash2() * 1.0f/u_Dimensions;
+	//vec2 Jitter = hash2() * 1.0f/u_Dimensions;
 	vec2 screenspace = v_TexCoords;
+	vec2 TexelSize = 1.0f / u_Dimensions;
+
+	if (u_JitterSceneForTAA) {
+		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame);
+		screenspace.x += (TAAJitter.x) * TexelSize.x;
+		screenspace.y += (TAAJitter.y) * TexelSize.y;
+	}
+
 	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
-	//vec2 TexelSize = 1.0f / u_Dimensions;
-	//clip.x += (u_CurrentTAAJitter.x * 2.0f - 1.0f) * TexelSize.x;
-	//clip.y += (u_CurrentTAAJitter.y * 2.0f - 1.0f) * TexelSize.y;
 	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
 	rD = vec3(u_InverseView * eye);
 	r0 = u_InverseView[3].xyz;
 }
+
 
 void main()
 {

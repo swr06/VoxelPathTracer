@@ -730,8 +730,8 @@ void main()
 	}
 
 
-
-	if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
+	//if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
+	if ( (PositionAt.w > 0.0f ))
 	{
 		vec3 InputColor;
 		InputColor = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation();
