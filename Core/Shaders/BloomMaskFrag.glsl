@@ -22,7 +22,7 @@ void main()
         o_Color = (Emissivity * 32.0f) * Fetch;
     }
 
-    else if (L > 8.0f) {
-        o_Color = Fetch;
-    }
+   //else if (L > 8.0f) {
+   //    o_Color = Fetch;
+   //}
 }

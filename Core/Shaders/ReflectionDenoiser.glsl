@@ -12,7 +12,6 @@ uniform sampler2D u_InputCoCgTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTex;
-uniform sampler2D u_NormalMappedTexture;
 uniform sampler2DArray u_BlockPBRTexArray;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
@@ -161,15 +160,17 @@ int GetBlockID(vec2 txc)
 	return clamp(int(floor(id * 255.0f)), 0, 127);
 }
 
-bool SampleNormalMappedAt(vec3 WorldPos, out vec3 N) {
-	vec4 ProjectedPosition = u_PrevProjection * u_PrevView * vec4(WorldPos, 1.0f);
-	ProjectedPosition.xyz /= ProjectedPosition.w;
-	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
-	float b = 0.02f;
-	bool v = ProjectedPosition.x > b && ProjectedPosition.x < 1.0f - b && ProjectedPosition.y > b && ProjectedPosition.y < 1.0f - b;
-	N = texture(u_NormalMappedTexture, ProjectedPosition.xy).xyz;
-	return v;
-}
+//bool SampleNormalMappedAt(vec3 WorldPos, out vec3 N) {
+//	vec4 ProjectedPosition = u_PrevProjection * u_PrevView * vec4(WorldPos, 1.0f);
+//	ProjectedPosition.xyz /= ProjectedPosition.w;
+//	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
+//	float b = 0.02f;
+//	bool v = ProjectedPosition.x > b && ProjectedPosition.x < 1.0f - b && ProjectedPosition.y > b && ProjectedPosition.y < 1.0f - b;
+//	N = texture(u_NormalMappedTexture, ProjectedPosition.xy).xyz;
+//	return v;
+//}
+//
+
 
 void main()
 {

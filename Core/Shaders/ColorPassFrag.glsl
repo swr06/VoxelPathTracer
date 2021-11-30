@@ -8,8 +8,7 @@
 
 // Outputs 
 layout (location = 0) out vec3 o_Color;
-layout (location = 1) out vec3 o_Normal;
-layout (location = 2) out vec4 o_PBR;
+layout (location = 1) out vec4 o_PBR;
 
 // Vertex shader inputs 
 in vec2 v_TexCoords;
@@ -132,7 +131,7 @@ vec3 GetSmoothLPVDensity(vec3 UV);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative);
 
 // Constants 
-const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f, 1.0f, 0.5f);
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
@@ -327,20 +326,23 @@ vec3 ShadeStars(vec3 fragpos)
 	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	//vec2 uv = //fragpos.xz / (1.0f + elevation);
 	
-	
+
+
+
+    // Project direction ->
 	fragpos = floor(fragpos * 100.0f);
 	vec2 uv = clamp(ProjectDirection(fragpos, vec2(4096)) * 2.0f, 0.0f, 1.0f);
 	
 	// Add some variation to the scale 
-    float scale = mix(800.0f, 1400.0f, hash.y);
-    float star = BilinearStarSample(uv * scale, 0.99f);
+    float scale = mix(800.0f, 1600.0f, 1.0f-hash.x);
+    float star = BilinearStarSample(uv * scale, 0.995f);
 
-    // Use the planckian locus scale to get a celestial temperature from value 
+    // Use blackbody to get a color from a temperature value.
     float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
     vec3 Color = planckianLocus(RandomTemperature);
         
     // Twinkle
-    float twinkle = cos(u_Time * 2.0f * hash.z);
+    float twinkle = sin(u_Time * 0.5f * hash.z);
     twinkle = twinkle * twinkle;
 
     star *= 0.35f;
@@ -611,7 +613,7 @@ float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
 
 bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 {
-	float x = 0.5 - 0.4f;
+	float x = 0.5 - 0.3f;
 	vec3 VP = u_ViewerPosition + vec3(-x, -x, +x);
     float t = capIntersect(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
     return t > 0.0f;
@@ -652,7 +654,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
     float PlayerShadow  = 0.0f;
     int PlayerShadowSamples = 6;
 
-    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.255f);
+    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.12f);
     if (u_ContactHardeningShadows) {
 		vec3 L = normalize(u_StrongerLightDirection);
 		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
@@ -672,7 +674,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
 
     else 
     {
-        PlayerShadow = float(GetPlayerIntersect(world_pos.xyz, normalize(u_StrongerLightDirection).xyz));
+        PlayerShadow = float(GetPlayerIntersect(BiasedWorldPos.xyz, normalize(u_StrongerLightDirection).xyz));
     }
 
     return clamp(BaseShadow + PlayerShadow, 0.0f, 1.0f);
@@ -1242,7 +1244,7 @@ void main()
             }
           
             // Output utility : 
-            o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
+            //o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
 
@@ -1263,7 +1265,7 @@ void main()
         {   
             vec3 CloudAndSky = GetAtmosphereAndClouds();
 			o_Color = (CloudAndSky);
-			o_Normal = vec3(-1.0f);
+			//o_Normal = vec3(-1.0f);
 			o_PBR.xyz = vec3(-1.0f);
         }
     }
@@ -1272,7 +1274,7 @@ void main()
     {   
         vec3 CloudAndSky = GetAtmosphereAndClouds();
         o_Color = (CloudAndSky);
-        o_Normal = vec3(-1.0f);
+        //o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
     }
 

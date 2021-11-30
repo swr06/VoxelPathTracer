@@ -33,12 +33,10 @@ namespace VoxelRT
 			m_Height = v.m_Height;
 
 			m_ColorTexture = v.m_ColorTexture;
-			m_NormalTexture = v.m_NormalTexture;
 			m_PBR = v.m_PBR;
 			m_FBO = v.m_FBO;
 
 			v.m_ColorTexture = 0;
-			v.m_NormalTexture = 0;
 			v.m_PBR = 0;
 			v.m_FBO = 0;
 		}
@@ -66,7 +64,6 @@ namespace VoxelRT
 
 		inline GLuint GetFramebufferID() const noexcept { return m_FBO; }
 		inline GLuint GetColorTexture() const noexcept { return m_ColorTexture; }
-		inline GLuint GetNormalTexture() const noexcept { return m_NormalTexture; }
 		inline GLuint GetPBRTexture() const noexcept { return m_PBR; }
 		void GenerateFramebuffers();
 
@@ -75,7 +72,6 @@ namespace VoxelRT
 		void DeleteEverything();
 
 		GLuint m_ColorTexture = 0;
-		GLuint m_NormalTexture = 0;
 		GLuint m_PBR = 0;
 
 		GLuint m_FBO = 0;

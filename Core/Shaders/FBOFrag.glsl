@@ -126,7 +126,7 @@ float GetLuminosityWeightFXAA(vec3 color, bool edge)
 {
 	float LuminanceRaw = dot(color, vec3(0.299, 0.587, 0.114));
 
-	if (!edge) {
+	if (true) { 
 		return LuminanceRaw;
 	}
 
@@ -171,7 +171,7 @@ void FXAA311(inout vec3 color)
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
 	bool IsAtEdge = DetectEdge();
-	float subpixelQuality = IsAtEdge ? 1.3f : 0.75f; 
+	float subpixelQuality = IsAtEdge ? 1.25f : 0.5f; 
 	int iterations = 12;
 	vec2 texCoord = TexCoords;
 

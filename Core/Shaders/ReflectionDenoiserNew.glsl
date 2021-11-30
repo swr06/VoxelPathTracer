@@ -15,11 +15,12 @@ uniform sampler2D u_InputCoCgTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTex;
-uniform sampler2D u_NormalMappedTexture;
 uniform sampler2D u_SpecularHitData;
 uniform sampler2DArray u_BlockPBRTexArray;
+uniform sampler2DArray u_BlockNormals;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
+uniform bool u_NormalMapAware; 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 
@@ -31,6 +32,8 @@ uniform mat4 u_View;
 uniform mat4 u_Projection;
 
 uniform float u_Time;
+
+uniform int u_ReflectionDenoisingRadiusBias;
 
 
 uniform float u_ResolutionScale;
@@ -144,6 +147,8 @@ float GradientNoise()
 	return noise;
 }
 
+mat3 CalculateTangentBasis(in vec3 normal);
+
 void main()
 {
 	vec4 BlurredSH = vec4(0.0f);
@@ -152,6 +157,7 @@ void main()
 	vec4 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyzw;
 	
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
+
 	int BaseBlockID = GetBlockID(v_TexCoords);
 	bool BaseIsSky = BasePosition.w < 0.0f;
 	vec4 BaseSH = texture(u_InputTexture, v_TexCoords).xyzw;
@@ -164,11 +170,25 @@ void main()
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
+
 	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+
+	mat3 TangentBasis = CalculateTangentBasis(BaseNormal);
+	vec3 NormalMappedBase = texture(u_BlockNormals, vec3(BaseUV, TexArrayRef)).xyz * 2.0f - 1.0f;
+	vec3 NormalMapRaw = NormalMappedBase;
+	NormalMappedBase = TangentBasis * NormalMappedBase;
+
 	float SpecularHitDistance = max(texture(u_SpecularHitData, v_TexCoords).x,0.0f)/1.3f;
-	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz, 1.0f));
+
+	NormalMappedBase.z *= 1.5f;
+	NormalMappedBase.x *= 4.5f;
+
+
+	vec3 NormalMapLobeBias = NormalMappedBase*4096.0*float(u_NormalMapAware);
+	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias, 1.0f));
 	float d = length(ViewSpaceBase);
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 1e-6f);
+	
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	int EffectiveRadius = int(floor(Radius * 15.0f));
 	EffectiveRadius = clamp(EffectiveRadius, 1, 15);
@@ -183,17 +203,11 @@ void main()
 	
 	int RadiusBias = 0;
 	
-	if (RoughnessAt > 0.4f) {
+	if (RoughnessAt > 0.45f) {
 		RadiusBias = 1;
 	}
 	
-	if (RoughnessAt > 0.6f) {
-		RadiusBias = 2;
-	}
-	
-	
-	
-	EffectiveRadius = clamp(EffectiveRadius + RadiusBias,1,15);
+	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
@@ -221,12 +235,19 @@ void main()
 			}
 			
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-			float NormalWeight = pow(abs(dot(SampleNormal, BaseNormal)), 12.0f);
+
+			if (SampleNormal != BaseNormal) {
+				continue;
+			}
+
+			//float NormalWeight = pow(abs(dot(SampleNormal, BaseNormal)), 12.0f);
 			int BlockAt = GetBlockID(SampleCoord);
 			vec2 SampleUV = CalculateUV(SamplePosition.xyz, SampleNormal);
 			SampleUV = clamp(SampleUV, 0.001f, 0.999f);
 			float SampleTexArrayRef = float(BlockPBRData[BlockAt]);
 			float SampleRoughness = texture(u_BlockPBRTexArray, vec3(SampleUV, SampleTexArrayRef)).r;
+
+			
 
 			vec4 SampleSH = texture(u_InputTexture, SampleCoord).xyzw;
 			vec2 SampleCoCg = texture(u_InputCoCgTexture, SampleCoord).rg;
@@ -253,7 +274,15 @@ void main()
 				CurrentWeight *= clamp(LuminanceWeight, 0.0f, 1.0f);
 			}
 
-			CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
+			//if (u_NormalMapAware && !SampleTooRough) {
+			//	vec3 NormalMappedSample = texture(u_BlockNormals, vec3(SampleUV, SampleTexArrayRef)).xyz * 2.0f - 1.0f;
+			//	NormalMappedSample = NormalMappedSample;
+			//	float NormalMapWeight = pow(abs(dot(NormalMappedSample, NormalMapRaw)), 16.0f);
+			//	NormalMapWeight = clamp(pow(NormalMapWeight, 64.0f), 0.001f, 1.0f);
+			//	CurrentWeight *= clamp(NormalMapWeight, 0.001f, 1.0f);
+			//}
+
+			//CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
 			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
 			CurrentWeight = CurrentKernelWeight * CurrentWeight;
 			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
@@ -340,4 +369,65 @@ vec2 CalculateUV(vec3 world_pos, in vec3 normal)
     }
 
 	return uv;
+}
+
+
+mat3 CalculateTangentBasis(in vec3 normal)
+{
+	vec3 tangent, bitangent;
+
+    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
+			      );
+
+	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
+					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
+				   );
+
+	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
+				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
+					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
+	);
+
+
+	if (CompareVec3(normal, Normals[0]))
+    {
+		tangent = Tangents[0];
+		bitangent = BiTangents[0];
+    }
+
+    else if (CompareVec3(normal, Normals[1]))
+    {
+		tangent = Tangents[1];
+		bitangent = BiTangents[1];
+    }
+
+    else if (CompareVec3(normal, Normals[2]))
+    {
+		tangent = Tangents[2];
+		bitangent = BiTangents[2];
+    }
+
+    else if (CompareVec3(normal, Normals[3]))
+    {
+		tangent = Tangents[3];
+		bitangent = BiTangents[3];
+    }
+	
+    else if (CompareVec3(normal, Normals[4]))
+    {
+		tangent = Tangents[4];
+		bitangent = BiTangents[4];
+    }
+    
+
+    else if (CompareVec3(normal, Normals[5]))
+    {
+		tangent = Tangents[5];
+		bitangent = BiTangents[5];
+    }
+
+	return mat3(tangent, bitangent, normal);
 }

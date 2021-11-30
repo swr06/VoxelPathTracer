@@ -57,6 +57,23 @@ const float Bias = 0.1f;
 
 int RNG_SEED;
 
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
 void main()
 {
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
@@ -70,7 +87,7 @@ void main()
 	}
 
 	vec3 Position = ToViewSpace(InitialTracePosition.xyz);
-	vec3 Normal = normalize(vec3(u_ViewMatrix * vec4(texture(u_NormalTexture, v_TexCoords).xyz, 0.0f)));
+	vec3 Normal = normalize(vec3(u_ViewMatrix * vec4(SampleNormalFromTex(u_NormalTexture, v_TexCoords), 0.0f)));
 	
 	vec3 noise = vec3(nextFloat(RNG_SEED, -1.0f, 1.0f), nextFloat(RNG_SEED, -1.0f, 1.0f), nextFloat(RNG_SEED, -1.0f, 1.0f));
 	vec3 Tangent = normalize(noise - Normal * dot(noise, Normal));

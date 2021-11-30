@@ -26,10 +26,9 @@ namespace VoxelRT
 
 	void ColorPassFBO::GenerateFramebuffers()
 	{
-		GLenum DrawBuffers[3] = {
+		GLenum DrawBuffers[2] = {
 			GL_COLOR_ATTACHMENT0,
-			GL_COLOR_ATTACHMENT1,
-			GL_COLOR_ATTACHMENT2
+			GL_COLOR_ATTACHMENT1
 		};
 
 		glGenFramebuffers(1, &m_FBO);
@@ -43,23 +42,15 @@ namespace VoxelRT
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ColorTexture, 0);
 
-		// Normal texture
-		glGenTextures(1, &m_NormalTexture);
-		glBindTexture(GL_TEXTURE_2D, m_NormalTexture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, m_Width, m_Height, 0, GL_RGB, GL_FLOAT, NULL);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_NormalTexture, 0);
-
 		// data texture
 		glGenTextures(1, &m_PBR);
 		glBindTexture(GL_TEXTURE_2D, m_PBR);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_Width, m_Height, 0, GL_RGBA, GL_FLOAT, NULL);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, m_PBR, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, m_PBR, 0);
 
-		glDrawBuffers(3, DrawBuffers);
+		glDrawBuffers(2, DrawBuffers);
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
 		{
@@ -74,11 +65,9 @@ namespace VoxelRT
 	{
 		glDeleteFramebuffers(1, &m_FBO);
 		glDeleteTextures(1, &m_ColorTexture);
-		glDeleteTextures(1, &m_NormalTexture);
 		glDeleteTextures(1, &m_PBR);
 		m_FBO = 0;
 		m_ColorTexture = 0;
-		m_NormalTexture = 0;
 		m_PBR = 0;
 	}
 }

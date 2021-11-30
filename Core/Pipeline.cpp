@@ -178,6 +178,8 @@ static float DiffuseTraceResolution = 0.250f;
 static float ShadowTraceResolution = 0.500f;
 static float ReflectionTraceResolution = 0.250; 
 static float ReflectionSuperSampleResolution = 0.250f;
+
+
 static float SSAOResolution = 0.35f;
 static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
@@ -218,6 +220,10 @@ static bool DenoiseReflections = true;
 static bool ReflectionFireflyRejection = true;
 static bool AggressiveFireflyRejection = true;
 static bool SmartReflectionClip = true;
+static bool ReflectionNormalMapWeight = false;
+static int ReflectionDenoisingRadiusBias = 0;
+
+
 static bool RenderParticles = true;
 static bool Bloom_HQ = false;
 
@@ -367,9 +373,18 @@ public:
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
-			ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
-			ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
-			ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+
+
+			if (USE_NEW_SPECULAR_SPATIAL) {
+				ImGui::SliderInt("Reflection Denoiser Radius Bias", &ReflectionDenoisingRadiusBias, -4, 4);
+				ImGui::Checkbox("Normal map aware filtering? (Slightly more noise.)", &ReflectionNormalMapWeight);
+			}
+
+			if (TEMPORAL_SPEC) {
+				ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
+				ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
+				ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+			}
 			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
 			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
@@ -461,8 +476,8 @@ public:
 			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
 			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
 			ImGui::Checkbox("Color Dither", &ColorDither);
-			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.750f);
-			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 1.0f);
+			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.2f);
+			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 0.1f);
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
@@ -1229,6 +1244,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
+
+			DenoiseSunShadows = DenoiseSunShadows && SoftShadows;
 
 			ReflectionTraceFBO_1.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
 			ReflectionTraceFBO_2.SetSize(PADDED_WIDTH * ReflectionTraceResolution, PADDED_HEIGHT * ReflectionTraceResolution);
@@ -2419,11 +2436,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_PositionTexture", 1);
 				ReflectionDenoiser.SetInteger("u_NormalTexture", 2);
 				ReflectionDenoiser.SetInteger("u_PBRTex", 3);
-				ReflectionDenoiser.SetInteger("u_NormalMappedTexture", 4);
 				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
+				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
+				ReflectionDenoiser.SetInteger("u_BlockNormals", 11);
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
+				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
 				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(ReflectionDenoised_1.GetWidth(), ReflectionDenoised_1.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
@@ -2437,6 +2456,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
+				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
 
@@ -2454,9 +2474,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE3);
 				glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
-				glActiveTexture(GL_TEXTURE4);
-				glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
-
 				glActiveTexture(GL_TEXTURE5);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(1));
 
@@ -2468,6 +2485,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				glActiveTexture(GL_TEXTURE10);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE11);
+				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2487,6 +2507,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
+				ReflectionDenoiser.SetInteger("u_BlockNormals", 11);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
 				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
@@ -2499,6 +2520,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
+				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
+				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -2522,6 +2545,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				
 				glActiveTexture(GL_TEXTURE10);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+
+				glActiveTexture(GL_TEXTURE11);
+				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2875,7 +2901,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetNormalTexture());
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
