@@ -71,6 +71,8 @@ uniform bool u_PointVolumetricsToggled = false;
 
 uniform float u_PurkingeEffectStrength;
 
+uniform sampler2D u_Clouds;
+
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
 
@@ -700,6 +702,183 @@ vec3 vibrance(in vec3 color)
 }
 
 
+// Used to get a color for a temperature ->
+vec3 planckianLocus(float t) 
+{
+	vec4 vx = vec4(-0.2661239e9,-0.2343580e6,0.8776956e3,0.179910);
+	vec4 vy = vec4(-1.1063814,-1.34811020,2.18555832,-0.20219683);
+	float it = 1./t;
+	float it2= it*it;
+	float x = dot(vx,vec4(it*it2,it2,it,1.));
+	float x2 = x*x;
+	float y = dot(vy,vec4(x*x2,x2,x,1.));
+	float z = 1. - x - y;
+	
+	mat3 xyzToSrgb = mat3(
+		 3.2404542,-1.5371385,-0.4985314,
+		-0.9692660, 1.8760108, 0.0415560,
+		 0.0556434,-0.2040259, 1.0572252
+	);
+
+	vec3 srgb = vec3(x/y,1.,z/y) * xyzToSrgb;
+	return max(srgb,0.);
+}
+
+// Fragment
+float Noise2d(in vec2 x)
+{
+    float xhash = cos(x.x * 37.0);
+    float yhash = cos(x.y * 57.0);
+    return fract(415.92653 * (xhash + yhash));
+}
+
+// thresholded white noise :
+float NoisyStarField(in vec2 UV, float Threshold)
+{
+    float StarVal = Noise2d(UV);
+
+    if (StarVal >= Threshold) 
+    {
+        StarVal = pow((StarVal - Threshold) / (1.0f - Threshold), 6.0f);
+    }
+
+    else 
+    {
+        StarVal = 0.0;
+    }
+
+    return StarVal;
+}
+
+
+vec3 Rotate(vec3 vector, vec3 from, vec3 to) 
+{
+	float cosTheta = dot(from, to);
+	vec3 axis = normalize(cross(from, to));
+	vec2 sc = vec2(sqrt(1.0 - cosTheta * cosTheta), cosTheta);
+	return sc.y * vector + sc.x * cross(axis, vector) + (1.0 - sc.y) * dot(axis, vector) * axis;
+}
+
+vec2 hash23(vec3 p3) 
+{
+    p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += dot(p3, p3.yzx + 19.19f);
+    return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+
+vec3 hash33(vec3 p3) {
+	p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
+    p3 += dot(p3, p3.yxz + 19.19);
+    return fract((p3.xxy + p3.yxx) * p3.zyx);
+}
+
+vec3 hash33uint(vec3 q){
+    uvec3 p = uvec3(ivec3(q));
+          p = p * uvec3(374761393U, 1103515245U, 668265263U) + p.zxy + p.yzx;
+          p = p.yzx * (p.zxy ^ (p >> 3U));
+
+    return vec3(p ^ (p >> 16U)) * (1 / vec3(0xffffffffU));
+}
+
+float BilinearStarSample(in vec2 InUV, const float NoiseThreshold)
+{
+    vec2 Offsets[5] = vec2[5](vec2(0.0f),
+                              vec2(0.0f, 1.0f),
+                              vec2(0.0f, -1.0f),
+                              vec2(1.0f, 0.0f),
+                              vec2(-1.0f, 0.0f));
+
+    const float Weights[5] = float[5](1.0f,0.25f,0.25f,0.25f,0.25f);
+
+    float StarTotal = 0.0f;
+    float TotalW = 0.0f;
+
+    for (int i = 0 ; i < 5 ; i++) {
+        // bilinear offset ->
+        vec2 UV = InUV.xy + Offsets[i] * (1.0f / u_Dimensions);
+        float FractUVx = fract(UV.x);
+        float FractUVy = fract(UV.y);
+        vec2 floorSample = floor(UV);
+
+        // Sample 4 points ->
+        float v1 = NoisyStarField(floorSample, NoiseThreshold);
+        float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
+        float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
+        float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
+
+        // Basic Bilinear interpolation to reduce aliasing :
+        float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
+					    + v2 * (1.0 - FractUVx) * FractUVy
+					    + v3 * FractUVx * (1.0 - FractUVy)
+					    + v4 * FractUVx * FractUVy;
+
+        float w = Weights[i];
+	    StarTotal += StarVal*w;
+        TotalW += w;
+    }
+
+    StarTotal /= max(0.01f,TotalW);
+    return StarTotal;
+}
+
+// fract-sin noise
+float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+//#define STAR_AA
+
+vec2 ProjectDirection(vec3 Direction, vec2);
+
+vec3 ShadeStars(vec3 fragpos)
+{
+    // Rotate view vector with respect to sun direction
+    vec3 v = fragpos * 256.0f;
+    v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
+        
+    // floor it to maintain temporal coherency
+    v = vec3(floor(v));
+
+    // Hash 
+    vec3 hash = hash33(v);
+    vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
+
+    // Negatives make everything shit itself 
+    //fragpos.y = abs(fragpos.y);
+
+    // Calculate elevation and approximate uv
+	
+	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
+	//vec2 uv = //fragpos.xz / (1.0f + elevation);
+	
+
+
+
+    // Project direction ->
+	fragpos = floor(fragpos * 100.0f);
+	vec2 uv = clamp(ProjectDirection(fragpos, vec2(4096)) * 2.0f, 0.0f, 1.0f);
+	
+	// Add some variation to the scale 
+    float scale = mix(500.0f, 1100.0f, 1.0f-hash.x);
+    float star = BilinearStarSample(uv * scale, 0.995f);
+
+    // Use blackbody to get a color from a temperature value.
+    float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
+    vec3 Color = planckianLocus(RandomTemperature);
+        
+    // Twinkle
+    float twinkle = sin(u_Time * 0.5f * hash.z);
+    twinkle = twinkle * twinkle;
+
+    star *= 0.35f;
+
+
+    vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+	return FinalStar;
+}
+
+
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
  #define VOLUMETRIC_BICUBIC
@@ -812,7 +991,17 @@ void main()
 
 	else 
 	{
+
+		float star_visibility;
+		star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
+		star_visibility = 1.0f - star_visibility;
+		vec3 stars = vec3(ShadeStars(vec3(normalize(v_RayDirection))) * star_visibility);
+		float transmittance = texture(u_Clouds, v_TexCoords).w;
+		stars = clamp(stars, 0.0f, 1.3f) * transmittance * transmittance;
+		stars *= 6.0f;
+
 		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
+		o_Color += stars;
 		o_Color += PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		if (u_PurkingeEffectStrength>0.01f) {
@@ -1042,4 +1231,36 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
         col    += textureLod(tex, ClampUV(vec2(uv3.x, uv3.y)), 0)*w3.x*w3.y;
 
     return clamp(col, 0.0, 65535.0);
+}
+
+
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
+{
+    //vec2 TextureSize = vec2(textureSize(u_DebugTexture,0).xy);
+	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
+	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
+	vec2 CurrentCoordinate;
+
+	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
+    {
+		Direction /= max(abs(Direction.x), 0.001f);
+		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
+    {
+		Direction /= max(abs(Direction.y), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else 
+    {
+		Direction /= max(abs(Direction.z), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
+		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
+	}
+
+	return CurrentCoordinate / max(TextureSize, 0.01f);
 }

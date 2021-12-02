@@ -74,7 +74,9 @@ void Clouds::CloudRenderer::Initialize()
 	std::cout << "\nRendered noise textures!\n";
 }
 
-GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
+GLuint Clouds::CloudRenderer::Update(
+	const  glm::mat4& CurrentProjection,
+	const  glm::mat4& CurrentView,
 	const glm::mat4& PrevProjection,
 	const glm::mat4& PrevView,
 	const glm::vec3& CurrentPosition,
@@ -84,9 +86,11 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	GLuint BlueNoise,
 	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers,
 	bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, float CloudDetailFBMPower, 
-	bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale, float AmbientDensityMultiplier, GLuint EquiangularCloudMap, bool update_projection)
+	bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale, float AmbientDensityMultiplier, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detailcontrib, bool equiangularrender)
 {
 	Checkerboard = false;
+	DetailStrength = detailcontrib;
+
 
 	static CloudFBO CloudFBO_1;
 	static CloudFBO CloudFBO_2;
@@ -99,9 +103,6 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	//static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
 	//static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
 
-
-	glm::mat4 CurrentProjection = MainCamera.GetProjectionMatrix();
-	glm::mat4 CurrentView = MainCamera.GetViewMatrix();
 
 	auto& CloudTemporalFBO = (CurrentFrame % 2 == 0) ? CloudTemporalFBO1 : CloudTemporalFBO2;
 	auto& PrevCloudTemporalFBO = (CurrentFrame % 2 == 0) ? CloudTemporalFBO2 : CloudTemporalFBO1;
@@ -128,8 +129,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 	glDisable(GL_DEPTH_TEST);
 
 	{
-		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
-		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
+		glm::mat4 inv_view = glm::inverse(CurrentView);
+		glm::mat4 inv_projection = glm::inverse(CurrentProjection);
 
 		CloudFBO.Bind();
 		CloudShader.Use();
@@ -153,6 +154,8 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetFloat("u_AmbientDensityMultiplier", AmbientDensityMultiplier);
 		CloudShader.SetFloat("u_CloudDetailFBMPower", CloudDetailFBMPower);
 		CloudShader.SetFloat("u_SunVisibility", SunVisibility);
+		CloudShader.SetFloat("CloudThickness", thickness);
+		CloudShader.SetFloat("u_CloudThickness", thickness);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_SliceCount", 256);
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
@@ -160,9 +163,9 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
 		CloudShader.SetVector3f("u_DetailParams", glm::vec3(DetailParams));
 		CloudShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
-		CloudShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
-		CloudShader.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
-		CloudShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+		CloudShader.SetVector3f("u_ViewerPosition", CurrentPosition);
+		CloudShader.SetVector3f("u_PlayerPosition", CurrentPosition);
+		CloudShader.SetVector3f("u_ViewerPosition", CurrentPosition);
 		CloudShader.SetInteger("u_VertCurrentFrame", CurrentFrame);
 		CloudShader.SetInteger("u_Atmosphere", 4);
 		CloudShader.SetInteger("u_PositionTex", 5);
@@ -171,6 +174,7 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		CloudShader.SetBool("u_HighQualityClouds", HighQualityClouds);
 		CloudShader.SetBool("u_CurlNoiseOffset", curlnoise);
 		CloudShader.SetBool("u_LodLighting", lodlighting);
+		CloudShader.SetBool("u_InitialEquiangularRender", equiangularrender);
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_JitterValue", glm::vec2(JitterValue));
 		CloudShader.SetVector3f("u_StepCounts", glm::vec3(StepCounts));
@@ -243,12 +247,13 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		TemporalFilter.SetMatrix4("u_InverseProjection", glm::inverse(CurrentProjection));
 		TemporalFilter.SetMatrix4("u_InverseView", glm::inverse(CurrentView));
 		TemporalFilter.SetFloat("u_Time", glfwGetTime());
-		TemporalFilter.SetVector3f("u_CurrentPosition", MainCamera.GetPosition());
+		TemporalFilter.SetVector3f("u_CurrentPosition", CurrentPosition);
 		TemporalFilter.SetVector3f("u_PreviousPosition", PreviousPosition);
 		TemporalFilter.SetBool("u_Clamp", Clamp);
 		TemporalFilter.SetBool("u_CloudSpatialUpscale", CloudSpatialUpscale);
 		TemporalFilter.SetBool("u_SpatialUpscale", CloudSpatialUpscale);
 		TemporalFilter.SetBool("u_UpdateProjection", update_projection);
+		TemporalFilter.SetBool("u_InitialEquiangularRender", equiangularrender);
 
 		float mix_factor = (CurrentPosition != PrevPosition) ? 0.25f : 0.75f;
 		TemporalFilter.SetFloat("u_MixModifier", mix_factor);
@@ -272,6 +277,10 @@ GLuint Clouds::CloudRenderer::Update(VoxelRT::FPSCamera& MainCamera,
 		VAO.Unbind();
 	}
 
+	if (equiangularrender) {
+		return CloudTemporalFBO.GetFramebuffer();
+	}
+
 	return CloudTemporalFBO.GetTexture();
 }
 
@@ -287,25 +296,6 @@ void Clouds::CloudRenderer::SetCoverage(float v)
 	Coverage = v;
 }
 
-void Clouds::CloudRenderer::SetBayer(bool v)
-{
-	Bayer = v;
-}
-
-void Clouds::CloudRenderer::SetDetailContribution(float v)
-{
-	DetailStrength = v;
-}
-
-float Clouds::CloudRenderer::GetBoxSize()
-{
-	return BoxSize;
-}
-
-void Clouds::CloudRenderer::SetQuality(bool v)
-{
-	HighQualityClouds = v;
-}
 
 void Clouds::CloudRenderer::SetResolution(float v)
 {

@@ -1,5 +1,7 @@
 #version 330 core
+
 #define PI 3.14159265359
+#define TAU (3.14159265359 * 2.0)
 
 layout (location = 0) out float o_AOValue;
 
@@ -14,9 +16,14 @@ uniform vec2 u_Dimensions;
 uniform mat4 u_ViewMatrix;
 uniform mat4 u_ProjectionMatrix;
 
+uniform float u_SSAOStrength;
+
 uniform float u_Time;
 
-uint SAMPLE_SIZE = 16u;
+
+
+uint SAMPLE_SIZE = 24u;
+
 
 vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
@@ -52,8 +59,8 @@ vec3 hemispherepoint_uniform(float u, float v)
 
 float nextFloat(inout int seed, in float min, in float max);
 
-const float Radius = 0.5f; 
-const float Bias = 0.1f;
+const float Radius = 0.6f; 
+const float Bias = 0.21f;
 
 int RNG_SEED;
 
@@ -110,13 +117,14 @@ void main()
 		ProjectedPosition.xyz /= ProjectedPosition.w; // Perspective division
 		ProjectedPosition.xyz = ProjectedPosition.xyz * 0.5f + 0.5f;
 
-		if (ProjectedPosition.x > 0.0f && ProjectedPosition.y > 0.0f && ProjectedPosition.x < 1.0f && ProjectedPosition.y < 1.0f)
+		if (ProjectedPosition.xy == clamp(ProjectedPosition.xy, 0.0001, 0.9999f))
 		{
 			vec4 SampledPosition = GetPositionAt(u_PositionTexture, ProjectedPosition.xy).xyzw;
 			
 			if (SampledPosition.w > 0.0f)
 			{
 				float SampleDepth = ToViewSpace(SampledPosition.xyz).z;
+
 				float RangeFix = 1.0f - clamp(abs(Position.z - SampleDepth) * 0.6f, 0.0f, 1.0f);
 
 				o_AOValue += (SampleDepth >= SamplePosition.z + Bias ? 1.0 : 0.0)  * RangeFix; 
@@ -126,7 +134,7 @@ void main()
 
 	o_AOValue /= SAMPLE_SIZE;
 	o_AOValue = 1.0f - o_AOValue;
-	o_AOValue = clamp(o_AOValue, 0.0f, 1.0f);
+	o_AOValue = clamp(pow(o_AOValue, clamp(u_SSAOStrength, 0.01f, 4.0f)), 0.0f, 1.0f);
 }
 
 int MIN = -2147483648;

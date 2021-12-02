@@ -164,7 +164,7 @@ void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected,
 			bool MaskE = Mask < 0.01f;
 			
 			if (!MaskE) {
-				AdditionalMaxBias += 0.05f;
+				AdditionalMaxBias += 0.1f;
 			}
 
 			vec4 SampleSH = texture(u_CurrentColorTexture, SampleCoord);
@@ -438,7 +438,7 @@ void main()
 				{
 					PrevSH = mix(PrevSHBck, PrevSH, 0.75f);
 					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.75f);
-					BlendFactor *= 1.0f;
+					BlendFactor *= 1.05f;
 				}
 			}
 

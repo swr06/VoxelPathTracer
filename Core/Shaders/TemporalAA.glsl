@@ -22,9 +22,13 @@ uniform mat4 u_InversePrevProjection;
 uniform mat4 u_InversePrevView;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
+uniform mat4 u_View;
+uniform mat4 u_Projection;
 
 uniform bool u_Enabled;
 uniform bool u_BlockModified;
+
+uniform vec3 u_CameraHistory[2];
 
 vec2 View;
 vec2 Dimensions;
@@ -146,7 +150,8 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 			if (WorldPosition.w > 0.0f&&FindBestPixel) {
 				vec4 PrevPositionAt = GetPREVPositionAt(Reprojected + vec2(x, y) * TexelSize).xyzw;
 				
-				if (PrevPositionAt.w > 0.0f) {
+				if (PrevPositionAt.w > 0.0f) 
+				{
 					float DistanceAt = FastDistance(WorldPosition.xyz, PrevPositionAt.xyz);
 					if (DistanceAt < BestDistance) {
 						BestDistance = DistanceAt;
@@ -158,7 +163,7 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
 			float DepthAt = texture(u_PositionTexture, v_TexCoords).x;
-			if (DepthAt <= 0.0f) { continue; }
+
             MinColor = min(Sample, MinColor); 
 			MaxColor = max(Sample, MaxColor); 
         }
@@ -166,14 +171,14 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 	BestOffset = FindBestPixel ? BestOffset : vec2(0.0f);
 
-	float Bias = 0.0001f;
+	float Bias = 0.00001f;
 	MinColor -= Bias;
 	MaxColor += Bias;
 
 
-	vec3 Color = texture(u_PreviousColorTexture, Reprojected + BestOffset * TexelSize).xyz;
-   // return ycocg2rgb(clipAABB(rgb2ycocg(Color), rgb2ycocg(MinColor), rgb2ycocg(MaxColor))).xyz;
+	vec3 Color = texture(u_PreviousColorTexture, Reprojected ).xyz;
     return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
+    return (Color).xyz;
 }
 
 
@@ -276,6 +281,10 @@ vec3 VarianceClip(vec2 Reproj, vec3 CenterCurrent)
 	return ClippedColor;
 }
 
+vec3 ToViewSpace(vec3 x) {
+	return vec3(u_View * vec4(x, 1.0f));
+}
+
 
 void main()
 {
@@ -293,14 +302,41 @@ void main()
 
 	vec4 WorldPosition = SampleBasePosition(u_PositionTexture).rgba;
 
-	if (WorldPosition.w <= 0.0f)
+	
+	vec3 rD = GetRayDirection(v_TexCoords).xyz;
+	rD = normalize(rD);
+
+	bool MotionVector = false;
+	float ReduceWeight = 1.0f;
+
+	if (WorldPosition.w < 0.001f)
 	{
-		o_Color = CurrentColor;
-		return;
+		const float rpd = 32.0f;
+		WorldPosition.xyz = u_InverseView[3].xyz + rD * rpd;
+		WorldPosition.w = rpd;
+		MotionVector = true;
+		ReduceWeight = 0.9f;
+
 	}
 
+
 	vec2 CurrentCoord = v_TexCoords;
-	vec2 PreviousCoord = Reprojection(WorldPosition.xyz); 
+	vec2 PreviousCoord;
+	
+	vec3 PreviousCameraPos = u_CameraHistory[1];
+	vec3 CurrentCameraPos = u_CameraHistory[0];
+	vec3 Offset = (PreviousCameraPos - CurrentCameraPos);
+
+	PreviousCoord = Reprojection(WorldPosition.xyz);
+	
+	
+	//if (MotionVector) {
+	//	
+	//	vec2 ReprojectedA = Reprojection(PreviousCameraPos);
+	//	vec2 ReprojectedB = Reprojection(CurrentCameraPos);
+	//	PreviousCoord -= ReprojectedA - ReprojectedB;
+	//}
+
 	float bias = 0.01f;
 
 	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
@@ -316,9 +352,9 @@ void main()
 
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.4f;
+		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.45f;
 		BlendFactor = u_BlockModified ? 0.075f : BlendFactor;
-		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor, 0.001f, 0.95f));
+		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f));
 	}
 
 	else 

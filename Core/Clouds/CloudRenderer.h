@@ -12,7 +12,7 @@ namespace Clouds
 	namespace CloudRenderer
 	{
 		void Initialize();
-		GLuint Update(VoxelRT::FPSCamera& MainCamera,  
+		GLuint Update(const glm::mat4&, const glm::mat4&,  
 					const glm::mat4& PrevProjection,
 				    const glm::mat4& PrevView, 
 					const glm::vec3& CurrentPosition, 
@@ -22,13 +22,9 @@ namespace Clouds
 					glm::vec3 PreviousPosition, GLuint pos_tex_prev, 
 					glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float, bool, float cirrusstrength,
 					float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, 
-					float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float, bool, float, GLuint EquiangularCloudMap, bool update_projection);
+					float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float, bool, float, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detail_contrib, bool );
 		void RecompileShaders();
 		void SetCoverage(float v);
-		void SetBayer(bool v);
-		void SetDetailContribution(float v);
-		float GetBoxSize();
-		void SetQuality(bool v);
 		void SetResolution(float v);
 	}
 }

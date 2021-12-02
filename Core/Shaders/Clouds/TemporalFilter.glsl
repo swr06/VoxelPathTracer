@@ -43,6 +43,7 @@ uniform float u_Time;
 
 uniform bool u_Clamp;
 uniform bool u_SpatialUpscale;
+uniform bool u_InitialEquiangularRender;
 
 uniform vec3 u_CurrentPosition;
 uniform vec3 u_PreviousPosition;
@@ -238,7 +239,7 @@ vec4 SpatialUpscaleCloud2(sampler2D samp, vec2 txc, bool LargeKernel, bool Stric
 
     int KernelSize = LargeKernel ? 2 : 1;
 
-    float LumaExp = StrictAssExponent ? 1200.0f : 55.0f;
+    float LumaExp = StrictAssExponent ? 1200.0f : 80.0f;
 
     MinData = vec4(1000.0f);
     MaxData = vec4(-1000.0f);
@@ -294,13 +295,14 @@ bool SampleValid(in vec2 txc)
 		ivec2( 1.0,  1.0)
 	);
 
-	ivec2 basecoord = ivec2(floor(txc*textureSize(u_CurrentPositionData,0).xy));
+	//ivec2 basecoord = ivec2(floor(txc*textureSize(u_CurrentPositionData,0).xy));
+    vec2 TexelSize = 1.0f / textureSize(u_CurrentPositionData, 0).xy;
 
     for (int i = 0 ; i < 8 ; i++)
     {
-		ivec2 samplecoord = basecoord+Kernel[i];
-        //if (texture(u_PositionTex, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
-		if (texelFetch(u_CurrentPositionData, samplecoord,0).x <= 0.0f)
+		//ivec2 samplecoord = basecoord+Kernel[i];
+        if (texture(u_CurrentPositionData, txc + Kernel[i] * TexelSize * 1.1f).r <= 0.0f)
+		//if (texelFetch(u_CurrentPositionData, samplecoord,0).x <= 0.0f)
         {
             return true;
         }
@@ -342,7 +344,6 @@ vec2 ProjectDirection(vec3 Direction)
 
 	return CurrentCoordinate / max(TextureSize, 0.01f);
 }
-
  
 
 vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv);
@@ -362,6 +363,23 @@ void main()
         CurrentColor = texture_catmullrom(u_CurrentColorTexture, v_TexCoords).xyzw;
     }
 
+    vec3 RayDirection = normalize(GetRayDirectionAt(v_TexCoords));
+
+    if (u_InitialEquiangularRender) {
+
+        vec2 UVProjection = ProjectDirection(RayDirection);
+
+        if (UVProjection == clamp(UVProjection, 0.001f, 0.999f)) {
+
+            ivec2 PixelProjection;
+            PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
+            float ClampedTransmittance = clamp(CurrentColor.w, 0.2f, 1.0f);
+            imageStore(o_EquiangularProjection, PixelProjection, vec4(CurrentColor.xyz, ClampedTransmittance));
+        }
+
+        return;
+    }
+
 
 	#ifdef BE_USELESS
 	o_Color = CurrentColor;
@@ -370,9 +388,8 @@ void main()
 
 	vec3 PlayerPosition = u_InverseView[3].xyz;
 
-    vec3 RayDirection = normalize(GetRayDirectionAt(v_TexCoords));
 
-    bool SampleIsValid = true;//SampleValid(v_TexCoords);
+   // bool SampleIsValid = true;//SampleValid(v_TexCoords);
 
 	if (CurrentColor.w > -0.5f && true)
 	{
@@ -459,16 +476,22 @@ void main()
 
     const bool StoreEquiangular = true;
 
+
     if (StoreEquiangular && u_UpdateProjection) {
 
-        vec2 UVProjection = ProjectDirection(RayDirection);
+        bool SampleValidFlag = SampleValid(v_TexCoords);
+        
+        if (SampleValidFlag) {
 
-        if (UVProjection == clamp(UVProjection, 0.001f, 0.999f)) {
+            vec2 UVProjection = ProjectDirection(RayDirection);
 
-            ivec2 PixelProjection;
-            PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
-            float ClampedTransmittance = clamp(o_Color.w, 0.2f, 1.0f);
-            imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, ClampedTransmittance));
+            if (UVProjection == clamp(UVProjection, 0.001f, 0.999f)) {
+
+                ivec2 PixelProjection;
+                PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
+                float ClampedTransmittance = clamp(o_Color.w, 0.2f, 1.0f);
+                imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, ClampedTransmittance));
+            }
         }
     }
 }

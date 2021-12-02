@@ -45,6 +45,9 @@ uniform sampler2D u_ShadowTrace;
 
 uniform sampler2D u_IndirectAO;
 
+uniform sampler3D u_LPV;
+uniform usampler3D u_LPVBlocks;
+
 uniform bool u_CloudReflections;
 
 

@@ -11,6 +11,7 @@ layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec4 o_PBR;
 
 // Vertex shader inputs 
+vec2 g_TexCoords;
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
 in vec3 v_RayDirection;
@@ -30,6 +31,7 @@ uniform samplerCube u_Skybox;
 uniform sampler2D u_CloudData;
 uniform sampler2D u_PreviousNormalTexture; 
 uniform sampler2D u_VXAO;
+uniform sampler2D u_BlueNoiseHighRes;
 
 uniform bool u_UseDFG;
 uniform bool u_RemoveTiling;
@@ -64,6 +66,8 @@ uniform float u_MoonStrengthModifier;
 
 uniform float u_Time;
 uniform float u_GrassblockAlbedoID;
+uniform float u_POMHeight;
+uniform bool u_DitherPOM;
 
 uniform mat4 u_ShadowView;
 uniform mat4 u_ShadowProjection;
@@ -91,6 +95,8 @@ uniform bool u_InferSpecularDetailSpatially = false;
 
 uniform float u_CloudBoxSize;
 uniform int u_GrassBlockProps[10];
+
+uniform vec2 u_Halton;
 
 // Bayer dither
 float bayer2(vec2 a){
@@ -176,181 +182,6 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
-// Used to get a color for a temperature ->
-vec3 planckianLocus(float t) 
-{
-	vec4 vx = vec4(-0.2661239e9,-0.2343580e6,0.8776956e3,0.179910);
-	vec4 vy = vec4(-1.1063814,-1.34811020,2.18555832,-0.20219683);
-	float it = 1./t;
-	float it2= it*it;
-	float x = dot(vx,vec4(it*it2,it2,it,1.));
-	float x2 = x*x;
-	float y = dot(vy,vec4(x*x2,x2,x,1.));
-	float z = 1. - x - y;
-	
-	mat3 xyzToSrgb = mat3(
-		 3.2404542,-1.5371385,-0.4985314,
-		-0.9692660, 1.8760108, 0.0415560,
-		 0.0556434,-0.2040259, 1.0572252
-	);
-
-	vec3 srgb = vec3(x/y,1.,z/y) * xyzToSrgb;
-	return max(srgb,0.);
-}
-
-// Fragment
-float Noise2d(in vec2 x)
-{
-    float xhash = cos(x.x * 37.0);
-    float yhash = cos(x.y * 57.0);
-    return fract(415.92653 * (xhash + yhash));
-}
-
-// thresholded white noise :
-float NoisyStarField(in vec2 UV, float Threshold)
-{
-    float StarVal = Noise2d(UV);
-
-    if (StarVal >= Threshold) 
-    {
-        StarVal = pow((StarVal - Threshold) / (1.0f - Threshold), 6.0f);
-    }
-
-    else 
-    {
-        StarVal = 0.0;
-    }
-
-    return StarVal;
-}
-
-
-vec3 Rotate(vec3 vector, vec3 from, vec3 to) 
-{
-	float cosTheta = dot(from, to);
-	vec3 axis = normalize(cross(from, to));
-	vec2 sc = vec2(sqrt(1.0 - cosTheta * cosTheta), cosTheta);
-	return sc.y * vector + sc.x * cross(axis, vector) + (1.0 - sc.y) * dot(axis, vector) * axis;
-}
-
-vec2 hash23(vec3 p3) 
-{
-    p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
-    p3 += dot(p3, p3.yzx + 19.19f);
-    return fract((p3.xx + p3.yz) * p3.zy);
-}
-
-
-vec3 hash33(vec3 p3) {
-	p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
-    p3 += dot(p3, p3.yxz + 19.19);
-    return fract((p3.xxy + p3.yxx) * p3.zyx);
-}
-
-vec3 hash33uint(vec3 q){
-    uvec3 p = uvec3(ivec3(q));
-          p = p * uvec3(374761393U, 1103515245U, 668265263U) + p.zxy + p.yzx;
-          p = p.yzx * (p.zxy ^ (p >> 3U));
-
-    return vec3(p ^ (p >> 16U)) * (1 / vec3(0xffffffffU));
-}
-
-float BilinearStarSample(in vec2 InUV, const float NoiseThreshold)
-{
-    vec2 Offsets[5] = vec2[5](vec2(0.0f),
-                              vec2(0.0f, 1.0f),
-                              vec2(0.0f, -1.0f),
-                              vec2(1.0f, 0.0f),
-                              vec2(-1.0f, 0.0f));
-
-    const float Weights[5] = float[5](1.0f,0.25f,0.25f,0.25f,0.25f);
-
-    float StarTotal = 0.0f;
-    float TotalW = 0.0f;
-
-    for (int i = 0 ; i < 5 ; i++) {
-        // bilinear offset ->
-        vec2 UV = InUV.xy + Offsets[i] * (1.0f / u_Dimensions);
-        float FractUVx = fract(UV.x);
-        float FractUVy = fract(UV.y);
-        vec2 floorSample = floor(UV);
-
-        // Sample 4 points ->
-        float v1 = NoisyStarField(floorSample, NoiseThreshold);
-        float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
-        float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
-        float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
-
-        // Basic Bilinear interpolation to reduce aliasing :
-        float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
-					    + v2 * (1.0 - FractUVx) * FractUVy
-					    + v3 * FractUVx * (1.0 - FractUVy)
-					    + v4 * FractUVx * FractUVy;
-
-        float w = Weights[i];
-	    StarTotal += StarVal*w;
-        TotalW += w;
-    }
-
-    StarTotal /= max(0.01f,TotalW);
-    return StarTotal;
-}
-
-// fract-sin noise
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
-
-//#define STAR_AA
-
-vec2 ProjectDirection(vec3 Direction, vec2);
-
-vec3 ShadeStars(vec3 fragpos)
-{
-    // Rotate view vector with respect to sun direction
-    vec3 v = fragpos * 256.0f;
-    v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
-        
-    // floor it to maintain temporal coherency
-    v = vec3(floor(v));
-
-    // Hash 
-    vec3 hash = hash33(v);
-    vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
-
-    // Negatives make everything shit itself 
-    //fragpos.y = abs(fragpos.y);
-
-    // Calculate elevation and approximate uv
-	
-	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	//vec2 uv = //fragpos.xz / (1.0f + elevation);
-	
-
-
-
-    // Project direction ->
-	fragpos = floor(fragpos * 100.0f);
-	vec2 uv = clamp(ProjectDirection(fragpos, vec2(4096)) * 2.0f, 0.0f, 1.0f);
-	
-	// Add some variation to the scale 
-    float scale = mix(800.0f, 1600.0f, 1.0f-hash.x);
-    float star = BilinearStarSample(uv * scale, 0.995f);
-
-    // Use blackbody to get a color from a temperature value.
-    float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
-    vec3 Color = planckianLocus(RandomTemperature);
-        
-    // Twinkle
-    float twinkle = sin(u_Time * 0.5f * hash.z);
-    twinkle = twinkle * twinkle;
-
-    star *= 0.35f;
-
-
-    vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
-	return FinalStar;
-}
 
 //
 // ray box intersection function 
@@ -396,14 +227,14 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
     vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
 
-    float star_visibility;
-    star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
-    star_visibility = 1.0f - star_visibility;
-    vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
-    stars = clamp(stars, 0.0f, 1.3f);
-    stars *= 6.0f;
-
-    atmosphere += stars*(1.0f*true_transmittance*true_transmittance);
+    //float star_visibility;
+    //star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
+    //star_visibility = 1.0f - star_visibility;
+    //vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
+    //stars = clamp(stars, 0.0f, 1.3f);
+    //stars *= 6.0f;
+    //
+    //atmosphere += stars*(1.0f*true_transmittance*true_transmittance);
 
     atmosphere_color = atmosphere;
 
@@ -434,10 +265,10 @@ vec4 UpscaleCloudDetail(vec4 c)
 {
     vec2 TexelSize = 1.0f / textureSize(u_CloudData,0);
 
-    vec4 a = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(0, -1)).rgba, 0.0f, 1.0f);
-    vec4 b = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(-1, 0)).rgba, 0.0f, 1.0f);
-    vec4 d = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(1, 0)).rgba, 0.0f, 1.0f);
-    vec4 e = clamp(BetterTexture(u_CloudData, v_TexCoords + TexelSize * vec2(0, 1)).rgba, 0.0f, 1.0f);
+    vec4 a = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(0, -1)).rgba, 0.0f, 1.0f);
+    vec4 b = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(-1, 0)).rgba, 0.0f, 1.0f);
+    vec4 d = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(1, 0)).rgba, 0.0f, 1.0f);
+    vec4 e = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(0, 1)).rgba, 0.0f, 1.0f);
 
     float WeightA = LuminosityWeight(a.xyz);
     float WeightB = LuminosityWeight(b.xyz);
@@ -475,9 +306,9 @@ vec3 GetAtmosphereAndClouds()
     //float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.8f), 0.0f, 1.0f);
     //S = mix(S, D, DuskVisibility);
     //vec3 M = mix(S + 0.001f, (vec3(46.0f, 142.0f, 255.0f) / 255.0f) * 0.2f, SunVisibility); 
-	//vec4 SampledCloudData = texture(u_CloudData, v_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
-	////vec4 SampledCloudData = texture(u_CloudData, v_TexCoords).rgba; // Bicubic B spline interp
-	////vec4 SampledCloudData = CAS(u_CloudData,v_TexCoords,0.8f);
+	//vec4 SampledCloudData = texture(u_CloudData, g_TexCoords+(base_bayer*(1.0f/textureSize(u_CloudData,0)))).rgba; // Bicubic B spline interp
+	////vec4 SampledCloudData = texture(u_CloudData, g_TexCoords).rgba; // Bicubic B spline interp
+	////vec4 SampledCloudData = CAS(u_CloudData,g_TexCoords,0.8f);
     //SampledCloudData.xyz *= CloudFade;
     //float Transmittance = SampledCloudData.w;
     //vec3 Scatter = SampledCloudData.xyz*1.2f ;
@@ -491,7 +322,7 @@ vec3 GetAtmosphereAndClouds()
     vec3 NormalizedDir = normalize(v_RayDirection);
     float Dither = bayer128(gl_FragCoord.xy);
 
-    vec2 SampleCoord = v_TexCoords + (Dither / 512.0f);
+    vec2 SampleCoord = g_TexCoords + (Dither / 512.0f);
 
 
 	vec4 SampledCloudData;
@@ -654,7 +485,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal)
     float PlayerShadow  = 0.0f;
     int PlayerShadowSamples = 6;
 
-    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.12f);
+    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.2f);
     if (u_ContactHardeningShadows) {
 		vec3 L = normalize(u_StrongerLightDirection);
 		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
@@ -694,7 +525,7 @@ bool IsInScreenSpaceBounds(in vec2 tx)
 //
 float GetDisplacementAt(in vec2 txc, in float pbridx) 
 {
-    return texture(u_BlockPBRTextures, vec3(vec2(txc.x, txc.y), pbridx)).b * 0.35f;
+    return texture(u_BlockPBRTextures, vec3(vec2(txc.x, txc.y), pbridx)).b * 0.35f * u_POMHeight;
 }
 
 // Parallax occlusion mapping 
@@ -702,10 +533,16 @@ float GetDisplacementAt(in vec2 txc, in float pbridx)
 // Tried dithering ray step, which resulted in not-good results (introduces noise which is hard to tackle as you need this to be temporally coherent)
 // - to avoid artifacts
 
+
 vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float pbridx) // View direction should be in tangent space!
 { 
-    float NumLayers = u_HighQualityPOM ? 72 : 32; 
-    float LayerDepth = 1.0 / (u_HighQualityPOM ? (NumLayers * 0.725f) : (NumLayers * 0.65));
+    if (u_DitherPOM) {
+        float Bayer = bayer64(gl_FragCoord.xy);
+        ViewDirection *= mix(0.9f, 1.0f, Bayer);
+    }
+
+    float NumLayers = u_HighQualityPOM ? 96 : 64; 
+    float LayerDepth = 1.0 / (NumLayers * 0.65);
     float CurrentLayerDepth = 0.0;
     vec2 P = ViewDirection.xy * 1.0f; 
     vec2 DeltaTexCoords = P / NumLayers;
@@ -722,7 +559,7 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
             CurrentTexCoords -= DeltaTexCoords;
             CurrentDepthMapValue = GetDisplacementAt(CurrentTexCoords, pbridx);  
             CurrentLayerDepth += LayerDepth;
-            DeltaTexCoords *= u_HighQualityPOM ? 0.970f : 0.9f;
+            DeltaTexCoords *=  0.95f;
         }
     }
 
@@ -801,7 +638,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
     const bool BE_FUCKING_USELESS = false;
 
     if (BE_FUCKING_USELESS) {
-        vec2 SampleCoord = v_TexCoords;
+        vec2 SampleCoord = g_TexCoords;
         SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
 		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
         SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
@@ -832,7 +669,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
 	for (int s = 0 ; s < 5 ; s++) {
 		
-        vec2 SampleCoord = v_TexCoords + (vec2(Offsets[s])) * TexelSize;
+        vec2 SampleCoord = g_TexCoords + (vec2(Offsets[s])) * TexelSize;
 		float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
         
         float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
@@ -1014,18 +851,22 @@ vec3 BasicSaturation(vec3 Color, float Adjustment)
 
 void main()
 {
+    g_TexCoords = v_TexCoords;
+    //g_TexCoords += u_Halton/u_Dimensions;
+
+
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
 
     // Xorshift!
 	RNG_SEED ^= RNG_SEED << 13;
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
-    HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+    HASH2SEED = (g_TexCoords.x * g_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 100.0f;
 
-    vec4 WorldPosition = SamplePositionAt(u_InitialTracePositionTexture, v_TexCoords);
+    vec4 WorldPosition = SamplePositionAt(u_InitialTracePositionTexture, g_TexCoords);
 
-    vec3 SampledNormals = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
+    vec3 SampledNormals = SampleNormal(u_NormalTexture, g_TexCoords).rgb;
     vec3 AtmosphereAt = vec3(0.0f);
     o_Color = vec3(1.0f);
 
@@ -1036,10 +877,10 @@ void main()
         RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz);
 
         float Bias = 0.0035f;
-        bool InBiasedSS =  (v_TexCoords.x > 0.0 + Bias && v_TexCoords.x < 1.0 - Bias 
-		 && v_TexCoords.y > 0.0 + Bias && v_TexCoords.y < 1.0f - Bias);
+        bool InBiasedSS =  (g_TexCoords.x > 0.0 + Bias && g_TexCoords.x < 1.0 - Bias 
+		 && g_TexCoords.y > 0.0 + Bias && g_TexCoords.y < 1.0f - Bias);
 
-        //if (!IsAtEdge(v_TexCoords))
+        //if (!IsAtEdge(g_TexCoords))
         if (true)
         {
             vec2 UV;
@@ -1049,7 +890,7 @@ void main()
             CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV, UVDerivative); 
 
 	        mat3 tbn = mat3(normalize(Tangent), normalize(Bitangent), normalize(SampledNormals));
-            int BaseBlockID = GetBlockID(v_TexCoords);
+            int BaseBlockID = GetBlockID(g_TexCoords);
             vec4 data = GetTextureIDs(BaseBlockID);
 
 
@@ -1090,10 +931,10 @@ void main()
                 if (SampledNormals == vec3(0.0f, -1.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
                 //if (SampledNormals == vec3(0.0f, 0.0f, 1.0f)) {  flip = true;}
                 //if (SampledNormals == vec3(0.0f, 0.0f, -1.0f)) {  flip = true; }
-                
+
                 vec3 TangentViewPosition = tbn * u_ViewerPosition;
                 vec3 TangentFragPosition = tbn * WorldPosition.xyz; 
-                vec3 TangentViewDirection = normalize(TangentFragPosition - TangentViewPosition);
+                vec3 TangentViewDirection = normalize((TangentFragPosition - TangentViewPosition));
                 
                 UV = ParallaxOcclusionMapping(UV, TangentViewDirection, data.z);
                 //UV.y = flip && data.r == u_GrassblockAlbedoID ? 1.0f - UV.y : UV.y;
@@ -1125,10 +966,10 @@ void main()
             
             float Emissivity = data.w > -0.5f ? textureLod(u_BlockEmissiveTextures, vec3(UV, data.w), 0.0f).r : 0.0f;
 
-            //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, v_TexCoords, SampledNormals.xyz, WorldPosition.z);
-            //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz);
-            //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, v_TexCoords, WorldPosition.z).xyz;
-            //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, v_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
+            //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, g_TexCoords, SampledNormals.xyz, WorldPosition.z);
+            //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, g_TexCoords, WorldPosition.xyz);
+            //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, g_TexCoords, WorldPosition.z).xyz;
+            //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, g_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
             
             vec4 SHy;
             vec2 ShCoCg;
@@ -1149,10 +990,10 @@ void main()
             if (do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < VXGI_CUTOFF)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.00125f;
-                if (v_TexCoords.x > bias && v_TexCoords.x < 1.0f - bias &&
-                    v_TexCoords.y > bias && v_TexCoords.y < 1.0f - bias)
+                if (g_TexCoords.x > bias && g_TexCoords.x < 1.0f - bias &&
+                    g_TexCoords.y > bias && g_TexCoords.y < 1.0f - bias)
                 {
-                    float ao = BetterTexture(u_VXAO, v_TexCoords).x;
+                    float ao = BetterTexture(u_VXAO, g_TexCoords).x;
 					
 					// Multiply indirect diffuse by ao 
                     SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 1.85f), 0.1f, 1.0f));
@@ -1280,8 +1121,8 @@ void main()
 
     if (!true) {
         //vec4 DebugData = texture(u_DebugTexture, ProjectDirection(v_RayDirection)).xyzw;
-        vec4 DebugData = texture(u_DebugTexture, v_TexCoords).xyzw;
-        o_Color = DebugData.xyz;
+        vec4 DebugData = texture(u_DebugTexture, g_TexCoords).xyzw;
+        o_Color = vec3(DebugData.x);
     }
 
 }
@@ -1394,26 +1235,26 @@ vec3 InterpolateLPVColorDataBicubic(vec3 position)
 
 vec3 InterpolateLPVColorDithered(vec3 UV) // Very few samples with fantastic results.
 { 
-    vec3 BayerNormalized = vec3(bayer128(gl_FragCoord.xy),bayer256(gl_FragCoord.xy),bayer128(gl_FragCoord.xy));
-    float cD = BayerNormalized.y;
-    cD /= 256.0f;
+    vec3 Dither = texture(u_BlueNoiseHighRes, (g_TexCoords * (u_Dimensions / vec2(textureSize(u_BlueNoiseHighRes,0).xy)))).xyz;
     const vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
-    BayerNormalized /= Resolution;
+    Dither /= Resolution;
+
     vec3 FractTexel = fract(UV * Resolution);
     vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
     vec3 W0 = UV - LinearOffset;
     vec3 W1 = UV + LinearOffset;
     const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.35f, 0.25f);
-    const float GlobalDitherNoiseWeight = 4.0f;
-    vec3 Interpolated = SampleLPVColor(vec3(W0.x, W0.y, W0.z) + BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W1.x, W0.y, W0.z) - BayerNormalized * DitherWeights[0] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W1.x, W1.y, W0.z) + BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W0.x, W1.y, W0.z) - BayerNormalized * DitherWeights[1] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W0.x, W1.y, W1.z) + BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W1.x, W1.y, W1.z) - BayerNormalized * DitherWeights[2] * GlobalDitherNoiseWeight)
-    	   + SampleLPVColor(vec3(W1.x, W0.y, W1.z) + BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight)
-		   + SampleLPVColor(vec3(W0.x, W0.y, W1.z) - BayerNormalized * DitherWeights[3] * GlobalDitherNoiseWeight);
-	return max((Interpolated / 8.0)+cD, 0.00000001f);
+    const float GlobalDitherNoiseWeight = 3.0f;
+
+    vec3 Interpolated = SampleLPVColor(vec3(W0.x, W0.y, W0.z) + Dither * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W0.z) - Dither * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W0.z) + Dither * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W0.z) - Dither * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W1.z) + Dither * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W1.z) - Dither * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W1.z) + Dither * DitherWeights[3] * GlobalDitherNoiseWeight)
+		   + SampleLPVColor(vec3(W0.x, W0.y, W1.z) - Dither * DitherWeights[3] * GlobalDitherNoiseWeight);
+	return max((Interpolated / 8.0), 0.00000001f);
 }
 
 
@@ -1439,7 +1280,8 @@ float InterpLPVDensity(vec3 UV)
 
 vec3 GetSmoothLPVData(vec3 UV) {    
     UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
-    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
+    //return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
+    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorDithered(UV),vec3(1.0f/1.8f))*2.0f;
 }
 
 vec3 GetSmoothLPVDensity(vec3 UV) {    

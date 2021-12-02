@@ -78,7 +78,7 @@ static bool LightListDebug = false;
 
 static bool HejlBurgessTonemap = false;
 
-static float TextureDesatAmount = 0.1f;
+static float TextureDesatAmount = 0.05f;
 static bool PreTemporalSpatialPass = true;
 static float PurkingeEffectStrength = 0.0f;
 static int SelectedColorGradingLUT = -1;
@@ -98,7 +98,7 @@ static int RenderDistance = 350;
 
 static bool REFLECT_PLAYER = false;
 
-static bool DENOISE_REFLECTION_HIT_DATA = false;
+static bool DENOISE_REFLECTION_HIT_DATA = true;
 
 static bool SVGF_LARGE_KERNEL = false;
 
@@ -136,7 +136,6 @@ static float CloudDetailScale = 1.1f;
 static float CloudErosionWeightExponent = 0.56f;
 static float CloudDetailFBMPower = 1.125f;
 static bool CloudDetailWeightEnabled = false;
-static bool CloudHighQuality = false;
 static bool ClampCloudTemporal = false;
 static glm::vec2 CloudModifiers = glm::vec2(-0.950, 0.1250f); 
 static bool CurlNoiseOffset = false;
@@ -147,12 +146,13 @@ static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
 static bool CloudCheckerStepCount = false;
 static bool CloudLODLighting = true;
 static bool CloudForceSupersample = true;
-static float CloudForceSupersampleRes = 0.83f;
+static float CloudForceSupersampleRes = 1.0f;
 static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
 static bool CloudSpatialUpscale = true;
 static bool CloudFinalCatmullromUpsample = false;
 static float CloudAmbientDensityMultiplier = 1.2f;
+static float CloudThiccness = 1450.0f;
 
 //
 
@@ -181,6 +181,7 @@ static float ReflectionSuperSampleResolution = 0.250f;
 
 
 static float SSAOResolution = 0.35f;
+static float SSAOStrength = 0.325f;
 static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
 
@@ -231,6 +232,8 @@ static bool LensFlare = false;
 static bool SSAO = false;
 static bool RTAO = false;
 static bool POM = false;
+static float POMHeight = 1.0f;
+static bool DitherPOM = false;
 static bool HighQualityPOM = false;
 
 //static bool CheckerboardClouds = true;
@@ -265,6 +268,20 @@ float VoxelRT_VolumeMultiplier = 1.0f;
 static float DeltaSum = 0.0f;
 
 static float PointVolumetricsScale = 0.2f; // 1/25 the pixels
+
+std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
+
+	std::array<glm::mat4, 6> view_matrices = {
+		glm::lookAt(center, center + glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(center, center + glm::vec3(-1.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(center, center + glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+		glm::lookAt(center, center + glm::vec3(0.0f,-1.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+		glm::lookAt(center, center + glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+		glm::lookAt(center, center + glm::vec3(0.0f, 0.0f,-1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+	};
+
+	return view_matrices;
+}
 
 class RayTracerApp : public VoxelRT::Application
 {
@@ -500,7 +517,8 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
 			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
-			ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
+			ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
+			//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
 			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
 			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
@@ -542,12 +560,15 @@ public:
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
-			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 0.9f);
+			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 1.0f);
+			ImGui::SliderFloat("SSAO Strength", &SSAOStrength, 0.1f, 2.0f);
 			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
 			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
+			ImGui::Checkbox("Dither POM?", &DitherPOM);
+			ImGui::SliderFloat("POM Depth", &POMHeight, 0.0f, 3.0f);
 		} ImGui::End();
 
 		if (LightListDebug) {
@@ -777,8 +798,6 @@ public:
 
 GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
-
-
 
 
 GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
@@ -1313,7 +1332,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VoxelRT::Logger::Log("Recompiled!");
 		}
 
-		if (UpdatePlayerCollision && app.GetCurrentFrame() > 4) {
+		if (UpdatePlayerCollision && app.GetCurrentFrame() > 6) {
 			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
 		}
 
@@ -1333,12 +1352,45 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
+		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0f;
 
-		if (app.GetCurrentFrame() % 4 == 0)
+
+		if (app.GetCurrentFrame() % 6 == 0 || app.GetCurrentFrame() < 8)
 		{
 			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
 		}
 
+
+		// Render clouds to equiangular map once
+		// Updates are done through reprojection
+		if (app.GetCurrentFrame() == 4) {
+
+			// Cube views ->
+			glm::vec3 VirtualCenter = glm::vec3(384.0f / 2.0f, 50.0, 384.0f / 2.0f);
+			auto Matrices = GetMatrices(VirtualCenter);
+			glm::mat4 VirtualProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 600.0f);
+
+			// Render clouds for the entire cubemap ->
+			for (int i = 0; i < 6; i++) {
+
+				glm::mat4 ViewMatrixCube = Matrices[i];
+
+
+				GLuint CloudFramebuffer = Clouds::CloudRenderer::Update(VirtualProjection, ViewMatrixCube, VirtualProjection, ViewMatrixCube, VirtualCenter,
+					VirtualCenter, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
+					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
+					CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale, CloudDetailWeightEnabled ? 1.0f : 0.0f, CloudErosionWeightExponent),
+					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, glm::ivec3(768, 64, 32), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
+					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true);
+
+
+				glBindFramebuffer(GL_FRAMEBUFFER, CloudFramebuffer);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+		}
+
+
+		// GBuffer ->
 		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
 			ModifiedWorld || JitterSceneForTAA)
 		{
@@ -1420,7 +1472,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetFloat("u_Time", glfwGetTime() * 1.2f);
 		DiffuseTraceShader.SetFloat("u_DiffuseLightIntensity", DiffuseLightIntensity);
 
-		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0f;
 		
 		if (app.GetCurrentFrame() % 100 == 0) {
 			std::cout << "\nSUN VISIBILITY : " << sun_visibility;
@@ -2295,7 +2346,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 			// denoise the hit distance 
 			if (DENOISE_REFLECTION_HIT_DATA)
 			{
-				if (app.GetCurrentFrame() % 4 == 0) { std::cout << "\ndenoised hit data\n"; }
+				if (app.GetCurrentFrame() % 16 == 0) { std::cout << "\ndenoised hit data\n"; }
+
+
+				// 1st spatial pass ->
+
+				// non-conservative, step size = 2
 
 				ReflectionHitDataDenoised.Bind();
 				BilateralHitDist_1.Use();
@@ -2317,6 +2373,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 				// 2nd spatial pass :-
+				// step size = 4
 
 				ReflectionTraceFBO.Bind();
 				BilateralHitDist_2.Use();
@@ -2337,7 +2394,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		// Temporally filter it
-		if (RoughReflections)
+		//if (RoughReflections)
 		{
 			ReflectionTemporalFBO.Bind();
 			SpecularTemporalFilter.Use();
@@ -2654,19 +2711,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 		{
 			bool UpdateCloudProjection = (CloudReflections) || app.GetCurrentFrame() % 2 == 0;
 
-			CloudData = Clouds::CloudRenderer::Update(MainCamera, PreviousProjection,
+			CloudData = Clouds::CloudRenderer::Update(MainCamera.GetProjectionMatrix(), MainCamera.GetViewMatrix(), PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
 				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), 
 				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, 
-				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection);
+				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection, CloudThiccness, CloudDetailScale, false);
 
-			//Clouds::CloudRenderer::SetChecker(CheckerboardClouds);
+
+
 			Clouds::CloudRenderer::SetCoverage(CloudCoverage);
-			Clouds::CloudRenderer::SetBayer(CloudBayer);
-			Clouds::CloudRenderer::SetDetailContribution(CloudDetailScale);
-			Clouds::CloudRenderer::SetQuality(CloudHighQuality);
 			Clouds::CloudRenderer::SetResolution(CloudResolution);
 		}
 
@@ -2705,6 +2760,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		ColorShader.SetInteger("u_LPVLightLevel", 20);
 		ColorShader.SetInteger("u_LPVColorData", 21);
+		ColorShader.SetInteger("u_BlueNoiseHighRes", 23);
 		ColorShader.SetInteger("u_LPVDebugState", LPVDebugState);
 
 		ColorShader.SetInteger("u_ContactHardeningShadows", SoftShadows);
@@ -2723,16 +2779,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
-		ColorShader.SetFloat("u_CloudBoxSize", Clouds::CloudRenderer::GetBoxSize());
 		ColorShader.SetFloat("u_SunStrengthModifier", SunStrengthModifier);
 		ColorShader.SetFloat("u_MoonStrengthModifier", MoonStrengthModifier);
 		ColorShader.SetFloat("u_TextureDesatAmount", TextureDesatAmount);
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
 		ColorShader.SetBool("u_POM", POM);
+		ColorShader.SetFloat("u_POMHeight", POMHeight);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
 		ColorShader.SetBool("u_RemoveTiling", RemoveTiling);
 		ColorShader.SetBool("u_RTAO", RTAO);
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
+		ColorShader.SetBool("u_DitherPOM", DitherPOM);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
 		ColorShader.SetBool("u_DEBUGDiffuseGI", DEBUGTraceLevel==1);
@@ -2742,6 +2799,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_InferSpecularDetailSpatially", InferSpecularDetailSpatially);
 		ColorShader.SetBool("u_CloudCatmullRomUpsampling", CloudFinalCatmullromUpsample);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
+		ColorShader.SetVector2f("u_Halton", GetTAAJitterSecondary(app.GetCurrentFrame()));
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetInteger("u_DebugTexture", 22);
@@ -2809,9 +2867,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		//glBindTexture(GL_TEXTURE_2D, DiffuseTraceFBO.GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE16);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTraceFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTemporalFBO.GetTexture());
 		glActiveTexture(GL_TEXTURE17);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionTraceFBO.GetTexture(1));
+		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionTemporalFBO.GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE18);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(3));
@@ -2826,8 +2884,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetColorVolume());
 		
 
+	    
 		glActiveTexture(GL_TEXTURE22);
 		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
+		//glBindTexture(GL_TEXTURE_2D, DiffuseRawTraceFBO.GetTexture(4));
+
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_2D, BluenoiseHighResTexture.GetTextureID());
 
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
@@ -2854,10 +2917,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);
 		TemporalAAShader.SetMatrix4("u_InversePrevProjection", glm::inverse(PreviousProjection));
 		TemporalAAShader.SetMatrix4("u_InversePrevView", glm::inverse(PreviousView));
+
 		TemporalAAShader.SetMatrix4("u_VertInverseView", inv_view);
 		TemporalAAShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 		TemporalAAShader.SetMatrix4("u_InverseView", inv_view);
 		TemporalAAShader.SetMatrix4("u_InverseProjection", inv_projection);
+		TemporalAAShader.SetMatrix4("u_View", MainCamera.GetViewMatrix());
+		TemporalAAShader.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
+
+		TemporalAAShader.SetVector3f("u_CameraHistory[0]", MainCamera.GetPosition());
+		TemporalAAShader.SetVector3f("u_CameraHistory[1]", PreviousPosition);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
@@ -2894,6 +2963,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SSAOShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 			SSAOShader.SetVector2f("u_Dimensions", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
 			SSAOShader.SetFloat("u_Time", glfwGetTime());
+			SSAOShader.SetFloat("u_SSAOStrength", SSAOStrength);
 			SSAOShader.SetMatrix4("u_VertInverseView", inv_view);
 			SSAOShader.SetMatrix4("u_VertInverseProjection", inv_projection);
 
@@ -3223,6 +3293,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
+		PostProcessingShader.SetInteger("u_Clouds", 20);
 
 		PostProcessingShader.SetMatrix4("u_VertInverseView", inv_view);
 		PostProcessingShader.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -3298,6 +3369,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE19);
 		glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
+
+		glActiveTexture(GL_TEXTURE20);
+		glBindTexture(GL_TEXTURE_2D, CloudData);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

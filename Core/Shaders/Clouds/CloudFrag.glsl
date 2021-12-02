@@ -71,12 +71,14 @@ uniform vec2 u_JitterValue;
 uniform float u_TimeScale = 1.0f;
 
 uniform bool u_HighQualityClouds;
+uniform bool u_InitialEquiangularRender;
 uniform bool u_CurlNoiseOffset;
 
 uniform vec3 u_StepCounts;
 uniform bool CHECKER_STEP_COUNT;
 
 uniform float u_SunVisibility;
+uniform float CloudThickness = 1250.0f;
 
 vec2 g_TexCoords;
 
@@ -94,8 +96,12 @@ const float PlanetRadius = 6371e3;
 const float AtmosphereRadius = 6471e3;
 
 const float CloudAltitudeMin = 1500.0f;
-const float CloudThickness = 1600.0f;
-const float CloudAltitudeMax = CloudAltitudeMin + CloudThickness;
+float CloudAltitudeMax = CloudAltitudeMin + CloudThickness;
+
+
+// Integrate Bounced sunlight?
+bool DO_BOUNCED_LIGHTING = false;
+
 
 // Ray struct 
 struct Ray
@@ -337,11 +343,15 @@ float RaymarchAmbient(vec3 Point)
 		Point += Direction * RayLength;
     }
 
-    return Accum * 0.1f;
+    return Accum * 0.0750f;
 }
 
 float RaymarchBounced(vec3 Point)
 {
+	if (!DO_BOUNCED_LIGHTING) {
+		return 0.001f;
+	}
+
 	const vec3 Direction = normalize(vec3(0.0f, -1.0f, 0.0f));
 	float RayLength = 22.0f;
     float Accum = 0.0f;
@@ -459,6 +469,8 @@ vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittanc
 
 	vec3 IntegratedScattering = vec3(0.0f);
 
+	float TransmittanceIndirectBounced = DO_BOUNCED_LIGHTING ? exp(-MarchTransmittance.z) : 1.0f;
+
 	// Account for multiple scattering ->
 	// Artificially lower the extinction coefficient (Used a summation of multiple scales)
 
@@ -476,7 +488,7 @@ vec3 ComputeScattering(vec3 Point, float DensitySample, float SampleTransmittanc
 		// Weight transmittance by scatter weights ->
 		float dTransmittance = sTransmittance * exp(-MarchTransmittance.x * Kernel.y);
 		float idTransmittance = sTransmittance * exp(-MarchTransmittance.y * Kernel.y);
-		float sidTransmittance = sTransmittance * exp(-MarchTransmittance.z);
+		float sidTransmittance = sTransmittance * TransmittanceIndirectBounced;
 
 		// henyey greenstein phase ->
 		vec2 PhaseFunctions;
@@ -508,6 +520,10 @@ vec3 ComputeRayDirection()
 
 bool SampleValid(in vec2 txc)
 {
+	if (u_InitialEquiangularRender) {
+		return true;
+	}
+
 	ivec2 basecoord = ivec2(floor(txc*textureSize(u_PositionTex,0).xy));
 
     for (int x = -1 ; x <= 1 ; x++)
@@ -753,7 +769,7 @@ void main()
 	g_TexCoords = v_TexCoords;
 
 	// For temporal super sampling ->
-	g_TexCoords += (u_JitterValue*3.0f) / u_Dimensions;
+	g_TexCoords += (u_JitterValue*2.0f) / u_Dimensions;
 	
 	
 	// Bayer ->
@@ -876,7 +892,7 @@ void main()
 		// Ray march ->
 		float DirectDensity = RaymarchLight(RayPosition) * 1.42069f;
 		float IndirectDensity = u_AmbientDensityMultiplier > 0.01 ? RaymarchAmbient(RayPosition) * 1.96969420f * u_AmbientDensityMultiplier : 0.0f;
-		float IndirectSecondBounceDensity = u_AmbientDensityMultiplier > 0.01 ? RaymarchBounced(RayPosition) * 0.5f * u_AmbientDensityMultiplier : 0.0f; 
+		float IndirectSecondBounceDensity = RaymarchBounced(RayPosition) * 0.1f * u_AmbientDensityMultiplier; 
 
 		vec3 ScatterAtPoint = ComputeScattering(RayPosition, DensityAtPosition, CurrentTransmittance, Transmittance, CosTheta, vec3(DirectDensity, IndirectDensity, IndirectSecondBounceDensity));
 
@@ -897,11 +913,27 @@ void main()
 	vec3 TotalScattering = vec3(0.0f);
 	TotalScattering += IntegratedScattering.x * SunColor;
 	TotalScattering += IntegratedScattering.y * SkyColor;
-	TotalScattering += IntegratedScattering.z * SunColor * clamp(CosTheta.z,0.0f,1.0f) * (1.0f / PI) * 0.5f;
+
+	// Indirect bounced ->
+
+	// Multiply by direct phase and divide by pi ->
+
+	if (DO_BOUNCED_LIGHTING) {
+		float RadianceBounced = IntegratedScattering.z;
+		float BouncedPhase = pow(phase2lobes(CosTheta.x) * 4.0f, 4.0f);
+		BouncedPhase = clamp(BouncedPhase, 0.2f, 1.0f);
+		BouncedPhase = saturate(BouncedPhase);
+		TotalScattering += RadianceBounced * 0.8f * (1.0 / (pi)) * BouncedPhase * 1.01f;
+	}
 
 
+
+
+	// Output transmittance ->
 	float FinalTransmittance = 1.0f;
 	FinalTransmittance *= Transmittance;
+
+
 
 	// Cirrus -> 
 
@@ -924,7 +956,9 @@ void main()
 	vec4 FinalData = vec4(TotalScattering, FinalTransmittance);
 	
 	// Fade ->
-	if (DoFade) 
+
+
+	if (DoFade && !u_InitialEquiangularRender) 
 	{
 		float Fade = 1.0f-(exp(-(SphereMin.y/15000.0f)));
 		Fade = clamp(Fade, 0.0f, 1.0f);
