@@ -3,7 +3,7 @@
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Utility;
-layout (location = 3) out float o_AO;
+layout (location = 3) out vec2 o_AOSky;
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -107,7 +107,7 @@ void main()
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
 	vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
 	float BaseLuminance = SHToY(BaseSH);
-	float BaseAO = texture(u_AO, v_TexCoords).r;
+	vec2 BaseAOSky = texture(u_AO, v_TexCoords).xy;
 	float BaseUtility = texture(u_Utility, v_TexCoords).x;
 
 	// Start with the base inputs, one iteration of the loop can then be skipped
@@ -115,7 +115,7 @@ void main()
 	vec2 TotalCoCg = BaseCoCg;
 	//float LumaTotal = BaseUtility;
 	float TotalWeight = 1.0f;
-	float TotalAO = BaseAO;
+	vec2 TotalAOSky = BaseAOSky;
 	float TotalAOWeight = 1.0f;
 	float PhiColor = 4.0f;
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.0f * 1.1f));
@@ -154,7 +154,7 @@ void main()
 				TotalSH += SampleSH * Weight;
 				TotalCoCg += SampleCoCg * Weight;
 				TotalWeight += Weight;
-				TotalAO += texture(u_AO, SampleCoord).x * Weight;
+				TotalAOSky += texture(u_AO, SampleCoord).xy * Weight;
 				TotalAOWeight += Weight;
 			}
 		}
@@ -163,13 +163,13 @@ void main()
 	TotalWeight = max(TotalWeight, 0.01f);
 	TotalSH /= TotalWeight;
 	TotalCoCg /= TotalWeight;
-	TotalAO /= max(TotalAOWeight, 0.01f);
+	TotalAOSky /= max(TotalAOWeight, 0.01f);
 	//LumaTotal /= TotalWeight;
 	
 	// Output : 
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
-	o_AO = TotalAO;
+	o_AOSky = TotalAOSky;
 
 	//o_Utility = LumaTotal;
 	o_Utility = BaseUtility;

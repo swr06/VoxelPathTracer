@@ -34,7 +34,7 @@
 layout (location = 0) out vec4 o_SH; // Projected radiance onto the first 2 spherical harmonics.
 layout (location = 1) out vec2 o_CoCg; // Stores the radiance color data in YCoCg
 layout (location = 2) out float o_Utility; // Using the first SH band to get the luminance is slightly erraneous so I store this. Used as an input for the SVGF denoiser
-layout (location = 3) out float o_AO; // World Space VXAO (Exaggerate AO at edges, many times better than SSAO)
+layout (location = 3) out vec2 o_AOAndSkyLighting; // World Space VXAO (Exaggerate AO at edges, many times better than SSAO) and the amount of skylighting (used for reflection gi + fog)
 
 in vec2 v_TexCoords; // screen space 
 
@@ -603,8 +603,10 @@ vec3 DiffuseRayBRDF(vec3 N, vec3 I, vec3 D, float Roughness)
 
 bool Moonstronger=false;
 
-vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir)
+vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odir, out bool Skyhit)
 {
+	Skyhit = false;
+	
 	float bias = 0.06f;
 	//float LightSamplePDF = 1.0f; // x/lc (where x is a strength value and lc is the light count)
 	//float SamplingPDF = 1.0f;
@@ -698,6 +700,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x);
 			RayContribution += sky * RayThroughput;
 			SummedContribution_t += sky;
+			Skyhit = true;
 			break;
 		}
 
@@ -908,7 +911,7 @@ void main()
 	// 
 
 
-	o_AO = 1.0f;
+	o_AOAndSkyLighting = vec2(1.0f, 0.0f);
 	
 
     #ifdef ANIMATE_NOISE
@@ -954,6 +957,7 @@ void main()
 	vec4 TotalSHy = vec4(0.0f);
 	vec2 CoCg = vec2(0.0f);
 	vec3 radiance = vec3(0.0f);
+	float Skyhits = 0.0f;
 
 	if (Moonstronger) {
 		SPP*=2; // We DONT cast shadow rays if the moon is stronger, so we save two shadow rays per diffuse ray, double the spp to make up for this
@@ -963,9 +967,10 @@ void main()
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		vec3 DirectSampleDir;
+		bool ss=false;
 	    //vec3 DirectSample = DirectSample(Position.xyz, Normal, DirectSampleDir);
 		vec3 d = vec3(0.0f);
-		vec4 x = u_UseDirectSampling ? vec4(DirectSample(Position.xyz, Normal, DirectSampleDir), 1.0f) : CalculateDiffuse(Position.xyz, Normal, d);
+		vec4 x = u_UseDirectSampling ? vec4(DirectSample(Position.xyz, Normal, DirectSampleDir), 1.0f) : CalculateDiffuse(Position.xyz, Normal, d, ss);
 		x.xyz = clamp(x.xyz,0.0f,8.0f);
 
 		radiance += x.xyz;
@@ -975,6 +980,8 @@ void main()
 		float SH[6] = IrridianceToSH(x.xyz, d);
 		TotalSHy += vec4(SH[0], SH[1], SH[2], SH[3]);
 		CoCg += vec2(SH[4], SH[5]);
+
+		Skyhits += float(ss);
 	}
 
 
@@ -982,16 +989,20 @@ void main()
 	TotalSHy /= SPP;
 	CoCg /= SPP;
 	radiance /= SPP;
+	Skyhits /= SPP;
+
+
 	o_SH = TotalSHy;
 	o_CoCg.xy = CoCg;
 	o_Utility = max(GetLuminance(radiance),0.01f);
-	o_AO = AccumulatedAO;
+	o_AOAndSkyLighting.x = AccumulatedAO;
+	o_AOAndSkyLighting.y = Skyhits;
 
 	// Clamp everything
-	o_AO = clamp(o_AO,0.0f,1.0f);
+	o_AOAndSkyLighting = clamp(o_AOAndSkyLighting,0.0f,1.0f);
+
 	o_SH = clamp(o_SH, -100.0f, 100.0f);
 	o_CoCg = clamp(o_CoCg, -100.0f, 100.0f);
-	o_AO = clamp(o_AO, 0.0f, 1.0f);
 	o_Utility = clamp(o_Utility, 0.001f, 64.0f);
 }
 

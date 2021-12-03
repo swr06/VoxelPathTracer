@@ -15,7 +15,7 @@ void main() {
 	float Scale = 2.0f;
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 
-	for (int x = -1 ; x <= 1 ; x++) {
+	for (int x = -2 ; x <= 2 ; x++) {
 		for (int y = -2 ; y <= 2 ; y++) {
 			float DistAt = texture(u_PositionTexture,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
 			float HitDistAt = texture(u_HitDist,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;

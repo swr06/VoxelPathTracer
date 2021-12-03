@@ -12,7 +12,7 @@
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
 layout (location = 2) out float o_Variance;
-layout (location = 3) out float o_AO;
+layout (location = 3) out vec2 o_AOAndSkylighting;
 
 in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
@@ -182,14 +182,14 @@ void main()
 	float BaseLuminance = SHToY(BaseSH);
 	float BaseVariance = 0.0f;
 	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
-	float BaseAO = texture(u_AO, v_TexCoords).r;
+	vec2 BaseAOSky = texture(u_AO, v_TexCoords).rg;
 
 	// Start with the base inputs, one iteration of the loop can then be skipped
 	vec4 TotalSH = BaseSH;
 	vec2 TotalCoCg = BaseCoCg;
 	float TotalWeight = 1.0f;
 	float TotalVariance = BaseVariance;
-	float TotalAO = BaseAO;
+	vec2 TotalAOSky = BaseAOSky;
 	float TotalAOWeight = 1.0f;
 
 	float AccumulatedFrames = texture(u_TemporalMoment, v_TexCoords).x;
@@ -254,12 +254,16 @@ void main()
 				TotalVariance += sqr(Weight) * SampleVariance;
 				TotalWeight += Weight;
 
-				if (FilterAO) 
 				{
 					float CurrAOWeight = 1.0f;
+
 					const float aopow = pow(2.0f, 6.0f);
 					CurrAOWeight = clamp((XWeight * YWeight)*NormalWeight*clamp(pow(1.0f/abs(SamplePosition.w-BasePosition.w),aopow),0.001f,1.0f),0.001f,1.0f);
-					TotalAO += texture(u_AO, SampleCoord).x * CurrAOWeight;
+
+					vec2 AOAndSkySample = texture(u_AO, SampleCoord).xy;
+					TotalAOSky.x += AOAndSkySample.x * CurrAOWeight;
+					TotalAOSky.y += AOAndSkySample.y * CurrAOWeight;
+
 					TotalAOWeight += CurrAOWeight;
 				}
 			}
@@ -269,13 +273,17 @@ void main()
 	TotalSH /= TotalWeight;
 	TotalCoCg /= TotalWeight;
 	TotalVariance /= sqr(TotalWeight);
-	TotalAO /= TotalAOWeight;
+	TotalAOSky /= TotalAOWeight;
 	
 	// Output : 
 	o_SH = TotalSH;
 	o_CoCg = TotalCoCg;
 	o_Variance = TotalVariance;
-	o_AO = TotalAO;
+	o_AOAndSkylighting = TotalAOSky;
+
+	if (!FilterAO) {
+		o_AOAndSkylighting.x = BaseAOSky.x;
+	}
 
 	const bool DontFilter = false;
 
@@ -283,12 +291,12 @@ void main()
 		o_SH = BaseSH;
 		o_CoCg = BaseCoCg;
 		o_Variance = BaseVariance;
-		o_AO = BaseAO;
+		o_AOAndSkylighting = BaseAOSky;
 	}
 
     // clamp
 	o_SH = clamp(o_SH, -100.0f, 100.0f);
 	o_CoCg = clamp(o_CoCg, -10.0f, 100.0f);
 	o_Variance = clamp(o_Variance, -1.0f, 50.0f);
-	o_AO = clamp(o_AO, 0.0f, 1.0f);
+	o_AOAndSkylighting = clamp(o_AOAndSkylighting, 0.0f, 1.0f);
 }

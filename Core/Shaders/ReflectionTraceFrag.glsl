@@ -8,10 +8,25 @@
 //#define DERIVE_FROM_DIFFUSE_SH
 
 #define REPROJECT_TO_SCREEN_SPACE
+#define TRACE_LENGTH 64
 
 
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
+
+float bayer2(vec2 a){
+    a = floor(a);
+    return fract(dot(a, vec2(0.5, a.y * 0.75)));
+}
+
+#define bayer4(a)   (bayer2(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a)   (bayer4(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer16(a)  (bayer8(  0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer32(a)  (bayer16( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer64(a)  (bayer32( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer128(a) (bayer64( 0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
+
 
 layout (location = 0) out vec4 o_SH;
 layout (location = 1) out vec2 o_CoCg;
@@ -92,6 +107,10 @@ uniform int u_CurrentFrameMod128;
 uniform bool TEMPORAL_SPEC=false;
 uniform bool u_ReflectPlayer;
 
+// LPVGI
+uniform bool u_LPVGI;
+uniform bool u_QualityLPVGI;
+
 uniform vec2 u_Halton;
 
 
@@ -110,6 +129,38 @@ layout (std430, binding = 2) buffer BlueNoise_Data
 	int scramblingTile[128*128*8];
 	int rankingTile[128*128*8];
 };
+
+
+layout (std430, binding = 4) buffer SSBO_BlockAverageData
+{
+    vec4 BlockAverageColorData[128]; // Returns the average color per block type 
+};
+
+const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
+const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
+vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
+vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
+vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
+const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+
+		
+// Function prototypes
+void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
+float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
+float GetVoxel(ivec3 loc);
+float GetShadowAt(in vec3 pos, in vec3 ldir);
+void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
+
+
+float Luma(vec3 x) { return dot(x, vec3(0.2125, 0.7154, 0.0721)); }
+
 
 
 float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
@@ -135,77 +186,6 @@ float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec
 	// convert to float and return
 	float v = (0.5f+value)/256.0f;
 	return v;
-}
-
-		
-// Function prototypes
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
-float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
-float GetVoxel(ivec3 loc);
-float GetShadowAt(in vec3 pos, in vec3 ldir);
-void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
-
-int MIN = -2147483648;
-int MAX = 2147483647;
-int RNG_SEED;
-
-int xorshift(in int value) 
-{
-    // Xorshift*32
-    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
-    value ^= value << 13;
-    value ^= value >> 17;
-    value ^= value << 5;
-    return value;
-}
-
-int nextInt(inout int seed) 
-{
-    seed = xorshift(seed);
-    return seed;
-}
-
-float nextFloat(inout int seed) 
-{
-    seed = xorshift(seed);
-    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
-    return abs(fract(float(seed) / 3141.592653));
-}
-
-float nextFloat(inout int seed, in float max) 
-{
-    return nextFloat(seed) * max;
-}
-
-float nextFloat(inout int seed, in float min, in float max) 
-{
-    return min + (max - min) * nextFloat(seed);
-}
-
-bool PointIsInSphere(vec3 point, float radius)
-{
-	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
-}
-
-vec3 RandomPointInUnitSphereRejective()
-{
-	float x, y, z;
-	const int accuracy = 10;
-
-	for (int i = 0 ; i < clamp(accuracy, 2, 40); i++)
-	{
-		x = nextFloat(RNG_SEED, -1.0f, 1.0f);
-		y = nextFloat(RNG_SEED, -1.0f, 1.0f);
-		z = nextFloat(RNG_SEED, -1.0f, 1.0f);
-
-		if (PointIsInSphere(vec3(x, y, z), 1.0f))
-		{
-			return vec3(x, y, z);
-		}
-	}
-
-	return vec3(x, y, z);
 }
 
 float ndfGGX(float cosLh, float roughness)
@@ -281,21 +261,6 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
-// used to test a low discrepancy sequence
-float RadicalInverse_VdC(uint bits) 
-{
-     bits = (bits << 16u) | (bits >> 16u);
-     bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-     bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-     bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-     bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-     return float(bits) * 2.3283064365386963e-10; // / 0x100000000
-}
-
-vec2 Hammersley(uint i, uint N)
-{
-	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
-}
 
 vec4 TextureSmooth(sampler2D samp, vec2 uv) 
 {
@@ -338,6 +303,8 @@ vec2 ProjectDirection(vec3 Direction, vec2 TextureSize)
 	return CurrentCoordinate / max(TextureSize, 0.01f);
 }
 
+vec3 SkyAmbientG = vec3(0.0f);
+
 vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
 {
 	if (!u_CloudReflections) {
@@ -353,13 +320,12 @@ vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
 
 	float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
     vec3 ScatterColor = mix(vec3(1.0f) + 0.001f, (vec3(46.0f, 142.0f, 300.0f) / 255.0f) * 0.325f, SunVisibility); 
+	vec3 SkyAmbient = pow(max(SkyAmbientG, 0.45f), vec3(1.25f)) * 1.75f;
 	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
-	vec3 Return = Sky * max(0.1f, CloudFetch.w) + (CloudFetch.xyz * ScatterColor * 1.1f);
+	vec3 Return = Sky * max(0.5f, CloudFetch.w) + clamp((CloudFetch.xyz * ScatterColor * vec3(0.8f, 0.8f, 1.0f) * SkyAmbient * 1.2f), 0.0f, 1.0f);
 	return Return;
 }	
 
-const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
-const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
 
 void GetAtmosphere(inout vec3 Out, in vec3 V)
 {
@@ -371,16 +337,6 @@ void GetAtmosphere(inout vec3 Out, in vec3 V)
     Out = SampledSky;
 }
 
-vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
-vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
-vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
-
-const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
@@ -504,8 +460,8 @@ vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool
     PositionAt = GetPositionAt(u_PositionTexture, ProjectedPosition.xy);
     vec3 NormalAt = SampleNormalFromTex(u_InitialTraceNormalTexture, ProjectedPosition.xy).xyz;
     vec3 PositionDifference = abs(PositionAt.xyz - HitPosition.xyz);
-    float Error = dot(PositionDifference, PositionDifference) ;
-    Success = Error < 0.085f && NormalAt == HitNormal && InThresholdedScreenSpace(ProjectedPosition.xy);
+    float Error = dot(PositionDifference, PositionDifference);
+    Success = Error < 0.095f && NormalAt == HitNormal && InThresholdedScreenSpace(ProjectedPosition.xy);
     return ProjectedPosition.xy;
 }
 
@@ -557,14 +513,46 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 	return BestDirection;
 }
 
+bool SunStronger;
+
+vec3 SampleLPVData(vec3 UV);
+
+
+// Samples LPV for GI
+vec3 SampleLPV(vec3 P, vec3 B)
+{
+	vec3 Sky = SkyAmbientG; 
+	float L = dot(Sky, vec3(0.2125, 0.7154, 0.0721));
+
+	// Fake it till you make it sky gi
+
+	// Fake desat ->
+	Sky = mix(vec3(L), Sky, SunStronger ? 0.3f : 0.6f); 
+	vec3 Skylighting = texture(u_IndirectAO, v_TexCoords).y * (SunStronger ? 3.5f : 4.0f) * Sky; // The y component of the ao texture contains the amount of skylight
+	Skylighting += bayer16(gl_FragCoord.xy)/128.0f;
+	Skylighting = clamp(Skylighting, vec3(0.0f), B + vec3(0.075f));
+
+	vec3 LPV = SampleLPVData(P);
+	return Skylighting + LPV;
+}
+
+vec3 LPVDither = vec3(0.0f);
+
 
 void main()
 {
+	SkyAmbientG = texture(u_Skymap, vec3(0.0f, 1.0f, 0.0f)).xyz;
+
+	LPVDither = vec3(bayer32(gl_FragCoord.xy+vec2(u_CurrentFrame*0.75,u_CurrentFrame*0.5)*float(u_TemporalFilterReflections))); //texture(u_BlueNoiseHighRes, (g_TexCoords * 0.5f * (u_Dimensions / vec2(textureSize(u_BlueNoiseHighRes,0).xy)))).xyz;
+    const vec3 VolumeResolution = vec3(384.0f, 128.0f, 384.0f);
+    LPVDither /= VolumeResolution;
+
+
 	float TIME = TEMPORAL_SPEC ? u_Time : 1.0f;
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(TIME) * 200));
-	RNG_SEED ^= RNG_SEED << 13;
-    RNG_SEED ^= RNG_SEED >> 17;
-    RNG_SEED ^= RNG_SEED << 5;
+	//RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(TIME) * 200));
+	//RNG_SEED ^= RNG_SEED << 13;
+    //RNG_SEED ^= RNG_SEED >> 17;
+    //RNG_SEED ^= RNG_SEED << 5;
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(TIME) * 100.0f;
 
@@ -587,7 +575,7 @@ void main()
 	// Jitter ->
 	vec2 g_TexCoords = v_TexCoords;
 	vec2 Jitter = u_Halton;
-	Jitter = clamp(Jitter * 1.0f, -8.0f, 8.0f);
+	Jitter = clamp(Jitter * 1.0f, -2.0f, 2.0f);
 	vec2 JitteredUV = g_TexCoords + ((Jitter / u_Dimensions) * float(u_TemporalFilterReflections));
 	//float JitteredGBuffer = texelFetch(u_PositionTexture, ivec2(JitteredUV * textureSize(u_PositionTexture, 0)), 0).x;
 	if (true) {
@@ -650,6 +638,7 @@ void main()
 	float AveragedHitDistance = 0.001f;
 	float TotalMeaningfulHits = 0.0f;
 	
+	SunStronger = u_StrongerLightDirection == u_SunDirection;
 	
 
 	float EmissivityMask = 0.0f;
@@ -688,11 +677,13 @@ void main()
 
 		if (T > 0.0f)
 		{
-			vec3 Ambient = BaseIndirectDiffuse;
 			bool ReprojectionSuccessful = false;
 			vec2 ScreenSpaceReprojected = vec2(-1.0f);
 			
 			// Reproject to screen space !
+
+			vec3 Ambient = BaseIndirectDiffuse;
+			bool UseLPVGI = false;
 
 			if (u_ReprojectToScreenSpace) {
 				vec4 ReprojectedWorldPos;
@@ -709,7 +700,14 @@ void main()
 						}
 					}
 				} 
+
+
 			}
+
+			if (u_LPVGI && !ReprojectionSuccessful) {
+				Ambient = SampleLPV(HitPosition+Normal*0.5f, BaseIndirectDiffuse);
+			}
+
 
 			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
 			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
@@ -750,7 +748,6 @@ void main()
 			TBN = mat3((Tangent), (Bitangent), (Normal));
 
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
-			bool SunStronger = u_StrongerLightDirection == u_SunDirection;
 			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR * 0.7500f; 
 				
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
@@ -932,7 +929,7 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	ivec3 RaySign = ivec3(sign(direction));
 
 	int itr = 0;
-	int sz = shadow ? 150 : 50;
+	int sz = shadow ? 150 : TRACE_LENGTH;
 
 	for (itr = 0 ; itr < sz ; itr++)
 	{
@@ -1038,22 +1035,6 @@ bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 	vec3 VP = u_ViewerPosition + vec3(-x, -x, +x);
     float t = capIntersect(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
     return t > 0.0f;
-}
-
-// Basic triplanar uv mapping ->
-vec3 TriplanarPlayerSprite(vec3 p, vec3 n)
-{
-	float TextureScale = 3.0f;
-	vec2 yUV = p.xz / TextureScale;
-	vec2 xUV = p.zy / TextureScale;
-	vec2 zUV = p.xy / TextureScale;
-	vec3 yDiff = texture(u_PlayerSprite, yUV).rgb;
-	vec3 xDiff = texture(u_PlayerSprite, xUV).rgb;
-	vec3 zDiff = texture(u_PlayerSprite, zUV).rgb;
-	vec3 blendWeights = pow(abs(n), vec3(4.0f));
-	blendWeights = blendWeights / (blendWeights.x + blendWeights.y + blendWeights.z);
-	vec3 res = xDiff * blendWeights.x + yDiff * blendWeights.y + zDiff * blendWeights.z;
-	return res;
 }
 
 void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t)
@@ -1201,6 +1182,110 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
     {
         uv = vec2(fract(world_pos.xy));
     }
+}
+
+vec3 SampleLPVColor(vec3 UV) {
+    uint BlockID = texture(u_LPVBlocks, UV).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+}   
+
+
+vec3 InterpolateLPVColorDithered(vec3 UV) 
+{ 
+    const vec3 VolumeResolution = vec3(384.0f, 128.0f, 384.0f);
+    vec3 FractTexel = fract(UV * VolumeResolution);
+    vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / VolumeResolution;
+    vec3 W0 = UV - LinearOffset;
+    vec3 W1 = UV + LinearOffset;
+    const float DitherWeights[4] = float[4](1.0f, 1.0, 1.0f, 1.0f);
+    const float GlobalDitherNoiseWeight = 2.0f;
+
+    vec3 Interpolated = SampleLPVColor(vec3(W0.x, W0.y, W0.z) + LPVDither * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W0.z) - LPVDither * DitherWeights[0] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W0.z) + LPVDither * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W0.z) - LPVDither * DitherWeights[1] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W0.x, W1.y, W1.z) + LPVDither * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W1.y, W1.z) - LPVDither * DitherWeights[2] * GlobalDitherNoiseWeight)
+    	   + SampleLPVColor(vec3(W1.x, W0.y, W1.z) + LPVDither * DitherWeights[3] * GlobalDitherNoiseWeight)
+		   + SampleLPVColor(vec3(W0.x, W0.y, W1.z) - LPVDither * DitherWeights[3] * GlobalDitherNoiseWeight);
+	return max((Interpolated / 8.0), 0.00000001f);
+}
+
+vec3 SampleLPVColorTexel(ivec3 Texel, int L) {
+    uint BlockID = texelFetch(u_LPVBlocks, Texel, 0).x;
+    return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
+
+}   
+
+// Ground truth triquadratic interpolation, only here for experimentation mostly
+vec3 InterpolateLPVColorData(vec3 uv)
+{
+    vec3 res = vec3(384.0f, 128.0f, 384.0f);
+    vec3 q = fract(uv * res);
+    ivec3 t = ivec3(uv * res);
+    ivec3 e = ivec3(-1, 0, 1);
+    vec3 q0 = (q+1.0)/2.0;
+    vec3 q1 = q/2.0;	
+    vec3 s000 = SampleLPVColorTexel(t + e.xxx, 0);
+    vec3 s001 = SampleLPVColorTexel(t + e.xxy, 0);
+    vec3 s002 = SampleLPVColorTexel(t + e.xxz, 0);
+    vec3 s012 = SampleLPVColorTexel(t + e.xyz, 0);
+    vec3 s011 = SampleLPVColorTexel(t + e.xyy, 0);
+    vec3 s010 = SampleLPVColorTexel(t + e.xyx, 0);
+    vec3 s020 = SampleLPVColorTexel(t + e.xzx, 0);
+    vec3 s021 = SampleLPVColorTexel(t + e.xzy, 0);
+    vec3 s022 = SampleLPVColorTexel(t + e.xzz, 0);
+    vec3 y00 = mix(mix(s000, s001, q0.z), mix(s001, s002, q1.z), q.z);
+    vec3 y01 = mix(mix(s010, s011, q0.z), mix(s011, s012, q1.z), q.z);
+    vec3 y02 = mix(mix(s020, s021, q0.z), mix(s021, s022, q1.z), q.z);
+	vec3 x0 = mix(mix(y00, y01, q0.y), mix(y01, y02, q1.y), q.y);
+    vec3 s122 = SampleLPVColorTexel(t + e.yzz, 0);
+    vec3 s121 = SampleLPVColorTexel(t + e.yzy, 0);
+    vec3 s120 = SampleLPVColorTexel(t + e.yzx, 0);
+    vec3 s110 = SampleLPVColorTexel(t + e.yyx, 0);
+    vec3 s111 = SampleLPVColorTexel(t + e.yyy, 0);
+    vec3 s112 = SampleLPVColorTexel(t + e.yyz, 0);
+    vec3 s102 = SampleLPVColorTexel(t + e.yxz, 0);
+    vec3 s101 = SampleLPVColorTexel(t + e.yxy, 0);
+    vec3 s100 = SampleLPVColorTexel(t + e.yxx, 0);
+    vec3 y10 = mix(mix(s100, s101, q0.z), mix(s101, s102, q1.z), q.z);
+    vec3 y11 = mix(mix(s110, s111, q0.z), mix(s111, s112, q1.z), q.z);
+    vec3 y12 = mix(mix(s120, s121, q0.z), mix(s121, s122, q1.z), q.z);
+    vec3 x1 = mix(mix(y10, y11, q0.y), mix(y11, y12, q1.y), q.y);
+    vec3 s200 = SampleLPVColorTexel(t + e.zxx, 0);
+    vec3 s201 = SampleLPVColorTexel(t + e.zxy, 0);
+    vec3 s202 = SampleLPVColorTexel(t + e.zxz, 0);
+    vec3 s212 = SampleLPVColorTexel(t + e.zyz, 0);
+    vec3 s211 = SampleLPVColorTexel(t + e.zyy, 0);
+    vec3 s210 = SampleLPVColorTexel(t + e.zyx, 0);
+    vec3 s220 = SampleLPVColorTexel(t + e.zzx, 0);
+    vec3 s221 = SampleLPVColorTexel(t + e.zzy, 0);
+    vec3 s222 = SampleLPVColorTexel(t + e.zzz, 0);
+    vec3 y20 = mix(mix(s200, s201, q0.z), mix(s201, s202, q1.z), q.z);
+    vec3 y21 = mix(mix(s210, s211, q0.z), mix(s211, s212, q1.z), q.z);
+    vec3 y22 = mix(mix(s220, s221, q0.z), mix(s221, s222, q1.z), q.z);
+    vec3 x2 = mix(mix(y20, y21, q0.y), mix(y21, y22, q1.y), q.y);
+    return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
+}
+
+
+vec3 SampleLPVData(vec3 UV)
+{    
+    UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
+	float level = texture(u_LPV, UV).x;
+	vec3 InterpolatedColor = vec3(0.0f);
+
+	if (!u_QualityLPVGI) {
+		InterpolatedColor = InterpolateLPVColorDithered(UV);
+	}
+
+	else {
+		InterpolatedColor = InterpolateLPVColorData(UV);
+	}
+
+	vec3 FinalInterpolated = vec3(level*100.0f)*pow(pow(InterpolatedColor,vec3(1.0f/2.0f)),vec3(1.0f,1.0f,1.0f/1.40f))*2.0f*vec3(1.,1.,0.9);
+	FinalInterpolated = mix(vec3(Luma(FinalInterpolated)), FinalInterpolated, 0.75f);
+    return FinalInterpolated;
 }
 
 // End 

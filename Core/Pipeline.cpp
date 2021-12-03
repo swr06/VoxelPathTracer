@@ -223,6 +223,8 @@ static bool AggressiveFireflyRejection = true;
 static bool SmartReflectionClip = true;
 static bool ReflectionNormalMapWeight = false;
 static int ReflectionDenoisingRadiusBias = 0;
+static bool ReflectionLPVGI = true;
+static bool ReflectionHighQualityLPVGI = false;
 
 
 static bool RenderParticles = true;
@@ -392,6 +394,7 @@ public:
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
 
 
+
 			if (USE_NEW_SPECULAR_SPATIAL) {
 				ImGui::SliderInt("Reflection Denoiser Radius Bias", &ReflectionDenoisingRadiusBias, -4, 4);
 				ImGui::Checkbox("Normal map aware filtering? (Slightly more noise.)", &ReflectionNormalMapWeight);
@@ -400,11 +403,23 @@ public:
 			if (TEMPORAL_SPEC) {
 				ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
 				ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
-				ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+
+				if (ReflectionFireflyRejection) {
+					ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+				}
 			}
 			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
+
+
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
-			ImGui::Checkbox("Use screen space data for reflections?", &ReprojectReflectionsToScreenSpace);
+			ImGui::Checkbox("Use screen space data for GI in reflections?", &ReprojectReflectionsToScreenSpace);
+			ImGui::Checkbox("Approximate GI in reflections using LPV?", &ReflectionLPVGI);
+
+			if (ReflectionLPVGI) {
+				ImGui::Checkbox("High Quality LPVGI in reflections?", &ReflectionHighQualityLPVGI);
+
+			}
+
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
 			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
 			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
@@ -465,14 +480,58 @@ public:
 			//
 
 
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::NewLine();
+
+			// Clouds ->
+
+			ImGui::Text("--- Volumetric cloud Settings ---");
+			ImGui::NewLine();
+			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
+			ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
+			//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
+			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
+			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
+			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
+			ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
+			ImGui::SliderInt("Ambient Step Count", &CloudStepCount[2], 2, 32);
+			ImGui::Checkbox("Cloud LOD Lighting? (Faster, uses LODs for acceleration)", &CloudLODLighting);
+
+			//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
+			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
+			ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
+			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
+			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
+			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
+			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -3.0f, 0.5);
+			ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
+			ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
+			ImGui::SliderFloat("Detail FBM Power : ", &CloudDetailFBMPower, 0.5f, 3.0f);
+
+			//ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
+			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
+			ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
+
+			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
+
+			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
+			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
+
+			ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
+
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::NewLine();
 
 
-			ImGui::NewLine();
-			ImGui::NewLine();
-			ImGui::NewLine();
+			// Post process ->
+
+
 			ImGui::Text("--- Post Process Settings ---");
 			ImGui::NewLine();
-			
+
 			if (USE_SVGF) {
 				ImGui::Checkbox("Ray traced ambient occlusion? (RTAO)", &VXAO);
 			}
@@ -508,45 +567,6 @@ public:
 			ImGui::Checkbox("Bloom?", &Bloom);
 			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
 			ImGui::NewLine();
-
-
-			ImGui::NewLine();
-			ImGui::NewLine();
-			ImGui::NewLine();
-			ImGui::Text("--- Volumetric cloud Settings ---");
-			ImGui::NewLine();
-			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
-			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
-			ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
-			//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
-			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
-			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
-			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
-			ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
-			ImGui::SliderInt("Ambient Step Count", &CloudStepCount[2], 2, 32);
-			ImGui::Checkbox("Cloud LOD Lighting? (Faster, uses LODs for acceleration)", &CloudLODLighting);
-
-			//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
-			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
-			ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
-			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
-			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
-			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
-			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -3.0f, 0.5);
-			ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
-			ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
-			ImGui::SliderFloat("Detail FBM Power : ", &CloudDetailFBMPower, 0.5f, 3.0f);
-
-			//ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
-			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
-			ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
-
-			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
-
-			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
-			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
-
-			ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -800,12 +820,12 @@ GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, t
 GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
 
-GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } , { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } , { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer DiffusePreTemporal_SpatialFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffuseTemporalFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffusePreTemporal_SpatialFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffuseDenoiseFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer DiffuseDenoisedFBO2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } , { GL_R16F, GL_RED, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
 GLClasses::Framebuffer VarianceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
 
@@ -2236,6 +2256,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_DiffuseCoCg", 15);
 			ReflectionTraceShader.SetInteger("u_ShadowTrace", 16);
 
+			// LPV ->
+			ReflectionTraceShader.SetInteger("u_LPV", 20);
+			ReflectionTraceShader.SetInteger("u_LPVBlocks", 21);
+
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
 			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -2276,8 +2300,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_ReprojectToScreenSpace", ReprojectReflectionsToScreenSpace);
 			ReflectionTraceShader.SetBool("CHECKERBOARD_SPEC_SPP", CHECKERBOARD_SPEC_SPP);
 			ReflectionTraceShader.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
+			ReflectionTraceShader.SetBool("u_LPVGI", ReflectionLPVGI);
+			ReflectionTraceShader.SetBool("u_QualityLPVGI", ReflectionHighQualityLPVGI);
 
-			
 				
 
 			//ReflectionTraceShader.BindUBOToBindingPoint("UBO_BlockData", 0);
@@ -2334,7 +2359,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE18);
 			glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
 
+			glActiveTexture(GL_TEXTURE20);
+			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetDensityVolume());
+
+			glActiveTexture(GL_TEXTURE21);
+			glBindTexture(GL_TEXTURE_3D, VoxelRT::Volumetrics::GetColorVolume());
+
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, BlueNoise_SSBO.m_SSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, VoxelRT::Volumetrics::GetAverageColorSSBO());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

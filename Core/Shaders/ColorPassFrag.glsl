@@ -1022,9 +1022,14 @@ void main()
            
             vec3 SpecularIndirect = vec3(0.0f);
             
+
             if (InBiasedSS) {
-                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, NormalMapped.xyz); 
+                vec3 I = normalize(WorldPosition.xyz - u_ViewerPosition);
+                vec3 R = reflect(I, NormalMapped).xyz;
+                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, normalize(R)) * 0.875f; 
             }
+
+
 
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
             // That it hurts my soul
@@ -1125,6 +1130,7 @@ void main()
         o_Color = vec3(DebugData.x);
     }
 
+
 }
 
 
@@ -1207,23 +1213,28 @@ vec3 InterpolateLPVColorDataBicubic(vec3 position)
 {
     position *= vec3(384.0f, 128.0f, 384.0f);
     position = position - 0.5;
+
 	vec3 f = fract(position);
 	position -= f;
+
 	vec3 ff = f * f;
 	vec3 w0_1;
 	vec3 w0_2;
 	vec3 w1_1;
 	vec3 w1_2;
+
 	w0_1 = 1 - f; w0_1 *= w0_1 * w0_1;
 	w1_2 = ff * f;
 	w1_1 = 3 * w1_2 + 4 - 6 * ff;
 	w0_2 = 6 - w1_1 - w1_2 - w0_1;
+
 	vec3 s1 = w0_1 + w1_1;
 	vec3 s2 = w0_2 + w1_2;
 	vec3 cLo = position.xyz + vec3(-0.5f) + w1_1 / s1;
 	vec3 cHi = position.xyz + vec3(1.5f) + w1_2 / s2;
 	vec3 m = s1 / (s1 + s2);
 	m = 1.0 - m;
+
 	vec3 lightLoYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cLo.z)), m.x);
 	vec3 lightLoYHiZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cHi.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cHi.z)), m.x);
 	vec3 lightHiYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cHi.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cHi.y, cLo.z)), m.x);

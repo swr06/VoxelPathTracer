@@ -138,7 +138,7 @@ vec3 ClipToAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
     return denom > 1.0 ? pClip + vClip / denom : prevColor;
 }
 
-void SmartClip(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected, float Roughness) {
+void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected, float Roughness) {
 	
 	const float RoughnessThreshold = 0.275f + 0.01f;
 	
@@ -431,7 +431,7 @@ void main()
 			if (TryClipping && Moved && u_SmartClip) {
 
 				// Clip sample ->
-				SmartClip(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
+				ReflectionClipping(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
 				//BlendFactor *= 1.4f;
 				
 				if (RoughnessAt > 0.26f) 
