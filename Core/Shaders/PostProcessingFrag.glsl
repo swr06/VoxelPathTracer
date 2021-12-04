@@ -833,9 +833,9 @@ vec2 ProjectDirection(vec3 Direction, vec2);
 
 vec3 ShadeStars(vec3 fragpos)
 {
-    // Rotate view vector with respect to sun direction
     vec3 v = fragpos * 256.0f;
-    v = Rotate(v, u_StrongerLightDirection, vec3(0.0f,0.0f,1.0f));
+	vec3 ll = vec3(0.0f, 1.0f, 0.0f); // = u_SunDirection
+    v = Rotate(v, ll, vec3(0.0f,0.0f,1.0f));
         
     // floor it to maintain temporal coherency
     v = vec3(floor(v));

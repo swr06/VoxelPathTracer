@@ -51,7 +51,7 @@ float SampleDensity(vec3 p)
 
 float SampleOpticalDepth(vec3 p, vec3 q) 
 {
-	const int Steps = 3;
+	const int Steps = 2;
 
 	vec3 Increment = (q - p) / float(Steps);
 	Increment /= 4.0f;

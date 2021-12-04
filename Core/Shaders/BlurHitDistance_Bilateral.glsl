@@ -12,7 +12,7 @@ void main() {
 	float TotalDist = 0.0f;
 	float BaseHitDistance = texture(u_PositionTexture,v_TexCoords).x;
 	vec2 TexelSize = 1.0f/textureSize(u_HitDist,0);
-	float Scale = 2.0f;
+	float Scale = 4.0f;
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 
 	for (int x = -2 ; x <= 2 ; x++) {

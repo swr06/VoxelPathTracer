@@ -186,6 +186,7 @@ static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
 
 static float SunTick = 50.0f;
+static float PreviousSunTick = 50.0f;
 static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 0.25f;
@@ -225,6 +226,7 @@ static bool ReflectionNormalMapWeight = false;
 static int ReflectionDenoisingRadiusBias = 0;
 static bool ReflectionLPVGI = true;
 static bool ReflectionHighQualityLPVGI = false;
+static bool ReflectionRoughnessBias = true;
 
 
 static bool RenderParticles = true;
@@ -254,8 +256,6 @@ static float GISkyStrength = 1.125f;
 static bool AutoExposure = false;
 static bool ExponentialFog = false;
 
-static glm::vec3 SunDirection;
-static glm::vec3 MoonDirection;
 
 static VoxelRT::World* world = nullptr;
 static bool ModifiedWorld = false;
@@ -392,6 +392,10 @@ public:
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+
+			if (DenoiseReflections) {
+				ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
+			}
 
 
 
@@ -1056,7 +1060,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	glm::mat4 ReflectionProjection, ReflectionView;
 	glm::vec3 CurrentPosition, PreviousPosition;
 
-	VoxelRT::AtmosphereRenderMap Skymap(48);
+	VoxelRT::AtmosphereRenderMap Skymap(64);
 	VoxelRT::AtmosphereRenderer AtmosphereRenderer;
 
 	BlueNoiseDataSSBO BlueNoise_SSBO;
@@ -1219,10 +1223,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 		float time_angle = SunTick * 2.0f;
 		glm::mat4 sun_rotation_matrix;
 
+		glm::vec3 SunDirection;
+		glm::vec3 MoonDirection;
+
 		sun_rotation_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(time_angle), glm::vec3(0.0f, 0.0f, 1.0f));
 		SunDirection = glm::vec3(sun_rotation_matrix * glm::vec4(1.0f));
 		MoonDirection = glm::vec3(-SunDirection.x, -SunDirection.y, SunDirection.z);
 		StrongerLightDirection = -SunDirection.y < 0.01f ? SunDirection : MoonDirection;
+
+		SunDirection = glm::normalize(SunDirection);
+		MoonDirection = glm::normalize(MoonDirection);
+		StrongerLightDirection = glm::normalize(StrongerLightDirection);
+
 
 		glfwSwapInterval((int)VSync);
 		
@@ -1232,8 +1244,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		float TRUE_PADDED_HEIGHT = app.GetHeight() + PIXEL_PADDING;
 		PADDED_WIDTH *= GLOBAL_RESOLUTION_SCALE;
 		PADDED_HEIGHT *= GLOBAL_RESOLUTION_SCALE;
-		
 
+		
 		// Resize the framebuffers
 		{
 			
@@ -1374,12 +1386,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
 		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0f;
 
-
-		if (app.GetCurrentFrame() % 6 == 0 || app.GetCurrentFrame() < 8)
+		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || SunTick != PreviousSunTick)
 		{
 			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
 		}
 
+		PreviousSunTick = SunTick;
 
 		// Render clouds to equiangular map once
 		// Updates are done through reprojection
@@ -2262,6 +2274,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			ReflectionTraceShader.SetFloat("u_ReflectionTraceRes", ReflectionTraceResolution);
 			ReflectionTraceShader.SetVector3f("u_SunDirection", SunDirection);
+			ReflectionTraceShader.SetVector3f("u_MoonDirection", MoonDirection);
 			ReflectionTraceShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 			ReflectionTraceShader.SetVector2f("u_Dimensions", glm::vec2(ReflectionTraceFBO.GetWidth(), ReflectionTraceFBO.GetHeight()));
 			ReflectionTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
@@ -2302,6 +2315,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
 			ReflectionTraceShader.SetBool("u_LPVGI", ReflectionLPVGI);
 			ReflectionTraceShader.SetBool("u_QualityLPVGI", ReflectionHighQualityLPVGI);
+			ReflectionTraceShader.SetBool("u_RoughnessBias", ReflectionRoughnessBias&&DenoiseReflections);
 
 				
 
@@ -2805,8 +2819,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetMatrix4("u_ReflectionProjection", ReflectionProjection);
 		ColorShader.SetMatrix4("u_ReflectionView", ReflectionView);
 		ColorShader.SetVector2f("u_InitialTraceResolution", glm::vec2(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution)));
-		ColorShader.SetVector3f("u_SunDirection", SunDirection);
-		ColorShader.SetVector3f("u_MoonDirection", MoonDirection);
+		ColorShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
+		ColorShader.SetVector3f("u_MoonDirection", glm::normalize(MoonDirection));
 		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
 		ColorShader.SetFloat("u_Time", glfwGetTime());
@@ -2919,6 +2933,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	    
 		glActiveTexture(GL_TEXTURE22);
 		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
+		//glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
 		//glBindTexture(GL_TEXTURE_2D, DiffuseRawTraceFBO.GetTexture(4));
 
 		glActiveTexture(GL_TEXTURE23);

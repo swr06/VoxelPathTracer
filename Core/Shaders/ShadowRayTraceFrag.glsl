@@ -421,7 +421,7 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
-	vec3 NormalizedDir = normalize(u_LightDirection);
+	vec3 NormalizedDir = (u_LightDirection);
 	vec3 JitteredLightDirection = NormalizedDir;
 
 

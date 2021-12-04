@@ -9,7 +9,7 @@
 
 #define REPROJECT_TO_SCREEN_SPACE
 #define TRACE_LENGTH 64
-
+#define clamp01(x) (clamp(x,0.0f,1.0F))
 
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
@@ -78,6 +78,7 @@ uniform float u_ReflectionTraceRes;
 
 uniform vec2 u_Dimensions;
 uniform vec3 u_SunDirection;
+uniform vec3 u_MoonDirection;
 uniform vec3 u_StrongerLightDirection;
 uniform float u_Time;
 
@@ -112,6 +113,7 @@ uniform bool u_LPVGI;
 uniform bool u_QualityLPVGI;
 
 uniform vec2 u_Halton;
+uniform bool u_RoughnessBias;
 
 
 layout (std430, binding = 0) buffer SSBO_BlockData
@@ -136,18 +138,24 @@ layout (std430, binding = 4) buffer SSBO_BlockAverageData
     vec4 BlockAverageColorData[128]; // Returns the average color per block type 
 };
 
+
+
+
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f * 6.25f, 1.0f * 6.25f, 0.8f * 4.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.7f, 0.7f, 1.25f);
-vec3 SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
-vec3 NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
-vec3 DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
 const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
 const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
+vec3 SkyAmbientG = vec3(0.0f);
+vec3 SAMPLED_SUN_COLOR = vec3(0.0f);
+vec3 SAMPLED_MOON_COLOR = vec3(0.0f);
+vec3 SAMPLED_COLOR_MIXED = vec3(0.0f);
+vec3 C_SUN_COLOR = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.0f * u_SunStrengthModifier;
+vec3 C_NIGHT_COLOR  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * vec3(0.9,0.9,1.0f) * 0.225f * u_MoonStrengthModifier; 
+vec3 C_DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f; 
 
 		
 // Function prototypes
@@ -188,6 +196,15 @@ float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec
 	return v;
 }
 
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
+// GGX ->
+
 float ndfGGX(float cosLh, float roughness)
 {
 	float alpha   = roughness * roughness;
@@ -197,10 +214,14 @@ float ndfGGX(float cosLh, float roughness)
 	return alphaSq / (PI * denom * denom);
 }
 
+// Fresnel ->
+
 float gaSchlickG1(float cosTheta, float k)
 {
 	return cosTheta / (cosTheta * (1.0 - k) + k);
 }
+
+// Geometry ->
 
 float gaSchlickGGX(float cosLi, float cosLo, float roughness)
 {
@@ -214,6 +235,7 @@ vec3 fresnelSchlick(vec3 F0, float cosTheta)
 	return F0 + (vec3(1.0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+// Cook torrance brdf ->
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 albedo, vec3 normal, vec3 pbr, float shadow)
 {
     const float Epsilon = 0.00001;
@@ -239,6 +261,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
+// Samples the ggx vndf and returns a microfacet normal ->
 vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 {
     float alpha = roughness * roughness;
@@ -262,6 +285,7 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 } 
 
 
+// By iq
 vec4 TextureSmooth(sampler2D samp, vec2 uv) 
 {
     vec2 textureResolution = textureSize(samp, 0).xy;
@@ -273,37 +297,7 @@ vec4 TextureSmooth(sampler2D samp, vec2 uv)
 	return texture(samp, uv).xyzw;
 }
 
-vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
-{
-	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
-	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
-	vec2 CurrentCoordinate;
-
-	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
-    {
-		Direction /= max(abs(Direction.x), 0.001f);
-		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
-		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
-	} 
-    
-    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
-    {
-		Direction /= max(abs(Direction.y), 0.001f);
-		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
-		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
-	} 
-    
-    else 
-    {
-		Direction /= max(abs(Direction.z), 0.001f);
-		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
-		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
-	}
-
-	return CurrentCoordinate / max(TextureSize, 0.01f);
-}
-
-vec3 SkyAmbientG = vec3(0.0f);
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize);
 
 vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
 {
@@ -317,19 +311,33 @@ vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
 	if (ProjectedDirection != clamp(ProjectedDirection, 0.001f, 0.999f)) {
 		return Sky;
 	}
-
+	
+	// Compute some fake colors and look close enough ->
 	float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-    vec3 ScatterColor = mix(vec3(1.0f) + 0.001f, (vec3(46.0f, 142.0f, 300.0f) / 255.0f) * 0.325f, SunVisibility); 
+    vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f) * 1.0f;
+	BaseSun *= 0.6f;
+    float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
+    BaseSun = mix(vec3(1.5f, 1.5f, 1.55f), BaseSun, DuskVisibility);
+	BaseSun = clamp01(BaseSun);
+    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR, 0.5f) * 1.32525f, SunVisibility); 
+	ScatterColor = clamp01(ScatterColor);
+	ScatterColor *= 0.8f;
+
+	// Fake ambient ->
 	vec3 SkyAmbient = pow(max(SkyAmbientG, 0.45f), vec3(1.25f)) * 1.75f;
+
+	// Fetch with smooth filter to reduce bilinear artifacts ->
 	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
-	vec3 Return = Sky * max(0.5f, CloudFetch.w) + clamp((CloudFetch.xyz * ScatterColor * vec3(0.8f, 0.8f, 1.0f) * SkyAmbient * 1.2f), 0.0f, 1.0f);
+
+	// Use projected clouds
+	vec3 Return = Sky * max(0.4f, CloudFetch.w) + clamp((CloudFetch.xyz * ScatterColor * vec3(0.8f, 0.8f, 1.0f) * SkyAmbient * 1.2f), 0.0f, 1.0f);
 	return Return;
 }	
 
 
 void GetAtmosphere(inout vec3 Out, in vec3 V)
 {
-    vec3 SunDirection = normalize(u_SunDirection); 
+    vec3 SunDirection = (u_SunDirection); 
     vec3 MoonDirection = vec3(-SunDirection.x, -SunDirection.y, SunDirection.z); 
     vec3 NormalizedV = normalize(V);
     vec3 SampledSky = texture(u_Skymap, NormalizedV).rgb;
@@ -451,6 +459,14 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
     return GetNormalFromID(texture(samp, txc).x);
 }
 
+
+
+float GetLuminance(vec3 color) {
+	return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+
+
 // Reprojects hit coordinate to screen space to try and infer indirect lighting and the visibility term for the direct brdf ->
 vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success, out vec4 PositionAt)
 {
@@ -515,6 +531,27 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 
 bool SunStronger;
 
+vec3 TemperatureToRGB(float temperatureInKelvins);
+
+vec3 SampleSunColor()
+{
+    const vec3 TemperatureModifier = TemperatureToRGB(5778.0f);
+    vec3 SunTransmittance = texture(u_Skymap, u_SunDirection.xyz).xyz;
+    vec3 SunColor = SunTransmittance;
+    SunColor *= TemperatureModifier;
+    return SunColor * PI * 2.2f * u_SunStrengthModifier;
+}
+
+vec3 SampleMoonColor()
+{
+    vec3 MoonTransmittance = texture(u_Skymap, u_MoonDirection).xyz;
+    vec3 MoonColor = MoonTransmittance;
+    MoonColor = MoonColor * PI * u_MoonStrengthModifier;
+    float L = GetLuminance(MoonColor);
+    MoonColor = BasicSaturation(MoonColor, 1.3f); 
+    return MoonColor * 0.42525f * u_MoonStrengthModifier;
+}
+
 vec3 SampleLPVData(vec3 UV);
 
 
@@ -548,6 +585,12 @@ void main()
     LPVDither /= VolumeResolution;
 
 
+	SAMPLED_SUN_COLOR = SampleSunColor();
+    SAMPLED_MOON_COLOR = SampleMoonColor();
+    float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    SAMPLED_COLOR_MIXED = mix(SAMPLED_SUN_COLOR, SAMPLED_MOON_COLOR, SunVisibility);
+
+
 	float TIME = TEMPORAL_SPEC ? u_Time : 1.0f;
 	//RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * 800 * int(floor(fract(TIME) * 200));
 	//RNG_SEED ^= RNG_SEED << 13;
@@ -562,8 +605,6 @@ void main()
 	if (CHECKERBOARD_SPEC_SPP) {
 		SPP = int(mix(u_SPP, (u_SPP + u_SPP % 2) / 2, float(CheckerStep)));
 	}
-
-
 
 	SPP = clamp(SPP, 1, 16);
 
@@ -608,6 +649,7 @@ void main()
 
 
 	float RoughnessAt = PBRMap.r;
+
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
 	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal)); 
@@ -619,7 +661,7 @@ void main()
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;
 
-	vec3 NormalizedStrongerDir = normalize(u_StrongerLightDirection);
+	vec3 NormalizedStrongerDir = (u_StrongerLightDirection);
 
 	float MaxHitDistance = -1.0f;
 	bool Hit = false;
@@ -643,6 +685,11 @@ void main()
 
 	float EmissivityMask = 0.0f;
 
+	// Roughness bias ->
+	float RoughnessBias = 1.0f;
+	RoughnessBias = mix(1.0f, 0.85, float(u_RoughnessBias));
+
+
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		//if (MetalnessAt < 0.025f) 
@@ -651,7 +698,7 @@ void main()
 		//}
 
 		// importance sample :
-		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,RoughnessAt) : NormalMappedInitial;
+		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : NormalMappedInitial;
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 
 		#ifdef DERIVE_FROM_DIFFUSE_SH
@@ -748,7 +795,7 @@ void main()
 			TBN = mat3((Tangent), (Bitangent), (Normal));
 
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
-			vec3 Radiance = SunStronger ? SUN_COLOR : NIGHT_COLOR * 0.7500f; 
+			vec3 Radiance = SAMPLED_COLOR_MIXED * 0.6f; 
 				
 			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
@@ -781,7 +828,7 @@ void main()
 			}
 
 			
-			const float AmbientBias = 1.25f;
+			const float AmbientBias = 1.0f;
 			Ambient = (Ambient * AmbientBias * clamp(AO, 0.1f, 1.0f)) * vec3(Albedo);
 
 			// Basic normal mapping ->
@@ -1048,7 +1095,7 @@ void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block
 			vec3 p = ro + (t * rd);
 			vec3 n = capNormal(p, u_ViewerPosition - vec3(0.0f, 0.75f, 0.0f), u_ViewerPosition + vec3(0.0f, 0.75f, 0.0f), 0.5f);
 			vec3 albedo = vec3(0.6f);
-			float diff = max(dot(n, normalize(u_StrongerLightDirection)), 0.0f);
+			float diff = max(dot(n, (u_StrongerLightDirection)), 0.0f);
 			col = vec3(diff) * albedo;
 			col += vec3(0.150f) * albedo;
 		}
@@ -1075,6 +1122,41 @@ float GetShadowAt(in vec3 pos, in vec3 ldir)
 		return 0.0f;
 	}
 }
+
+float SRGBToLinear(float x){
+    return x > 0.04045 ? pow(x * (1 / 1.055) + 0.0521327, 2.4) : x / 12.92;
+}
+
+vec3 SRGBToLinearVec3(vec3 x){
+    return vec3(SRGBToLinear(x.x),
+                SRGBToLinear(x.y),
+                SRGBToLinear(x.z));
+}
+
+vec3 TemperatureToRGB(float temperatureInKelvins)
+{
+	vec3 retColor;
+	
+    temperatureInKelvins = clamp(temperatureInKelvins, 1000, 50000) / 100;
+    
+    if (temperatureInKelvins <= 66){
+        retColor.r = 1;
+        retColor.g = clamp01(0.39008157876901960784 * log(temperatureInKelvins) - 0.63184144378862745098);
+    } else {
+    	float t = temperatureInKelvins - 60;
+        retColor.r = clamp01(1.29293618606274509804 * pow(t, -0.1332047592));
+        retColor.g = clamp01(1.12989086089529411765 * pow(t, -0.0755148492));
+    }
+    
+    if (temperatureInKelvins >= 66)
+        retColor.b = 1;
+    else if(temperatureInKelvins <= 19)
+        retColor.b = 0;
+    else
+        retColor.b = clamp01(0.54320678911019607843 * log(temperatureInKelvins - 10) - 1.19625408914);
+
+    return SRGBToLinearVec3(retColor);
+}     
 
 bool CompareVec3(vec3 v1, vec3 v2) {
 	float e = 0.0125f;
@@ -1183,6 +1265,38 @@ void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
         uv = vec2(fract(world_pos.xy));
     }
 }
+
+
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
+{
+	float TileSize = min(floor(TextureSize.x * 0.5f) / 1.5f, floor(TextureSize.y * 0.5f));
+	float TileSizeDivided = (0.5f * TileSize) - 1.5f;
+	vec2 CurrentCoordinate;
+
+	if (abs(Direction.x) > abs(Direction.y) && abs(Direction.x) > abs(Direction.z)) 
+    {
+		Direction /= max(abs(Direction.x), 0.001f);
+		CurrentCoordinate.x = Direction.y * TileSizeDivided + TileSize * 0.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.x < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else if (abs(Direction.y) > abs(Direction.x) && abs(Direction.y) > abs(Direction.z))
+    {
+		Direction /= max(abs(Direction.y), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 1.5f;
+		CurrentCoordinate.y = Direction.z * TileSizeDivided + TileSize * (Direction.y < 0.0f ? 0.5f : 1.5f);
+	} 
+    
+    else 
+    {
+		Direction /= max(abs(Direction.z), 0.001f);
+		CurrentCoordinate.x = Direction.x * TileSizeDivided + TileSize * 2.5f;
+		CurrentCoordinate.y = Direction.y * TileSizeDivided + TileSize * (Direction.z < 0.0f ? 0.5f : 1.5f);
+	}
+
+	return CurrentCoordinate / max(TextureSize, 0.01f);
+}
+
 
 vec3 SampleLPVColor(vec3 UV) {
     uint BlockID = texture(u_LPVBlocks, UV).x;

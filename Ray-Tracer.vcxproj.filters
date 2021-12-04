@@ -81,6 +81,9 @@
     <Filter Include="Source Files\voxel-rt\Light Chunks">
       <UniqueIdentifier>{ac9dc8f6-dad3-4656-9478-e54c51fb7e50}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Shaders\Volumetrics\Ground Volumetrics">
+      <UniqueIdentifier>{95fa8dd1-951d-4d58-bf10-a24eca7bcf87}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -671,6 +674,15 @@
     </None>
     <None Include="Core\Shaders\Volumetrics\Denoiser.glsl">
       <Filter>Source Files\Shaders\Volumetrics</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\GroundFog\Denoiser.glsl">
+      <Filter>Source Files\Shaders\Volumetrics\Ground Volumetrics</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\GroundFog\TemporalFilter.glsl">
+      <Filter>Source Files\Shaders\Volumetrics\Ground Volumetrics</Filter>
+    </None>
+    <None Include="Core\Shaders\Volumetrics\GroundFog\VolumetricGroundFog.glsl">
+      <Filter>Source Files\Shaders\Volumetrics\Ground Volumetrics</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
