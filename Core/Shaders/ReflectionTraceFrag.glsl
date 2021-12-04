@@ -700,30 +700,19 @@ void main()
 		// importance sample :
 		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : NormalMappedInitial;
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
-
-		#ifdef DERIVE_FROM_DIFFUSE_SH
-		if (RoughnessAt >= 0.85f) { 
-			vec3 DiffuseSHCompute = SHToIrridiance(DiffuseSH, DiffuseCoCg, InitialTraceNormal	);
-			float[6] SH = IrridianceToSH(DiffuseSHCompute, R);
-			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
-			TotalCoCg += vec2(SH[4], SH[5]); 
-			total_hits ++;
-			continue;
-		} 
-		#endif
-
 		vec3 Normal;
 		float Blocktype;
-
 		float T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype, false);
 		vec3 HitPosition = SampledWorldPosition.xyz + (R * T);
 
-		vec2 UV; 
-		vec3 Tangent, Bitangent;
-		CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+		
 
 		if (T > 0.0f)
 		{
+			vec2 UV; 
+			vec3 Tangent, Bitangent;
+			CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+
 			bool ReprojectionSuccessful = false;
 			vec2 ScreenSpaceReprojected = vec2(-1.0f);
 			

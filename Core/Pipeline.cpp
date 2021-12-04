@@ -2932,8 +2932,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	    
 		glActiveTexture(GL_TEXTURE22);
-		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
-		//glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+		//glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
 		//glBindTexture(GL_TEXTURE_2D, DiffuseRawTraceFBO.GetTexture(4));
 
 		glActiveTexture(GL_TEXTURE23);

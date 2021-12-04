@@ -199,7 +199,7 @@ void main()
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 	
 	float Scale = 1.0f;
-	Scale = mix(1.0f, 3.2525f, u_ResolutionScale / 1.25f);
+	Scale = mix(1.1f, 3.2525f, u_ResolutionScale / 1.25f);
 	
 	int RadiusBias = 0;
 	
