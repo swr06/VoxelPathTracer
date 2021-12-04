@@ -41,7 +41,6 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 
 # Features to implement (Or atleast.. in mind)
 - Foliage
-- Sunsets 
 - (Preferably sthochastic) Refractions
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
