@@ -378,7 +378,7 @@ void main()
     Distance = clamp(Distance, 0.0f, 96.0f);
 
     // 
-    float SigmaS = 0.3f * 0.0625f * 0.05f * 5.0f; 
+    float SigmaS = 0.00468f; 
     const float SigmaA = 0.1f;
     const float SigmaT = 1.25f;
 
