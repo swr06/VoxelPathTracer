@@ -56,6 +56,8 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");
 	AddShader("BILATERAL_HITDIST1", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistance_Bilateral.glsl");
 	AddShader("BILATERAL_HITDIST2", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistancePass2_Bilateral.glsl");
+	AddShader("SSSBLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS.glsl");
+	AddShader("SSSBLUR_POISSON", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS_Poisson.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

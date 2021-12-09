@@ -74,6 +74,7 @@
 	Normal : Res/Block/Leaves/Normal.png
 	PBR : Res/Block/Leaves/PBR.png
 	Transparent;
+	SSS;
 	
 	SND_STEP : Leaves
 	SND_MODIFY : Leaves
@@ -939,6 +940,17 @@
 	SND_MODIFY : Stone
 }
 
+{
+	Name : Slime_SSS
+	Albedo : Res/Block/Slime/Albedo.png
+	Normal : Res/Block/Slime/Normal.png
+	PBR : Res/Block/Slime/PBR.png
+	Transparent;
+	SSS;
+	
+	SND_STEP : Leaves
+	SND_MODIFY : Leaves
+}
 
 {
 	Name : MISC_LEAVE_THIS_AT_THE_END

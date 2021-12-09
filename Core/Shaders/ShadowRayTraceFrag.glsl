@@ -410,7 +410,7 @@ vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
 void main()
 {
 	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
-	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
+	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 100.0 * 2.0f;
 	HASH2SEED += fract(u_Time) * 102.0f;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
 	hash2(); hash2();
@@ -421,6 +421,15 @@ void main()
     RNG_SEED ^= RNG_SEED << 5;
 	
 	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
+
+	if (RayOrigin.w < 0.0f) {
+		o_Shadow = 0.0f;
+		o_IntersectionTransversal = 64.;
+		return;
+	}
+
+
+
 	vec3 NormalizedDir = (u_LightDirection);
 	vec3 JitteredLightDirection = NormalizedDir;
 

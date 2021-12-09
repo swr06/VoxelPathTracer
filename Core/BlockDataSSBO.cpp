@@ -11,6 +11,7 @@ namespace VoxelRT
 		std::array<int, 128> PBRData;
 		std::array<int, 128> EmissiveData;
 		std::array<int, 128> Transparent;
+		std::array<int, 128> SSS;
 		std::vector<int> TotalData;
 
 		for (int b = 0; b < 128; b++)
@@ -21,15 +22,17 @@ namespace VoxelRT
 			PBRData[i] = BlockDatabase::GetBlockPBRTexture({ i }, BlockDatabase::BlockFaceType::Front);
 			EmissiveData[i] = BlockDatabase::GetBlockEmissiveTexture({ i });
 			Transparent[i] = BlockDatabase::IsBlockTransparent({ i }) ? 1 : 0;
+			SSS[i] = BlockDatabase::IsBlockSSS({ i }) ? 1 : 0;
 		}
 		
-		int TotalSize = (128 * sizeof(int)) * 5;
+		int TotalSize = (128 * sizeof(int)) * 6;
 
 		TotalData.insert(TotalData.end(), std::begin(AlbedoData), std::end(AlbedoData));
 		TotalData.insert(TotalData.end(), std::begin(NormalData), std::end(NormalData));
 		TotalData.insert(TotalData.end(), std::begin(PBRData), std::end(PBRData));
 		TotalData.insert(TotalData.end(), std::begin(EmissiveData), std::end(EmissiveData));
 		TotalData.insert(TotalData.end(), std::begin(Transparent), std::end(Transparent));
+		TotalData.insert(TotalData.end(), std::begin(SSS), std::end(SSS));
 
 		glGenBuffers(1, &m_SSBO);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_SSBO);

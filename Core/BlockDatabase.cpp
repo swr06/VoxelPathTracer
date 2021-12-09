@@ -497,6 +497,18 @@ namespace VoxelRT
 		return ParsedBlockDataListID.at(block_id).transparent;
 	}
 
+	bool BlockDatabase::IsBlockSSS(BlockIDType block_id)
+	{
+		if (block_id == 0) { return true; }
+
+		if (ParsedBlockDataListID.find(block_id) == ParsedBlockDataListID.end())
+		{
+			return false;
+		}
+
+		return ParsedBlockDataListID.at(block_id).sss;
+	}
+
 	int BlockDatabase::GetNumberOfBlocksInDatabase()
 	{
 		return ParsedBlockDataList.size();

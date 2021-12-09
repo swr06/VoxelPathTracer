@@ -297,6 +297,11 @@ namespace VoxelRT
 						parsed_data.transparent = true;
 					}
 
+					else if (field.find("sss") != std::string::npos || field.find("SSS") != std::string::npos || field.find("SUBSURFACE") != std::string::npos)
+					{
+						parsed_data.sss = true;
+					}
+
 					else if (field.find("Emissive") != std::string::npos)
 					{
 						std::string s;

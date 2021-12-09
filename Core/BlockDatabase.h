@@ -40,6 +40,7 @@ namespace VoxelRT
 		std::string GetModifySound(BlockIDType block_id);
 
 		bool IsBlockTransparent(BlockIDType block_id);
+		bool IsBlockSSS(BlockIDType block_id);
 
 		int GetNumberOfBlocksInDatabase();
 

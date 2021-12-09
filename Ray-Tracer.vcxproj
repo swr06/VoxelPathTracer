@@ -281,6 +281,8 @@
     <None Include="Core\Shaders\ContactShadows.glsl" />
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\EV100.glsl" />
+    <None Include="Core\Shaders\FakeSSSSS.glsl" />
+    <None Include="Core\Shaders\FakeSSSSS_Poisson.glsl" />
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />
     <None Include="Core\Shaders\Functions\FXAA.glsl" />
     <None Include="Core\Shaders\HandleFlicker.glsl" />

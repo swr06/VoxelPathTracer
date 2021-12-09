@@ -41,6 +41,14 @@ uniform bool u_CloudCatmullRomUpsampling;
 
 uniform bool u_DEBUGDiffuseGI;
 uniform bool u_DEBUGSpecGI;
+
+
+uniform sampler2D u_SSSShadowMap;
+uniform bool u_SSSSS;
+uniform float u_SubsurfaceScatterStrength;
+
+
+
 uniform sampler2D u_DiffuseSHy;
 uniform sampler2D u_DiffuseCoCg;
 
@@ -122,6 +130,7 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockPBRData[128];
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
+	int BlockSSSSSData[128];
 };
 
 layout (std430, binding = 1) buffer SSBO_BlockAverageData
@@ -801,9 +810,8 @@ vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
 }
 
 
-
-
 vec3 TemperatureToRGB(float temperatureInKelvins);
+
 
 
 vec3 SampleSunColor()
@@ -823,6 +831,25 @@ vec3 SampleMoonColor() {
     MoonColor = mix(MoonColor, vec3(L), 0.05f); 
     return MoonColor * 0.5f;
 }
+
+float MiePhaseFunction(float x, float g){
+    float gg = g * g;
+    return (gg * -0.25 /3.14 + 0.25 /3.14) * pow(-2.0 * (g * x) + (gg + 1.0), -1.5);
+}
+
+// Very non physically based subsurface scattering 
+vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shadow, float SunVisibility) 
+{
+    float VDotL = dot(V, u_StrongerLightDirection);
+    float MiePhase = MiePhaseFunction(VDotL, 0.8f);
+    MiePhase = pow(MiePhase,(0.9f/1.0f)*PI*(0.9f/1.0f));
+    float ScatteringAmount = (1.0f - exp(-pow(MiePhase * PI * 2.0f * PI, 1.0f)));
+    ScatteringAmount = clamp(ScatteringAmount * 2.0f * u_SubsurfaceScatterStrength * mix(0.2f, 1.0f, SunVisibility), 0.0001f, 7.0f);
+    float VisibilityTerm = (1.0f - Shadow);
+    vec3 Scattering = vec3(ScatteringAmount * mix(SAMPLED_MOON_COLOR,SAMPLED_SUN_COLOR/3.5f,SunVisibility) * VisibilityTerm) * Albedo;
+    return Scattering;
+}
+
 
 void main()
 {
@@ -871,6 +898,7 @@ void main()
 
 	        mat3 tbn = mat3((Tangent), (Bitangent), (SampledNormals));
             int BaseBlockID = GetBlockID(g_TexCoords);
+            bool DoSSS = BlockSSSSSData[BaseBlockID] > 0 && u_SSSSS;
             vec4 data = GetTextureIDs(BaseBlockID);
 
 
@@ -1031,8 +1059,18 @@ void main()
 
             bool dfg = u_UseDFG;
 
+            vec3 SubsurfaceScatter = vec3(0.);
+
+            if (DoSSS) {
+                SubsurfaceScatter = IntegrateSubsurfaceScatter(-Lo, WorldPosition.xyz, SampledNormals.xyz, AlbedoColor, texture(u_SSSShadowMap, v_TexCoords).x, 1.-SunVisibility);
+            }
+
+           // o_Color = vec3(1.-RayTracedShadow);
+            //o_Color = vec3(SubsurfaceScatter);
+            //return;
+
             if (!dfg) {
-                o_Color = (DirectLighting + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
+                o_Color = ((DirectLighting + SubsurfaceScatter) + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect));
             }
 
@@ -1047,7 +1085,7 @@ void main()
                 vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
                 vec3 IndirectSpecularBRDF = DFG * clamp(Tint, 0.0f, 1.0f);
 
-                o_Color = DirectLighting + DiffuseIndirect * (1.0f - IndirectSpecularBRDF);
+                o_Color = (DirectLighting + SubsurfaceScatter) + DiffuseIndirect * (1.0f - IndirectSpecularBRDF);
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
 
