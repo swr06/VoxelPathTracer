@@ -591,7 +591,7 @@
 	Albedo : Res/Block/Ice/Albedo.png
 	Normal : Res/Block/Ice/Normal.png
 	PBR : Res/Block/Ice/PBR.png
-	
+	SSS;
 	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
@@ -640,22 +640,22 @@
 }
 
 {
-	Name : rClay
-	Albedo : Res/Block/rClay/Albedo.png
-	Normal : Res/Block/rClay/Normal.png
-	PBR : Res/Block/rClay/PBR.png
+	Name : rLeather
+	Albedo : Res/Block/rLeather/Albedo.png
+	Normal : Res/Block/rLeather/Normal.png
+	PBR : Res/Block/rLeather/PBR.png
 	
-	SND_STEP : Marble
-	SND_MODIFY : Stone
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
 }
 
 {
-	Name : rSandstone
-	Albedo : Res/Block/rSandstone/Albedo.png
-	Normal : Res/Block/rSandstone/Normal.png
-	PBR : Res/Block/rSandstone/PBR.png
+	Name : Ceramic
+	Albedo : Res/Block/Ceramic/Albedo.png
+	Normal : Res/Block/Ceramic/Normal.png
+	PBR : Res/Block/Ceramic/PBR.png
 	
-	SND_STEP : Stone
+	SND_STEP : Marble
 	SND_MODIFY : Stone
 }
 

@@ -97,6 +97,7 @@ uniform bool u_HighQualityPOM = false;
 uniform bool u_RTAO;
 uniform bool u_ContactHardeningShadows;
 uniform bool u_AmplifyNormalMap;
+uniform bool u_VXAOCutoff;
 
 uniform bool u_DoVXAO = true;
 uniform bool u_SVGFEnabled = true;
@@ -995,7 +996,7 @@ void main()
 			
 			const int VXGI_CUTOFF = 69 + 7;
 			
-            if (do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < VXGI_CUTOFF)) // -> Causes artifacts if the AO is applied too far away
+            if ((do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < VXGI_CUTOFF)) || (!u_VXAOCutoff)) // -> Causes artifacts if the AO is applied too far away
             {
                 float bias = 0.00125f;
                 if (g_TexCoords.x > bias && g_TexCoords.x < 1.0f - bias &&
@@ -1023,7 +1024,7 @@ void main()
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, (u_MoonDirection), MoonColor, MoonColor, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
-            DirectLighting = (float(!(Emissivity > 0.5f)) * DirectLighting);
+            DirectLighting = (float(!(Emissivity > 0.05f)) * DirectLighting);
             float Roughness = PBRMap.r;
 			
             vec3 DiffuseIndirect = u_LPVDebugState == 3 ? (GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor) : 
@@ -1043,9 +1044,9 @@ void main()
             // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
             // That it hurts my soul
             // (this just slightly darkens areas where the normal map effect is high)
-            float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
-            float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
-            SpecularIndirect *= NDotMapM; 
+           // float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
+           // float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
+           // SpecularIndirect *= NDotMapM; 
            
 
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 

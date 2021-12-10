@@ -20,6 +20,7 @@ uniform sampler2DArray u_BlockPBRTexArray;
 uniform sampler2DArray u_BlockNormals;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
+uniform bool u_RoughnessBias; 
 uniform bool u_NormalMapAware; 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
@@ -171,7 +172,7 @@ void main()
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 
-	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r * mix(1.0f, 0.91f, float(u_RoughnessBias));
 
 	mat3 TangentBasis = CalculateTangentBasis(BaseNormal);
 	vec3 NormalMappedBase = texture(u_BlockNormals, vec3(BaseUV, TexArrayRef)).xyz * 2.0f - 1.0f;
@@ -187,7 +188,7 @@ void main()
 	vec3 NormalMapLobeBias = NormalMappedBase*4096.0*float(u_NormalMapAware);
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias, 1.0f));
 	float d = length(ViewSpaceBase);
-	float f = SpecularHitDistance / max((SpecularHitDistance + d), 1e-6f);
+	float f = SpecularHitDistance / max((SpecularHitDistance + d), 0.00001f);
 	
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	int EffectiveRadius = int(floor(Radius * 15.0f));

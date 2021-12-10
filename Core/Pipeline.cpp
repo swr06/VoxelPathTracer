@@ -124,6 +124,8 @@ static bool UseDFG = false;
 static bool RemoveTiling = false;
 
 
+static bool VXAO_CUTOFF = true;
+
 
 
 
@@ -539,15 +541,18 @@ public:
 
 			ImGui::Text("--- Post Process Settings ---");
 			ImGui::NewLine();
+			ImGui::NewLine();
 
 			if (USE_SVGF) {
 				ImGui::Checkbox("Ray traced ambient occlusion? (RTAO)", &VXAO);
+				ImGui::Checkbox("RTAO Cutoff? (Prevents artifacts if trace resolution is low, set it to false if you have a high diffuse trace resolution)", &VXAO_CUTOFF);
 			}
 
 			else {
-				ImGui::Checkbox("Secondary RTAO", &RTAO);
+				ImGui::Checkbox("Secondary RTAO (not recommended!)", &RTAO);
 				ImGui::SliderFloat("Secondary RTAO Resolution", &RTAOResolution, 0.1f, 0.5f);
 			}
+			ImGui::NewLine();
 
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
@@ -2599,6 +2604,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetBool("u_Dir", true);
 				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
 				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
+				ReflectionDenoiser.SetBool("u_RoughnessBias", ReflectionRoughnessBias);
 				ReflectionDenoiser.SetVector2f("u_Dimensions", glm::vec2(ReflectionDenoised_1.GetWidth(), ReflectionDenoised_1.GetHeight()));
 				ReflectionDenoiser.SetMatrix4("u_VertInverseView", inv_view);
 				ReflectionDenoiser.SetMatrix4("u_VertInverseProjection", inv_projection);
@@ -2882,6 +2888,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetFloat("u_TextureDesatAmount", TextureDesatAmount);
 		ColorShader.SetFloat("u_SubsurfaceScatterStrength", SSSSSStrength);
 		ColorShader.SetBool("u_CloudsEnabled", CloudsEnabled);
+		ColorShader.SetBool("u_VXAOCutoff", VXAO_CUTOFF);
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetFloat("u_POMHeight", POMHeight);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
