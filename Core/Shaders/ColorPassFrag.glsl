@@ -883,6 +883,7 @@ void main()
         float RayTracedShadow = 0.0f;
         
         RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz);
+		RayTracedShadow = clamp(RayTracedShadow,0.,1.);
 
         float Bias = 0.0035f;
         bool InBiasedSS =  (g_TexCoords.x > 0.0 + Bias && g_TexCoords.x < 1.0 - Bias 
@@ -1025,10 +1026,13 @@ void main()
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
             
             DirectLighting = (float(!(Emissivity > 0.05f)) * DirectLighting);
+			
+			DirectLighting = max(DirectLighting, 0.000001f);
+			
             float Roughness = PBRMap.r;
 			
-            vec3 DiffuseIndirect = u_LPVDebugState == 3 ? (GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor) : 
-                                  (u_LPVDebugState == 4 ? (GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor * 5.0f) : (SampledIndirectDiffuse.xyz * AlbedoColor));
+            vec3 DiffuseIndirect = u_LPVDebugState == 3 ? ((GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor)+(texture(u_VXAO,v_TexCoords).y*BasicSaturation(texture(u_Skybox,vec3(0.0f,1.0f,0.0f)).xyz,0.75f)*3.*AlbedoColor)) : 
+                                  (u_LPVDebugState == 4 ? ((GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz) * AlbedoColor * 5.0f)+(texture(u_VXAO,v_TexCoords).y*BasicSaturation(texture(u_Skybox,vec3(0.0f,1.0f,0.0f)).xyz,0.75f)*3.*AlbedoColor)) : (SampledIndirectDiffuse.xyz * AlbedoColor));
            
             vec3 SpecularIndirect = vec3(0.0f);
             
@@ -1048,7 +1052,7 @@ void main()
            // float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
            // SpecularIndirect *= NDotMapM; 
            
-
+			SpecularIndirect = max(vec3(0.0001f), SpecularIndirect);
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
             vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 
@@ -1151,7 +1155,7 @@ void main()
         o_Color = max(vec3(DebugData.x)/20.0,0.00001f);
     }
 
-
+	o_Color = max(o_Color, vec3(0.000001f));
 }
 
 
@@ -1270,7 +1274,9 @@ vec3 InterpolateLPVColorDataBicubic(vec3 position)
 
 vec3 InterpolateLPVColorDithered(vec3 UV) // Very few samples with fantastic results.
 { 
-    vec3 Dither = texture(u_BlueNoiseHighRes, (g_TexCoords * (u_Dimensions / vec2(textureSize(u_BlueNoiseHighRes,0).xy)))).xyz;
+	const bool TemporalIntegration = true;
+	vec2 OffsettedTxc = g_TexCoords + (vec2(fract(u_Time)*6., fract(u_Time)*2.)/max(vec2(0.0001f),u_Dimensions))*float(TemporalIntegration);
+    vec3 Dither = texture(u_BlueNoiseHighRes, (OffsettedTxc * (u_Dimensions / vec2(textureSize(u_BlueNoiseHighRes,0).xy)))).xyz;
     const vec3 Resolution = vec3(384.0f, 128.0f, 384.0f);
     Dither /= Resolution;
 
@@ -1315,8 +1321,8 @@ float InterpLPVDensity(vec3 UV)
 
 vec3 GetSmoothLPVData(vec3 UV) {    
     UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
-    //return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
-    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorDithered(UV),vec3(1.0f/1.8f))*2.0f;
+    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
+    //return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorDithered(UV),vec3(1.0f/1.8f))*2.0f;
 }
 
 vec3 GetSmoothLPVDensity(vec3 UV) {    
