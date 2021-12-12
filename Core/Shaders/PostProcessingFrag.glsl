@@ -33,6 +33,10 @@
 
 #define SATURATION 1.0f
 #define VIBRANCE 1.6f
+
+#define sqr(x) (x*x)
+#define square(x) sqr(x)
+
 //////
 
 
@@ -109,17 +113,38 @@ uniform sampler2D u_CloudData;
 
 uniform sampler2D u_VolumetricsCompute;
 
+uniform samplerCube u_NightSkymap;
+
+
 uniform mat4 u_ProjectionMatrix;
 uniform mat4 u_ViewMatrix;
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
+
+uniform mat4 u_RotationMatrix;
+
 uniform float u_LensFlareIntensity;
 uniform float u_Exposure;
+
+uniform float u_NebulaStrength;
 
 uniform float u_GodRaysStrength;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
+
+
+// PRNG 
+const int NUM_OCTAVES = 4;
+float NB_hash(float n) { return fract(sin(n) * 1e4); }
+float NB_hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
+float NB_noise(float x) { float i = floor(x); float f = fract(x); float u = f * f * (3.0 - 2.0 * f); return mix(NB_hash(i), NB_hash(i + 1.0), u); }
+float NB_noise(vec2 x) { vec2 i = floor(x); vec2 f = fract(x);	float a = NB_hash(i); float b = NB_hash(i + vec2(1.0, 0.0)); float c = NB_hash(i + vec2(0.0, 1.0)); float d = NB_hash(i + vec2(1.0, 1.0)); vec2 u = f * f * (3.0 - 2.0 * f); return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y; }
+float NB_noise(vec3 x) { const vec3 step = vec3(110, 241, 171); vec3 i = floor(x); vec3 f = fract(x); float n = dot(i, step); vec3 u = f * f * (3.0 - 2.0 * f); return mix(mix(mix( NB_hash(n + dot(step, vec3(0, 0, 0))), NB_hash(n + dot(step, vec3(1, 0, 0))), u.x), mix( NB_hash(n + dot(step, vec3(0, 1, 0))), NB_hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y), mix(mix( NB_hash(n + dot(step, vec3(0, 0, 1))), NB_hash(n + dot(step, vec3(1, 0, 1))), u.x), mix( NB_hash(n + dot(step, vec3(0, 1, 1))), NB_hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z); }
+float NB_NOISE(float x) { float v = 0.0; float a = 0.5; float shift = float(100); for (int i = 0; i < NUM_OCTAVES; ++i) { v += a * NB_noise(x); x = x * 2.0 + shift; a *= 0.5; } return v; }
+float NB_NOISE(vec2 x) { float v = 0.0; float a = 0.5; vec2 shift = vec2(100); mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50)); for (int i = 0; i < NUM_OCTAVES; ++i) { v += a * NB_noise(x); x = rot * x * 2.0 + shift; a *= 0.5; } return v; }
+// PRNG 
+
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -842,7 +867,7 @@ vec3 ShadeStars(vec3 fragpos)
 
     // Hash 
     vec3 hash = hash33(v);
-    vec3 hash2 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
+    vec3 hash22 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
 
     // Negatives make everything shit itself 
     //fragpos.y = abs(fragpos.y);
@@ -852,30 +877,60 @@ vec3 ShadeStars(vec3 fragpos)
 	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
 	//vec2 uv = //fragpos.xz / (1.0f + elevation);
 	
-
-
-
     // Project direction ->
 	fragpos = floor(fragpos * 100.0f);
-	vec2 uv = clamp(ProjectDirection(fragpos, vec2(4096)) * 2.0f, 0.0f, 1.0f);
+	vec2 tuv = clamp(ProjectDirection(fragpos, vec2(2048)), 0.0f, 1.0f);
+
+	vec3 FinalStar = vec3(0.);
+
+	vec2 jitterOffsets[8] = vec2[8]( // LiteTAA Jitter
+							vec2( 0.125,-0.375),
+							vec2(-0.125, 0.375),
+							vec2( 0.625, 0.125),
+							vec2( 0.375,-0.625),
+							vec2(-0.625, 0.625),
+							vec2(-0.875,-0.125),
+							vec2( 0.375,-0.875),
+							vec2( 0.875, 0.875)
+						);
+
+	int Samples = clamp(1, 0, 8);
 	
-	// Add some variation to the scale 
-    float scale = mix(500.0f, 1100.0f, 1.0f-hash.x);
-    float star = BilinearStarSample(uv * scale, 0.995f);
+	for (int i = 0 ; i < Samples ; i++) {
+		vec2 uv = tuv + jitterOffsets[i] * (1.0f / 2048.0f);
 
-    // Use blackbody to get a color from a temperature value.
-    float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
-    vec3 Color = planckianLocus(RandomTemperature);
+		// Add some variation to the scale 
+		float scale = mix(800.0f, 1100.0f, 1.0f-hash.x)*3.;
+		float star = BilinearStarSample(uv * scale, 0.9965f);
+
+		// Use blackbody to get a color from a temperature value.
+		float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
+		vec3 Color = planckianLocus(RandomTemperature);
         
-    // Twinkle
-    float twinkle = sin(u_Time * 0.5f * hash.z);
-    twinkle = twinkle * twinkle;
+		// Twinkle
+		float twinkle = sin(u_Time * 0.5f * hash.z);
+		twinkle = twinkle * twinkle;
 
-    star *= 0.35f;
+		star *= 0.35f;
+
+		FinalStar += clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+	}
+
+	return FinalStar / float(Samples);
+}
 
 
-    vec3 FinalStar = clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
-	return FinalStar;
+vec3 SampleNebula(vec3 dir, float visibility) 
+{
+    float purple = abs(dir.x);
+    float yellow = NB_noise(dir.y);
+    vec3 streakyHue = vec3(purple + yellow, yellow * 0.7, purple);
+    vec3 puffyHue = vec3(0.8, 0.1, 1.0);
+    float streaky = min(1.0, 8.0 * pow(NB_NOISE(dir.yz * square(dir.x) * 13.0 + dir.xy * square(dir.z) * 7.0 + vec2(150.0, 2.0)), 10.0));
+    float puffy = square(NB_NOISE(dir.xz * 4.0 + vec2(30, 10)) * dir.y);
+	vec3 color = clamp(puffyHue * puffy * (1.0 - streaky) + streaky * streakyHue, 0.0, 1.0);
+	color *= visibility * visibility * 1.0f;
+    return color;
 }
 
 
@@ -991,17 +1046,29 @@ void main()
 
 	else 
 	{
-
+		vec3 Lo = normalize(v_RayDirection);
 		float star_visibility;
-		star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
-		star_visibility = 1.0f - star_visibility;
-		vec3 stars = vec3(ShadeStars(vec3(normalize(v_RayDirection))) * star_visibility);
-		float transmittance = texture(u_Clouds, v_TexCoords).w;
-		stars = clamp(stars, 0.0f, 1.3f) * transmittance * transmittance;
-		stars *= 6.0f;
+		star_visibility = 1.- clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
+		
+		vec3 Nighteffects = vec3(0.0f);
+		if (star_visibility > 0.01f&&u_NebulaStrength>0.01f) {
+			Nighteffects = texture(u_NightSkymap, (u_RotationMatrix*vec4(Lo.xyz,1.)).xyz*2.).xyz;
+		}
 
+		float transmittance = texture(u_Clouds, v_TexCoords).w;
+
+
+		//vec3 nebula = SampleNebula(Lo, star_visibility);
+		vec3 stars = vec3(ShadeStars(vec3(Lo)) * star_visibility);
+		stars = clamp(stars, 0.0f, 1.3f) * transmittance * transmittance;
+		stars *= 1.20f;
 		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
+		o_Color = o_Color  + ((Nighteffects * 0.5f * u_NebulaStrength * sqr(star_visibility) * transmittance));
 		o_Color += stars;
+		
+		
+		//o_Color += stars;
+		//o_Color += nebula * transmittance * transmittance;
 		o_Color += PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		if (u_PurkingeEffectStrength>0.01f) {

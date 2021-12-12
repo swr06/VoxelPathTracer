@@ -109,6 +109,12 @@ uniform int u_GrassBlockProps[10];
 
 uniform vec2 u_Halton;
 
+
+uniform samplerCube u_NebulaLowRes;
+uniform float u_NebulaStrength;
+uniform bool u_NebulaCelestialColor;
+
+
 // Bayer dither
 float bayer2(vec2 a){
     a = floor(a);
@@ -147,8 +153,37 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 vec3 GetSmoothLPVData(vec3 UV);
 vec3 GetSmoothLPVDensity(vec3 UV);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative);
+bool CompareFloatNormal(float x, float y);
+vec3 GetNormalFromID(float n);
+vec3 SampleNormal(sampler2D samp, vec2 txc);
+vec3 GetRayDirectionAt(vec2 screenspace);
+vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc);
+vec4 GetTextureIDs(int BlockID);
+int GetBlockID(vec2 txc);
+bool InScreenSpace(vec2 x);
+vec2 hash2();
+vec3 SampleCone(vec2 Xi, float CosThetaMax); 
+vec3 XYZToRGB(in vec3 xyz);
+vec3 RGBToXYZ(in vec3 rgb);
+float MiePhaseFunction(float x, float g);
+vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness);
+float FastDistance(vec3 p1, vec3 p2);
+vec4 BetterTexture(sampler2D samp, vec2 uv);
+vec3 BasicSaturation(vec3 Color, float Adjustment);
+float RayCapsuleIntersection(in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r);
+vec3 saturate(vec3 x);
+vec2 SmoothStepUV(vec2 uv, vec2 res, float width);
+float GetLuminance(vec3 color);
+vec4 ClampedTexture(sampler2D tex, vec2 txc);
+vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
-// Constants 
+
+
+
+
+// Constants / Globals 
+
+
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
@@ -157,66 +192,16 @@ const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
 const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
 vec3 SAMPLED_SUN_COLOR = vec3(0.0f);
 vec3 SAMPLED_MOON_COLOR = vec3(0.0f);
+vec3 SAMPLED_MOON_COLOR_RAW = vec3(0.0f);
 vec3 SAMPLED_COLOR_MIXED = vec3(0.0f);
+float HASH2SEED = 0.0f;
 
 
-// Utility
-bool CompareFloatNormal(float x, float y) {
-    return abs(x - y) < 0.02f;
-}
-
-vec3 GetNormalFromID(float n) {
-	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
-    int idx = int(round(n*10.0f));
-
-    if (idx > 5) {
-        return vec3(1.0f, 1.0f, 1.0f);
-    }
-
-    return Normals[idx];
-}
-
-// Samplers :
-vec3 SampleNormal(sampler2D samp, vec2 txc) { 
-	return GetNormalFromID(texture(samp, txc).x);
-}
-
-vec3 GetRayDirectionAt(vec2 screenspace)
-{
-	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
-	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
-	return vec3(u_InverseView * eye);
-}
-
-vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
-{
-	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
-}
 
 
-//
-// ray box intersection function 
-//
-vec2 RayBoxIntersect(vec3 boundsMin, vec3 boundsMax, vec3 rayOrigin, vec3 invRaydir)
-{
-	vec3 t0 = (boundsMin - rayOrigin) * invRaydir;
-	vec3 t1 = (boundsMax - rayOrigin) * invRaydir;
-	vec3 tmin = min(t0, t1);
-	vec3 tmax = max(t0, t1);
-	float dstA = max(max(tmin.x, tmin.y), tmin.z);
-	float dstB = min(tmax.x, min(tmax.y, tmax.z));
-	float dstToBox = max(0, dstA);
-	float dstInsideBox = max(0, dstB - dstToBox);
-	return vec2(dstToBox, dstInsideBox);
-}
-
-
+// Fetches atmosphere and calculates celestial spheres ->
 
 bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transmittance, float true_transmittance)
 {
@@ -243,76 +228,11 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     }
 
     vec3 atmosphere = texture(u_Skybox, ray_dir).rgb;
-
-    //float star_visibility;
-    //star_visibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
-    //star_visibility = 1.0f - star_visibility;
-    //vec3 stars = vec3(ShadeStars(vec3(in_ray_dir)) * star_visibility);
-    //stars = clamp(stars, 0.0f, 1.3f);
-    //stars *= 6.0f;
-    //
-    //atmosphere += stars*(1.0f*true_transmittance*true_transmittance);
-
     atmosphere_color = atmosphere;
 
     return false;
 }
 
-
-
-// Contrast adaptive sharpening 
-float LuminosityWeight(vec3 x) {
-    //return GetSat(x);
-    return clamp(pow(max(dot(x, vec3(0.2125f, 0.7154f, 0.0721f)), 0.01f), 32.0f), 0.01f, 1.0f);
-    //return max(x.g, EPSILON);
-}
-
-vec4 BetterTexture(sampler2D samp, vec2 uv) 
-{
-    vec2 textureResolution = textureSize(samp, 0).xy;
-	uv = uv*textureResolution + 0.5;
-	vec2 iuv = floor(uv);
-	vec2 fuv = fract(uv);
-	uv = iuv + fuv*fuv*(3.0-2.0*fuv); 
-	uv = (uv - 0.5)/textureResolution;
-	return texture(samp, uv).xyzw;
-}
-
-vec4 UpscaleCloudDetail(vec4 c)
-{
-    vec2 TexelSize = 1.0f / textureSize(u_CloudData,0);
-
-    vec4 a = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(0, -1)).rgba, 0.0f, 1.0f);
-    vec4 b = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(-1, 0)).rgba, 0.0f, 1.0f);
-    vec4 d = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(1, 0)).rgba, 0.0f, 1.0f);
-    vec4 e = clamp(BetterTexture(u_CloudData, g_TexCoords + TexelSize * vec2(0, 1)).rgba, 0.0f, 1.0f);
-
-    float WeightA = LuminosityWeight(a.xyz);
-    float WeightB = LuminosityWeight(b.xyz);
-    float WeightC = LuminosityWeight(c.xyz);
-    float WeightD = LuminosityWeight(d.xyz);
-    float WeightE = LuminosityWeight(e.xyz);
-
-    // Find min and max ->
-    float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
-    float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
-
-    // Calculate deviation ->
-    float Deviation = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
-    float w = Deviation * mix(-0.125f, -0.2f, 0.35f);
-    return (w * (a + b + d + e) + c) / (4.0f * w + 1.0f);
-}
-
-// catmull rom texture interpolation 
-vec4 texture_catmullrom(sampler2D tex, vec2 uv);
-
-
-vec3 BasicSaturation(vec3 Color, float Adjustment)
-{
-    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
-    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
-    return mix(Luminosity, Color, Adjustment);
-}
 
 
 // fetch sky
@@ -325,7 +245,7 @@ vec3 GetAtmosphereAndClouds()
     BaseSun = BasicSaturation(BaseSun, 1.1f);
     float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
     BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
-    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR, 1.64f)*1.4*(0.9f/1.0f), SunVisibility); 
+    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
 
     // Normalize ->
     ScatterColor *= 1.0f / PI;
@@ -368,17 +288,6 @@ vec3 GetAtmosphereAndClouds()
 
 vec3 FetchSky() { return GetAtmosphereAndClouds(); }
 
-
-
-float GetLuminance(vec3 color) {
-	return dot(color, vec3(0.299, 0.587, 0.114));
-}
-
-vec4 ClampedTexture(sampler2D tex, vec2 txc)
-{
-    return texture(tex, clamp(txc, 0.0f, 0.9999999f));
-}
-
 vec2 ReprojectShadow(in vec3 world_pos)
 {
 	vec3 WorldPos = world_pos;
@@ -390,74 +299,23 @@ vec2 ReprojectShadow(in vec3 world_pos)
 	return ProjectedPosition.xy;
 }
 
-// http://www.iquilezles.org/www/articles/intersectors/intersectors.htm
-float capIntersect( in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r )
-{
-    vec3  ba = pb - pa;
-    vec3  oa = ro - pa;
-
-    float baba = dot(ba,ba);
-    float bard = dot(ba,rd);
-    float baoa = dot(ba,oa);
-    float rdoa = dot(rd,oa);
-    float oaoa = dot(oa,oa);
-
-    float a = baba      - bard*bard;
-    float b = baba*rdoa - baoa*bard;
-    float c = baba*oaoa - baoa*baoa - r*r*baba;
-    float h = b*b - a*c;
-    if( h>=0.0 )
-    {
-        float t = (-b-sqrt(h))/a;
-        float y = baoa + t*bard;
-        if( y>0.0 && y<baba ) return t;
-        vec3 oc = (y<=0.0) ? oa : ro - pb;
-        b = dot(rd,oc);
-        c = dot(oc,oc) - r*r;
-        h = b*b - c;
-        if( h>0.0 ) return -b - sqrt(h);
-    }
-    return -1.0;
-}
 
 bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 {
 	float x = 0.5 - 0.3f;
 	vec3 VP = u_ViewerPosition + vec3(-x, -x, +x);
-    float t = capIntersect(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+    float t = RayCapsuleIntersection(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
     return t > 0.0f;
 }
 
-float HASH2SEED = 0.0f;
-vec2 hash2() 
-{
-	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
-}
 
-bool InScreenSpace(vec2 x)
-{
-    return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
-}
-
-
-vec3 SampleCone(vec2 Xi, float CosThetaMax) 
-{
-    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
-    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
-    float phi = Xi.y * PI * 2.0;
-    vec3 L;
-    L.x = SinTheta * cos(phi);
-    L.y = SinTheta * sin(phi);
-    L.z = CosTheta;
-    return L;
-}
 
 int RNG_SEED;
 
-float ComputeShadow(vec3 world_pos, vec3 flat_normal)
+float ComputeShadow(vec3 world_pos, vec3 flat_normal, float upscaled)
 {
-    vec2 Txc = ReprojectShadow(world_pos);
-    float BaseShadow = texture(u_ShadowTexture, Txc).r;
+    vec2 Txc = v_TexCoords;//ReprojectShadow(world_pos);
+    float BaseShadow = upscaled;//texture(u_ShadowTexture, Txc).r;
 	
     float Shadow = BaseShadow;
     float PlayerShadow  = 0.0f;
@@ -550,33 +408,7 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
 }   
 
 
-// handles roughness, atleast.
-vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
-{
-    float cosTheta = max(dot(norm, Eye), 0.0);
-    const float magic = 2.4f;
-    return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
-}
 
-vec4 GetTextureIDs(int BlockID) 
-{
-	return vec4(float(BlockAlbedoData[BlockID]),
-				float(BlockNormalData[BlockID]),
-				float(BlockPBRData[BlockID]),
-				float(BlockEmissiveData[BlockID]));
-}
-
-int GetBlockID(vec2 txc)
-{
-	float id = texture(u_BlockIDTexture, txc).r;
-
-	return clamp(int(floor(id * 255.0f)), 0, 127);
-}
-
-float FastDistance(vec3 p1, vec3 p2)
-{
-    return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
-}
 
 bool IsAtEdge(in vec2 txc)
 {
@@ -611,7 +443,7 @@ float SHToY(vec4 shY)
 }
 
 // Spatially upscales indirect data ->
-void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, bool fuckingsmooth)
+void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, out float ShadowSample, bool fuckingsmooth)
 {
     const bool BE_FUCKING_USELESS = false;
 
@@ -621,6 +453,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
         SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
         SpecularCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy;
+        ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
         return;
     }
 
@@ -629,6 +462,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
     vec4 TotalSpecSH = vec4(0.0f);
     vec2 TotalSpecCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
+	//float TotalShadowWeight = 0.0f;
 
     const vec2 Offsets[5] = vec2[5](
         vec2(0.0f, 1.0f),
@@ -643,7 +477,8 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
 	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
-
+	//float BaseShadowSample = texture(u_ShadowTexture, g_TexCoords).x;
+	//float BaseL = GetLuminance(vec3(BaseShadowSample));
 
 	for (int s = 0 ; s < 5 ; s++) {
 		
@@ -651,7 +486,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 		float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
         
         float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
-		DepthWeight = pow(DepthWeight, 8.0f);
+		DepthWeight = pow(DepthWeight, 16.0f);
         DepthWeight = max(DepthWeight, 0.0f);
 
         vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
@@ -670,48 +505,28 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
         TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
         TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
+		
+		//float ShadowSampleAt = texture(u_ShadowTexture, SampleCoord).x;
+		//float ShadowWeight = Weight * clamp(pow(abs(BaseL-GetLuminance(vec3(ShadowSampleAt)))/2.0f,64.0f), 0.025f, 1.0f);
+        //ShadowSample += ShadowSampleAt * ShadowWeight;
 
 		TotalWeight += Weight;
+		//TotalShadowWeight += ShadowWeight;
 	}
 
     TotalWeight = max(TotalWeight, 0.01f);
 
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
-
+    //ShadowSample = ShadowSample / TotalShadowWeight;
+	ShadowSample = BetterTexture(u_ShadowTexture,g_TexCoords).x;
     TotalSpecSH = TotalSpecSH / TotalWeight;
     TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
     SpecularSHy = TotalSpecSH;
     SpecularCoCg = TotalSpecCoCg;
-
-    //bool InferSpecDetail = u_InferSpecularDetailSpatially;
-    //
-    //if (!fuckingsmooth || !InferSpecDetail) {
-    //    return;
-    //}
-    //
-    //// Approximate detail ->
-    //
-    //float WeightA = clamp(pow(SHToY(SpecularSamplesSHy[0]), 64.0f), 0.01f, 0.99f);
-    //float WeightB = clamp(pow(SHToY(SpecularSamplesSHy[1]), 64.0f), 0.01f, 0.99f);
-    //float WeightC = clamp(pow(SHToY(TotalSpecSH), 64.0), 0.01f, 0.99f);
-    //float WeightD = clamp(pow(SHToY(SpecularSamplesSHy[3]), 64.0f), 0.01f, 0.99f);
-    //float WeightE = clamp(pow(SHToY(SpecularSamplesSHy[4]), 64.0f), 0.01f, 0.99f);
-    //
-    //float MinWeighter = min(WeightA, min(WeightB, min(WeightC, min(WeightD, WeightE))));
-    //float MaxWeighter = max(WeightA, max(WeightB, max(WeightC, max(WeightD, WeightE))));
-    //float Deviation = sqrt(min(1.0f - MaxWeighter, MinWeighter) / MaxWeighter);
-    //float w = Deviation * mix(-0.125f, -0.2f, 0.95f);
-    //
-    //SpecularSHy = (w * (SpecularSamplesSHy[0] + SpecularSamplesSHy[1] + SpecularSamplesSHy[3] + SpecularSamplesSHy[4]) + TotalSpecSH) / (4.0f * w + 1.0f);
-    //SpecularCoCg = (w * (SpecularSamplesCoCg[0] + SpecularSamplesCoCg[1] + SpecularSamplesCoCg[3] + SpecularSamplesCoCg[4]) + TotalSpecCoCg) / (4.0f * w + 1.0f);
 }
 
 
-vec3 saturate(vec3 x)
-{
-    return clamp(x, 0.0f, 1.0f);
-}
 
 // from quake2rtx
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
@@ -800,20 +615,8 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
-vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
-{
-    uv = uv * res;
-    vec2 uv_floor = floor(uv + 0.5);
-    vec2 uv_fract = fract(uv + 0.5);
-    vec2 uv_aa = fwidth(uv) * width * 0.5;
-    uv_fract = smoothstep(vec2(0.5) - uv_aa, vec2(0.5) + uv_aa, uv_fract);
-    return (uv_floor + uv_fract - 0.5) / res;
-}
-
 
 vec3 TemperatureToRGB(float temperatureInKelvins);
-
-
 
 vec3 SampleSunColor()
 {
@@ -824,28 +627,41 @@ vec3 SampleSunColor()
     return SunColor * PI * 2.2f * u_SunStrengthModifier;
 }
 
-vec3 SampleMoonColor() {
+vec3 SampleMoonColor(float sv, bool x) {
     vec3 MoonTransmittance = texture(u_Skybox, u_MoonDirection).xyz;
+    float TimeOfDayTransition = sv * sv;
     vec3 MoonColor = MoonTransmittance;
+
+    if (u_NebulaCelestialColor)
+    {
+        vec3 Nebula = BasicSaturation(texture(u_NebulaLowRes, u_MoonDirection).xyz, 1.25f) * 0.5f * u_NebulaStrength * TimeOfDayTransition;
+        float MoonTransmittanceY = RGBToXYZ(MoonTransmittance).y;
+
+        // Clamp luminance ->
+        MoonColor = MoonTransmittance + Nebula;
+        MoonColor = RGBToXYZ(MoonColor);
+        MoonColor.y = mix(MoonColor.y, MoonTransmittanceY, 0.8f);
+        MoonColor = XYZToRGB(MoonColor);
+
+        if (!x) {
+            MoonColor = mix(MoonColor, MoonTransmittance, 0.9f);
+        }
+    }
+
     MoonColor = MoonColor * PI * u_MoonStrengthModifier;
     float L = GetLuminance(MoonColor);
     MoonColor = mix(MoonColor, vec3(L), 0.05f); 
     return MoonColor * 0.5f;
 }
 
-float MiePhaseFunction(float x, float g){
-    float gg = g * g;
-    return (gg * -0.25 /3.14 + 0.25 /3.14) * pow(-2.0 * (g * x) + (gg + 1.0), -1.5);
-}
-
-// Very non physically based subsurface scattering 
+// Custon very non physically based subsurface scattering 
 vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shadow, float SunVisibility) 
 {
     float VDotL = dot(V, u_StrongerLightDirection);
     float MiePhase = MiePhaseFunction(VDotL, 0.8f);
     MiePhase = pow(MiePhase,(0.9f/1.0f)*PI*(0.9f/1.0f));
     float ScatteringAmount = (1.0f - exp(-pow(MiePhase * PI * 2.0f * PI, 1.0f)));
-    ScatteringAmount = clamp(ScatteringAmount * 2.0f * u_SubsurfaceScatterStrength * mix(0.2f, 1.0f, SunVisibility), 0.0001f, 7.0f);
+    ScatteringAmount = clamp(ScatteringAmount * PI * 1.1f * u_SubsurfaceScatterStrength * mix(0.5f, 1.0f, SunVisibility), 0.0001f, 7.0f);
     float VisibilityTerm = (1.0f - Shadow);
     vec3 Scattering = vec3(ScatteringAmount * mix(SAMPLED_MOON_COLOR,SAMPLED_SUN_COLOR/3.5f,SunVisibility) * VisibilityTerm) * Albedo;
     return Scattering;
@@ -873,17 +689,15 @@ void main()
     vec3 AtmosphereAt = vec3(0.0f);
     o_Color = vec3(1.0f);
 
-    SAMPLED_SUN_COLOR = SampleSunColor();
-    SAMPLED_MOON_COLOR = SampleMoonColor();
     float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    SAMPLED_SUN_COLOR = SampleSunColor();
+    SAMPLED_MOON_COLOR = SampleMoonColor(SunVisibility, true);
+    SAMPLED_MOON_COLOR_RAW = SampleMoonColor(SunVisibility, false);
     SAMPLED_COLOR_MIXED = mix(SAMPLED_SUN_COLOR, SAMPLED_MOON_COLOR, SunVisibility);
 
     if (WorldPosition.w > 0.0f)
     {
-        float RayTracedShadow = 0.0f;
-        
-        RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz);
-		RayTracedShadow = clamp(RayTracedShadow,0.,1.);
+       
 
         float Bias = 0.0035f;
         bool InBiasedSS =  (g_TexCoords.x > 0.0 + Bias && g_TexCoords.x < 1.0 - Bias 
@@ -985,7 +799,15 @@ void main()
             vec2 ShCoCg;
             vec4 SpecularSH;
             vec2 SpecularCoCg;
-            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg, PBRMap.x <= 0.1);
+			float UpscaledShadow=0.0f;
+
+		
+            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg,UpscaledShadow, PBRMap.x <= 0.1);
+			UpscaledShadow = clamp(UpscaledShadow,0.0f,1.0f);
+
+			float RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz,UpscaledShadow);
+			RayTracedShadow = clamp(RayTracedShadow,0.,1.);
+
 
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
@@ -1067,12 +889,15 @@ void main()
             vec3 SubsurfaceScatter = vec3(0.);
 
             if (DoSSS) {
-                SubsurfaceScatter = IntegrateSubsurfaceScatter(-Lo, WorldPosition.xyz, SampledNormals.xyz, AlbedoColor, texture(u_SSSShadowMap, v_TexCoords).x, 1.-SunVisibility);
+				const float FakeRefractiveIdx = 1.0f/1.333333f;
+				vec3 FakeRefracted = (refract(-Lo,NormalMapped,FakeRefractiveIdx));
+				float SSSShadowMapFetch = texture(u_SSSShadowMap, v_TexCoords).x;
+                SubsurfaceScatter = IntegrateSubsurfaceScatter(FakeRefracted, WorldPosition.xyz, SampledNormals.xyz, AlbedoColor, SSSShadowMapFetch, 1.-SunVisibility);
             }
 
-           // o_Color = vec3(1.-RayTracedShadow);
-            //o_Color = vec3(SubsurfaceScatter);
-            //return;
+           //o_Color = vec3(SubsurfaceScatter);
+            //o_Color = vec3(NormalMapped);
+           // return;
 
             if (!dfg) {
                 o_Color = ((DirectLighting + SubsurfaceScatter) + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
@@ -1159,7 +984,210 @@ void main()
 }
 
 
+
+
+
 // Utility -> -> ->
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+// Samplers :
+vec3 SampleNormal(sampler2D samp, vec2 txc) { 
+	return GetNormalFromID(texture(samp, txc).x);
+}
+
+
+
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
+vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
+}
+
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTexture, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
+bool InScreenSpace(vec2 x)
+{
+    return x.x < 1.0f && x.x > 0.0f && x.y < 1.0f && x.y > 0.0f;
+}
+
+// RNG 
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+
+vec3 SampleCone(vec2 Xi, float CosThetaMax) 
+{
+    float CosTheta = (1.0 - Xi.x) + Xi.x * CosThetaMax;
+    float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
+    float phi = Xi.y * PI * 2.0;
+    vec3 L;
+    L.x = SinTheta * cos(phi);
+    L.y = SinTheta * sin(phi);
+    L.z = CosTheta;
+    return L;
+}
+
+// Utility ->
+const mat3x3 xyzToRGBMatrix = mat3(
+    3.1338561, -1.6168667, -0.4906146,
+    -0.9787684,  1.9161415,  0.0334540,
+    0.0719453, -0.2289914,  1.4052427
+);
+
+const mat3x3 rgbToXYZMatrix = mat3(
+    vec3(0.5149, 0.3244, 0.1607),
+    vec3(0.3654, 0.6704, 0.0642),
+    vec3(0.0248, 0.1248, 0.8504)
+);
+
+vec3 XYZToRGB(in vec3 xyz) 
+{
+    float r = dot(xyz, xyzToRGBMatrix[0]);
+    float g = dot(xyz, xyzToRGBMatrix[1]);
+    float b = dot(xyz, xyzToRGBMatrix[2]);
+    return vec3(r, g, b);
+}
+
+vec3 RGBToXYZ(in vec3 rgb) 
+{
+    float x = dot(rgb, rgbToXYZMatrix[0]);
+    float y = dot(rgb, rgbToXYZMatrix[1]);
+    float z = dot(rgb, rgbToXYZMatrix[2]);
+    return vec3(x, y, z);
+}
+
+
+float MiePhaseFunction(float x, float g){
+    float gg = g * g;
+    return (gg * -0.25 /3.14 + 0.25 /3.14) * pow(-2.0 * (g * x) + (gg + 1.0), -1.5);
+}
+
+vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
+{
+    float cosTheta = max(dot(norm, Eye), 0.0);
+    const float magic = 2.4f;
+    return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+}
+
+
+float FastDistance(vec3 p1, vec3 p2)
+{
+    return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
+}
+
+vec4 BetterTexture(sampler2D samp, vec2 uv)
+{
+    vec2 textureResolution = textureSize(samp, 0).xy;
+    uv = uv * textureResolution + 0.5;
+    vec2 iuv = floor(uv);
+    vec2 fuv = fract(uv);
+    uv = iuv + fuv * fuv * (3.0 - 2.0 * fuv);
+    uv = (uv - 0.5) / textureResolution;
+    return texture(samp, uv).xyzw;
+}
+
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
+float RayCapsuleIntersection(in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r)
+{
+    vec3 ba = pb - pa;
+    vec3 oa = ro - pa;
+
+    float baba = dot(ba, ba);
+    float bard = dot(ba, rd);
+    float baoa = dot(ba, oa);
+    float rdoa = dot(rd, oa);
+    float oaoa = dot(oa, oa);
+
+    float a = baba - bard * bard;
+    float b = baba * rdoa - baoa * bard;
+    float c = baba * oaoa - baoa * baoa - r * r * baba;
+    float h = b * b - a * c;
+
+    if (h >= 0.0)
+    {
+        float t = (-b - sqrt(h)) / a;
+        float y = baoa + t * bard;
+        if (y > 0.0 && y < baba) return t;
+        vec3 oc = (y <= 0.0) ? oa : ro - pb;
+        b = dot(rd, oc);
+        c = dot(oc, oc) - r * r;
+        h = b * b - c;
+        if (h > 0.0) return -b - sqrt(h);
+    }
+    return -1.0;
+}
+
+vec3 saturate(vec3 x)
+{
+    return clamp(x, 0.0f, 1.0f);
+}
+
+vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
+{
+    uv = uv * res;
+    vec2 uv_floor = floor(uv + 0.5);
+    vec2 uv_fract = fract(uv + 0.5);
+    vec2 uv_aa = fwidth(uv) * width * 0.5;
+    uv_fract = smoothstep(vec2(0.5) - uv_aa, vec2(0.5) + uv_aa, uv_fract);
+    return (uv_floor + uv_fract - 0.5) / res;
+}
+
+float GetLuminance(vec3 color) {
+	return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec4 ClampedTexture(sampler2D tex, vec2 txc)
+{
+    return texture(tex, clamp(txc, 0.0f, 0.9999999f));
+}
+
+
+
+
+
 
 
 // LPV stuff

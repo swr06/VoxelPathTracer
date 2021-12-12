@@ -129,8 +129,7 @@ static bool VXAO_CUTOFF = true;
 
 
 
-// Clouds :
-
+// Clouds ->
 static bool CloudsEnabled = true;
 static float CloudCoverage = 1.1f;
 static const bool CloudBayer = true;
@@ -155,6 +154,11 @@ static bool CloudSpatialUpscale = true;
 static bool CloudFinalCatmullromUpsample = false;
 static float CloudAmbientDensityMultiplier = 1.2f;
 static float CloudThiccness = 1450.0f;
+
+// basic nebula settings ->
+static float NebulaStrength = 1.0f;
+static bool NebulaCelestialColor = false;
+static bool NebulaGIColor = true;
 
 //
 
@@ -246,6 +250,10 @@ static bool HighQualityPOM = false;
 
 //static bool CheckerboardClouds = true;
 static bool AmplifyNormalMap = true;
+
+
+static bool DoSmallItemCube = true;
+static bool AntialiasItemCube = false;
 
 
 static int GodRaysStepCount = 12;
@@ -349,6 +357,12 @@ public:
 			ImGui::SliderFloat("GI Sun Strength", &GISunStrength, 0.01f, 2.5f);
 			ImGui::SliderFloat("GI Sky Strength", &GISkyStrength, 0.01f, 2.5f);
 
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Text("--- Item Cube Settings ---");
+			ImGui::Checkbox("Render Item Cube", &DoSmallItemCube);
+			ImGui::Checkbox("Anti Alias Item Cube", &AntialiasItemCube);
+
 
 			// Initial hit
 			ImGui::NewLine();
@@ -447,7 +461,7 @@ public:
 			ImGui::NewLine();
 
 			ImGui::Text("--- Misc Settings --");
-			ImGui::NewLine();
+
 			ImGui::SliderInt("Pixel Padding Amount", &PIXEL_PADDING, 0, 128);
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
 			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
@@ -541,6 +555,10 @@ public:
 
 			ImGui::Text("--- Post Process Settings ---");
 			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Checkbox("Nebula affects moon color?", &NebulaCelestialColor);
+			ImGui::Checkbox("Nebula affects GI colors?", &NebulaGIColor);
+			ImGui::SliderFloat("Nebula Strength", &NebulaStrength, 0.0f, 3.0f);
 			ImGui::NewLine();
 
 			if (USE_SVGF) {
@@ -852,7 +870,7 @@ GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, 
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false),
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false) };
 
-GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 
 //GLClasses::Framebuffer AntiFlickerFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -1045,6 +1063,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::Shader& CAS_Shader = ShaderManager::GetShader("CONTRAST_ADAPTIVE_SHARPENING");
 	GLClasses::Shader& AntiFlickerShader = ShaderManager::GetShader("ANTI_FLICKER");
+	GLClasses::Shader& CubeItemRenderer = ShaderManager::GetShader("CUBE_ITEM_RENDERER");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -1071,7 +1090,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	glm::mat4 ReflectionProjection, ReflectionView;
 	glm::vec3 CurrentPosition, PreviousPosition;
 
-	VoxelRT::AtmosphereRenderMap Skymap(64);
+	VoxelRT::AtmosphereRenderMap SkymapMain(64); 
+	VoxelRT::AtmosphereRenderMap SkymapSecondary(24); // 8 * 3
 	VoxelRT::AtmosphereRenderer AtmosphereRenderer;
 
 	BlueNoiseDataSSBO BlueNoise_SSBO;
@@ -1081,6 +1101,53 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Texture BluenoiseHighResTexture;
 	GLClasses::Texture PlayerSprite;
 	GLClasses::Texture ColorGradingLUT;
+	GLClasses::CubeTextureMap NightSkyMap;
+
+
+	NightSkyMap.CreateCubeTextureMap({
+			"Res/nebulae/right.png",
+			"Res/nebulae/left.png",
+			"Res/nebulae/top.png",
+			"Res/nebulae/bottom.png",
+			"Res/nebulae/front.png",
+			"Res/nebulae/back.png"
+	}, true);
+
+	GLClasses::CubeTextureMap NightSkyMapLowRes;
+
+
+	NightSkyMapLowRes.CreateCubeTextureMap({
+			"Res/nebulae_lowres/right.png",
+			"Res/nebulae_lowres/left.png",
+			"Res/nebulae_lowres/top.png",
+			"Res/nebulae_lowres/bottom.png",
+			"Res/nebulae_lowres/front.png",
+			"Res/nebulae_lowres/back.png"
+		}, true);
+
+
+	GLClasses::CubeTextureMap RandomHDRI;
+	RandomHDRI.CreateCubeTextureMap({
+			"Res/AssHdr/px.png",
+			"Res/AssHdr/nx.png",
+			"Res/AssHdr/py.png",
+			"Res/AssHdr/ny.png",
+			"Res/AssHdr/pz.png",
+			"Res/AssHdr/nz.png"
+		}, true);
+
+
+	GLClasses::CubeTextureMap RandomHDRIDiffuse;
+	RandomHDRIDiffuse.CreateCubeTextureMap({
+			"Res/AssHdrDiffuse/px.png",
+			"Res/AssHdrDiffuse/nx.png",
+			"Res/AssHdrDiffuse/py.png",
+			"Res/AssHdrDiffuse/ny.png",
+			"Res/AssHdrDiffuse/pz.png",
+			"Res/AssHdrDiffuse/nz.png"
+		}, true);
+
+
 
 	Crosshair.CreateTexture("Res/Misc/crosshair.png", false, false);
 	ColorGradingLUT.CreateTexture("Res/Misc/colorluts.png", false);
@@ -1401,7 +1468,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || SunTick != PreviousSunTick)
 		{
-			AtmosphereRenderer.RenderAtmosphere(Skymap, glm::normalize(SunDirection), 30, 4);
+			AtmosphereRenderer.RenderAtmosphere(SkymapMain, glm::normalize(SunDirection), 30, 4);
+		}
+
+		if (app.GetCurrentFrame() % 2 == 0) {
+			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
+			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaStrength : 0.00f);
 		}
 
 		PreviousSunTick = SunTick;
@@ -1423,7 +1495,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				GLuint CloudFramebuffer = Clouds::CloudRenderer::Update(VirtualProjection, ViewMatrixCube, VirtualProjection, ViewMatrixCube, VirtualCenter,
 					VirtualCenter, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
+					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
 					CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale, CloudDetailWeightEnabled ? 1.0f : 0.0f, CloudErosionWeightExponent),
 					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, glm::ivec3(768, 64, 32), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
 					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true);
@@ -1565,7 +1637,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapSecondary.GetTexture());
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
@@ -2398,7 +2470,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 			glActiveTexture(GL_TEXTURE7);
-			glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
+			glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapSecondary.GetTexture());
 
 			glActiveTexture(GL_TEXTURE8);
 			glBindTexture(GL_TEXTURE_3D, world->m_DataTexture.GetTextureID());
@@ -2818,7 +2890,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CloudData = Clouds::CloudRenderer::Update(MainCamera.GetProjectionMatrix(), MainCamera.GetViewMatrix(), PreviousProjection,
 				PreviousView, CurrentPosition,
 				PreviousPosition, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
-				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), Skymap.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0), 
+				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0),
 				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), 
 				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, 
 				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection, CloudThiccness, CloudDetailScale, false);
@@ -2903,6 +2975,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", UseDFG);
 		ColorShader.SetBool("u_SSSSS", SSSSS && SSSSSStrength > 0.01f);
+		ColorShader.SetBool("u_NebulaCelestialColor", NebulaCelestialColor);
 		ColorShader.SetBool("u_InferSpecularDetailSpatially", InferSpecularDetailSpatially);
 		ColorShader.SetBool("u_CloudCatmullRomUpsampling", CloudFinalCatmullromUpsample);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
@@ -2911,6 +2984,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetInteger("u_DebugTexture", 22);
 		ColorShader.SetInteger("u_SSSShadowMap", 24);
+
+
+		ColorShader.SetInteger("u_NebulaLowRes", 25);
+		ColorShader.SetFloat("u_NebulaStrength", NebulaStrength);
 
 
 
@@ -2949,7 +3026,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
 
 		glActiveTexture(GL_TEXTURE7);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, Skymap.GetTexture());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapMain.GetTexture());
 
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, SoftShadows ? (DenoiseSunShadows ? ShadowFiltered.GetTexture() : ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
@@ -3004,6 +3081,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE24);
 		glBindTexture(GL_TEXTURE_2D, ShadowSSS2.GetTexture());
 
+		glActiveTexture(GL_TEXTURE25);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, NightSkyMapLowRes.GetID());
+
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
 
@@ -3012,6 +3092,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		ColoredFBO.Unbind();
+
 
 		// ----- TAA ----- //
 
@@ -3055,6 +3136,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
+
 
 		// ---- SSAO ---- //
 
@@ -3390,6 +3472,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 		PostProcessingShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 
+		glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
+
+		PostProcessingShader.SetInteger("u_NightSkymap", 21);
+		PostProcessingShader.SetMatrix4("u_RotationMatrix", CuberotationMap);
+
 
 
 		bool lff = LensFlare && StrongerLightDirection == SunDirection && LensFlareIntensity > 0.001f;
@@ -3422,6 +3509,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetFloat("u_Time", glfwGetTime());
 		PostProcessingShader.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
 		PostProcessingShader.SetFloat("u_ExposureMultiplier", ExposureMultiplier);
+		PostProcessingShader.SetFloat("u_NebulaStrength", NebulaStrength);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -3485,44 +3573,86 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE20);
 		glBindTexture(GL_TEXTURE_2D, CloudData);
 
+		glActiveTexture(GL_TEXTURE21);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, NightSkyMap.GetID());
+
+		
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
 
 		PostProcessingFBO.Unbind();
+		
 
-		//if (ANTI_FLICKER)
-		//{
-		//	AntiFlickerFBO.Bind();
-		//	AntiFlickerShader.Use();
-		//
-		//
-		//	//uniform sampler2D u_CurrentTexture;
-		//	//uniform sampler2D u_History[3];
-		//
-		//	AntiFlickerShader.SetInteger("u_CurrentTexture", 0);
-		//	AntiFlickerShader.SetInteger("u_History[0]", 1);
-		//	AntiFlickerShader.SetInteger("u_History[1]", 2);
-		//	AntiFlickerShader.SetInteger("u_History[2]", 3);
-		//
-		//	glActiveTexture(GL_TEXTURE0);
-		//	glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
-		//
-		//	glActiveTexture(GL_TEXTURE1);
-		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory0.GetTexture());
-		//
-		//	glActiveTexture(GL_TEXTURE2);
-		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory1.GetTexture());
-		//
-		//	glActiveTexture(GL_TEXTURE3);
-		//	glBindTexture(GL_TEXTURE_2D, PostProcessingHistory2.GetTexture());
-		//
-		//	VAO.Bind();
-		//	glDrawArrays(GL_TRIANGLES, 0, 6);
-		//	VAO.Unbind();
-		//
-		//	AntiFlickerFBO.Unbind();
-		//}
+
+
+
+		// ---- CUBE ITEM ---- //
+
+
+		if (DoSmallItemCube) {
+
+			PostProcessingFBO.Bind();
+			CubeItemRenderer.Use();
+
+			CubeItemRenderer.SetFloat("u_Time", glfwGetTime());
+			CubeItemRenderer.SetFloat("u_SunVisibility", sun_visibility);
+			CubeItemRenderer.SetVector2f("u_Dimensions", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
+			CubeItemRenderer.SetVector3f("u_SunDirection", SunDirection);
+			CubeItemRenderer.SetVector3f("u_MoonDirection", MoonDirection);
+
+			CubeItemRenderer.SetInteger("u_Sky", 0);
+			CubeItemRenderer.SetInteger("u_AlbedoTextures", 1);
+			CubeItemRenderer.SetInteger("u_NormalTextures", 2);
+			CubeItemRenderer.SetInteger("u_PBRTextures", 3);
+			CubeItemRenderer.SetInteger("u_EmissiveTextures", 4);
+			CubeItemRenderer.SetInteger("u_RandomHDRI", 5);
+			CubeItemRenderer.SetInteger("u_RandomHDRIDiffuse", 6);
+			CubeItemRenderer.SetInteger("u_HeldBlockID", world->GetCurrentBlock());
+			CubeItemRenderer.SetBool("u_Antialias", AntialiasItemCube);
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[3]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[4]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[5]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[6]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Front));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[7]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[8]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+			CubeItemRenderer.SetInteger("u_GrassBlockProps[9]", VoxelRT::BlockDatabase::GetBlockPBRTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Bottom));
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapMain.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetTextureArray());
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetPBRTextureArray());
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
+
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, RandomHDRI.GetID());
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, RandomHDRIDiffuse.GetID());
+
+			BlockDataStorageBuffer.Bind(0);
+
+			glBindImageTexture(1, PostProcessingFBO.GetTexture(), 0, 0, 0, GL_READ_WRITE, GL_RGBA16F);
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			PostProcessingFBO.Unbind();
+		}
+
+
 
 		// ---- FINAL ----
 

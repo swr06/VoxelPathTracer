@@ -58,6 +58,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("BILATERAL_HITDIST2", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistancePass2_Bilateral.glsl");
 	AddShader("SSSBLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS.glsl");
 	AddShader("SSSBLUR_POISSON", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS_Poisson.glsl");
+	AddShader("CUBE_ITEM_RENDERER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CubeItemShader.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

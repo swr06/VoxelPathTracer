@@ -16,7 +16,7 @@ namespace GLClasses
 	{
 	public : 
 
-		void CreateCubeTextureMap(const std::vector<std::string>& cube_face_paths, bool hdr = true);
+		void CreateCubeTextureMap(const std::vector<std::string>& cube_face_paths, bool hdr = true, bool linear_filtering = true);
 		inline GLuint GetID() const { return m_TextureID; }
 
 		CubeTextureMap() {}
