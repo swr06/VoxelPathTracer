@@ -164,6 +164,8 @@ void main()
 	int BaseBlock = clamp(int(floor((texture(u_CurrentBlockIDTexture, v_TexCoords).r) * 255.0f)), 0, 127);
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.5f));
 
+	int SuccessfulSamples = 0;
+
 	// Sample neighbours and hope to find a good sample : 
 	// Verified that this is indeed *much* better than just sampling at the reprojected coordinate 
 
@@ -173,7 +175,7 @@ void main()
 		vec2 SampleCoord = ReprojectedCoord + (vec2(Offset.x, Offset.y) + vec2(Jitter)) * TexelSize;
 		if (!InThresholdedScreenSpace(SampleCoord)) { continue; }
 
-		vec3 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyz;
+		vec4 PreviousPositionAt = GetPositionAt(u_PreviousPositionTexture, SampleCoord).xyzw;
 		vec3 PreviousNormalAt = SampleNormal(u_PreviousNormalTexture, SampleCoord).xyz;
 		vec3 PositionDifference = abs(BasePosition.xyz - PreviousPositionAt.xyz);
 		float PositionError = dot(PositionDifference, PositionDifference);
@@ -183,7 +185,7 @@ void main()
 
 		if (PositionError < 0.8f &&
 			PreviousNormalAt == BaseNormal &&
-			BaseBlock == SampleBlock)
+			BaseBlock == SampleBlock && PreviousPositionAt.w < 0.0f == BasePosition.w < 0.0f)
 		{
 			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
 			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
@@ -196,10 +198,11 @@ void main()
 			SumLuminosity += PreviousUtility.z * CurrentWeight;
 			SumAOSky += texture(u_PreviousAO, SampleCoord).xy * CurrentWeight;
 			TotalWeight += CurrentWeight;
+			SuccessfulSamples++;
 		}
 	}
 
-	if (TotalWeight > 0.0f) { 
+	if (TotalWeight > 0.001f) { 
 		SumSH /= TotalWeight;
 		SumCoCg /= TotalWeight;
 		SumMoment /= TotalWeight;
@@ -208,11 +211,21 @@ void main()
 		SumAOSky /= TotalWeight;
 	}
 
+	else {
+		SuccessfulSamples = 0;
+	}
+
 	const bool AccumulateAll = false;
 
 	float Increment = float(u_BeUseful);
-	float BlendFactor = max(1.0f / (SumSPP + Increment), 0.05f);
-	float MomentFactor = max(1.0f / (SumSPP + Increment), 0.05f);
+	float SumSPPAndIncrement = SumSPP + Increment;
+
+	if (SuccessfulSamples <= 0) {
+		SumSPPAndIncrement = 0.01f;
+	}
+
+	float BlendFactor = max(1.0f / (SumSPPAndIncrement), 0.05f);
+	float MomentFactor = max(1.0f / (SumSPPAndIncrement), 0.05f);
 
 	
 	if (!u_BeUseful) {
@@ -221,7 +234,13 @@ void main()
 	}
 
 	SumSPP = clamp(SumSPP, 0.0f, 120.0f);
-	float UtilitySPP = SumSPP + Increment;
+	float UtilitySPP = SumSPPAndIncrement;
+
+	if (SuccessfulSamples <= 0) {
+
+		UtilitySPP = 0.0f;
+	}
+
 	float UtilityMoment = (1.0f - MomentFactor) * SumMoment + MomentFactor * (BaseLuminosity * BaseLuminosity) ;//pow(BaseLuminosity, 2.0f); 
 	
 	float CurrentNoisyLuma = texture(u_NoisyLuminosity, v_TexCoords).r;
@@ -232,6 +251,12 @@ void main()
 	o_AOAndSkyLighting = mix(SumAOSky, BaseAOSky, BlendFactor);
 	o_Utility = vec3(UtilitySPP, UtilityMoment, StoreLuma);
 	
+	if (SuccessfulSamples <= 0) {
+		o_SH = BaseSH;
+		o_CoCg = BaseCoCg;
+		o_AOAndSkyLighting = BaseAOSky;
+	}
+
 	// clamp
 	o_SH = clamp(o_SH, -100.0f, 100.0f);
 	o_CoCg = clamp(o_CoCg, -10.0f, 100.0f);

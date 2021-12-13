@@ -696,12 +696,12 @@
     <None Include="Core\Shaders\CubeItemShader.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
+    <None Include="Core\Shaders\FXAA311.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">
-      <Filter>Source Files\Shaders</Filter>
-    </Text>
-    <Text Include="Core\Shaders\FXAA_License.txt">
       <Filter>Source Files\Shaders</Filter>
     </Text>
   </ItemGroup>

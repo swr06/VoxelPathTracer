@@ -221,6 +221,7 @@ static bool DO_SVGF_TEMPORAL = true;
 
 
 static bool BrutalFXAA = true;
+static bool DoSecondaryFXAA = true;
 
 
 static bool GodRays = false;
@@ -589,9 +590,14 @@ public:
 			ImGui::Checkbox("Color Dither", &ColorDither);
 			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.2f);
 			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 0.1f);
+			ImGui::NewLine();
+			ImGui::NewLine();
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
+			ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
+			ImGui::NewLine();
+			ImGui::NewLine();
 			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
@@ -875,6 +881,7 @@ GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, 
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false) };
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer FXAA_FBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
 //GLClasses::Framebuffer AntiFlickerFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -1068,6 +1075,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& CAS_Shader = ShaderManager::GetShader("CONTRAST_ADAPTIVE_SHARPENING");
 	GLClasses::Shader& AntiFlickerShader = ShaderManager::GetShader("ANTI_FLICKER");
 	GLClasses::Shader& CubeItemRenderer = ShaderManager::GetShader("CUBE_ITEM_RENDERER");
+	GLClasses::Shader& FXAA_Secondary = ShaderManager::GetShader("FXAA_SECONDARY");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -1368,6 +1376,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			FXAA_FBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
 			//PostProcessingFBO_History[0].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			//PostProcessingFBO_History[1].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
@@ -3672,6 +3681,44 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 
+		// FXAA 
+
+		if (DoSecondaryFXAA) {
+
+			FXAA_Secondary.Use();
+			FXAA_FBO.Bind();
+
+			FXAA_Secondary.SetInteger("u_FramebufferTexture", 0);
+			FXAA_Secondary.SetInteger("u_PositionTexture", 1);
+			FXAA_Secondary.SetInteger("u_NormalTexture", 2);
+			FXAA_Secondary.SetInteger("u_BlockIDTex", 3);
+			FXAA_Secondary.SetMatrix4("u_InverseView", inv_view);
+			FXAA_Secondary.SetMatrix4("u_InverseProjection", inv_projection);
+			FXAA_Secondary.SetVector2f("u_Dimensions", glm::vec2(FXAA_FBO.GetWidth(), FXAA_FBO.GetHeight()));
+			FXAA_Secondary.SetBool("u_BoostSkyLuminance", StrongerLightDirection == MoonDirection);
+			FXAA_Secondary.SetBool("u_ExponentiallyMagnifyColorDifferences", StrongerLightDirection == MoonDirection);
+			FXAA_Secondary.SetFloat("u_Time", glfwGetTime());
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			FXAA_FBO.Unbind();
+		}
+
+
 
 		// ---- FINAL ----
 
@@ -3711,7 +3758,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetFloat("u_Time", glfwGetTime());
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DoSecondaryFXAA ? FXAA_FBO.GetTexture() : PostProcessingFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -3784,7 +3831,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Odd numbers taken to make sure that there arent any lag spikes.
 		// (You want to make sure that too many heavy operations don't take place on the exact same frame) 
 
-		if (app.GetCurrentFrame() % 109 == 0)
+		if (app.GetCurrentFrame() % 278 == 0)
 		{
 			world->GenerateDistanceField();
 		}
@@ -3795,7 +3842,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			world->RebufferLightChunks();
 		}
 
-		if (app.GetCurrentFrame() % 197 == 0 && PointVolumetricsToggled) {
+		if (app.GetCurrentFrame() % 1200 == 0 && PointVolumetricsToggled) {
 			std::cout << "\n-- AUTO REUPLOADED VOLUMETRIC VOLUME DATA -- \n";
 			Volumetrics::Reupload();
 		}

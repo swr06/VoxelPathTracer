@@ -200,9 +200,9 @@ vec3 GetReflectionDirection(vec3 N, float R)
 	float NearestDot = -100.0f;
 	vec3 BestDirection;
 
-	for (int i = 0 ; i < 2 ; i++) {
+	for (int i = 0 ; i < 1 ; i++) {
 		vec2 Xi = hash2();
-		Xi = Xi * vec2(1.0f, 0.75f);
+		Xi = Xi * vec2(0.8f, 0.6f);
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
 		float d = dot(ImportanceSampled,N);
 		if (d > NearestDot) {
@@ -217,7 +217,7 @@ vec3 GetReflectionDirection(vec3 N, float R)
 // Integrates ggx specular ->
 vec3 SampleSpecular(vec3 I, vec3 N, float R, bool Aliased) {
     
-    int Samples = int(mix(8, 32, clamp(R * 4.0f,0.,1.)));
+    int Samples = int(mix(8, 24, clamp(R * 4.0f,0.,1.)));
     float x = mix(float(Samples) / max(float(u_AntialiasLevel) / 1.0f, 1.0f),float(Samples),float(!Aliased));
     Samples = int(floor(x));
     Samples = clamp(Samples, 2, 32);

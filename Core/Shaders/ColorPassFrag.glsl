@@ -244,19 +244,17 @@ vec3 GetAtmosphereAndClouds()
     vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
     float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
     BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
-    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
+    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW * 1.2f, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
 
     // Normalize ->
     ScatterColor *= 1.0f / PI;
     ScatterColor *= 1.2f;
     ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
 
-
     vec3 NormalizedDir = normalize(v_RayDirection);
     float Dither = bayer128(gl_FragCoord.xy);
 
     vec2 SampleCoord = g_TexCoords + (Dither / 768.0f);
-
 
 	vec4 SampledCloudData;
 

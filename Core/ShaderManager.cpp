@@ -52,6 +52,9 @@ void VoxelRT::ShaderManager::CreateShaders()
 	// CAS
 	AddShader("CONTRAST_ADAPTIVE_SHARPENING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ContrastAdaptiveSharpening.glsl");
 
+	// FXAA
+	AddShader("FXAA_SECONDARY", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FXAA311.glsl");
+
 	// anti flicker
 	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");
 	AddShader("BILATERAL_HITDIST1", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistance_Bilateral.glsl");
