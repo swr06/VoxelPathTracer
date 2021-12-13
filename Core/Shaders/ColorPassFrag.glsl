@@ -242,7 +242,6 @@ vec3 GetAtmosphereAndClouds()
 
     // Calculate colors ->
     vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
-    BaseSun = BasicSaturation(BaseSun, 1.1f);
     float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
     BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
     vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
@@ -256,7 +255,7 @@ vec3 GetAtmosphereAndClouds()
     vec3 NormalizedDir = normalize(v_RayDirection);
     float Dither = bayer128(gl_FragCoord.xy);
 
-    vec2 SampleCoord = g_TexCoords + (Dither / 512.0f);
+    vec2 SampleCoord = g_TexCoords + (Dither / 768.0f);
 
 
 	vec4 SampledCloudData;
@@ -321,7 +320,7 @@ float ComputeShadow(vec3 world_pos, vec3 flat_normal, float upscaled)
     float PlayerShadow  = 0.0f;
     int PlayerShadowSamples = 6;
 
-    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.2f);
+    vec3 BiasedWorldPos = world_pos - (flat_normal * 0.3f);
     if (u_ContactHardeningShadows) {
 		vec3 L = (u_StrongerLightDirection);
 		vec3 T = normalize(cross(L, vec3(0.0f, 1.0f, 1.0f)));
@@ -668,6 +667,17 @@ vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shado
 }
 
 
+vec2 BetterFilteringUVTweak(vec2 res, vec2 uv) 
+{
+    uv = uv*res + 0.5;
+    vec2 fl = floor(uv);
+    vec2 fr = fract(uv);
+    vec2 aa = fwidth(uv)*0.75;
+    fr = smoothstep( vec2(0.5)-aa, vec2(0.5)+aa, fr);
+    uv = (fl+fr-0.5) / res;
+    return uv;
+}
+
 void main()
 {
     g_TexCoords = v_TexCoords;
@@ -769,7 +779,7 @@ void main()
             //vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
             //vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
 
-            vec2 SmoothstepUV = SmoothStepUV(UV,vec2(512.0f),1.5f);
+            vec2 SmoothstepUV = BetterFilteringUVTweak(vec2(512.0f), UV);
 
             // Fix texture seam with approximated derivative ->
             
@@ -778,6 +788,10 @@ void main()
             vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(SmoothstepUV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
             
             AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
+
+            if (PBRMap.y > 0.02f){
+                AlbedoColor = BasicSaturation(AlbedoColor, 0.8f);
+            }
 
             vec3 NonAmplifiedNormal = NormalMapped;
 
@@ -865,14 +879,6 @@ void main()
                 SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, normalize(R)); 
             }
 
-
-
-            // Dirty hack to make the normals a bit more visible because the reflection map is so low quality 
-            // That it hurts my soul
-            // (this just slightly darkens areas where the normal map effect is high)
-           // float NDotMap = pow(abs(dot(SampledNormals.xyz, NormalMapped.xyz)), 200.0f);
-           // float NDotMapM = clamp(exp(NDotMap) * 0.95f, 0.2f, 1.0f);
-           // SpecularIndirect *= NDotMapM; 
            
 			SpecularIndirect = max(vec3(0.0001f), SpecularIndirect);
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 

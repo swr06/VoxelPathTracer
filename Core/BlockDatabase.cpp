@@ -485,6 +485,30 @@ namespace VoxelRT
 		return ParsedBlockDataListID.at(block_id).snd_modify;
 	}
 
+	void BlockDatabase::SetTextureArraysFilteringLinear()
+	{
+		GLuint Arrays[4] = { BlockTextureArray.GetTextureArray(), BlockNormalTextureArray.GetTextureArray(), BlockPBRTextureArray.GetTextureArray(), BlockEmissiveTextureArray.GetTextureArray() };
+
+		for (int i = 0; i < 4; i++) {
+			glBindTexture(GL_TEXTURE_2D_ARRAY, Arrays[i]);
+			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+		}
+	}
+
+	void BlockDatabase::SetTextureArraysFilteringNearest()
+	{
+		GLuint Arrays[4] = { BlockTextureArray.GetTextureArray(), BlockNormalTextureArray.GetTextureArray(), BlockPBRTextureArray.GetTextureArray(), BlockEmissiveTextureArray.GetTextureArray() };
+
+		for (int i = 0; i < 4; i++) {
+			glBindTexture(GL_TEXTURE_2D_ARRAY, Arrays[i]);
+			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+		}
+	}
+
 	bool BlockDatabase::IsBlockTransparent(BlockIDType block_id)
 	{
 		if (block_id == 0) { return true; }

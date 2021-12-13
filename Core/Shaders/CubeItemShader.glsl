@@ -4,14 +4,39 @@
 #define TAU (2.0f * PI)
 #define clamp01(x) (clamp(x,0.,1.))
 
+// Shape :
+// The cube is ray casted using a simple in-shader camera and rotation matrix
+
+// Lighting :
+// Lighting is done completely stylistically 
+// It uses a simple lambertian BRDF for the direct lighting 
+// Indirect lighting is done using a cut down version of image based lighting 
+// Indirect diffuse uses a pre convoluted irradiance map 
+// Specular is calculated in realtime by sampling the ggx vndf and using a bunch of samples.
+
+// Antialiasing :
+// Uses a custom anti aliasing method 
+// -> Use screen space derivatives to find out luminance jumps
+// And only apply anti aliasing where it jumps. 
+// The anti aliasing algorithm samples multiple subpixels linearly from -0.5 -> +0.5
+
+// I spent around 2 days working on this shit. What am I doing with my fucking life.
+
+
+//#define SMART_ANTI_ALIAS_DEBUG
+
+
 layout(rgba16f, binding = 1) uniform image2D o_OutputImage;
 
+// Screen space uv ->
 in vec2 v_TexCoords;
 
 uniform float u_Time;
 uniform vec2 u_Dimensions;
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
+
+// Sky/HDRI ->
 uniform samplerCube u_Sky;
 uniform samplerCube u_RandomHDRI;
 uniform samplerCube u_RandomHDRIDiffuse;
@@ -24,9 +49,15 @@ uniform sampler2DArray u_PBRTextures;
 
 uniform int u_HeldBlockID;
 
-uniform bool u_Antialias;
+// Params
+uniform int u_AntialiasLevel;
+uniform int u_SpecularSampleBias;
+uniform bool u_SimpleLighting;
 
 uniform float u_SunVisibility;
+
+// Multitexturing *FUCKING HACK* for only the grass block
+// **Will be removed in the future**
 uniform int u_GrassBlockProps[10];
 
 
@@ -41,6 +72,7 @@ layout (std430, binding = 0) buffer SSBO_BlockData
 	int BlockSSSSSData[128];
 };
 
+// Constants 
 const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
 const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
 const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
@@ -48,6 +80,8 @@ const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 
+// Calculates tangent, bitangent and uv vectors 
+void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 
 // Hit record struct ->
 struct HitRecord
@@ -67,6 +101,7 @@ vec3 GetNormal(vec3 v)
     return n;
 }
 
+// Ray box intersection test
 float RayBoxIntersectionTest(vec3 raypos, vec3 raydir, vec3 boxmin, vec3 boxmax)
 {
     float t1 = (boxmin.x - raypos.x) / raydir.x;
@@ -92,50 +127,30 @@ float RayBoxIntersectionTest(vec3 raypos, vec3 raydir, vec3 boxmin, vec3 boxmax)
     return tmin;
 }
 
+// Basic intersection test
 HitRecord IntersectItemCube(vec3 r0, vec3 rD, vec3 BoxMinCoord, vec3 BoxMaxCoord)
 {
     HitRecord result;
     result.HitDistance = RayBoxIntersectionTest(r0, rD, BoxMinCoord, BoxMaxCoord);
-
     float Transversal = step(result.HitDistance, INF);
-    
     result.HitNormal = mix(-rD, GetNormal(r0 + rD * result.HitDistance - (BoxMinCoord + BoxMaxCoord) / 2.0f), Transversal);
     return result;
 }
 
-
+// Gets the percieved brightness of a pixel
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-vec3 TemperatureToRGB(float temperatureInKelvins);
 
-vec3 SampleSunColor()
-{
-    const vec3 TemperatureModifier = TemperatureToRGB(5778.0f);
-    vec3 SunTransmittance = texture(u_Sky, u_SunDirection.xyz).xyz;
-    vec3 SunColor = SunTransmittance;
-    SunColor *= TemperatureModifier;
-    return SunColor * PI * 2.2f * 1.25f;
-}
-
-vec3 SampleMoonColor()
-{
-    vec3 MoonTransmittance = texture(u_Sky, u_MoonDirection).xyz;
-    vec3 MoonColor = MoonTransmittance;
-    MoonColor = MoonColor * PI * 1.25f;
-    MoonColor = mix(MoonColor, vec3(GetLuminance(MoonColor)), 0.05f); 
-    return MoonColor * 0.55f;
-}
-
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
-
-
+// Remaps a value from one range to another
 float remap(float x, float a, float b, float c, float d)
 {
     return (((x - a) / (b - a)) * (d - c)) + c;
 }
 
+// 3D rotation matrix 
+// Todo : do this on the CPU
 mat3 RotationMatrix(vec3 axis, float ang)
 {
     axis = normalize(axis);
@@ -147,12 +162,14 @@ mat3 RotationMatrix(vec3 axis, float ang)
                 oc*axis.z*axis.x-axis.y*s,oc*axis.y*axis.z+axis.x*s,oc*axis.z*axis.z+c);
 }
 
+// RNG ->
 float HASH2SEED = 0.0f;
 vec2 hash2() 
 {
 	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
 }
 
+// Samples ggx vndf ->
 vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 {
     float alpha = roughness * roughness;
@@ -175,6 +192,8 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
+// Gets a reflection direction ->
+// (Picks a direction that is nearest to the normal after x samples)
 vec3 GetReflectionDirection(vec3 N, float R) 
 {
 	R = max(R, 0.04f);
@@ -195,10 +214,15 @@ vec3 GetReflectionDirection(vec3 N, float R)
 	return BestDirection;
 }
 
-vec3 SampleSpecular(vec3 I, vec3 N, float R) {
+// Integrates ggx specular ->
+vec3 SampleSpecular(vec3 I, vec3 N, float R, bool Aliased) {
     
-    int Samples = int(mix(12, 24, R * 2.0f));
+    int Samples = int(mix(8, 32, clamp(R * 4.0f,0.,1.)));
+    float x = mix(float(Samples) / max(float(u_AntialiasLevel) / 1.0f, 1.0f),float(Samples),float(!Aliased));
+    Samples = int(floor(x));
     Samples = clamp(Samples, 2, 32);
+    Samples += u_SpecularSampleBias;
+    Samples = clamp(Samples, 2, 64);
     R = max(R, 0.05f);
     R = min(R, 0.5f);
 
@@ -215,6 +239,7 @@ vec3 SampleSpecular(vec3 I, vec3 N, float R) {
     return Specular;
 }
 
+// Fresnel schlick, with a roughness weight 
 vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
 {
     float cosTheta = max(dot(norm, Eye), 0.0);
@@ -222,14 +247,20 @@ vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness)
     return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
 }
 
+mat3 g_RotationMatrix;
+
+
+// Intersects the item box
 bool Intersect(vec2 LocalUV, vec2 ActualUV, out vec3 Normal) 
 {
+    // This shit took me so long to get right :(
     vec2 NDC = LocalUV * 2.0f - 1.0f;
     vec2 Clip = NDC;
-    float SinTime = sin(u_Time);
-    mat3 RotationMatrix = RotationMatrix(vec3(1.1f, 3.0f, 1.1f), u_Time * 0.35f);
-    vec3 RayDirection = RotationMatrix * vec3(NDC, 1.0f);
-    vec3 RayOrigin = RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
+    //float SinTime = sin(u_Time);
+    
+    vec3 RayDirection = g_RotationMatrix * vec3(NDC, 1.0f);
+    vec3 RayOrigin = g_RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
+
     RayDirection += vec3(0.0f, -0.52f, 0.0f);
     RayDirection = normalize(RayDirection);
     HitRecord result = IntersectItemCube(RayOrigin, RayDirection, vec3(0.0f), vec3(1.0f));
@@ -243,39 +274,90 @@ bool Intersect(vec2 LocalUV, vec2 ActualUV, out vec3 Normal)
     return true;
 }
 
+// basic tonemap used for testing 
 vec3 BasicTonemap(vec3 color)
 {
     float l = length(color);
     color = mix(color, color * 0.5f, l / (l + 1.0f));
     color = (color / sqrt(color * color + 1.0f));
-
     return color;
 }
 
-vec4 BetterTexture(sampler2DArray samp, vec3 wwuv, float LOD)
+// Reinhard white shift preserving tonemap
+float Reinhard2(float x)
 {
-    vec2 textureResolution = textureSize(samp, 0).xy;
-    vec2 uv = wwuv.xy;
-    uv = uv * textureResolution + 0.5;
-    vec2 iuv = floor(uv);
-    vec2 fuv = fract(uv);
-    uv = iuv + fuv * fuv * (3.0 - 2.0 * fuv);
-    uv = (uv - 0.5) / textureResolution;
-    return textureLod(samp, vec3(uv, wwuv.z), LOD).xyzw;
+    const float L_white = 4.0;
+    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
 }
 
-vec3 Radiance(vec2 LocalUV, vec2 ActualUV) 
+// Reinhard white shift preserving tonemap
+vec3 Reinhard2(vec3 x) 
 {
+    const float L_white = 4.0;
+    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
+}
+
+// Reduces texture aliasing 
+vec4 PixelArtFiltering(sampler2DArray tex, vec3 uvw, float LOD)
+{
+    vec2 uv = uvw.xy;
+    vec2 res = vec2(textureSize(tex,0));
+    uv = uv*res;
+    vec2 seam = floor(uv+0.5);
+    uv = seam + clamp( (uv-seam)/fwidth(uv), -0.5, 0.5);
+    return textureLod(tex, vec3(uv/res, uvw.z), LOD);
+}
+
+// Saturation
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
+// Inverse fresnel 
+float InverseSchlick(float f0, float VoH) 
+{
+    return 1.0 - clamp(f0 + (1.0f - f0) * pow(1.0f - VoH, 5.0f), 0.0f, 1.0f);
+}
+
+// Prevents bilinear artifacts by a bit 
+vec4 TextureSmooth(sampler2DArray samp, vec3 uvw, float LOD) 
+{
+    vec2 uv = uvw.xy;
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return textureLod(samp, vec3(uv,uvw.z), LOD).xyzw;
+}
+
+// 2D rotation matrix 
+mat2 GenerateRotationMatrix2D(float angle)
+{
+	angle *= PI / 180.0;
+    float s = sin(angle), c = cos(angle);
+    return mat2(c, -s, s, c);
+}
+
+float g_Exposure;
+vec3 g_SkyLightingUP;
+
+// Calculates the radiance for a particular UV
+vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample) 
+{
+    // Convert to clip space 
     vec2 NDC = LocalUV * 2.0f - 1.0f;
     vec2 Clip = NDC;
 
-
-    float SinTime = sin(u_Time);
+    //float SinTime = sin(u_Time);
 
     // Generate matrices ->
-    mat3 RotationMatrix = RotationMatrix(vec3(1.1f, 3.0f, 1.1f), u_Time * 0.35f);
-    vec3 RayDirection = RotationMatrix * vec3(NDC, 1.0f);
-    vec3 RayOrigin = RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
+    vec3 RayDirection = g_RotationMatrix * vec3(NDC, 1.0f);
+    vec3 RayOrigin = g_RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
 
     // Offset direction ->
     RayDirection += vec3(0.0f, -0.52f, 0.0f);
@@ -295,21 +377,23 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV)
     vec3 IntersectionPoint = RayOrigin + RayDirection * result.HitDistance;
     vec3 IntersectionNormal = normalize(result.HitNormal);
 
+    // Calc vectors ->
     vec2 UV;
     vec3 Tangent;
     vec3 Bitangent;
-
     CalculateVectors(IntersectionPoint, IntersectionNormal, Tangent, Bitangent, UV);
-
     UV.y = 1.0f - UV.y;
 
+    // Generate TBN
     mat3 TBN = mat3(Tangent, Bitangent, IntersectionNormal);
 
+    // Fetch ids ->
     ivec3 texture_ids;
     texture_ids.x = BlockAlbedoData[u_HeldBlockID];
     texture_ids.y = BlockNormalData[u_HeldBlockID];
     texture_ids.z = BlockPBRData[u_HeldBlockID];
 
+    // Multitexturing hack ->
     if (u_HeldBlockID == u_GrassBlockProps[0])
 	{
 		if (IntersectionNormal == NORMAL_LEFT || IntersectionNormal == NORMAL_RIGHT || IntersectionNormal == NORMAL_FRONT || IntersectionNormal == NORMAL_BACK)
@@ -334,100 +418,187 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV)
 		}
 	}
 
-    vec3 Albedo = BetterTexture(u_AlbedoTextures, vec3(UV, float(texture_ids.x)), 3).xyz;
-    vec3 Normal = BetterTexture(u_NormalTextures, vec3(UV, float(texture_ids.y)), 3).xyz * 2.0f - 1.0f;
-    vec3 PBR = BetterTexture(u_PBRTextures, vec3(UV, float(texture_ids.z)), 3).xyz;
-    float Emissivity = BetterTexture(u_EmissiveTextures, vec3(UV, float(BlockEmissiveData[u_HeldBlockID])), 3).x;
+    // fetch ->
+    vec3 Albedo = PixelArtFiltering(u_AlbedoTextures, vec3(UV, float(texture_ids.x)), 3).xyz; // 512, 256, 128, 64
+    vec3 Normal = PixelArtFiltering(u_NormalTextures, vec3(UV, float(texture_ids.y)), 3).xyz * 2.0f - 1.0f;
+    Albedo = BasicSaturation(Albedo, 0.9f)*1.2f;
+    vec4 PBR = PixelArtFiltering(u_PBRTextures, vec3(UV, float(texture_ids.z)), 3).xyzw;
+    float IndirectOcclusion = pow(PBR.w,1.45f);
     
+    if (PBR.y > 0.025f) {
+        Albedo = BasicSaturation(Albedo, 0.8f);
+    }
+
+    int EmissivityMapID = BlockEmissiveData[u_HeldBlockID];
+    bool BlockIsEmissive = EmissivityMapID > -0.5f;
+    float Emissivity = BlockIsEmissive ? textureLod(u_EmissiveTextures, vec3(UV, float(EmissivityMapID)), 3).x : 0.0f;
+    
+    // Convert to tangent basis ->
     Normal = TBN * Normal;
 
-    const vec3 VirtualLightPosition = normalize(vec3(0.9f, -1.0f, 0.9f));
-    const vec3 VirtualLightRadiance = vec3(4.5f);
-    vec3 SimpleLambertianBRDF = (clamp(dot(Normal, VirtualLightPosition), 0.0001f, 1.0f) / PI) * VirtualLightRadiance;
-    SimpleLambertianBRDF = SimpleLambertianBRDF * Albedo;
+    const vec3 VirtualLightPosition = normalize(-vec3(0.9f, -1.0f, 0.9f));
+    //float HammonBRDF = DiffuseHammon(Normal, -RayDirection, VirtualLightPosition, PBR.x);
+    //vec3 HammonDiffuse = HammonBRDF * Albedo;
 
+    // Integrate lambert brdf ->
+    float LambertianBRDF = clamp(dot(Normal, VirtualLightPosition) / PI, 0.0f, 1.0f);
+    vec3 LambertianLighting = LambertianBRDF * LambertianBRDF * Albedo * vec3(1.1f, 1.1f, 1.1f);
+    LambertianLighting = clamp(LambertianLighting, 0.0f, 1.0f);
+
+    // If simple lighting is enabled, just use the lambert brdf
+    if (u_SimpleLighting) {
+        vec3 FakeAmbientShading = BasicSaturation(g_SkyLightingUP,0.75f)*0.4f;
+        vec3 IntegratedBasic = (LambertianLighting+FakeAmbientShading*BasicSaturation(Albedo,1.2f))*g_Exposure*2.0f*max(Emissivity*4.0f,1.0f);
+        return Reinhard2(IntegratedBasic*1.05f);
+    }
+
+    // Integrate direct lighting ->
     vec3 IndirectDiffuse = texture(u_RandomHDRIDiffuse, Normal).xyz;
-
+    vec3 IndirectSkyModifier = texture(u_Sky, Normal).xyz;
+    IndirectDiffuse = IndirectDiffuse * 0.75f;
+    IndirectDiffuse *= 1.05f;
     IndirectDiffuse *= Albedo;
 
     vec3 I = RayDirection;
 
-    vec3 IndirectSpecular = SampleSpecular(I, Normal, PBR.x);
+    vec3 IndirectSpecular = SampleSpecular(I, Normal, PBR.x, AliasSample);
 
     vec3 F0 = mix(vec3(0.04), Albedo, PBR.g);
 
-    vec3 SpecularFactor = fresnelroughness(-I, Normal.xyz, vec3(F0), PBR.x); 
+    // Calculate color shift ->
+    vec3 ColorBias = mix(g_SkyLightingUP*6.2f, vec3(0.9f), u_SunVisibility);
+    ColorBias = mix(ColorBias,vec3(1.),BlockIsEmissive?(Emissivity>1.05f?0.75f:0.5f):0.0f);
+    vec3 IndirectColorBias = mix(ColorBias, vec3(1.0f), 0.25f);
+    vec3 DirectColorBias = ColorBias*1.5f;
 
-    vec3 Integrated = (IndirectDiffuse * (1.-SpecularFactor)) + (IndirectSpecular * SpecularFactor * 0.75f);
+    // Combine based on fresnel ->
+    vec3 SpecularFactor = fresnelroughness(-I, Normal.xyz, vec3(F0), PBR.x) * 0.85f; 
 
-    Emissivity = max(1.,Emissivity*6.5f);
+    // Integrate indirect ->
+    vec3 IntegratedIndirect = (IndirectDiffuse * (1.-SpecularFactor)) + (IndirectSpecular * SpecularFactor);
+    IntegratedIndirect *= IndirectOcclusion;
+    IntegratedIndirect *= IndirectColorBias;
+    LambertianLighting *= DirectColorBias;
 
-    float Exposure = mix(0.8f, 4.20f, u_SunVisibility);
+    // Combine direct and indirect ->
+    vec3 Integrated = LambertianLighting + IntegratedIndirect;
 
-    vec3 ColorBias = mix(vec3(0.6f, 0.6f, 1.0f), vec3(0.9f), u_SunVisibility);
+    // Apply exposure and fake bloom
 
-    Integrated = Integrated * Exposure * Emissivity * ColorBias;
+    vec3 AverageColorApproximate = TextureSmooth(u_AlbedoTextures, vec3(vec2(0.5f), float(texture_ids.x)), 8.0f).xyz+TextureSmooth(u_AlbedoTextures, vec3(vec2(0.8f), float(texture_ids.x)), 8.0f).xyz;
+    AverageColorApproximate /= 2.0f;
 
-    return BasicTonemap(Integrated);
+    Emissivity = max(1.,Emissivity*3.5f);
+
+    Integrated = Integrated * g_Exposure * Emissivity;
+    Integrated *= 2.2f;
+
+    // Fake bloom ->
+    if (BlockIsEmissive) {
+        float FakeGlow = TextureSmooth(u_EmissiveTextures, vec3(UV, float(EmissivityMapID)), 6.25f).x;
+        vec3 FakeColor = pow(AverageColorApproximate, vec3(1.414f));
+        Integrated += FakeGlow * (1.0f / g_Exposure) * mix(6.0f, 6.0f*6.0f, 1.-clamp01(u_SunVisibility)) * FakeColor;
+    }
+
+    // Tonemap and return
+
+    const vec3 FakeBlueShift = vec3(0.925f,0.89f,1.0f);
+    vec3 Tonemapped = Reinhard2(Integrated*FakeBlueShift);
+
+    return Tonemapped ;
 }
 
+float Manhattan(vec2 p1, vec2 p2) {
+    return abs(p1.x-p2.x)+abs(p1.y-p2.y);
+}
 
-
+// Entry ->
 void main()
 {
-    
-
-    if (!(v_TexCoords.x > 0.75f && v_TexCoords.y > 0.65f)) {
+    if (!(v_TexCoords.x > 0.85f && v_TexCoords.y > 0.79f)) {
         return;
     }
 
+    if (v_TexCoords.x > 0.972f || v_TexCoords.y > 0.972f) {
+        return;
+    }
+
+    float DimensionRatio = u_Dimensions.x / u_Dimensions.y;
+
+    // Compute globals ->
+
+    // cube rotation matrix ->
+    g_RotationMatrix = RotationMatrix(vec3(1.1f, 3.0f, 1.1f), u_Time * 0.75f);
+
+    // Camera exposure ->
+    g_Exposure = mix(4.0f, 12.0f, u_SunVisibility);
+
+    // Basic sky ambient ->
+    g_SkyLightingUP = texture(u_Sky,vec3(0.,1.,0.)).xyz;
+    
+    // RNG ->
     HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 200.0 * 20.0f;
 
-    bool AntiAlias = u_Antialias;
+
     vec2 Texel = 1.0f / u_Dimensions;
     
-    if (AntiAlias) {
-    
-        float A = 4.0f, s = 1.0f / A, x, y;
-        vec3 TotalRadiance = vec3(0.0f);
-    
-        for (x = -0.5f; x < 0.5f; x += s) 
-        {
-            for (y = -0.5f; y < 0.5f; y += s) 
-            {
-                 vec2 TexCoords = v_TexCoords + vec2(x,y) * Texel;
-                 vec2 LocalUV;
-                 LocalUV.x = remap(TexCoords.x, 0.75f, 1.0f, 0.0f, 1.0f);
-                 LocalUV.y = remap(TexCoords.y, 0.65f, 1.0f, 0.0f, 1.0f);
-    
-                 TotalRadiance += Radiance(LocalUV, TexCoords).xyz;
-            }
-        }
-    
-        TotalRadiance /= A * A;
+    vec3 CenterRadiance;
 
-      
-        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(TotalRadiance,1.));
-    
-    }
-    
-    else 
     {
         vec2 TexCoords = v_TexCoords;
         vec2 LocalUV;
         LocalUV.x = remap(TexCoords.x, 0.75f, 1.0f, 0.0f, 1.0f);
         LocalUV.y = remap(TexCoords.y, 0.65f, 1.0f, 0.0f, 1.0f);
-        vec3 RadianceFinal = Radiance(LocalUV, TexCoords).xyz;
-
-
-        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(RadianceFinal,1.));
+        CenterRadiance = Radiance(LocalUV, TexCoords, false).xyz;
     }
-   
-    //imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), IsAtEdge ? vec4(1.,0.,0.,0.) : vec4(0.,1.,0.,0.));
+
+
+    // Custom Antialiasing Algorithm ->
+    // -> Use screen space derivatives to find out luminance jumps
+    // And only apply anti aliasing where it jumps. 
+    // The anti aliasing algorithm samples multiple subpixels linearly from -0.5 -> +0.5
+
+    float Threshold = mix(0.020f, 0.125f, float(u_SunVisibility));
+    bool Aliased = fwidth(GetLuminance((CenterRadiance.xyz))) > Threshold;
+
+    if (!Aliased || (v_TexCoords.x < 0.86f && v_TexCoords.y < 0.81f) || u_AntialiasLevel == 0) 
+    {
+        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(CenterRadiance, 1.0f));
+        return;
+    }
+
+    #ifdef SMART_ANTI_ALIAS_DEBUG
+        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(1.,0.,0.,1.));
+        return;
+    #endif
+
+    // Pixel is aliased. Sample subpixels ->
+
+    float AntiAliasingSamples = float(u_AntialiasLevel); // Need to make sure that the sample count is divisible by 2!
+    AntiAliasingSamples = clamp(AntiAliasingSamples, 1, 16);
+    float StepSize = 1.0f / AntiAliasingSamples;
+    vec3 TotalRadiance = vec3(0.0f);
     
+    for (float x = -0.5f; x < 0.5f; x += StepSize) 
+    {
+        for (float y = -0.5f; y < 0.5f; y += StepSize) 
+        {
+            if (Manhattan(vec2(x,y),vec2(0.0f)) < 0.001f) {
+                TotalRadiance += CenterRadiance;
+                continue;
+            }
+
+            vec2 TexCoords = v_TexCoords + vec2(x,y) * Texel;
+            vec2 LocalUV;
+            LocalUV.x = remap(TexCoords.x, 0.75f, 1.0f, 0.0f, 1.0f);
+            LocalUV.y = remap(TexCoords.y, 0.65f, 1.0f, 0.0f, 1.0f);
+            TotalRadiance += Radiance(LocalUV, TexCoords, true).xyz;
+        }
+    }
+    
+    TotalRadiance /= AntiAliasingSamples * AntiAliasingSamples;
+    imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(TotalRadiance,1.));
 }
-
-
 
 
 bool CompareVec3(vec3 v1, vec3 v2) {
@@ -499,40 +670,3 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
 		bitangent = BiTangents[5];
     }
 }
-
-
-float SRGBToLinear(float x){
-    return x > 0.04045 ? pow(x * (1 / 1.055) + 0.0521327, 2.4) : x / 12.92;
-}
-
-vec3 SRGBToLinearVec3(vec3 x){
-    return vec3(SRGBToLinear(x.x),
-                SRGBToLinear(x.y),
-                SRGBToLinear(x.z));
-}
-
-
-vec3 TemperatureToRGB(float temperatureInKelvins)
-{
-	vec3 retColor;
-	
-    temperatureInKelvins = clamp(temperatureInKelvins, 1000, 50000) / 100;
-    
-    if (temperatureInKelvins <= 66){
-        retColor.r = 1;
-        retColor.g = clamp01(0.39008157876901960784 * log(temperatureInKelvins) - 0.63184144378862745098);
-    } else {
-    	float t = temperatureInKelvins - 60;
-        retColor.r = clamp01(1.29293618606274509804 * pow(t, -0.1332047592));
-        retColor.g = clamp01(1.12989086089529411765 * pow(t, -0.0755148492));
-    }
-    
-    if (temperatureInKelvins >= 66)
-        retColor.b = 1;
-    else if(temperatureInKelvins <= 19)
-        retColor.b = 0;
-    else
-        retColor.b = clamp01(0.54320678911019607843 * log(temperatureInKelvins - 10) - 1.19625408914);
-
-    return SRGBToLinearVec3(retColor);
-}     

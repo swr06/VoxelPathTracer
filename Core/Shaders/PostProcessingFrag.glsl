@@ -879,25 +879,46 @@ vec3 ShadeStars(vec3 fragpos)
 	
     // Project direction ->
 	fragpos = floor(fragpos * 100.0f);
-	vec2 tuv = clamp(ProjectDirection(fragpos, vec2(2048)), 0.0f, 1.0f);
+	vec2 tuv = clamp(ProjectDirection(fragpos, vec2(2048.)), 0.0f, 1.0f);
 
 	vec3 FinalStar = vec3(0.);
+	bool AntiAlias = false;
 
-	vec2 jitterOffsets[8] = vec2[8]( // LiteTAA Jitter
-							vec2( 0.125,-0.375),
-							vec2(-0.125, 0.375),
-							vec2( 0.625, 0.125),
-							vec2( 0.375,-0.625),
-							vec2(-0.625, 0.625),
-							vec2(-0.875,-0.125),
-							vec2( 0.375,-0.875),
-							vec2( 0.875, 0.875)
-						);
+	if (AntiAlias) {
 
-	int Samples = clamp(1, 0, 8);
-	
-	for (int i = 0 ; i < Samples ; i++) {
-		vec2 uv = tuv + jitterOffsets[i] * (1.0f / 2048.0f);
+		float A = 1.0f, s = 1.0f / A, x, y;
+		A = clamp(A, 1, 16);
+    
+		for (x = -0.5f; x < 0.5f; x += s) 
+		{
+			for (y = -0.5f; y < 0.5f; y += s) 
+			{
+				vec2 uv = tuv + vec2(x,y) * (1.0f / 2048.0f);
+
+				// Add some variation to the scale 
+				float scale = mix(800.0f, 1100.0f, 1.0f-hash.x)*3.;
+				float star = BilinearStarSample(uv * scale, 0.9965f);
+
+				// Use blackbody to get a color from a temperature value.
+				float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
+				vec3 Color = planckianLocus(RandomTemperature);
+        
+				// Twinkle
+				float twinkle = sin(u_Time * 0.5f * hash.z);
+				twinkle = twinkle * twinkle;
+
+				star *= 0.35f;
+
+				FinalStar += clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+			}
+		}
+    
+
+		return FinalStar / float(A*A);
+	}
+
+	else {
+		vec2 uv = tuv ;
 
 		// Add some variation to the scale 
 		float scale = mix(800.0f, 1100.0f, 1.0f-hash.x)*3.;
@@ -914,9 +935,8 @@ vec3 ShadeStars(vec3 fragpos)
 		star *= 0.35f;
 
 		FinalStar += clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
+		return FinalStar;
 	}
-
-	return FinalStar / float(Samples);
 }
 
 

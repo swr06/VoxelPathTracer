@@ -38,6 +38,8 @@ namespace VoxelRT
 		std::string GetBlockName(BlockIDType block_id);
 		std::string GetStepSound(BlockIDType block_id);
 		std::string GetModifySound(BlockIDType block_id);
+		void SetTextureArraysFilteringLinear();
+		void SetTextureArraysFilteringNearest();
 
 		bool IsBlockTransparent(BlockIDType block_id);
 		bool IsBlockSSS(BlockIDType block_id);

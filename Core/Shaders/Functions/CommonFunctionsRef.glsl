@@ -1,5 +1,13 @@
 #version 430 core
 
+vec4 nearest(sampler2D tex, vec2 uv) {
+    vec2 res = textureSize(tex,0).xy;
+    uv *= res;
+    uv = floor(uv)+0.5;
+    uv /= res;
+    return textureLod(tex, uv, 0.0);
+}
+
 // Bayer dither 
 float bayer2(vec2 a){
     a = floor(a);

@@ -389,8 +389,8 @@ void main()
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
 			
 			if (u_ShadowTemporal) {  
-				CurrentColor = clamp(CurrentColor + 0.005f, 0.0f, 1.0f);  // Bias
-				PrevColor = clamp(PrevColor + 0.005f, 0.0f, 1.0f);  // Bias
+				CurrentColor = clamp(CurrentColor + 0.0001f, 0.0f, 1.0f);  // Bias
+				PrevColor = clamp(PrevColor + 0.0001f, 0.0f, 1.0f);  // Bias
 
 				if (!u_ShouldFilterShadows) {
 					BlendFactor = 0.0f;

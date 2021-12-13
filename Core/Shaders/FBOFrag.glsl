@@ -1,4 +1,5 @@
 #version 330 core
+#define INF 100000.0f
 
 float bayer2(vec2 a){
     a = floor(a);
@@ -35,7 +36,102 @@ uniform bool u_FXAA;
 uniform bool u_ColorGrading;
 uniform bool u_ColorDither;
 
+uniform bool u_RenderItemCube;
+
+uniform bool u_ExponentiallyMagnifyColorDifferences;
+
+uniform float u_Time;
+
 vec2 TexCoords;
+
+struct HitRecord
+{
+    float HitDistance;
+};
+
+float remap(float x, float a, float b, float c, float d)
+{
+    return (((x - a) / (b - a)) * (d - c)) + c;
+}
+
+
+mat3 RotationMatrix(vec3 axis, float ang)
+{
+    axis = normalize(axis);
+    float s = sin(ang);
+    float c = cos(ang);
+    float oc = 1.0 - c;
+    return mat3(oc*axis.x*axis.x+c,oc*axis.x*axis.y-axis.z*s,oc*axis.z*axis.x+axis.y*s,
+                oc*axis.x*axis.y+axis.z*s,oc*axis.y*axis.y+c,oc*axis.y*axis.z-axis.x*s,
+                oc*axis.z*axis.x-axis.y*s,oc*axis.y*axis.z+axis.x*s,oc*axis.z*axis.z+c);
+}
+
+float RayBoxIntersectionTest(vec3 raypos, vec3 raydir, vec3 boxmin, vec3 boxmax)
+{
+    float t1 = (boxmin.x - raypos.x) / raydir.x;
+    float t2 = (boxmax.x - raypos.x) / raydir.x;
+    float t3 = (boxmin.y - raypos.y) / raydir.y;
+    float t4 = (boxmax.y - raypos.y) / raydir.y;
+    float t5 = (boxmin.z - raypos.z) / raydir.z;
+    float t6 = (boxmax.z - raypos.z) / raydir.z;
+
+    float tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+    float tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+    if (tmax < 0.0) 
+    {
+        return INF;
+    }
+
+    if (tmin > tmax)
+    {
+        return INF;
+    }
+
+    return tmin;
+}
+
+HitRecord IntersectItemCube(vec3 r0, vec3 rD, vec3 BoxMinCoord, vec3 BoxMaxCoord)
+{
+    HitRecord result;
+    result.HitDistance = RayBoxIntersectionTest(r0, rD, BoxMinCoord, BoxMaxCoord);
+
+    float Transversal = step(result.HitDistance, INF);
+    
+    return result;
+}
+
+bool IntersectItemCube() 
+{
+	if (!u_RenderItemCube) {
+		return false;
+	}
+
+	vec2 LocalUV;
+        LocalUV.x = remap(TexCoords.x, 0.75f, 1.0f, 0.0f, 1.0f);
+        LocalUV.y = remap(TexCoords.y, 0.65f, 1.0f, 0.0f, 1.0f);
+
+	if (!(TexCoords.x > 0.8f && TexCoords.y > 0.78f)) {
+        return false;
+    }
+
+    vec2 NDC = LocalUV * 2.0f - 1.0f;
+    vec2 Clip = NDC;
+    float SinTime = sin(u_Time);
+    mat3 RotationMatrix = RotationMatrix(vec3(1.1f, 3.0f, 1.1f), u_Time * 0.75f);
+    vec3 RayDirection = RotationMatrix * vec3(NDC, 1.0f);
+    vec3 RayOrigin = RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
+    RayDirection += vec3(0.0f, -0.52f, 0.0f);
+    RayDirection = normalize(RayDirection);
+    HitRecord result = IntersectItemCube(RayOrigin, RayDirection, vec3(0.0f), vec3(1.0f));
+
+    if(result.HitDistance >= INF - 0.025f)
+    {
+        return false;
+    }
+
+    return true;
+}
 
 
 bool CompareFloatNormal(float x, float y) {
@@ -124,12 +220,17 @@ vec3 InverseReinhard(vec3 RGB)
 
 float GetLuminosityWeightFXAA(vec3 color, bool edge, vec2 txc) 
 {
-	float Depth = texture(u_PositionTexture, txc).x;
-
-	if (Depth < 0.0f) {
-		return 100.;
+	if (u_ExponentiallyMagnifyColorDifferences) 
+	{
+		color = exp(color*20.0f);
 	}
 
+	float LuminanceRaw = dot(color, vec3(0.299, 0.587, 0.114));
+	return LuminanceRaw;
+}
+
+float GetLuminosityWeightFXAANoBias(vec3 color, bool edge, vec2 txc) 
+{
 	float LuminanceRaw = dot(color, vec3(0.299, 0.587, 0.114));
 	return LuminanceRaw;
 }
@@ -166,12 +267,25 @@ bool DetectEdge()
 	return false;
 }
 
+
+
 void FXAA311(inout vec3 color) 
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
 	bool IsAtEdge = DetectEdge();
-	float subpixelQuality = IsAtEdge ? 1.35f : 0.4f; 
+	float subpixelQuality = IsAtEdge ? 0.999f : 0.25f; 
+
+	if (!IsAtEdge) {
+		if (IntersectItemCube()) {
+			if (u_ExponentiallyMagnifyColorDifferences) {
+				return;
+			}
+
+			subpixelQuality = 0.825f;
+		}
+	}
+
 	int iterations = 12;
 	vec2 texCoord = TexCoords;
 
@@ -439,6 +553,7 @@ void BasicColorDither(inout vec3 color)
 
 void main()
 {
+
 	// clip the screen 
 	TexCoords = vec2(gl_FragCoord.xy);
 	TexCoords += u_Padding/2;

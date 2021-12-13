@@ -175,6 +175,7 @@ void main()
 	bool FilterAO = u_Step < 5;
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 0.8f));
 	vec4 BasePosition = GetPositionAt(v_TexCoords);
+	bool BaseIsSky = BasePosition.w < 0.0f;
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
@@ -193,10 +194,10 @@ void main()
 	float TotalAOWeight = 1.0f;
 
 	float AccumulatedFrames = texture(u_TemporalMoment, v_TexCoords).x;
-	bool DoStrongSpatial = AccumulatedFrames < 8.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
-
-	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.00625?pow(VarianceEstimate,2.2f):VarianceEstimate));
+	bool DoStrongSpatial = AccumulatedFrames < 12.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
+	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.006?pow(VarianceEstimate,3.2f):VarianceEstimate));
 	PhiColor /= max(u_ColorPhiBias, 0.4f); 
+
 
 	//float Bayer = bayer2(gl_FragCoord.xy);
 
@@ -210,10 +211,11 @@ void main()
 	{
 		for (int y = -KernelSampleSize ; y <= KernelSampleSize ; y++)
 		{
-			vec2 SampleCoord = v_TexCoords + (((vec2(x, y) * float(u_Step) * AdditionalScale) + (vec2(Jitter) * 0.5f))) * TexelSize ;
-			
-			if (!InScreenSpace(SampleCoord)) { continue; }
 			if (x == 0 && y == 0) { continue ; }
+			
+
+			vec2 SampleCoord = v_TexCoords + (((vec2(x, y) * float(u_Step) * AdditionalScale) + (vec2(Jitter) * 0.5f))) * TexelSize ;
+			if (!InScreenSpace(SampleCoord)) { continue; }
 
 			vec4 SamplePosition = GetPositionAt(SampleCoord).xyzw;
 
@@ -221,7 +223,7 @@ void main()
 			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
             float DistSqr = dot(PositionDifference, PositionDifference);
 
-			if (DistSqr < 1.2f) 
+			if (DistSqr < 1.2f && SamplePosition.w < 0.0f == BasePosition.w < 0.0f) 
 			{
 				//float DepthDiff = abs(BasePosition.w-SamplePosition.w);
 				//float DepthWeight =  clamp(exp(-DepthDiff), 0.001f, 1.0f);

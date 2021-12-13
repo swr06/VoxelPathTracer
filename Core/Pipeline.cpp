@@ -253,7 +253,9 @@ static bool AmplifyNormalMap = true;
 
 
 static bool DoSmallItemCube = true;
-static bool AntialiasItemCube = false;
+static bool SimpleLightingItemCube = false;
+static int AntialiasItemCubeLevel = 2;
+static int ItemCubeSpecularSampleBias = 0;
 
 
 static int GodRaysStepCount = 12;
@@ -361,7 +363,9 @@ public:
 			ImGui::NewLine();
 			ImGui::Text("--- Item Cube Settings ---");
 			ImGui::Checkbox("Render Item Cube", &DoSmallItemCube);
-			ImGui::Checkbox("Anti Alias Item Cube", &AntialiasItemCube);
+			ImGui::Checkbox("Simple Lighting", &SimpleLightingItemCube);
+			ImGui::SliderInt("Specular Indirect Sample Bias (More = better reflections at the cost of performance)", &ItemCubeSpecularSampleBias, 0, 32);
+			ImGui::SliderInt("AntiAliasing Item Cube Level", &AntialiasItemCubeLevel, 0, 16);
 
 
 			// Initial hit
@@ -1256,6 +1260,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	// Equi rectangular projected cloud map ->
 
+
+
 	GLClasses::Framebuffer CloudProjection(512 * 3, 512 * 3, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE }, true);
 	CloudProjection.CreateFramebuffer();
 
@@ -1268,6 +1274,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
 		auto& ReflectionDenoiser = USE_NEW_SPECULAR_SPATIAL ? ReflectionDenoiserNew : ReflectionDenoiserOld;
 
 		// Player update flag
@@ -2903,6 +2911,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ---- COLOR PASS ----
 
+		BlockDatabase::SetTextureArraysFilteringLinear();
+
 		ReflectionProjection = PreviousProjection;
 		ReflectionView = PreviousView;
 
@@ -3093,6 +3103,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		ColoredFBO.Unbind();
 
+		BlockDatabase::SetTextureArraysFilteringNearest();
 
 		// ----- TAA ----- //
 
@@ -3592,6 +3603,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (DoSmallItemCube) {
 
+			BlockDatabase::SetTextureArraysFilteringLinear();
+
+			glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
 			PostProcessingFBO.Bind();
 			CubeItemRenderer.Use();
 
@@ -3609,7 +3624,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CubeItemRenderer.SetInteger("u_RandomHDRI", 5);
 			CubeItemRenderer.SetInteger("u_RandomHDRIDiffuse", 6);
 			CubeItemRenderer.SetInteger("u_HeldBlockID", world->GetCurrentBlock());
-			CubeItemRenderer.SetBool("u_Antialias", AntialiasItemCube);
+			CubeItemRenderer.SetInteger("u_AntialiasLevel", AntialiasItemCubeLevel);
+			CubeItemRenderer.SetInteger("u_SpecularSampleBias", ItemCubeSpecularSampleBias);
+			CubeItemRenderer.SetBool("u_SimpleLighting", SimpleLightingItemCube);
 			CubeItemRenderer.SetInteger("u_GrassBlockProps[0]", VoxelRT::BlockDatabase::GetBlockID("Grass"));
 			CubeItemRenderer.SetInteger("u_GrassBlockProps[1]", VoxelRT::BlockDatabase::GetBlockTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
 			CubeItemRenderer.SetInteger("u_GrassBlockProps[2]", VoxelRT::BlockDatabase::GetBlockNormalTexture("Grass", VoxelRT::BlockDatabase::BlockFaceType::Top));
@@ -3650,6 +3667,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VAO.Unbind();
 
 			PostProcessingFBO.Unbind();
+
+			BlockDatabase::SetTextureArraysFilteringNearest();
 		}
 
 
@@ -3686,6 +3705,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetBool("u_ColorDither", ColorDither);
 		FinalShader.SetBool("FXAA", FXAA);
 		FinalShader.SetBool("u_FXAA", FXAA);
+		FinalShader.SetBool("u_RenderItemCube", DoSmallItemCube);
+		FinalShader.SetBool("u_BoostSkyLuminance", StrongerLightDirection==MoonDirection);
+		FinalShader.SetBool("u_ExponentiallyMagnifyColorDifferences", StrongerLightDirection==MoonDirection);
+		FinalShader.SetFloat("u_Time", glfwGetTime());
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
@@ -3777,6 +3800,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			Volumetrics::Reupload();
 		}
 
+
 		// Update world
 		world->Update(&MainCamera);
 
@@ -3801,6 +3825,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		Frametime = glfwGetTime();
 		DeltaSum += DeltaTime;
 		ModifiedWorld = false;
+		AntialiasItemCubeLevel += AntialiasItemCubeLevel % 2;
 
 
 		// World bounds check
