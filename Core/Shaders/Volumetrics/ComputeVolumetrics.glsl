@@ -359,14 +359,22 @@ float SampleTriQuadraticDensity(vec3 UV)
 	return max(Density / 8.0, 0.00000001f);
 }
 
+vec4 NearestSample(sampler2D tex, vec2 uv)
+{
+    vec2 res = textureSize(tex,0).xy;
+    uv *= res;
+    uv = floor(uv)+0.5f;
+    uv /= res;
+    return textureLod(tex, uv, 0.0f);
+}
 
 
 void main() 
 {
-    const int Steps = 64;
+    const int Steps = 48;
 
 	// Ray properties
-	float BaseLinearDepth = texture(u_LinearDepthTexture, v_TexCoords).x;
+	float BaseLinearDepth = NearestSample(u_LinearDepthTexture, v_TexCoords).x;
 	BaseLinearDepth = BaseLinearDepth < 0.0f ? 10000.0f : BaseLinearDepth;
 
 	vec3 RayDirection = GetRayDirectionAt(v_TexCoords);

@@ -247,7 +247,7 @@ bool DetectEdge()
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
-		for (int y = -2 ; y <= 2 ; y++)
+		for (int y = -1 ; y <= 1 ; y++)
 		{
 			vec2 SampleCoord = TexCoords + vec2(x, y) * TexelSize;
 			vec3 SamplePosition = SamplePositionAt(SampleCoord).xyz;
@@ -275,6 +275,11 @@ void FXAA311(inout vec3 color)
 	float edgeThresholdMax = 0.125;
 	bool IsAtEdge = DetectEdge();
 	float subpixelQuality = IsAtEdge ? 0.999f : 0.0925f; 
+
+	//if (IsAtEdge) {
+	//	color = vec3(1.,0.,0.);
+	//	return;
+	//}
 
 	if (!IsAtEdge) {
 		if (IntersectItemCube()) {

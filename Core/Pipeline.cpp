@@ -118,7 +118,7 @@ static bool InferSpecularDetailSpatially = false;
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 
 static bool ContrastAdaptiveSharpening = true;
-static float CAS_SharpenAmount = 0.3 + 0.025f;
+static float CAS_SharpenAmount = 0.3 + 0.05f;
 
 static bool UseDFG = false;
 static bool RemoveTiling = false;
@@ -221,7 +221,7 @@ static bool DO_SVGF_TEMPORAL = true;
 
 
 static bool BrutalFXAA = true;
-static bool DoSecondaryFXAA = true;
+//static bool DoSecondaryFXAA = true;
 
 
 static bool GodRays = false;
@@ -580,7 +580,7 @@ public:
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
-			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.8f);
+			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.99f);
 			ImGui::SliderFloat("Desaturation Amount", &TextureDesatAmount, 0.0f, 1.0f);
 			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
 			ImGui::SliderFloat("Purkinje Effect Strength", &PurkingeEffectStrength, 0.0f, 1.0f);
@@ -588,14 +588,14 @@ public:
 			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
 			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
 			ImGui::Checkbox("Color Dither", &ColorDither);
-			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.2f);
+			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.04f);
 			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 0.1f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
-			ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
+			//ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
@@ -2920,7 +2920,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ---- COLOR PASS ----
 
-		BlockDatabase::SetTextureArraysFilteringLinear();
+		BlockDatabase::SetTextureArraysFilteringNearest();
 
 		ReflectionProjection = PreviousProjection;
 		ReflectionView = PreviousView;
@@ -3682,6 +3682,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		// FXAA 
+
+		bool DoSecondaryFXAA = true && StrongerLightDirection == MoonDirection && FXAA;
 
 		if (DoSecondaryFXAA) {
 

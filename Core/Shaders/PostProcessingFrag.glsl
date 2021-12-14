@@ -977,7 +977,7 @@ void main()
 	
 	if (u_PointVolumetricsToggled) {
 	
-		PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords+(Bayer128(gl_FragCoord.xy)*1.1*(1.0f/textureSize(u_VolumetricsCompute,0)))).xyz;
+		PointVolumetrics.xyz = textureBicubic(u_VolumetricsCompute, v_TexCoords+(Bayer128(gl_FragCoord.xy)*1.2*(1.0f/textureSize(u_VolumetricsCompute,0)))).xyz;
 		//PointVolumetrics *= clamp(Bayer128(gl_FragCoord.xy),0.5f,1.0f);
 		//PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
 		//PointVolumetrics += BayerDither * (1.0f-exp(-GetLuminance(PointVolumetrics.xyz)));
@@ -1038,7 +1038,6 @@ void main()
 			InputColor += god_rays * ss_volumetric_color;
 		}
 
-		InputColor += PointVolumetrics;
 
 		if (u_ExponentialFog)
 		{
@@ -1089,7 +1088,6 @@ void main()
 		
 		//o_Color += stars;
 		//o_Color += nebula * transmittance * transmittance;
-		o_Color += PointVolumetrics;
 		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
 		if (u_PurkingeEffectStrength>0.01f) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
@@ -1097,7 +1095,7 @@ void main()
 		o_Color = BasicTonemap(o_Color);
 	}
 
-	
+	o_Color += PointVolumetrics;
 	
 	if (u_Bloom)
 	{
