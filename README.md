@@ -56,7 +56,6 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - It has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
 - It is *not* guarenteed to work on ANY Intel GPUs
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
-- I don't work on this project a lot anymore, newer features might be delayed.
 - If you want to report an issue, then you can contact me on discord (swr#1793)
 - See `Controls.txt` for the controls (Or look at the console when you start up the program!) 
 - Amogus.
