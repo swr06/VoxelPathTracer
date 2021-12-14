@@ -1,6 +1,6 @@
 # Voxel Path Tracer
-A Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
-This engine was implemented using C++ and the modern opengl programmable pipeline.
+A ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
+This engine was implemented using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 # Features Implemented
 - Voxel Ray Casting 
@@ -16,7 +16,7 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Ray traced contact hardening soft shadows (with specialized shadow denoiser)
 - Flexible material system
 - Temporal Anti Aliasing (And temporal supersampling)
-- FXAA
+- FXAA 3.11
 - HDR Tonemapping, Gamma correction
 - Post Processing (Lens flare, Purkinje Effect, Film grain, Color Dither, Color grading with an LUT, Chromatic Aberration, Screen Space God Rays etc.)
 - Ray traced reflections 
@@ -24,12 +24,14 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Naive world saving and loading
 - Physically based atmosphere
 - Per Pixel Emissive Materials
+- Basic screen space SSS
 - Spatial filtering (Atrous and SVGF)
 - Spatial Upscaling
 - Screen Space Ambient Occlusion 
 - Ray Traced Ambient Occlusion
 - Bloom (Mip based) 
-- Volumetric 3D clouds (Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
+- Volumetric 3D clouds (Implemented Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
+- Reprojected Cloud Reflections 
 - Particle system
 - Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing
@@ -39,17 +41,18 @@ This engine was implemented using C++ and the modern opengl programmable pipelin
 - Contrast Adaptive Sharpening
 - Auto exposure based on a luminance histogram (WIP.)
 
-# Features to implement (Or atleast.. in mind)
+# Todo Features / QOL Improvements
+- Depth Of Field
 - Foliage
 - (Preferably sthochastic) Refractions
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 - Raytraced realistic sound
 
-# Performance
+# Performance Metrics 
 
-- 30 FPS on a Vega 8 iGPU on the default settings
-- 180 - 200 FPS on a GTX 1080Ti
+- 25-30 FPS on a Vega 8 iGPU on the default settings.
+- 180 - 200 FPS on a GTX 1080Ti.
 
 # Note
 - This project is still not finished, the current state is not a representation of the final version.
