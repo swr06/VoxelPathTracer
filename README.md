@@ -1,6 +1,6 @@
 # Voxel Path Tracer
 A ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
-This engine was implemented using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
+This engine was coded using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 # Features Implemented
 - Voxel Ray Casting 
@@ -59,9 +59,8 @@ This engine was implemented using C++ and the modern OpenGL programmable pipelin
 - It has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
 - It is *not* guarenteed to work on ANY Intel GPUs
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
-- If you want to report an issue, then you can contact me on discord (swr#1793)
-- See `Controls.txt` for the controls (Or look at the console when you start up the program!) 
-- Amogus.
+- If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile)
+- See `Controls.txt` for the controls (Or look at the console when you start up the program!)
 
 # Resource List
 - https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf (DDA)
