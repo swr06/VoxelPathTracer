@@ -255,7 +255,7 @@ static bool AmplifyNormalMap = true;
 
 static bool DoSmallItemCube = true;
 static bool SimpleLightingItemCube = false;
-static int AntialiasItemCubeLevel = 2;
+static int AntialiasItemCubeLevel = 4;
 static int ItemCubeSpecularSampleBias = 0;
 
 
@@ -365,7 +365,7 @@ public:
 			ImGui::Text("--- Item Cube Settings ---");
 			ImGui::Checkbox("Render Item Cube", &DoSmallItemCube);
 			ImGui::Checkbox("Simple Lighting", &SimpleLightingItemCube);
-			ImGui::SliderInt("Specular Indirect Sample Bias (More = better reflections at the cost of performance)", &ItemCubeSpecularSampleBias, 0, 32);
+			ImGui::SliderInt("Specular Indirect Sample Bias (More = better reflections at the cost of performance)", &ItemCubeSpecularSampleBias, 0, 48);
 			ImGui::SliderInt("AntiAliasing Item Cube Level", &AntialiasItemCubeLevel, 0, 16);
 
 
@@ -1113,6 +1113,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Texture BluenoiseHighResTexture;
 	GLClasses::Texture PlayerSprite;
 	GLClasses::Texture ColorGradingLUT;
+	GLClasses::Texture BlueNoiseLowResolution;
 	GLClasses::CubeTextureMap NightSkyMap;
 
 
@@ -1166,6 +1167,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	BluenoiseHighResTexture.CreateTexture("Res/Misc/BluenoiseHighRes.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
+	//BlueNoise64x.CreateTexture("Res/Misc/blue_noise64x.png", false, false);
+	BlueNoiseLowResolution.CreateTexture("Res/Misc/blue_noise32x.png", false, false);
 
 	BlockDataSSBO BlockDataStorageBuffer;
 	BlockDataStorageBuffer.CreateBuffers();
@@ -3632,6 +3635,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CubeItemRenderer.SetInteger("u_EmissiveTextures", 4);
 			CubeItemRenderer.SetInteger("u_RandomHDRI", 5);
 			CubeItemRenderer.SetInteger("u_RandomHDRIDiffuse", 6);
+			CubeItemRenderer.SetInteger("u_BlueNoise", 7);
 			CubeItemRenderer.SetInteger("u_HeldBlockID", world->GetCurrentBlock());
 			CubeItemRenderer.SetInteger("u_AntialiasLevel", AntialiasItemCubeLevel);
 			CubeItemRenderer.SetInteger("u_SpecularSampleBias", ItemCubeSpecularSampleBias);
@@ -3661,11 +3665,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE4);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetEmissiveTextureArray());
-
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_CUBE_MAP, RandomHDRI.GetID());
 			glActiveTexture(GL_TEXTURE6);
 			glBindTexture(GL_TEXTURE_CUBE_MAP, RandomHDRIDiffuse.GetID());
+
+			glActiveTexture(GL_TEXTURE7);
+			glBindTexture(GL_TEXTURE_2D, BlueNoiseLowResolution.GetTextureID());
 
 			BlockDataStorageBuffer.Bind(0);
 

@@ -1,30 +1,31 @@
-#version 430 core 
-#define INF 100000.0f
-#define PI 3.14159265359f
-#define TAU (2.0f * PI)
-#define clamp01(x) (clamp(x,0.,1.))
+// Shader for the small rotating item cube at the top right corner :P
 
 // Shape :
 // The cube is ray casted using a simple in-shader camera and rotation matrix
 
 // Lighting :
-// Lighting is done completely stylistically 
+// Lighting is done as a mix of physically based and stylistic
 // It uses a simple lambertian BRDF for the direct lighting 
 // Indirect lighting is done using a cut down version of image based lighting 
-// Indirect diffuse uses a pre convoluted irradiance map 
-// Specular is calculated in realtime by sampling the ggx vndf and using a bunch of samples.
+// - Indirect diffuse uses a pre convoluted irradiance map 
+// - Indirect Specular is calculated in realtime by sampling the ggx vndf (using blue noise) and using a bunch of samples
 
 // Antialiasing :
 // Uses a custom anti aliasing method 
-// -> Use screen space derivatives to find out luminance jumps
+// -> Use screen space derivatives to find out luminance jumps (https://shadertoyunofficial.wordpress.com/2021/03/09/advanced-tricks/)
 // And only apply anti aliasing where it jumps. 
 // The anti aliasing algorithm samples multiple subpixels linearly from -0.5 -> +0.5
 
 // I spent around 2 days working on this shit. What am I doing with my fucking life.
 
+#version 430 core 
+
+#define INF 100000.0f
+#define PI 3.14159265359f
+#define TAU (2.0f * PI)
+#define clamp01(x) (clamp(x,0.,1.))
 
 //#define SMART_ANTI_ALIAS_DEBUG
-
 
 layout(rgba16f, binding = 1) uniform image2D o_OutputImage;
 
@@ -46,6 +47,8 @@ uniform sampler2DArray u_AlbedoTextures;
 uniform sampler2DArray u_NormalTextures;
 uniform sampler2DArray u_EmissiveTextures;
 uniform sampler2DArray u_PBRTextures;
+
+uniform sampler2D u_BlueNoise;
 
 uniform int u_HeldBlockID;
 
@@ -79,6 +82,10 @@ const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
 const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
 const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
 const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+// Globals
+float g_Exposure;
+vec3 g_SkyLightingUP;
 
 // Calculates tangent, bitangent and uv vectors 
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -192,6 +199,23 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
+// Blue noise ->
+int g_CurrentBlueNoiseSample = 4;
+vec3 FetchBlueNoise() 
+{
+    int Sample = g_CurrentBlueNoiseSample;
+    vec3 Hash;
+	int n = Sample % 256;
+
+    // Magic 
+	vec2 off = fract(vec2(n*12664745, n*9560333)/16777216.0) * textureSize(u_BlueNoise,0).xy; 
+	ivec2 TextureSize = textureSize(u_BlueNoise, 0);
+	ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
+	Hash = texelFetch(u_BlueNoise, SampleTexelLoc, 0).xyz;
+    g_CurrentBlueNoiseSample += 1;
+    return Hash;
+}
+
 // Gets a reflection direction ->
 // (Picks a direction that is nearest to the normal after x samples)
 vec3 GetReflectionDirection(vec3 N, float R) 
@@ -200,9 +224,9 @@ vec3 GetReflectionDirection(vec3 N, float R)
 	float NearestDot = -100.0f;
 	vec3 BestDirection;
 
-	for (int i = 0 ; i < 1 ; i++) {
-		vec2 Xi = hash2();
-		Xi = Xi * vec2(0.8f, 0.6f);
+	for (int i = 0 ; i < 2 ; i++) {
+		vec2 Xi = FetchBlueNoise().xy;//hash2();
+		Xi = Xi * vec2(0.8f, 0.7f);
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
 		float d = dot(ImportanceSampled,N);
 		if (d > NearestDot) {
@@ -214,14 +238,18 @@ vec3 GetReflectionDirection(vec3 N, float R)
 	return BestDirection;
 }
 
+// Inverse fresnel 
+float InverseSchlick(float f0, float VoH) 
+{
+    return 1.0 - clamp(f0 + (1.0f - f0) * pow(1.0f - VoH, 5.0f), 0.0f, 1.0f);
+}
+
 // Integrates ggx specular ->
 vec3 SampleSpecular(vec3 I, vec3 N, float R, bool Aliased) {
     
-    int Samples = int(mix(8, 24, clamp(R * 4.0f,0.,1.)));
+    int Samples = int(mix(8, 24, clamp(R * 4.0f,0.,1.)))+u_SpecularSampleBias;
     float x = mix(float(Samples) / max(float(u_AntialiasLevel) / 1.0f, 1.0f),float(Samples),float(!Aliased));
     Samples = int(floor(x));
-    Samples = clamp(Samples, 2, 32);
-    Samples += u_SpecularSampleBias;
     Samples = clamp(Samples, 2, 64);
     R = max(R, 0.05f);
     R = min(R, 0.5f);
@@ -297,7 +325,40 @@ vec3 Reinhard2(vec3 x)
     return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
 }
 
-// Reduces texture aliasing 
+// ACES Tonemap (Approximate, not actual academy)
+mat3 ACESInputMat = mat3(
+    0.59719, 0.07600, 0.02840,
+    0.35458, 0.90834, 0.13383,
+    0.04823, 0.01566, 0.83777
+);
+
+// ODT_SAT => XYZ => D60_2_D65 => sRGB
+mat3 ACESOutputMat = mat3(
+    1.60475, -0.10208, -0.00327,
+    -0.53108, 1.10813, -0.07276,
+    -0.07367, -0.00605, 1.07602
+);
+
+vec3 RRTAndODTFit(vec3 v)
+{
+    vec3 a = v * (v + 0.0245786f) - 0.000090537f;
+    vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
+    return a / b;
+}
+
+vec4 ACESFitted(vec4 Color, float Exposure)
+{
+    Color.rgb *= Exposure * 0.6;
+    Color.rgb = ACESInputMat * Color.rgb;
+    Color.rgb = RRTAndODTFit(Color.rgb);
+    Color.rgb = ACESOutputMat * Color.rgb;
+
+    return Color;
+}
+
+///
+
+// Reduces texture aliasing using bilinear filtering 
 vec4 PixelArtFiltering(sampler2DArray tex, vec3 uvw, float LOD)
 {
     vec2 uv = uvw.xy;
@@ -316,11 +377,6 @@ vec3 BasicSaturation(vec3 Color, float Adjustment)
     return mix(Luminosity, Color, Adjustment);
 }
 
-// Inverse fresnel 
-float InverseSchlick(float f0, float VoH) 
-{
-    return 1.0 - clamp(f0 + (1.0f - f0) * pow(1.0f - VoH, 5.0f), 0.0f, 1.0f);
-}
 
 // Prevents bilinear artifacts by a bit 
 vec4 TextureSmooth(sampler2DArray samp, vec3 uvw, float LOD) 
@@ -342,9 +398,6 @@ mat2 GenerateRotationMatrix2D(float angle)
     float s = sin(angle), c = cos(angle);
     return mat2(c, -s, s, c);
 }
-
-float g_Exposure;
-vec3 g_SkyLightingUP;
 
 // Calculates the radiance for a particular UV
 vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample) 
@@ -424,6 +477,7 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     Albedo = BasicSaturation(Albedo, 0.9f)*1.2f;
     vec4 PBR = PixelArtFiltering(u_PBRTextures, vec3(UV, float(texture_ids.z)), 3).xyzw;
     float IndirectOcclusion = pow(PBR.w,1.45f);
+
     
     if (PBR.y > 0.025f) {
         Albedo = BasicSaturation(Albedo, 0.8f);
@@ -447,8 +501,8 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
 
     // If simple lighting is enabled, just use the lambert brdf
     if (u_SimpleLighting) {
-        vec3 FakeAmbientShading = BasicSaturation(g_SkyLightingUP,0.75f)*0.4f;
-        vec3 IntegratedBasic = (LambertianLighting+FakeAmbientShading*BasicSaturation(Albedo,1.2f))*g_Exposure*2.0f*max(Emissivity*4.0f,1.0f);
+        vec3 FakeAmbientShading = BasicSaturation(g_SkyLightingUP,0.75f)*0.2f;
+        vec3 IntegratedBasic = (LambertianLighting*2.4+FakeAmbientShading*BasicSaturation(Albedo,1.2f))*g_Exposure*1.3f*max(Emissivity*5.0f,1.0f);
         return Reinhard2(IntegratedBasic*1.05f);
     }
 
@@ -456,12 +510,14 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     vec3 IndirectDiffuse = texture(u_RandomHDRIDiffuse, Normal).xyz;
     vec3 IndirectSkyModifier = texture(u_Sky, Normal).xyz;
     IndirectDiffuse = IndirectDiffuse * 0.75f;
+    IndirectDiffuse *= vec3(0.8f, 0.85f, 1.05f);
     IndirectDiffuse *= 1.05f;
     IndirectDiffuse *= Albedo;
 
     vec3 I = RayDirection;
 
     vec3 IndirectSpecular = SampleSpecular(I, Normal, PBR.x, AliasSample);
+    IndirectSpecular *= vec3(0.85f, 0.875f, 1.05f);
 
     vec3 F0 = mix(vec3(0.04), Albedo, PBR.g);
 
@@ -472,7 +528,8 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     vec3 DirectColorBias = ColorBias*1.5f;
 
     // Combine based on fresnel ->
-    vec3 SpecularFactor = fresnelroughness(-I, Normal.xyz, vec3(F0), PBR.x) * 0.85f; 
+    float RoughnessWeight = mix(0.85f, 0.425f, float(PBR.x >= 0.65f)); // -> Not physically accurate, again. But i don't fucking care at this point.
+    vec3 SpecularFactor = fresnelroughness(-I, Normal.xyz, vec3(F0), PBR.x) * RoughnessWeight; 
 
     // Integrate indirect ->
     vec3 IntegratedIndirect = (IndirectDiffuse * (1.-SpecularFactor)) + (IndirectSpecular * SpecularFactor);
@@ -483,11 +540,9 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     // Combine direct and indirect ->
     vec3 Integrated = LambertianLighting + IntegratedIndirect;
 
-    // Apply exposure and fake bloom
+    // Apply exposure and fake "bloom"
 
-    vec3 AverageColorApproximate = TextureSmooth(u_AlbedoTextures, vec3(vec2(0.5f), float(texture_ids.x)), 8.0f).xyz+TextureSmooth(u_AlbedoTextures, vec3(vec2(0.8f), float(texture_ids.x)), 8.0f).xyz;
-    AverageColorApproximate /= 2.0f;
-
+   
     Emissivity = max(1.,Emissivity*3.5f);
 
     Integrated = Integrated * g_Exposure * Emissivity;
@@ -495,17 +550,17 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
 
     // Fake bloom ->
     if (BlockIsEmissive) {
+        vec3 AverageColorApproximate = TextureSmooth(u_AlbedoTextures, vec3(vec2(0.5f), float(texture_ids.x)), 8.0f).xyz+TextureSmooth(u_AlbedoTextures, vec3(vec2(0.8f), float(texture_ids.x)), 8.0f).xyz;
+        AverageColorApproximate /= 2.0f;
         float FakeGlow = TextureSmooth(u_EmissiveTextures, vec3(UV, float(EmissivityMapID)), 6.25f).x;
         vec3 FakeColor = pow(AverageColorApproximate, vec3(1.414f));
-        Integrated += FakeGlow * (1.0f / g_Exposure) * mix(6.0f, 6.0f*6.0f, 1.-clamp01(u_SunVisibility)) * FakeColor;
+        Integrated += FakeGlow * (1.0f / g_Exposure) * mix(6.0f, 6.0f*6.0f, 1.-clamp01(u_SunVisibility)) * FakeColor * 0.01f * mix(62.,6.,u_SunVisibility);
     }
 
     // Tonemap and return
-
-    const vec3 FakeBlueShift = vec3(0.925f,0.89f,1.0f);
-    vec3 Tonemapped = Reinhard2(Integrated*FakeBlueShift);
-
-    return Tonemapped ;
+    const vec3 FakeColorShift = vec3(0.925f,0.89f,1.2f);
+    vec3 Tonemapped = ACESFitted(vec4(Integrated.xyz*FakeColorShift.xyz,3.1f), 1.).xyz*1.05f*1.02f*mix(vec3(1.125,1.1,1.),vec3(1.),u_SunVisibility)*mix(0.95f,1.,u_SunVisibility);
+    return Tonemapped;
 }
 
 float Manhattan(vec2 p1, vec2 p2) {
@@ -531,7 +586,7 @@ void main()
     g_RotationMatrix = RotationMatrix(vec3(1.1f, 3.0f, 1.1f), u_Time * 0.75f);
 
     // Camera exposure ->
-    g_Exposure = mix(4.0f, 12.0f, u_SunVisibility);
+    g_Exposure = mix(8.0f, 14.6f, u_SunVisibility);
 
     // Basic sky ambient ->
     g_SkyLightingUP = texture(u_Sky,vec3(0.,1.,0.)).xyz;
@@ -543,7 +598,7 @@ void main()
     vec2 Texel = 1.0f / u_Dimensions;
     
     vec3 CenterRadiance;
-
+    
     {
         vec2 TexCoords = v_TexCoords;
         vec2 LocalUV;
@@ -553,12 +608,11 @@ void main()
     }
 
 
-    // Custom Antialiasing Algorithm ->
     // -> Use screen space derivatives to find out luminance jumps
     // And only apply anti aliasing where it jumps. 
     // The anti aliasing algorithm samples multiple subpixels linearly from -0.5 -> +0.5
 
-    float Threshold = mix(0.020f, 0.125f, float(u_SunVisibility));
+    float Threshold = mix(0.0160f, 0.05f, float(u_SunVisibility));
     bool Aliased = fwidth(GetLuminance((CenterRadiance.xyz))) > Threshold;
 
     if (!Aliased || (v_TexCoords.x < 0.86f && v_TexCoords.y < 0.81f) || u_AntialiasLevel == 0) 
@@ -566,6 +620,7 @@ void main()
         imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(CenterRadiance, 1.0f));
         return;
     }
+
 
     #ifdef SMART_ANTI_ALIAS_DEBUG
         imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(1.,0.,0.,1.));
@@ -579,6 +634,7 @@ void main()
     float StepSize = 1.0f / AntiAliasingSamples;
     vec3 TotalRadiance = vec3(0.0f);
     
+    // Sample subpixels 
     for (float x = -0.5f; x < 0.5f; x += StepSize) 
     {
         for (float y = -0.5f; y < 0.5f; y += StepSize) 
@@ -589,6 +645,8 @@ void main()
             }
 
             vec2 TexCoords = v_TexCoords + vec2(x,y) * Texel;
+
+            // Remap ->
             vec2 LocalUV;
             LocalUV.x = remap(TexCoords.x, 0.75f, 1.0f, 0.0f, 1.0f);
             LocalUV.y = remap(TexCoords.y, 0.65f, 1.0f, 0.0f, 1.0f);
