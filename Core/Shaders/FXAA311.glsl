@@ -143,7 +143,7 @@ void FXAA311(inout vec3 color)
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
 	bool IsAtEdge = DetectEdge();
-	float subpixelQuality = IsAtEdge ? 0.95f : 0.100f; 
+	float subpixelQuality = IsAtEdge ? 0.875f : 0.100f; 
 
 	int iterations = 12;
 	vec2 texCoord = TexCoords;

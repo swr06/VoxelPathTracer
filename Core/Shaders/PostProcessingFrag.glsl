@@ -1038,6 +1038,8 @@ void main()
 			InputColor += god_rays * ss_volumetric_color;
 		}
 
+		InputColor += PointVolumetrics;
+
 
 		if (u_ExponentialFog)
 		{
@@ -1084,6 +1086,7 @@ void main()
 		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
 		o_Color = o_Color  + ((Nighteffects * 0.5f * u_NebulaStrength * sqr(star_visibility) * transmittance));
 		o_Color += stars;
+		o_Color += PointVolumetrics;
 		
 		
 		//o_Color += stars;
@@ -1095,7 +1098,6 @@ void main()
 		o_Color = BasicTonemap(o_Color);
 	}
 
-	o_Color += PointVolumetrics;
 	
 	if (u_Bloom)
 	{
