@@ -74,6 +74,8 @@ void Clouds::CloudRenderer::Initialize()
 	std::cout << "\nRendered noise textures!\n";
 }
 
+
+
 GLuint Clouds::CloudRenderer::Update(
 	const  glm::mat4& CurrentProjection,
 	const  glm::mat4& CurrentView,
@@ -97,7 +99,7 @@ GLuint Clouds::CloudRenderer::Update(
 	static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
 	static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
 	static GLClasses::Framebuffer CloudTemporalFBO2(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT, true, true }, false);
-	
+
 	
 	//static GLClasses::Framebuffer CheckerUpscaled(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
 	//static GLClasses::Framebuffer CloudTemporalFBO1(16, 16, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, true, true }, false);
@@ -154,6 +156,7 @@ GLuint Clouds::CloudRenderer::Update(
 		CloudShader.SetFloat("u_AmbientDensityMultiplier", AmbientDensityMultiplier);
 		CloudShader.SetFloat("u_CloudDetailFBMPower", CloudDetailFBMPower);
 		CloudShader.SetFloat("u_SunVisibility", SunVisibility);
+		CloudShader.SetFloat("u_ResolutionScale", CloudResolution);
 		CloudShader.SetFloat("CloudThickness", thickness);
 		CloudShader.SetFloat("u_CloudThickness", thickness);
 		CloudShader.SetInteger("u_CurrentFrame", CurrentFrame);
@@ -240,6 +243,7 @@ GLuint Clouds::CloudRenderer::Update(
 		TemporalFilter.SetInteger("u_PreviousColorTexture", 1);
 		TemporalFilter.SetInteger("u_CurrentPositionData", 2);
 		TemporalFilter.SetInteger("u_PrevPositionData", 3);
+		TemporalFilter.SetInteger("u_CurrentFrame", CurrentFrame);
 		TemporalFilter.SetMatrix4("u_PrevProjection", PrevProjection);
 		TemporalFilter.SetMatrix4("u_PrevView", PrevView);
 		TemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
@@ -283,6 +287,7 @@ GLuint Clouds::CloudRenderer::Update(
 
 	return CloudTemporalFBO.GetTexture();
 }
+
 
 void Clouds::CloudRenderer::RecompileShaders()
 {

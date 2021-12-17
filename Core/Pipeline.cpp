@@ -102,6 +102,8 @@ static bool DENOISE_REFLECTION_HIT_DATA = true;
 
 static bool SVGF_LARGE_KERNEL = false;
 
+static float ColorPhiBias = 3.325f;
+
 //static bool ANTI_FLICKER = true;
 
 
@@ -148,12 +150,11 @@ static bool CloudCheckerStepCount = false;
 static bool CloudLODLighting = true;
 static bool CloudForceSupersample = true;
 static float CloudForceSupersampleRes = 1.0f;
-static float ColorPhiBias = 3.325f;
 static float CloudResolution = 0.200f;
 static bool CloudSpatialUpscale = true;
 static bool CloudFinalCatmullromUpsample = false;
 static float CloudAmbientDensityMultiplier = 1.2f;
-static float CloudThiccness = 1450.0f;
+static float CloudThiccness = 1250.0f;
 
 // basic nebula settings ->
 static float NebulaStrength = 1.0f;
@@ -285,6 +286,11 @@ float VoxelRT_VolumeMultiplier = 1.0f;
 static float DeltaSum = 0.0f;
 
 static float PointVolumetricsScale = 0.2f; // 1/25 the pixels
+
+
+static bool CloudProjectionUpdateType = true;
+
+
 
 std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
 
@@ -1500,7 +1506,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Render clouds to equiangular map once
 		// Updates are done through reprojection
-		if (app.GetCurrentFrame() == 4) {
+
+		const int CloudProjectionUpdateRate = 311;
+
+		if (app.GetCurrentFrame() == 4 || CloudProjectionUpdateType != (StrongerLightDirection == SunDirection) || app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 && CloudReflections) {
+
+			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0;
 
 			// Cube views ->
 			glm::vec3 VirtualCenter = glm::vec3(384.0f / 2.0f, 50.0, 384.0f / 2.0f);
@@ -1512,18 +1523,21 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				glm::mat4 ViewMatrixCube = Matrices[i];
 
-
 				GLuint CloudFramebuffer = Clouds::CloudRenderer::Update(VirtualProjection, ViewMatrixCube, VirtualProjection, ViewMatrixCube, VirtualCenter,
 					VirtualCenter, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
 					CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale, CloudDetailWeightEnabled ? 1.0f : 0.0f, CloudErosionWeightExponent),
-					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, glm::ivec3(768, 64, 32), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
+					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, app.GetCurrentFrame() == 4 ? glm::ivec3(768, 64, 32) : (CutdownSteps ? glm::ivec3(48, 6, 2) : glm::ivec3(48, 24, 16)), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
 					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true);
 
 
 				glBindFramebuffer(GL_FRAMEBUFFER, CloudFramebuffer);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
+
+			CloudProjectionUpdateType = StrongerLightDirection == SunDirection;
+
+			std::cout << "\n\n---CLOUD PROJECTION UPDATE---\n\n";
 		}
 
 
@@ -3093,8 +3107,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	    
 		glActiveTexture(GL_TEXTURE22);
-		//glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
-		glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
+		//glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
 		//glBindTexture(GL_TEXTURE_2D, DiffuseRawTraceFBO.GetTexture(4));
 
 		glActiveTexture(GL_TEXTURE23);

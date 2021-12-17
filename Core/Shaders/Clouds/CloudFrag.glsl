@@ -77,6 +77,8 @@ uniform bool u_CurlNoiseOffset;
 uniform vec3 u_StepCounts;
 uniform bool CHECKER_STEP_COUNT;
 
+uniform float u_ResolutionScale;
+
 uniform float u_SunVisibility;
 uniform float CloudThickness = 1250.0f;
 
@@ -762,14 +764,22 @@ vec4 MarchCirrus(vec3 P, vec3 V, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColo
 const float IsotropicPhaseFunction = 0.25f / PI;
 const bool DoFade = true;
 
-
+vec2 GetBayerJitter(int Frame) 
+{
+	const float Phi2 = 1.32471795724f;
+	const float Phi2Squared = Phi2 * Phi2;
+	vec2 BayerJitter = fract(Bayer16(gl_FragCoord.xy) + float(Frame) / vec2(Phi2Squared, Phi2)) * 4.0f;
+	return BayerJitter;
+}
 
 void main()
 {
 	g_TexCoords = v_TexCoords;
 
 	// For temporal super sampling ->
-	g_TexCoords += (u_JitterValue*2.0f) / u_Dimensions;
+	vec2 Halton = u_JitterValue;
+	vec2 FinalJitterValue = Halton*3.0f;//*(1.0f/u_ResolutionScale);//GetBayerJitter(u_CurrentFrame);//u_JitterValue*2/
+	g_TexCoords += (FinalJitterValue) / u_Dimensions;
 	
 	
 	// Bayer ->

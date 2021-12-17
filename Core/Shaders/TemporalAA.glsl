@@ -315,7 +315,7 @@ void main()
 		WorldPosition.xyz = u_InverseView[3].xyz + rD * rpd;
 		WorldPosition.w = rpd;
 		MotionVector = true;
-		ReduceWeight = 0.9f;
+		ReduceWeight = 0.35f;
 
 	}
 
