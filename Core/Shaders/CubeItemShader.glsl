@@ -36,6 +36,7 @@ uniform float u_Time;
 uniform vec2 u_Dimensions;
 uniform vec3 u_SunDirection;
 uniform vec3 u_MoonDirection;
+uniform vec3 u_StrongerLightDirection;
 
 // Sky/HDRI ->
 uniform samplerCube u_Sky;
@@ -86,6 +87,7 @@ const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
 // Globals
 float g_Exposure;
 vec3 g_SkyLightingUP;
+vec3 g_CelestialTransmittance;
 
 // Calculates tangent, bitangent and uv vectors 
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
@@ -168,6 +170,105 @@ mat3 RotationMatrix(vec3 axis, float ang)
                 oc*axis.x*axis.y+axis.z*s,oc*axis.y*axis.y+c,oc*axis.y*axis.z-axis.x*s,
                 oc*axis.z*axis.x-axis.y*s,oc*axis.y*axis.z+axis.x*s,oc*axis.z*axis.z+c);
 }
+
+
+// basic tonemap used for testing 
+vec3 BasicTonemap(vec3 color)
+{
+    float l = length(color);
+    color = mix(color, color * 0.5f, l / (l + 1.0f));
+    color = (color / sqrt(color * color + 1.0f));
+    return color;
+}
+
+// Reinhard white shift preserving tonemap
+float Reinhard2(float x)
+{
+    const float L_white = 4.0;
+    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
+}
+
+// Reinhard white shift preserving tonemap
+vec3 Reinhard2(vec3 x) 
+{
+    const float L_white = 4.0;
+    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
+}
+
+// ACES Tonemap (Approximate, not actual academy)
+mat3 ACESInputMat = mat3(
+    0.59719, 0.07600, 0.02840,
+    0.35458, 0.90834, 0.13383,
+    0.04823, 0.01566, 0.83777
+);
+
+// ODT_SAT => XYZ => D60_2_D65 => sRGB
+mat3 ACESOutputMat = mat3(
+    1.60475, -0.10208, -0.00327,
+    -0.53108, 1.10813, -0.07276,
+    -0.07367, -0.00605, 1.07602
+);
+
+vec3 RRTAndODTFit(vec3 v)
+{
+    vec3 a = v * (v + 0.0245786f) - 0.000090537f;
+    vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
+    return a / b;
+}
+
+vec4 ACESFitted(vec4 Color, float Exposure)
+{
+    Color.rgb *= Exposure * 0.6;
+    Color.rgb = ACESInputMat * Color.rgb;
+    Color.rgb = RRTAndODTFit(Color.rgb);
+    Color.rgb = ACESOutputMat * Color.rgb;
+
+    return Color;
+}
+
+///
+
+// Reduces texture aliasing using bilinear filtering 
+vec4 PixelArtFiltering(sampler2DArray tex, vec3 uvw, float LOD)
+{
+    vec2 uv = uvw.xy;
+    vec2 res = vec2(textureSize(tex,0));
+    uv = uv*res;
+    vec2 seam = floor(uv+0.5);
+    uv = seam + clamp( (uv-seam)/fwidth(uv), -0.5, 0.5);
+    return textureLod(tex, vec3(uv/res, uvw.z), LOD);
+}
+
+// Saturation
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
+
+// Prevents bilinear artifacts by a bit 
+vec4 TextureSmooth(sampler2DArray samp, vec3 uvw, float LOD) 
+{
+    vec2 uv = uvw.xy;
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return textureLod(samp, vec3(uv,uvw.z), LOD).xyzw;
+}
+
+// 2D rotation matrix 
+mat2 GenerateRotationMatrix2D(float angle)
+{
+	angle *= PI / 180.0;
+    float s = sin(angle), c = cos(angle);
+    return mat2(c, -s, s, c);
+}
+
 
 // RNG ->
 float HASH2SEED = 0.0f;
@@ -302,103 +403,6 @@ bool Intersect(vec2 LocalUV, vec2 ActualUV, out vec3 Normal)
     return true;
 }
 
-// basic tonemap used for testing 
-vec3 BasicTonemap(vec3 color)
-{
-    float l = length(color);
-    color = mix(color, color * 0.5f, l / (l + 1.0f));
-    color = (color / sqrt(color * color + 1.0f));
-    return color;
-}
-
-// Reinhard white shift preserving tonemap
-float Reinhard2(float x)
-{
-    const float L_white = 4.0;
-    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
-}
-
-// Reinhard white shift preserving tonemap
-vec3 Reinhard2(vec3 x) 
-{
-    const float L_white = 4.0;
-    return (x * (1.0 + x / (L_white * L_white))) / (1.0 + x);
-}
-
-// ACES Tonemap (Approximate, not actual academy)
-mat3 ACESInputMat = mat3(
-    0.59719, 0.07600, 0.02840,
-    0.35458, 0.90834, 0.13383,
-    0.04823, 0.01566, 0.83777
-);
-
-// ODT_SAT => XYZ => D60_2_D65 => sRGB
-mat3 ACESOutputMat = mat3(
-    1.60475, -0.10208, -0.00327,
-    -0.53108, 1.10813, -0.07276,
-    -0.07367, -0.00605, 1.07602
-);
-
-vec3 RRTAndODTFit(vec3 v)
-{
-    vec3 a = v * (v + 0.0245786f) - 0.000090537f;
-    vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-    return a / b;
-}
-
-vec4 ACESFitted(vec4 Color, float Exposure)
-{
-    Color.rgb *= Exposure * 0.6;
-    Color.rgb = ACESInputMat * Color.rgb;
-    Color.rgb = RRTAndODTFit(Color.rgb);
-    Color.rgb = ACESOutputMat * Color.rgb;
-
-    return Color;
-}
-
-///
-
-// Reduces texture aliasing using bilinear filtering 
-vec4 PixelArtFiltering(sampler2DArray tex, vec3 uvw, float LOD)
-{
-    vec2 uv = uvw.xy;
-    vec2 res = vec2(textureSize(tex,0));
-    uv = uv*res;
-    vec2 seam = floor(uv+0.5);
-    uv = seam + clamp( (uv-seam)/fwidth(uv), -0.5, 0.5);
-    return textureLod(tex, vec3(uv/res, uvw.z), LOD);
-}
-
-// Saturation
-vec3 BasicSaturation(vec3 Color, float Adjustment)
-{
-    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
-    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
-    return mix(Luminosity, Color, Adjustment);
-}
-
-
-// Prevents bilinear artifacts by a bit 
-vec4 TextureSmooth(sampler2DArray samp, vec3 uvw, float LOD) 
-{
-    vec2 uv = uvw.xy;
-    vec2 textureResolution = textureSize(samp, 0).xy;
-	uv = uv*textureResolution + 0.5f;
-	vec2 iuv = floor(uv);
-	vec2 fuv = fract(uv);
-	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
-	uv = (uv - 0.5f) / textureResolution;
-	return textureLod(samp, vec3(uv,uvw.z), LOD).xyzw;
-}
-
-// 2D rotation matrix 
-mat2 GenerateRotationMatrix2D(float angle)
-{
-	angle *= PI / 180.0;
-    float s = sin(angle), c = cos(angle);
-    return mat2(c, -s, s, c);
-}
-
 // Calculates the radiance for a particular UV
 vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample) 
 {
@@ -409,13 +413,14 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     //float SinTime = sin(u_Time);
 
     // Generate matrices ->
-    vec3 RayDirection = g_RotationMatrix * vec3(NDC, 1.0f);
-    vec3 RayOrigin = g_RotationMatrix * vec3(0.0f, 1.0f, -1.75f);
+    vec3 RayDirection = g_RotationMatrix * vec3(vec2(NDC.x*((u_Dimensions.x / u_Dimensions.y)*0.5f+0.5f), NDC.y), 1.0f);
+    vec3 RayOrigin = g_RotationMatrix * vec3(0.0f, 1.0f, -1.4f);
 
     // Offset direction ->
     RayDirection += vec3(0.0f, -0.52f, 0.0f);
-
     RayDirection = normalize(RayDirection);
+
+    RayOrigin += RayDirection * 0.5f;
 
     // Intersect cube ->
     HitRecord result = IntersectItemCube(RayOrigin, RayDirection, vec3(0.0f), vec3(1.0f));
@@ -502,7 +507,7 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     // If simple lighting is enabled, just use the lambert brdf
     if (u_SimpleLighting) {
         vec3 FakeAmbientShading = BasicSaturation(g_SkyLightingUP,0.75f)*0.2f;
-        vec3 IntegratedBasic = (LambertianLighting*2.4+FakeAmbientShading*BasicSaturation(Albedo,1.2f))*g_Exposure*1.3f*max(Emissivity*5.0f,1.0f);
+        vec3 IntegratedBasic = (LambertianLighting* mix(BasicSaturation(g_CelestialTransmittance,0.95f)*7.*1.1f,vec3(1.0f),clamp01(u_SunVisibility))*2.4+FakeAmbientShading*mix(BasicSaturation(g_CelestialTransmittance,0.95f)*4.*1.1f,vec3(1.0f),clamp01(u_SunVisibility))*BasicSaturation(Albedo,1.2f))*g_Exposure*1.3f*max(Emissivity*mix(128.,16.,u_SunVisibility),1.0f);
         return Reinhard2(IntegratedBasic*1.05f);
     }
 
@@ -548,18 +553,21 @@ vec3 Radiance(vec2 LocalUV, vec2 ActualUV, bool AliasSample)
     Integrated = Integrated * g_Exposure * Emissivity;
     Integrated *= 2.2f;
 
-    // Fake bloom ->
-    if (BlockIsEmissive) {
+    // Fake bloom using texture lods :P 
+    // hacky as fuck but gives *slightly* convincing shit bloom
+    if (BlockIsEmissive) 
+    {
         vec3 AverageColorApproximate = TextureSmooth(u_AlbedoTextures, vec3(vec2(0.5f), float(texture_ids.x)), 8.0f).xyz+TextureSmooth(u_AlbedoTextures, vec3(vec2(0.8f), float(texture_ids.x)), 8.0f).xyz;
         AverageColorApproximate /= 2.0f;
-        float FakeGlow = TextureSmooth(u_EmissiveTextures, vec3(UV, float(EmissivityMapID)), 6.25f).x;
+        float FakeGlow = texture(u_EmissiveTextures, vec3(UV, float(EmissivityMapID)), 3.25f).x;
         vec3 FakeColor = pow(AverageColorApproximate, vec3(1.414f));
-        Integrated += FakeGlow * (1.0f / g_Exposure) * mix(6.0f, 6.0f*6.0f, 1.-clamp01(u_SunVisibility)) * FakeColor * 0.01f * mix(62.,6.,u_SunVisibility);
+        Integrated += FakeGlow * (1.0f / g_Exposure) * mix(6.0f, 6.0f*6.0f*1.5f, 1.-clamp01(u_SunVisibility)) * FakeColor * 0.01f * mix(80.,6.,u_SunVisibility);
     }
 
-    // Tonemap and return
+    // Apply fake color shifts and use academy approximate tonemap ->
     const vec3 FakeColorShift = vec3(0.925f,0.89f,1.2f);
-    vec3 Tonemapped = ACESFitted(vec4(Integrated.xyz*FakeColorShift.xyz,3.1f), 1.).xyz*1.05f*1.02f*mix(vec3(1.125,1.1,1.),vec3(1.),u_SunVisibility)*mix(0.95f,1.,u_SunVisibility);
+    vec3 TimeColorShift = mix(BasicSaturation(g_CelestialTransmittance,0.6f)*14.*1.1f,vec3(1.0f),clamp01(u_SunVisibility));
+    vec3 Tonemapped = ACESFitted(vec4(Integrated.xyz*TimeColorShift*mix(FakeColorShift.xyz,vec3(1.),1.-u_SunVisibility),3.1f), 1.).xyz*1.05f*1.02f*mix(vec3(1.125,1.1,1.),vec3(1.),u_SunVisibility)*mix(0.95f,1.,u_SunVisibility);
     return Tonemapped;
 }
 
@@ -570,13 +578,10 @@ float Manhattan(vec2 p1, vec2 p2) {
 // Entry ->
 void main()
 {
-    if (!(v_TexCoords.x > 0.85f && v_TexCoords.y > 0.79f)) {
+    if (!(v_TexCoords.x > 0.85f && v_TexCoords.y > 0.75f)) {
         return;
     }
 
-    if (v_TexCoords.x > 0.972f || v_TexCoords.y > 0.972f) {
-        return;
-    }
 
     float DimensionRatio = u_Dimensions.x / u_Dimensions.y;
 
@@ -590,6 +595,7 @@ void main()
 
     // Basic sky ambient ->
     g_SkyLightingUP = texture(u_Sky,vec3(0.,1.,0.)).xyz;
+    g_CelestialTransmittance = texture(u_Sky,u_StrongerLightDirection).xyz;
     
     // RNG ->
     HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 200.0 * 20.0f;
@@ -617,7 +623,7 @@ void main()
 
     if (!Aliased || (v_TexCoords.x < 0.86f && v_TexCoords.y < 0.81f) || u_AntialiasLevel == 0) 
     {
-        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(CenterRadiance, 1.0f));
+        imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(clamp(CenterRadiance,0.,1.), 1.0f));
         return;
     }
 
@@ -655,7 +661,7 @@ void main()
     }
     
     TotalRadiance /= AntiAliasingSamples * AntiAliasingSamples;
-    imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(TotalRadiance,1.));
+    imageStore(o_OutputImage, ivec2(gl_FragCoord.xy), vec4(clamp(TotalRadiance,0.,1.),1.));
 }
 
 

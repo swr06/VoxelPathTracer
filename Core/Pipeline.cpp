@@ -158,6 +158,7 @@ static float CloudThiccness = 1250.0f;
 
 // basic nebula settings ->
 static float NebulaStrength = 1.0f;
+static float NebulaGIStrength = 0.5f;
 static bool NebulaCelestialColor = false;
 static bool NebulaGIColor = true;
 
@@ -569,7 +570,8 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Nebula affects moon color?", &NebulaCelestialColor);
 			ImGui::Checkbox("Nebula affects GI colors?", &NebulaGIColor);
-			ImGui::SliderFloat("Nebula Strength", &NebulaStrength, 0.0f, 3.0f);
+			ImGui::SliderFloat("Nebula Strength", &NebulaStrength, 0.0f, 6.0f);
+			ImGui::SliderFloat("Nebula GI Strength", &NebulaGIStrength, 0.0f, 8.0f);
 			ImGui::NewLine();
 
 			if (USE_SVGF) {
@@ -1110,6 +1112,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	VoxelRT::AtmosphereRenderMap SkymapMain(64); 
 	VoxelRT::AtmosphereRenderMap SkymapSecondary(24); // 8 * 3
+	VoxelRT::AtmosphereRenderMap SkymapSecondary_2(16); 
 	VoxelRT::AtmosphereRenderer AtmosphereRenderer;
 
 	BlueNoiseDataSSBO BlueNoise_SSBO;
@@ -1499,7 +1502,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (app.GetCurrentFrame() % 2 == 0) {
 			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
-			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaStrength : 0.00f);
+			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength : 0.00f);
+		}
+		
+		if (app.GetCurrentFrame() % 3 == 0) {
+			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
+			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary_2, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f * 0.95f : 0.00f);
 		}
 
 		PreviousSunTick = SunTick;
@@ -1671,7 +1679,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapSecondary.GetTexture());
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapSecondary_2.GetTexture());
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
@@ -3634,14 +3642,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
 			PostProcessingFBO.Bind();
-			CubeItemRenderer.Use();
 
+			CubeItemRenderer.Use();
 			CubeItemRenderer.SetFloat("u_Time", glfwGetTime());
 			CubeItemRenderer.SetFloat("u_SunVisibility", sun_visibility);
 			CubeItemRenderer.SetVector2f("u_Dimensions", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
 			CubeItemRenderer.SetVector3f("u_SunDirection", SunDirection);
 			CubeItemRenderer.SetVector3f("u_MoonDirection", MoonDirection);
-
+			CubeItemRenderer.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 			CubeItemRenderer.SetInteger("u_Sky", 0);
 			CubeItemRenderer.SetInteger("u_AlbedoTextures", 1);
 			CubeItemRenderer.SetInteger("u_NormalTextures", 2);
