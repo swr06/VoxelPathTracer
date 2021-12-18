@@ -24,7 +24,7 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Naive world saving and loading
 - Physically based atmosphere
 - Per Pixel Emissive Materials
-- Basic screen space SSS
+- Basic Screen Space Subsurface Scattering
 - Spatial filtering (Atrous and SVGF)
 - Spatial Upscaling
 - Screen Space Ambient Occlusion 
