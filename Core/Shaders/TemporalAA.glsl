@@ -123,12 +123,13 @@ float Luminance(vec3 RGB )
 
 vec3 Reinhard(vec3 RGB )
 {
+	RGB *= 2.44f;
     return vec3(RGB) / (vec3(1.0f) + Luminance(RGB));
 }
 
 vec3 InverseReinhard(vec3 RGB)
 {
-    return RGB / (vec3(1.0f) - Luminance(RGB));
+    return (RGB / (vec3(1.0f) - Luminance(RGB))) / 2.44f;
 }
 
 
@@ -177,6 +178,7 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 
 	vec3 Color = texture(u_PreviousColorTexture, Reprojected ).xyz;
+	
     return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
     return (Color).xyz;
 }
@@ -354,7 +356,7 @@ void main()
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
 		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.45f;
 		BlendFactor = u_BlockModified ? 0.1f : BlendFactor;
-		o_Color = mix(CurrentColor.xyz, PrevColor.xyz, clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f));
+		o_Color = InverseReinhard(mix(Reinhard(CurrentColor.xyz), Reinhard(PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
 	}
 
 	else 

@@ -359,3 +359,8 @@ ikpMP3.dll
 irrKlang.dll
 Saves/0
 Saves/0
+
+# random backup files
+*.bak
+
+# if you read this, you are a certified fuckin chad
