@@ -401,7 +401,7 @@
 	Albedo : Res/Block/Snow/Albedo.png
 	Normal : Res/Block/Snow/Normal.png
 	PBR : Res/Block/Snow/PBR.png
-	
+	SSS;
 	SND_STEP : Snow
 	SND_MODIFY : Snow
 }

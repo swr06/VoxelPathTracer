@@ -49,7 +49,7 @@ void main()
 	int iid = clamp(int(floor(id * 255.0f)), 0, 127);
     int SSSMaskFetch = BlockSSSData[iid];
 
-    if (SSSMaskFetch > 0) {
+    if (SSSMaskFetch > 0 && v_TexCoords == clamp(v_TexCoords, 0.04f, 0.96f)) {
 
         float TotalShadow = 0.0f;
         vec2 TexelSize = 1.0f / textureSize(u_Texture, 0).xy;
@@ -61,11 +61,13 @@ void main()
         mat2 RotationMatrix = mat2(vec2(CosTheta, -SinTheta), vec2(SinTheta, CosTheta));
         const float Diagonal = sqrt(2.0f);
         const int Samples = 32;
+		int SuccessfulSamples = 0;
 
         for (int x = 0; x < Samples ; x++) {
             vec2 SampleCoord = v_TexCoords + (RotationMatrix * poisson60[x]) * TexelSize * 16.0f;
             
-            if (SampleCoord == clamp(SampleCoord, 0.0f, 1.)) {
+            if (SampleCoord == clamp(SampleCoord, 0.0f, 1.0)) 
+			{
                 //int BlockIDAt = clamp(int(floor(( texelFetch(u_BlockIDs, ivec2(SampleCoord * textureSize(u_BlockIDs, 0).xy), 0).r) * 255.0f)), 0, 127);
                 //if (BlockIDAt == iid || BlockIDAt == 0)
                 
@@ -76,16 +78,22 @@ void main()
                 if (abs(DepthAt - LinearDepth) <= Diagonal || Skybias) 
                 {
                     TotalShadow += SampleShadow(u_Texture, SampleCoord).x;
+					SuccessfulSamples++;
                 }
             }
         }
 
         TotalShadow /= float(Samples);
         o_OutputShadow = TotalShadow;
+		
+		if (SuccessfulSamples <= 1) {
+			float BaseShadow = texture(u_Texture,v_TexCoords).x;
+			o_OutputShadow = BaseShadow;
+		}
     }
 
     else {
-        //float BaseShadow = texture(u_Texture,v_TexCoords).x;
-        o_OutputShadow = 0.;
+        float BaseShadow = texture(u_Texture,v_TexCoords).x;
+        o_OutputShadow = BaseShadow;
     }
 }

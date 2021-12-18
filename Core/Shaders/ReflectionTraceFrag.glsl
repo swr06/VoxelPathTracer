@@ -841,7 +841,7 @@ void main()
 				
 				if (Emissivity > 0.2f)
 				{
-					float m = 32.0f;
+					float m = 22.0f;
 					
 					// Fix light leak at the edges ->
 					float lbiasx = 0.02501f;
