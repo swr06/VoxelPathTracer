@@ -29,7 +29,7 @@ void main() {
 	for(uint X = 0; X < 256; X++) 
 	{
 		CumulativeDensity += PDF[X];
-		float dist = distance(TileCount / 2, CumulativeDensity); // m Is the Median of a RV iff CDF(m) = 0.5 (I dont normalize PDF so its TileCount/2 instead of 0.5)
+		float dist = distance(TileCount / 2, CumulativeDensity);
 		
 		if(dist < ClosestDistToMedian) 
 		{
@@ -38,15 +38,15 @@ void main() {
 		}
 	}
 
-	const float L_MIN  = 0.001f;
-    const float L_MAX  = 5.0f;
-    const float ExposureDecay = 0.025f;
-	const float ExposureGrowth = 0.01f;
+    const float ExposureDecay = 0.009f;
+	const float ExposureGrowth = 0.009f;
 	const float EXPOSURE_SPEED = 0.1f;
+
 	float CurrentExposure = max(o_Exposure, 0.0f);
 	float AverageLuma = exp((float(ClosestBinToMedian) - HistogramLogZero) / HistogramLogScale);
 	float KeyVal = 1.03f - 2.0f / (2.0f + log10(AverageLuma + 1.0));
-	float TargetExposure = KeyVal * 2.15f / clamp(AverageLuma, L_MIN, L_MAX);
+	float TargetExposure = KeyVal * 2.15f / clamp(AverageLuma, 0.001f, 5.01f);
 	float Speed = TargetExposure < CurrentExposure ? ExposureDecay : ExposureGrowth;
-    o_Exposure = mix(CurrentExposure, TargetExposure, Speed * 2.0f * EXPOSURE_SPEED * (u_DeltaTime / 0.0033));
+
+    o_Exposure = mix(CurrentExposure, TargetExposure, Speed * 4.0f * EXPOSURE_SPEED * (u_DeltaTime / 0.0033));
 }

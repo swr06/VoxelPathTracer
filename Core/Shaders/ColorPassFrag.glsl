@@ -676,6 +676,11 @@ vec2 BetterFilteringUVTweak(vec2 res, vec2 uv)
     return uv;
 }
 
+float remap(float x, float a, float b, float c, float d)
+{
+    return (((x - a) / (b - a)) * (d - c)) + c;
+}
+
 void main()
 {
     g_TexCoords = v_TexCoords;
@@ -779,8 +784,6 @@ void main()
 
             //vec2 SmoothstepUV = BetterFilteringUVTweak(vec2(512.0f), UV);
 
-            // Fix texture seam with approximated derivative ->
-            
             vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
             vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
             vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);

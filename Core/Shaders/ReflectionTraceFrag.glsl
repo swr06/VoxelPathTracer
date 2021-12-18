@@ -786,7 +786,7 @@ void main()
 			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
 			vec3 Radiance = SAMPLED_COLOR_MIXED * 0.6f; 
 				
-			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 3).rgba;
+			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 4).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
 			bool PlayerInShadow = GetPlayerIntersect(HitPosition + Normal*0.035f, NormalizedStrongerDir);
@@ -837,11 +837,11 @@ void main()
 			
 			if (texture_ids.w > -0.5f) // If the block is not emissive, the read data will be -1!
 			{
-				float Emissivity = texture(u_BlockEmissiveTextures, vec3(UV, texture_ids.w)).r;
+				float Emissivity = textureLod(u_BlockEmissiveTextures, vec3(UV, texture_ids.w), 2).r;
 				
 				if (Emissivity > 0.2f)
 				{
-					float m = 20.0f;
+					float m = 32.0f;
 					
 					// Fix light leak at the edges ->
 					float lbiasx = 0.02501f;
