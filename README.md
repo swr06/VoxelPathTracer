@@ -24,7 +24,7 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Naive world saving and loading
 - Physically based atmosphere
 - Per Pixel Emissive Materials
-- Basic screen space SSS
+- Basic Screen Space Subsurface Scattering
 - Spatial filtering (Atrous and SVGF)
 - Spatial Upscaling
 - Screen Space Ambient Occlusion 
@@ -33,13 +33,12 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Volumetric 3D clouds (Implemented Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
 - Reprojected Cloud Reflections 
 - Particle system
-- Spherical harmonics (Second order SH, used to encode indirect radiance data, used for both specular and diffuse) 
+- Spherical harmonics (First order harmonic that integrates over luminance, used to encode indirect radiance data, used for both specular and diffuse) 
 - Alpha testing
 - Fully 3D Audio
 - Light Propogation Volumes with custom smooth interpolation and support for colored lights
 - Point Light Volumetrics using ray marching and the Light Propogation Volume
 - Contrast Adaptive Sharpening
-- Auto exposure based on a luminance histogram (WIP.)
 
 # Todo Features / QOL Improvements
 - Depth Of Field
