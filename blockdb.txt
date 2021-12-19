@@ -865,6 +865,7 @@
 	Albedo : Res/Block/Magma/Albedo.png
 	Normal : Res/Block/Magma/Normal.png
 	PBR : Res/Block/Magma/PBR.png
+	Emissive : Res/Block/Magma/Emissive.png
 
 	SND_STEP : Concrete
 	SND_MODIFY : Stone

@@ -7,7 +7,7 @@ namespace GLClasses
 
 	}
 
-	void TextureArray::CreateArray(std::vector<std::string> paths, std::pair<int, int> texture_size, bool is_srgb, bool gen_mips, GLint mag_filter, bool limit_textures)
+	void TextureArray::CreateArray(std::vector<std::string> paths, std::pair<int, int> texture_size, bool is_srgb, bool gen_mips, GLint mag_filter, bool limit_textures, GLuint min_filter)
 	{
 		sort(paths.begin(), paths.end());
 		paths.erase(unique(paths.begin(), paths.end()), paths.end());
@@ -36,7 +36,7 @@ namespace GLClasses
 
 		else
 		{
-			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, min_filter);
 		}
 
 		glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, mag_filter);

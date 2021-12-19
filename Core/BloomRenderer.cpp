@@ -61,7 +61,7 @@ namespace VoxelRT
 			BloomFBOVAO->Unbind();
 		}
 
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq)
+		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq, GLuint& brighttex)
 		{
 			// Render the bright parts to a texture
 			GLClasses::Shader& BloomBrightShader = *BloomMaskShader;
@@ -85,6 +85,8 @@ namespace VoxelRT
 
 			glDisable(GL_DEPTH_TEST);
 			glDisable(GL_CULL_FACE);
+
+			brighttex = BloomAlternateFBO->GetTexture();
 
 			// mip gen
 

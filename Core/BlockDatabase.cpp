@@ -78,7 +78,7 @@ namespace VoxelRT
 		Logger::Log("Successfully created PBR texture array!");
 
 		Logger::Log("Creating Emissive texture array!" + res_str);
-		BlockEmissiveTextureArray.CreateArray(emissive_paths, texture_resolutions, false, true, GL_LINEAR, true);
+		BlockEmissiveTextureArray.CreateArray(emissive_paths, texture_resolutions, false, true, GL_LINEAR, true, GL_LINEAR);
 		Logger::Log("Successfully created emissive texture array!");
 
 		std::cout << ("\n\n\n-- SUCCESSFULLY LOADED TEXTURES --\n\n\n");

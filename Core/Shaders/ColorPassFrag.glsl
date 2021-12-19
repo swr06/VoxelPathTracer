@@ -803,7 +803,7 @@ void main()
                 NormalMapped = normalize(NormalMapped);
             }
             
-            float Emissivity = data.w > -0.5f ? textureLod(u_BlockEmissiveTextures, vec3(UV, data.w), 0.0f).r : 0.0f;
+           float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
             //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, g_TexCoords, SampledNormals.xyz, WorldPosition.z);
             //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, g_TexCoords, WorldPosition.xyz);
@@ -905,6 +905,7 @@ void main()
            //o_Color = vec3(SubsurfaceScatter);
             //o_Color = vec3(NormalMapped);
            // return;
+
 
             if (!dfg) {
                 o_Color = ((DirectLighting + SubsurfaceScatter) + ((1.0f - SpecularFactor) * DiffuseIndirect) + 

@@ -3237,9 +3237,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// ---- Bloom ----
 
+		GLuint BrightTex = 0;
+
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture(), Bloom_HQ);
+			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture(), Bloom_HQ, BrightTex);
 		}
 
 		// ---- Auto Exposure ----
@@ -3536,6 +3538,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[1]", 6);
 		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
+		PostProcessingShader.SetInteger("u_BloomBrightTexture", 22);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
 		PostProcessingShader.SetInteger("u_Clouds", 20);
 
@@ -3620,6 +3623,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE21);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, NightSkyMap.GetID());
+		
+		glActiveTexture(GL_TEXTURE22);
+		glBindTexture(GL_TEXTURE_2D, BrightTex);
 
 		
 		VAO.Bind();
@@ -3627,9 +3633,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 		PostProcessingFBO.Unbind();
-		
-
-
 
 
 		// ---- CUBE ITEM ---- //
