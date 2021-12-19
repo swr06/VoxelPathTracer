@@ -207,8 +207,8 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 				Bias *= 1.75f;
 			}
 			
-			MinRadiance -= Bias;
-			MaxRadiance += Bias + AdditionalMaxBias;
+			MinRadiance -= (Bias * 0.95f);
+			MaxRadiance += (Bias * 0.94f) + AdditionalMaxBias;
 		}
 		
 		else if (Roughish) 
@@ -376,7 +376,7 @@ void main()
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
 			vec3 ReflectedPosition = CurrentPosition.xyz - I * HitDistanceCurrent;
 
-			// Project and use the motion vector :
+			// Project and use the approximated motion vector :
 			vec4 ProjectedPosition = u_PrevProjection * u_PrevView  * vec4(ReflectedPosition, 1.0f);
 			ProjectedPosition.xyz /= ProjectedPosition.w;
 			Reprojected = ProjectedPosition.xy * 0.5f + 0.5f;
@@ -384,7 +384,10 @@ void main()
 			// Validate hit distance : 
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
-			if (abs(PreviousT - HitDistanceCurrent) > 0.4f) {
+			if (abs(PreviousT - HitDistanceCurrent) >= 0.4f * 2.0f) {
+			
+				// If hit distance is invalid, fallback on very-approximate reprojection
+				
 				vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
 				CameraOffset *= 0.6f;
 				Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
@@ -393,23 +396,26 @@ void main()
 		}
 
 		else {
+			// very approximate reprojection based on camera position delta
+			
 			vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
 			CameraOffset *= 0.6f;
 			Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
 			LessValid = true;
 		}
 		
-		// Disocclusion check : 
+		// Surface disocclusion check : 
 		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
 		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
 
 		float ReprojectBias = 0.01f;
 
+		
 		vec3 PrevNormal = SampleNormal(u_PreviousNormalTexture, Reprojected.xy);
 
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && 
-		 d < 0.75f && PrevNormal==InitialNormal)
+		 d < 0.85f && PrevNormal==InitialNormal)
 		{
 			vec4 PrevSH;
 			vec2 PrevCoCg;
@@ -421,18 +427,23 @@ void main()
 			vec4 PrevSHBck = PrevSH;
 			vec2 PrevCoCgBck = PrevCoCg;
 
-			bool Moved = distance(u_CurrentCameraPos, u_PrevCameraPos) > 0.02f;
+			const float DistanceEps = 0.0025f;
+			bool Moved = distance(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
-			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.85f) : (Moved ? 0.8f : 0.9f); 
+			
+			// Compute accumulation factor ->
+			float BlendFactor = LessValid ? (Moved ? 0.75f : 0.825f) : (Moved ? 0.875f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
 
+			// Radiance clipping -> 
+			// Used to reduce ghosting 
 			if (TryClipping && Moved && u_SmartClip) {
 
 				// Clip sample ->
 				ReflectionClipping(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
-				//BlendFactor *= 1.4f;
+				
 				
 				if (RoughnessAt > 0.26f) 
 				{
@@ -440,6 +451,8 @@ void main()
 					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.75f);
 					BlendFactor *= 1.05f;
 				}
+				
+			
 			}
 
 			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);

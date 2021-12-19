@@ -942,16 +942,35 @@
 }
 
 {
-	Name : Slime_SSS
-	Albedo : Res/Block/Slime/Albedo.png
-	Normal : Res/Block/Slime/Normal.png
-	PBR : Res/Block/Slime/PBR.png
-	Transparent;
-	SSS;
-	
-	SND_STEP : Leaves
-	SND_MODIFY : Leaves
+	Name : PolishedWood
+	Albedo : Res/Block/PolishedWood/Albedo.png
+	Normal : Res/Block/PolishedWood/Normal.png
+	PBR : Res/Block/PolishedWood/PBR.png
+
+	SND_STEP : Wood
+	SND_MODIFY : Wood
 }
+
+{
+	Name : Metal4
+	Albedo : Res/Block/Metal4/Albedo.png
+	Normal : Res/Block/Metal4/Normal.png
+	PBR : Res/Block/Metal4/PBR.png
+
+	SND_STEP : Metal
+	SND_MODIFY : Metal
+}
+
+{
+	Name : SkinSSS_DontQuestionIt
+	Albedo : Res/Block/SkinSSS/Albedo.png
+	Normal : Res/Block/SkinSSS/Normal.png
+	PBR : Res/Block/SkinSSS/PBR.png
+	SSS;
+	SND_STEP : Cloth
+	SND_MODIFY : Cloth
+}
+
 
 {
 	Name : MISC_LEAVE_THIS_AT_THE_END

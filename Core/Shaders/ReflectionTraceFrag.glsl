@@ -613,7 +613,7 @@ void main()
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
 
-	// Jitter ->
+	// For temporal supersampling/antialiasing ->
 	vec2 g_TexCoords = v_TexCoords;
 	vec2 Jitter = u_Halton;
 	Jitter = clamp(Jitter * 1.0f, -2.0f, 2.0f);
@@ -871,7 +871,7 @@ void main()
 			TotalCoCg += vec2(SH[4], SH[5]);
 
 			// Store hit distance for reprojection and denoiser ->
-			AveragedHitDistance += T; TotalMeaningfulHits += 1.0f;
+			AveragedHitDistance += T;
 		}
 
 		else
@@ -884,8 +884,14 @@ void main()
 			float[6] SH = IrridianceToSH(AtmosphereColor, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
 			TotalCoCg += vec2(SH[4], SH[5]);
+			
+			// Assume a far transversal
+			float T = 64.0f;
+			
+			AveragedHitDistance += T;
 		}
 
+		TotalMeaningfulHits += 1.0f;
 
 		total_hits++;
 	}
