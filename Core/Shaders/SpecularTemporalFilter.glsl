@@ -1,4 +1,6 @@
-#version 330 core
+// Temporal filter/supersampler for specular reflections 
+
+#version 430 core
 
 #define USE_NEW_REPROJECTION 1
 #define EPS 0.01f
@@ -208,13 +210,13 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 			}
 			
 			MinRadiance -= (Bias * 0.95f);
-			MaxRadiance += (Bias * 0.94f) + AdditionalMaxBias;
+			MaxRadiance += (Bias * 0.95f) + AdditionalMaxBias;
 		}
 		
 		else if (Roughish) 
 		{
-			MinRadiance -= 0.35f;
-			MaxRadiance += 0.35f + (AdditionalMaxBias * 1.1f);
+			MinRadiance -= 0.37f;
+			MaxRadiance += 0.37f + (AdditionalMaxBias * 1.1f);
 		}
 	}
 
@@ -231,7 +233,7 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 
 		else {
 			PreviousSH = MinSH;
-			PreviousCoCg = MinCoCg;
+			PreviousCoCg = MinCoCg; 
 		}
 	}
 	
@@ -359,7 +361,7 @@ void main()
 		}
 	}
 
-	if (CurrentPosition.a > 0.0f&&TEMPORAL_SPEC)
+	if (CurrentPosition.a > 0.0f && TEMPORAL_SPEC)
 	{
 		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
 		bool SkySample = HitDistanceCurrent < 0.0f;
@@ -371,21 +373,27 @@ void main()
 
 		const bool UseNewReprojection = bool(USE_NEW_REPROJECTION);
 		
-		if (RoughnessAt < 0.40f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
+		// Usually we wouldn't be able to use such a high roughness threshold 
+		// But this works since we apply a bilateral filter to the distance reproj data
+		
+		
+		
+		if (RoughnessAt <= 0.70f+0.01f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
 		{
 			// Reconstruct the reflected position to properly reproject
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
 			vec3 ReflectedPosition = CurrentPosition.xyz - I * HitDistanceCurrent;
 
 			// Project and use the approximated motion vector :
-			vec4 ProjectedPosition = u_PrevProjection * u_PrevView  * vec4(ReflectedPosition, 1.0f);
+			vec4 ProjectedPosition = u_PrevProjection * u_PrevView * vec4(ReflectedPosition, 1.0f);
 			ProjectedPosition.xyz /= ProjectedPosition.w;
 			Reprojected = ProjectedPosition.xy * 0.5f + 0.5f;
 
 			// Validate hit distance : 
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
-			if (abs(PreviousT - HitDistanceCurrent) >= 0.4f * 2.0f) {
+			
+			if (abs(PreviousT - HitDistanceCurrent) >= 2.2f) {
 			
 				// If hit distance is invalid, fallback on very-approximate reprojection
 				
@@ -443,7 +451,7 @@ void main()
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
-			float BlendFactor = LessValid ? (Moved ? 0.75f : 0.9f) : (Moved ? 0.875f : 0.95f); 
+			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.875f) : (Moved ? 0.875f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
@@ -458,9 +466,9 @@ void main()
 				
 				if (RoughnessAt > 0.26f) 
 				{
-					PrevSH = mix(PrevSHBck, PrevSH, 0.75f);
-					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.75f);
-					BlendFactor *= 1.05f;
+					PrevSH = mix(PrevSHBck, PrevSH, 0.9f);
+					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.9f);
+					BlendFactor *= 1.072525f;
 				}
 				
 			
@@ -468,9 +476,9 @@ void main()
 
 			bool PreviousSkySample = texture(u_PrevSpecularHitDist, Reprojected.xy).x < 0.0f;
 
-			if (SkySample == PreviousSkySample) {
-				BlendFactor *= 1.15f;
-			}
+			//if (SkySample == PreviousSkySample) {
+			//	BlendFactor *= 1.15f;
+			//}
 
 			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);
 
