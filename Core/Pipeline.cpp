@@ -238,6 +238,7 @@ static int ReflectionDenoisingRadiusBias = 0;
 static bool ReflectionLPVGI = true;
 static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
+static bool ReflectionDenoiserDeviationHandling = true;
 
 
 static bool RenderParticles = true;
@@ -425,6 +426,7 @@ public:
 
 			if (DenoiseReflections) {
 				ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
+				ImGui::Checkbox("Reflection Roughness-Based Distance Weight Clamping?", &ReflectionDenoiserDeviationHandling);
 			}
 
 
@@ -1515,7 +1517,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		// Render clouds to equiangular map once
 		// Updates are done through reprojection
 
-		const int CloudProjectionUpdateRate = 311;
+		const int CloudProjectionUpdateRate = 359; 
 
 		if (app.GetCurrentFrame() == 4 || CloudProjectionUpdateType != (StrongerLightDirection == SunDirection) || app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 && CloudReflections) {
 
@@ -2487,6 +2489,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_LPVGI", ReflectionLPVGI);
 			ReflectionTraceShader.SetBool("u_QualityLPVGI", ReflectionHighQualityLPVGI);
 			ReflectionTraceShader.SetBool("u_RoughnessBias", ReflectionRoughnessBias&&DenoiseReflections);
+			ReflectionTraceShader.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 
 				
 
@@ -2728,7 +2731,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetMatrix4("u_PrevView", PreviousView);
 				ReflectionDenoiser.SetMatrix4("u_View", MainCamera.GetViewMatrix());
 				ReflectionDenoiser.SetMatrix4("u_Projection", MainCamera.GetProjectionMatrix());
-
+				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
@@ -2797,6 +2800,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
 				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
+				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3861,18 +3865,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
-		// Odd numbers taken to make sure that there arent any lag spikes.
+		// Prime numbers taken to make sure that there arent any lag spikes.
 		// (You want to make sure that too many heavy operations don't take place on the exact same frame) 
 
-		if (app.GetCurrentFrame() % 278 == 0)
+		if (app.GetCurrentFrame() % 643 == 0)
 		{
 			world->GenerateDistanceField();
+			world->RebufferLightChunks();
 		}
 
 		if (app.GetCurrentFrame() % 60 == 0)
 		{
 			world->m_ParticleEmitter.CleanUpList();
-			world->RebufferLightChunks();
 		}
 
 		if (app.GetCurrentFrame() % 1200 == 0 && PointVolumetricsToggled) {

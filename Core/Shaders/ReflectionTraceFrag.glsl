@@ -872,6 +872,7 @@ void main()
 
 			// Store hit distance for reprojection and denoiser ->
 			AveragedHitDistance += T;
+			TotalMeaningfulHits += 1.0f;
 		}
 
 		else
@@ -884,14 +885,8 @@ void main()
 			float[6] SH = IrridianceToSH(AtmosphereColor, R);
 			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
 			TotalCoCg += vec2(SH[4], SH[5]);
-			
-			// Assume a far transversal
-			float T = 64.0f;
-			
-			AveragedHitDistance += T;
 		}
 
-		TotalMeaningfulHits += 1.0f;
 
 		total_hits++;
 	}

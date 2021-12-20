@@ -1,6 +1,6 @@
 #version 330 core
 
-layout (location = 2) out float o_HitDistance; //location 2 -->
+layout (location = 2) out float o_HitDistance;
 
 in vec2 v_TexCoords;
 
@@ -14,33 +14,29 @@ void main() {
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 
 	float BaseHitDistance = texture(u_PositionTexture,v_TexCoords).x;
+	float BaseSpecHitDistance = texture(u_HitDist, v_TexCoords).x;
 	float TotalWeight = 1.0f;
-	float TotalDist = BaseHitDistance;
-
+	float TotalDist = BaseSpecHitDistance;
 	int SamplesValid = 0;
-
 
 	for (int x = -2 ; x <= 2 ; x++) {
 		for (int y = -2 ; y <= 2 ; y++) {
-			if (x==0&&y==0) { continue; }
+			if (x == 0 && y == 0) { continue; }
 			float DistAt = texture(u_PositionTexture,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
 			float HitDistAt = texture(u_HitDist,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
 			float e = abs(DistAt - BaseHitDistance);
-			if (e > 1.0f  || HitDistAt < 0.0f) { continue; }
+			if (e > 1.0f || HitDistAt < 0.0f) { continue; }
 			float w = AtrousWeights[abs(x)]*AtrousWeights[abs(y)];
 			TotalDist += HitDistAt*w;
 			TotalWeight += w;
-			SamplesValid ++;
+			SamplesValid++;
 		}
 	}
 
-	TotalDist = TotalDist / max(TotalWeight, 0.001f);
-
 	if (SamplesValid == 0) {
 		TotalWeight = 1.0f;
-	    TotalDist = BaseHitDistance;
+	    TotalDist = BaseSpecHitDistance;
 	}
 
-
-	o_HitDistance = TotalDist;
+	o_HitDistance = TotalDist / max(TotalWeight, 0.001f);
 }

@@ -1,6 +1,9 @@
 // Gaussian reflection denoiser
 // This denoiser has specialized weights so that it doesn't overblur anything 
 
+// "Welcome to magic number land, we hope you enjoy your stay."
+
+
 #version 430 core
 
 layout (location = 0) out vec4 o_SpatialResult;
@@ -22,6 +25,7 @@ uniform sampler2DArray u_BlockNormals;
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform bool u_RoughnessBias; 
 uniform bool u_NormalMapAware; 
+uniform bool u_HandleLobeDeviation; 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 
@@ -152,6 +156,8 @@ mat3 CalculateTangentBasis(in vec3 normal);
 
 void main()
 {
+	const float Diagonal = sqrt(2.0f);
+	
 	vec4 BlurredSH = vec4(0.0f);
 	vec2 BlurredCoCg = vec2(0.0f);
 
@@ -179,13 +185,40 @@ void main()
 	vec3 NormalMapRaw = NormalMappedBase;
 	NormalMappedBase = TangentBasis * NormalMappedBase;
 
-	float SpecularHitDistance = max(texture(u_SpecularHitData, v_TexCoords).x,0.0f)/1.3f;
+	float HitDistanceFetch = texture(u_SpecularHitData, v_TexCoords).x;
 
+	const float LobeDistanceCurveBias = 1.0f / 1.3f;
+
+
+	// Tweak transversal ->
+	if (HitDistanceFetch < 0.001f) {
+		HitDistanceFetch = 1.75f;
+	}
+
+	else {
+		HitDistanceFetch = pow(HitDistanceFetch, LobeDistanceCurveBias);
+	}
+
+	// Handle roughness lobe deviation
+
+	if (u_HandleLobeDeviation) {
+		if (RoughnessAt <= 0.25f + 0.05f) {
+			HitDistanceFetch = clamp(HitDistanceFetch, 0.0f, 8.0f);
+		}
+
+		if (RoughnessAt <= 0.2) {
+			HitDistanceFetch = clamp(HitDistanceFetch, 0.0f, 5.5f);
+		}
+	}
+
+	// Distance weight ->
+	float SpecularHitDistance = max(HitDistanceFetch,0.02f) / 1.3f;
+
+	// If the normal map weight is enabled, we can get decent results by tweaking the view space position 
 	NormalMappedBase.z *= 1.5f;
 	NormalMappedBase.x *= 4.5f;
+	vec3 NormalMapLobeBias = NormalMappedBase * 4096.0 * float(u_NormalMapAware);
 
-
-	vec3 NormalMapLobeBias = NormalMappedBase*4096.0*float(u_NormalMapAware);
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias, 1.0f));
 	float d = length(ViewSpaceBase);
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 0.00001f);
@@ -212,7 +245,7 @@ void main()
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
-		float SampleOffset = (Jitter * 0.5) + Sample;
+		float SampleOffset = Sample;
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * Scale * TexelSize));
 		vec2 Mask = u_Dir ? vec2(1.0f, 0.0f) : vec2(0.0, 1.0f);
 		

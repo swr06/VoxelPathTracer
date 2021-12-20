@@ -362,15 +362,16 @@ void main()
 	if (CurrentPosition.a > 0.0f&&TEMPORAL_SPEC)
 	{
 		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
+		bool SkySample = HitDistanceCurrent < 0.0f;
 
 		float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
-
+		
 		bool LessValid = false;
 		vec2 Reprojected; 
 
 		const bool UseNewReprojection = bool(USE_NEW_REPROJECTION);
 		
-		if (RoughnessAt < 0.40f && HitDistanceCurrent > 0.0f && UseNewReprojection)
+		if (RoughnessAt < 0.40f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
 		{
 			// Reconstruct the reflected position to properly reproject
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
@@ -403,13 +404,23 @@ void main()
 			Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
 			LessValid = true;
 		}
+
+		if (SkySample) {
+			
+			// We can make some reprojection assumptions when the sky is reflected (such as a constant transversal) ->
+			float SkyTransversalApproximate = 64.0f;
+			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
+			vec3 ReflectedPosition = CurrentPosition.xyz - I * SkyTransversalApproximate;
+			vec4 ProjectedPosition = u_PrevProjection * u_PrevView  * vec4(ReflectedPosition, 1.0f);
+			ProjectedPosition.xyz /= ProjectedPosition.w;
+			Reprojected = ProjectedPosition.xy * 0.5f + 0.5f;
+		}
 		
 		// Surface disocclusion check : 
-		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
-		float d = abs(distance(PrevPosition, CurrentPosition.xyz)); // Disocclusion check
+		vec4 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyzw;
+		float d = abs(distance(PrevPosition.xyz, CurrentPosition.xyz)); // Disocclusion check
 
 		float ReprojectBias = 0.01f;
-
 		
 		vec3 PrevNormal = SampleNormal(u_PreviousNormalTexture, Reprojected.xy);
 
@@ -432,7 +443,7 @@ void main()
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
-			float BlendFactor = LessValid ? (Moved ? 0.75f : 0.825f) : (Moved ? 0.875f : 0.95f); 
+			float BlendFactor = LessValid ? (Moved ? 0.75f : 0.9f) : (Moved ? 0.875f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
@@ -453,6 +464,12 @@ void main()
 				}
 				
 			
+			}
+
+			bool PreviousSkySample = texture(u_PrevSpecularHitDist, Reprojected.xy).x < 0.0f;
+
+			if (SkySample == PreviousSkySample) {
+				BlendFactor *= 1.15f;
 			}
 
 			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);
