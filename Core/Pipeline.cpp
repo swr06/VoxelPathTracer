@@ -203,7 +203,6 @@ static bool SoftShadows = true;
 static bool SSSSS = false;
 static float SSSSSStrength = 0.9f / 1.0f;
 
-static bool ReprojectReflectionsToScreenSpace = true;
 
 static int DiffuseSPP = 3; 
 static int ReflectionSPP = 2;
@@ -239,6 +238,8 @@ static bool ReflectionLPVGI = true;
 static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
 static bool ReflectionDenoiserDeviationHandling = true;
+static bool ReprojectReflectionsToScreenSpace = true;
+static bool DeriveReflectionsFromDiffuseSH = true;
 
 
 static bool RenderParticles = true;
@@ -419,10 +420,11 @@ public:
 			ImGui::NewLine();
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 24);
-			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
+			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::Checkbox("Derive reflections from diffuse spherical harmonic (derives when the material is too rough)", &DeriveReflectionsFromDiffuseSH);
 
 			if (DenoiseReflections) {
 				ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
@@ -2490,6 +2492,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_QualityLPVGI", ReflectionHighQualityLPVGI);
 			ReflectionTraceShader.SetBool("u_RoughnessBias", ReflectionRoughnessBias&&DenoiseReflections);
 			ReflectionTraceShader.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
+			ReflectionTraceShader.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 
 				
 
@@ -2737,6 +2740,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
+				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -2801,6 +2805,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
+				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 
 				BlockDataStorageBuffer.Bind(0);
 

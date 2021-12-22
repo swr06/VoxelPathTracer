@@ -7,6 +7,7 @@
 #define THRESH 1.41414
 
 #define clamp01(x) (clamp(x, 0.0f, 1.0f))
+#define square(x) (x * x)
 
 // Outputs 
 layout (location = 0) out vec3 o_Color;
@@ -539,6 +540,18 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
+{
+    float Y = max(0, 3.544905f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
+
 // Approximates dfg term ->
 vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness) // from unreal 
 {
@@ -680,6 +693,7 @@ float remap(float x, float a, float b, float c, float d)
 {
     return (((x - a) / (b - a)) * (d - c)) + c;
 }
+
 
 void main()
 {
@@ -873,9 +887,9 @@ void main()
            
             vec3 SpecularIndirect = vec3(0.0f);
             
+            vec3 I = normalize(WorldPosition.xyz - u_ViewerPosition);
 
             if (InBiasedSS) {
-                vec3 I = normalize(WorldPosition.xyz - u_ViewerPosition);
                 vec3 R = reflect(I, NormalMapped).xyz;
                 SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, normalize(R)); 
             }
@@ -927,6 +941,10 @@ void main()
                 o_Color += SpecularIndirect * IndirectSpecularBRDF;
             }
 
+            //if (Emissivity > 0.05f) {
+            //    o_Color = AlbedoColor * 0.125f;
+            //}
+
             
 			
 
@@ -962,8 +980,6 @@ void main()
             }
 			
 
-
-            //return;
         }
 
         else 

@@ -10,6 +10,7 @@
 #define REPROJECT_TO_SCREEN_SPACE
 #define TRACE_LENGTH 64
 #define clamp01(x) (clamp(x,0.0f,1.0F))
+#define square(x) (x*x)
 
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
@@ -107,6 +108,7 @@ uniform int u_CurrentFrameMod128;
 
 uniform bool TEMPORAL_SPEC=false;
 uniform bool u_ReflectPlayer;
+uniform bool u_DeriveFromDiffuseSH;
 
 // LPVGI
 uniform bool u_LPVGI;
@@ -407,6 +409,62 @@ vec3 SHToIrradianceA(vec4 shY, vec2 CoCg)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
+float G_Smith_over_NdotV(float roughness, float NdotV, float NdotL)
+{
+    float alpha = square(roughness);
+    float g1 = NdotV * sqrt(square(alpha) + (1.0 - square(alpha)) * square(NdotL));
+    float g2 = NdotL * sqrt(square(alpha) + (1.0 - square(alpha)) * square(NdotV));
+    return 2.0 *  NdotL / (g1 + g2);
+}
+
+float SpecularGGX(vec3 V, vec3 L, vec3 N, float roughness, float NoH_offset)
+{
+    vec3 H = normalize(L - V);
+    float NoL = max(0, dot(N, L));
+    float VoH = max(0, -dot(V, H));
+    float NoV = max(0, -dot(N, V));
+    float NoH = clamp(dot(N, H) + NoH_offset, 0, 1);
+
+    if (NoL > 0)
+    {
+        float G = G_Smith_over_NdotV(roughness, NoV, NoL);
+        float alpha = square(max(roughness, 0.02));
+        float D = square(alpha) / (PI * square(square(NoH) * square(alpha) + (1 - square(NoH))));
+        return D * G / 4;
+    }
+
+    return 0;
+}
+
+
+// Based on Q2RTX
+vec3 DeriveSpecularFromDiffuseSH(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 Normal) 
+{  
+	float Roughness = 0.4f;
+	vec3 IncomingDir = SHy.xyz / SHy.w * (0.282095f / 0.488603f);
+	vec3 RawSpecularDir = reflect(Eye, Normal); 
+	float IncomingLen = length(IncomingDir);
+	float Directionality = IncomingLen;
+    float Scale = 1.0f;
+
+	if(Directionality >= 1.0) 
+    {
+		IncomingDir /= IncomingLen; 
+	}
+
+	else
+	{
+		IncomingDir = mix(RawSpecularDir, IncomingDir / (IncomingLen + 0.00001f), vec3(Directionality));
+		Scale = pow(Roughness + 1.0f, 3.0f);
+	}
+
+	float SpecularGGXIntegrated = SpecularGGX(Eye, IncomingDir, Normal, max(Roughness, 0.39f), 0.0f);
+	vec3 Integrated = pow(SpecularGGXIntegrated, 1.2f) * IndirectDiffuse * 18.0f * Scale;
+	if (isnan(Integrated.x)||isinf(Integrated.x)||isnan(Integrated.y)||isinf(Integrated.y)||isnan(Integrated.z)||isinf(Integrated.z)) { Integrated = vec3(0.0f); }
+	return max(Integrated, 0.00001f); 
+
+}
+
 // Shift x texture coordinate if the current step is a checker step ->
 vec2 GetCheckerboardedUV()
 {
@@ -646,7 +704,7 @@ void main()
 	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
 	iUV.y = 1.0f - iUV.y;
 	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba; // -> Base pbr data 
-
+	float BaseEmissivity = textureLod(u_BlockEmissiveTextures, vec3(iUV, data.w), 5).x;
 
 	float RoughnessAt = PBRMap.r;
 
@@ -690,6 +748,20 @@ void main()
 	RoughnessBias = mix(1.0f, 0.85, float(u_RoughnessBias));
 
 
+	// If the roughness is too high, we can derive an approximate specular value from the diffuse spherical harmonic
+	bool FuckingRough = PBRMap.x >= 0.865;
+	if (FuckingRough && u_DeriveFromDiffuseSH) {
+		vec3 ReflectedNormal = reflect(I,NormalMappedInitial);
+		vec3 DerivedRadiance = DeriveSpecularFromDiffuseSH(DiffuseSH, SHToIrridiance(DiffuseSH, DiffuseCoCg, NormalMappedInitial.xyz), I, NormalMappedInitial);
+		float[6] SH = IrridianceToSH(DerivedRadiance, ReflectedNormal);
+		o_SH = vec4(SH[0], SH[1], SH[2], SH[3]);
+		o_CoCg = vec2(SH[4], SH[5]);
+		o_HitDistance = 0.5f;
+		o_EmissivityHitMask = 0.0f;
+		return;
+	}
+
+	// trace ->
 	for (int s = 0 ; s < SPP ; s++)
 	{
 		//if (MetalnessAt < 0.025f) 
@@ -698,7 +770,7 @@ void main()
 		//}
 
 		// importance sample :
-		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : NormalMappedInitial;
+		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection((BaseEmissivity>0.05f?InitialTraceNormal:NormalMappedInitial),clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (BaseEmissivity>0.05f?InitialTraceNormal:NormalMappedInitial);
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;

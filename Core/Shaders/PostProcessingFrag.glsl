@@ -1127,7 +1127,7 @@ void main()
 		}
 
 		else {
-			BaseBrightTex = smoothfilter(u_BloomBrightTexture, v_TexCoords).xyz;
+			BaseBrightTex = textureBicubic(u_BloomBrightTexture, v_TexCoords).xyz;
 		}
 
 		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
@@ -1135,22 +1135,39 @@ void main()
 		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f)); 
 		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f)); 
 
-		vec3 TotalBloom = vec3(0.0f);
-		float AmplificationFactor = 1.250f;
-		
-		// fit the bloom to a curve which amplifies it based on some factor --->
+		bool OldBloom = false;
 
-		float Weights[4] = float[4](0.5f, 0.25f, 0.25f, 0.25f);
+		if (OldBloom) {
+			vec3 TotalBloom = vec3(0.0f);
+			float AmplificationFactor = 1.250f;
+			float Weights[4] = float[4](0.5f, 0.25f, 0.25f, 0.25f);
+			const float DetailWeight = 1.25f;
+			TotalBloom = (BaseBrightTex * DetailWeight) + TotalBloom;
+			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
+			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
+			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
+			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+			o_Color += TotalBloom;
+		}
 
-		const float DetailWeight = 1.25f;
+		else {
+			vec3 TotalBloom = vec3(0.0f);
+			float AmplificationFactor = 1.250f;
+			
+			// fit the bloom to a curve which amplifies it based on some factor --->
+			float Weights[4] = float[4](5.75f, 3.7f, 3.475f, 3.2f);
+			const float DetailWeight = 6.650f;
 
-		TotalBloom = (BaseBrightTex * DetailWeight) + TotalBloom;
-		TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
-		TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
-		TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
-		TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+			TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;
+			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
+			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
+			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
+			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
 
-		o_Color += TotalBloom;
+			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3];
+			TotalBloom /= TotalWeights;
+			o_Color += TotalBloom;
+		}
 	}
 
 	else 

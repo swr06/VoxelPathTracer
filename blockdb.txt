@@ -971,6 +971,16 @@
 	SND_MODIFY : Cloth
 }
 
+{
+	Name : Glowstone2
+	Albedo : Res/Block/Glowstone2/Albedo.png
+	Normal : Res/Block/Glowstone2/Normal.png
+	PBR : Res/Block/Glowstone2/PBR.png
+	Emissive : Res/Block/Glowstone2/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
+}
 
 {
 	Name : MISC_LEAVE_THIS_AT_THE_END

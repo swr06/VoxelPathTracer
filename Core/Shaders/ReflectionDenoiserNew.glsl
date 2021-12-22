@@ -26,6 +26,7 @@ uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform bool u_RoughnessBias; 
 uniform bool u_NormalMapAware; 
 uniform bool u_HandleLobeDeviation; 
+uniform bool u_DeriveFromDiffuseSH; 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 
@@ -178,7 +179,9 @@ void main()
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 
-	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r * mix(1.0f, 0.91f, float(u_RoughnessBias));
+	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	float RawRoughness = RoughnessAt;
+	RoughnessAt *= mix(1.0f, 0.91f, float(u_RoughnessBias));
 
 	mat3 TangentBasis = CalculateTangentBasis(BaseNormal);
 	vec3 NormalMappedBase = texture(u_BlockNormals, vec3(BaseUV, TexArrayRef)).xyz * 2.0f - 1.0f;
@@ -242,6 +245,13 @@ void main()
 	}
 	
 	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
+
+	// Since we derived this pixel from the diffuse spherical harmonic (which is already denoised)
+	// We can improve performance by limiting the spatial filter's radius and using a higher scale
+	if (u_DeriveFromDiffuseSH && RawRoughness >= 0.865f) {
+		EffectiveRadius = 5;
+		Scale *= 1.2f;
+	}
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
