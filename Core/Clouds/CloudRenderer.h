@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include "CloudFBO.h"
 #include "NoiseRenderer.h"
 #include "NoiseTexture3D.h"
 #include "../FpsCamera.h"

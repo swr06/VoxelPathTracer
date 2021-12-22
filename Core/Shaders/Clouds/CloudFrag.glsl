@@ -26,6 +26,7 @@
 #define Bayer256(a) (Bayer128(0.5 * (a)) * 0.25 + Bayer2(a))
 
 layout (location = 0) out vec4 o_Data;
+layout (location = 1) out float o_Transversal;
 
 in vec2 v_TexCoords;
 
@@ -705,7 +706,7 @@ float CalculatePlanarLightDensity(vec3 P, vec3 D, bool Conservative) {
 
 // Integrates lighting for cirrus clouds ->
 
-vec4 MarchCirrus(vec3 P, vec3 V, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColor) 
+vec4 MarchCirrus(vec3 P, vec3 V, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColor, out float TransversalWeight) 
 {
 	const vec3 Up = normalize(vec3(0.0f,1.0f,0.0f));
 
@@ -726,6 +727,7 @@ vec4 MarchCirrus(vec3 P, vec3 V, vec2 CosTheta, vec3 SkyColor, vec3 SunLightColo
 	}
 
 	BaseOpticalDepth /= float(ShapeSteps);
+	TransversalWeight = BaseOpticalDepth * 100.0f;
 
 	// Compute transmittance ->
 	float Transmittance = exp2(-BaseOpticalDepth); 
@@ -800,6 +802,7 @@ void main()
 	{
 		o_Data.xyz = AtmosphereAtViewRay;
 		o_Data.w = 0.2f;
+		o_Transversal = -1. / 10.0f;
 		return;
 	}
 
@@ -821,6 +824,7 @@ void main()
 	{
 		o_Data.xyz = AtmosphereAtViewRay;
 		o_Data.w = 0.2f;
+		o_Transversal = -1. / 10.0f;
 		return;
 	}
 
@@ -880,6 +884,10 @@ void main()
 	// Start from projected inner sphere ->
 	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
 	RayPosition += Increment * 0.5f;
+
+	float TransversalDistance = distance(RayPosition, CameraPosition);
+	float AverageTransversalDistance = 0.0f;
+	float TransversalWeight = 0.0f;
 	
 	for (int i = 0 ; i < StepCount ; i++)
 	{
@@ -889,7 +897,10 @@ void main()
 		}
 
 		float DensityAtPosition = SampleDensity(RayPosition, 0.0f) * 1.2525f;
-		
+
+		AverageTransversalDistance += DensityAtPosition * TransversalDistance;
+		TransversalWeight += DensityAtPosition;
+
 		if (DensityAtPosition < 0.012f) {
 			RayPosition += Increment;
 
@@ -950,16 +961,21 @@ void main()
 	if (u_CirrusStrength > 0.012f) {
 			
 		vec3 CirrusPosition = CameraPosition + Direction * SphereMin.y;
+		float CirrusTransversal = 0.001f;
 
-		vec4 CirrusMarch = MarchCirrus(CirrusPosition, Direction, vec2(CosTheta.x, CosTheta.y), CirrusSunColor * 0.225f, SkyColor / 3.2525f);
+		vec4 CirrusMarch = MarchCirrus(CirrusPosition, Direction, vec2(CosTheta.x, CosTheta.y), CirrusSunColor * 0.225f, SkyColor / 3.2525f, CirrusTransversal);
 
 		// Combine ->
 		TotalScattering += CirrusMarch.xyz * FinalTransmittance; 
 
 		// Account for cirrus transmittance ->
 		FinalTransmittance *= CirrusMarch.w;
+
+		AverageTransversalDistance += CirrusTransversal * TransversalDistance;
+		TransversalWeight += CirrusTransversal;
 	}
 	
+	AverageTransversalDistance /= max(TransversalWeight, 0.001f);
 
 	// Store ->
 
@@ -979,4 +995,6 @@ void main()
 	}
 
 	o_Data = vec4(FinalData);
+
+	o_Transversal = AverageTransversalDistance / 10.0f;
 }

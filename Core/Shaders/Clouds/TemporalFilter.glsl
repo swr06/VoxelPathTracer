@@ -29,6 +29,7 @@ uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_PreviousColorTexture;
 uniform sampler2D u_CurrentPositionData;
 uniform sampler2D u_PrevPositionData;
+uniform sampler2D u_Transversals;
 
 
 uniform mat4 u_PrevProjection;
@@ -391,11 +392,15 @@ void main()
 
    // bool SampleIsValid = true;//SampleValid(v_TexCoords);
 
-	if (CurrentColor.w > -0.5f && true)
+	if (CurrentColor.w > -0.5f)
 	{
-		// Reproject clouds by assuming it lies in a plane some x units in front of the camera :
 
-		vec3 CurrentVirtualPosition = PlayerPosition + RayDirection * 500.0f;
+        float CloudTransversal = texture(u_Transversals, v_TexCoords).x * 10.0f;
+        if (CloudTransversal < 0.0000001f) {
+            CloudTransversal = 512.0f;
+        }
+
+		vec3 CurrentVirtualPosition = PlayerPosition + RayDirection * (CloudTransversal);
 		vec2 ProjectedCurrent = ProjectCurrent(CurrentVirtualPosition);
 		vec2 ProjectedPrevious = Reprojection(CurrentVirtualPosition.xyz);
 		
