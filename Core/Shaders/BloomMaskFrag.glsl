@@ -19,7 +19,7 @@ void main()
     float L = GetLuminance(Fetch);
 
     if (Emissivity > 0.0025f) {
-        o_Color = (Emissivity * 32.0f) * Fetch;
+        o_Color = (Emissivity * 8.0f) * Fetch;
     }
 
    //else if (L > 8.0f) {

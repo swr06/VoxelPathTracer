@@ -51,7 +51,7 @@ void main()
     }
 
     TotalBloom /= max(TotalWeight, 0.01f);
-    o_Color = pow(TotalBloom, vec3(1.0f / 2.2f));
+    o_Color = TotalBloom;
     o_Color.x = isnan(o_Color.x) || isinf(o_Color.x) ? 0.0f : o_Color.x;
     o_Color.y = isnan(o_Color.y) || isinf(o_Color.y) ? 0.0f : o_Color.y;
     o_Color.z = isnan(o_Color.z) || isinf(o_Color.z) ? 0.0f : o_Color.z;

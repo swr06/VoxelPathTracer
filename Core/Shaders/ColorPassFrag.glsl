@@ -12,6 +12,7 @@
 // Outputs 
 layout (location = 0) out vec3 o_Color;
 layout (location = 1) out vec4 o_PBR;
+layout (location = 2) out vec3 o_BloomAlbedos;
 
 // Vertex shader inputs 
 vec2 g_TexCoords;
@@ -207,7 +208,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
     vec3 sun_dir = (u_SunDirection); 
     vec3 moon_dir = vec3(-sun_dir.x, -sun_dir.y, sun_dir.z); 
 
-    vec3 ray_dir = normalize(in_ray_dir);
+    vec3 ray_dir = (in_ray_dir);
     
     if (true_transmittance > 0.325f) {
 
@@ -215,6 +216,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         {
             atmosphere_color = ATMOSPHERE_SUN_COLOR; 
             o_PBR.w = float(1.0f);
+            o_BloomAlbedos = ATMOSPHERE_SUN_COLOR;
             return true;
         }
         
@@ -222,6 +224,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         {
             atmosphere_color = ATMOSPHERE_MOON_COLOR;
             o_PBR.w = float(1.2f);
+            o_BloomAlbedos = ATMOSPHERE_MOON_COLOR;
             return true;
         }
     }
@@ -931,6 +934,8 @@ void main()
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
+
+            o_BloomAlbedos = AlbedoColor;
         }
 
         else 

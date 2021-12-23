@@ -65,6 +65,7 @@ namespace VoxelRT
 		inline GLuint GetFramebufferID() const noexcept { return m_FBO; }
 		inline GLuint GetColorTexture() const noexcept { return m_ColorTexture; }
 		inline GLuint GetPBRTexture() const noexcept { return m_PBR; }
+		inline GLuint GetRawAlbedos() const noexcept { return m_RawAlbedoColors; }
 		void GenerateFramebuffers();
 
 	private:
@@ -73,6 +74,7 @@ namespace VoxelRT
 
 		GLuint m_ColorTexture = 0;
 		GLuint m_PBR = 0;
+		GLuint m_RawAlbedoColors = 0;
 
 		GLuint m_FBO = 0;
 		uint32_t m_Width = 0;

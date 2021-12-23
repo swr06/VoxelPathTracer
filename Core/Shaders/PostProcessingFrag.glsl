@@ -1130,10 +1130,10 @@ void main()
 			BaseBrightTex = textureBicubic(u_BloomBrightTexture, v_TexCoords).xyz;
 		}
 
-		Bloom[0] += pow(textureBicubic(u_BloomMips[0], v_TexCoords).xyz, vec3(2.2f));
-		Bloom[1] += pow(textureBicubic(u_BloomMips[1], v_TexCoords).xyz, vec3(2.2f)); 
-		Bloom[2] += pow(textureBicubic(u_BloomMips[2], v_TexCoords).xyz, vec3(2.2f)); 
-		Bloom[3] += pow(textureBicubic(u_BloomMips[3], v_TexCoords).xyz, vec3(2.2f)); 
+		Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
+		Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz; 
+		Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz; 
+		Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz; 
 
 		bool OldBloom = false;
 
@@ -1152,9 +1152,10 @@ void main()
 
 		else {
 			vec3 TotalBloom = vec3(0.0f);
-			float AmplificationFactor = 1.250f;
+			float AmplificationFactor = 1.125f;
 			
-			// fit the bloom to a curve which amplifies it based on some factor --->
+			// Weighted average ->
+
 			float Weights[4] = float[4](5.75f, 3.7f, 3.475f, 3.2f);
 			const float DetailWeight = 6.650f;
 
@@ -1166,6 +1167,7 @@ void main()
 
 			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3];
 			TotalBloom /= TotalWeights;
+
 			o_Color += TotalBloom;
 		}
 	}

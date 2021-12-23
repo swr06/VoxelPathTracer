@@ -3253,7 +3253,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetColorTexture(), ColoredFBO.GetPBRTexture(), Bloom_HQ, BrightTex);
+			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetRawAlbedos(), ColoredFBO.GetPBRTexture(), Bloom_HQ, BrightTex);
 		}
 
 		// ---- Auto Exposure ----
