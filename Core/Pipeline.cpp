@@ -356,7 +356,11 @@ public:
 			ImGui::NewLine();
 
 			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular", &DEBUGTraceLevel, 0, 2);
-			
+
+			ImGui::NewLine();
+			ImGui::Checkbox("* Use accurate indirect light combining? (Option for stylization) (Accounts for metals)", &UseDFG);
+			ImGui::NewLine();
+
 			// Sun/Moon ->
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -480,7 +484,6 @@ public:
 
 			ImGui::SliderInt("Pixel Padding Amount", &PIXEL_PADDING, 0, 128);
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
-			ImGui::Checkbox("Use DFG polynomial approximation to integrate specular brdf (To correct the fresnel term) ", &UseDFG);
 			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);

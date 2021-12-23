@@ -436,6 +436,33 @@ float SpecularGGX(vec3 V, vec3 L, vec3 N, float roughness, float NoH_offset)
     return 0;
 }
 
+vec3 F0toIOR(vec3 F0) {
+	F0 = sqrt(F0) * 0.99999;
+	return (1.0 + F0) / (1.0 - F0);
+}
+
+
+// It is possible to multiple the fresnel term with the specular result while storing it (and weighting by nDotr), which is done sometimes 
+// Used for testing
+// I account for this in the indirect brdf directly in the light combine pass 
+vec3 GetSpecularFresnelTerm(float CosTheta, vec3 F0, float Metalness) {
+	CosTheta = clamp(CosTheta, 0.00000001f, 1.0f);
+	bool IsMetal = Metalness > 0.025f;
+	if (IsMetal) {
+		float SG = exp2(((-5.55473f * CosTheta) - 6.98316f) * CosTheta);
+		return SG * (1.0f - F0) + F0;
+	}
+
+	else {
+		vec3 IOR = F0toIOR(F0);
+		vec3 n1 = vec3(1.00029f), n2 = IOR;
+		vec3 sinThetaT = (n1 / n2) * max(1.0 - pow(CosTheta, 2.0f), 0.00000001f);
+		vec3 cosThetaT = 1.0 - (sinThetaT * sinThetaT);
+		vec3 sPolar = (n2 * CosTheta - n1 * cosThetaT) / (n2 * CosTheta + n1 * cosThetaT);
+		vec3 pPolar = (n2 * cosThetaT - n1 * CosTheta) / (n2 * cosThetaT + n1 * CosTheta);
+		return clamp(((sPolar * sPolar) + (pPolar * pPolar)) * 0.5f, 0.0f, 1.0f);
+	}
+}
 
 // Based on Q2RTX
 vec3 DeriveSpecularFromDiffuseSH(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 Normal) 
@@ -464,6 +491,9 @@ vec3 DeriveSpecularFromDiffuseSH(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 
 	return max(Integrated, 0.00001f); 
 
 }
+
+
+
 
 // Shift x texture coordinate if the current step is a checker step ->
 vec2 GetCheckerboardedUV()

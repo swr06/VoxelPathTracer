@@ -148,7 +148,6 @@ layout (std430, binding = 1) buffer SSBO_BlockAverageData
 //
 
 // Functions :
-vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, vec3 radiance_s, vec3 albedo, vec3 normal, vec3 pbr, float shadow);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 vec3 GetSmoothLPVData(vec3 UV);
@@ -167,16 +166,15 @@ vec3 SampleCone(vec2 Xi, float CosThetaMax);
 vec3 XYZToRGB(in vec3 xyz);
 vec3 RGBToXYZ(in vec3 rgb);
 float MiePhaseFunction(float x, float g);
-vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness);
+vec3 FresnelSchlickRoughness(vec3 Eye, vec3 norm, vec3 F0, float roughness);
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 float FastDistance(vec3 p1, vec3 p2);
 vec4 BetterTexture(sampler2D samp, vec2 uv);
 vec3 BasicSaturation(vec3 Color, float Adjustment);
 float RayCapsuleIntersection(in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r);
 vec3 saturate(vec3 x);
-vec2 SmoothStepUV(vec2 uv, vec2 res, float width);
 float GetLuminance(vec3 color);
 vec4 ClampedTexture(sampler2D tex, vec2 txc);
-vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 
 
 
@@ -260,7 +258,8 @@ vec3 GetAtmosphereAndClouds()
 	vec4 SampledCloudData;
 
     if (u_CloudCatmullRomUpsampling) {
-        SampledCloudData = texture_catmullrom(u_CloudData, SampleCoord).rgba;
+        //SampledCloudData = texture_catmullrom(u_CloudData, SampleCoord).rgba;
+        SampledCloudData = BetterTexture(u_CloudData, SampleCoord).rgba;
 	}
     
     else {
@@ -460,7 +459,6 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
     vec4 TotalSpecSH = vec4(0.0f);
     vec2 TotalSpecCoCg = vec2(0.0f);
 	float TotalWeight = 0.0f;
-	//float TotalShadowWeight = 0.0f;
 
     const vec2 Offsets[5] = vec2[5](
         vec2(0.0f, 1.0f),
@@ -470,13 +468,9 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
         vec2(0.0, -1.0f)
     );
 
-    //vec4 SpecularSamplesSHy[5];
-    //vec2 SpecularSamplesCoCg[5];
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
 	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
-	//float BaseShadowSample = texture(u_ShadowTexture, g_TexCoords).x;
-	//float BaseL = GetLuminance(vec3(BaseShadowSample));
 
 	for (int s = 0 ; s < 5 ; s++) {
 		
@@ -498,18 +492,10 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
 		TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
 		TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
-        //SpecularSamplesSHy[s] = texture(u_ReflectionSHData, SampleCoord).xyzw;
-        //SpecularSamplesCoCg[s] = texture(u_ReflectionCoCgData, SampleCoord).xy;
-
         TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
         TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
 		
-		//float ShadowSampleAt = texture(u_ShadowTexture, SampleCoord).x;
-		//float ShadowWeight = Weight * clamp(pow(abs(BaseL-GetLuminance(vec3(ShadowSampleAt)))/2.0f,64.0f), 0.025f, 1.0f);
-        //ShadowSample += ShadowSampleAt * ShadowWeight;
-
 		TotalWeight += Weight;
-		//TotalShadowWeight += ShadowWeight;
 	}
 
     TotalWeight = max(TotalWeight, 0.01f);
@@ -552,20 +538,18 @@ vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
     return max(vec3(R, G, B), vec3(0.0f));
 }
 
-// Approximates dfg term ->
-vec3 DFGPolynomialApproximate(vec3 F0, float NdotV, float roughness) // from unreal 
+// Approximates the environment brdf integration map
+// Quick to sample, fixes some sampling artifacts 
+vec2 KarisEnvBRDFApprox(float NdotV, float roughness)
 {
-    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
-    const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
-    vec4 r = roughness * c0 + c1;
-    float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
-    vec2 AB = vec2(-1.04, 1.04) * a004 + r.zw;
-    return F0 * AB.x + AB.y;
+	vec4 c0 = vec4(-1., -0.0275, -0.572, 0.022);
+	vec4 c1 = vec4(1., 0.0425, 1.040, -0.040);
+	vec4 r = roughness * c0 + c1;
+	float a004 = min(r.x * r.x, exp2(-9.28 * NdotV)) * r.x + r.y;
+	return vec2(-1.04, 1.04) * a004 + r.zw;
 }
 
-
-// cook torrance brdf : 
-
+// Cook Torrance brdf : 
 float ndfGGX(float cosLh, float roughness)
 {
 	float alpha = roughness * roughness;
@@ -613,7 +597,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 	float cosLh = max(0.0, dot(N, Lh));
 
 	//vec3 F  = fresnelSchlick(F0, max(0.0, dot(Lh, Lo)));
-	vec3 F = fresnelroughness(Lo, normal.xyz, vec3(F0), pbr.r); // use fresnel roughness, gives a slightly better approximation
+	vec3 F = FresnelSchlickRoughness(Lo, normal.xyz, vec3(F0), pbr.r); // use fresnel schlick roughness, approximates better.
 	float D = ndfGGX(cosLh, pbr.r);
 	float G = gaSchlickGGX(cosLi, cosLo, pbr.r);
 
@@ -625,7 +609,7 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return clamp(Result, 0.0f, 2.5) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
-
+// Converts a temperature to a color
 vec3 TemperatureToRGB(float temperatureInKelvins);
 
 vec3 SampleSunColor()
@@ -664,7 +648,7 @@ vec3 SampleMoonColor(float sv, bool x) {
     return MoonColor * 0.5f;
 }
 
-// Custon very non physically based subsurface scattering 
+// Custom very non physically based subsurface scattering 
 vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shadow, float SunVisibility) 
 {
     float VDotL = dot(V, u_StrongerLightDirection);
@@ -677,23 +661,11 @@ vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shado
     return Scattering;
 }
 
-
-vec2 BetterFilteringUVTweak(vec2 res, vec2 uv) 
-{
-    uv = uv*res + 0.5;
-    vec2 fl = floor(uv);
-    vec2 fr = fract(uv);
-    vec2 aa = fwidth(uv)*0.75;
-    fr = smoothstep( vec2(0.5)-aa, vec2(0.5)+aa, fr);
-    uv = (fl+fr-0.5) / res;
-    return uv;
-}
-
+// Converts a value from one range to another
 float remap(float x, float a, float b, float c, float d)
 {
     return (((x - a) / (b - a)) * (d - c)) + c;
 }
-
 
 void main()
 {
@@ -772,7 +744,7 @@ void main()
 	        }
 
 
-
+            // For POM :
             if (u_POM && data.r != u_GrassblockAlbedoID)
             {
                 vec2 InitialUV = UV;
@@ -780,23 +752,14 @@ void main()
                 if (SampledNormals == vec3(-1.0f, 0.0f, 0.0f)) {  UV.x = 1.0f - UV.x; UV.y = 1.0f - UV.y; }
                 if (SampledNormals == vec3(1.0f, 0.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
                 if (SampledNormals == vec3(0.0f, -1.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
-                //if (SampledNormals == vec3(0.0f, 0.0f, 1.0f)) {  flip = true;}
-                //if (SampledNormals == vec3(0.0f, 0.0f, -1.0f)) {  flip = true; }
-
                 vec3 TangentViewPosition = tbn * u_ViewerPosition;
                 vec3 TangentFragPosition = tbn * WorldPosition.xyz; 
                 vec3 TangentViewDirection = normalize((TangentFragPosition - TangentViewPosition));
-                
                 UV = ParallaxOcclusionMapping(UV, TangentViewDirection, data.z);
-                //UV.y = flip && data.r == u_GrassblockAlbedoID ? 1.0f - UV.y : UV.y;
-            
             } else { UV.y = 1.0f - UV.y; }
 
-            //vec3 AlbedoColor = texture(u_BlockAlbedoTextures, vec3(UV.xy, data.x)).rgb;
-            //vec4 PBRMap = texture(u_BlockPBRTextures, vec3(UV, data.z)).rgba;
-            //vec3 NormalMapped = tbn * (texture(u_BlockNormalTextures, vec3(UV, data.y)).rgb * 2.0f - 1.0f);
 
-            //vec2 SmoothstepUV = BetterFilteringUVTweak(vec2(512.0f), UV);
+
 
             vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
             vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
@@ -804,8 +767,8 @@ void main()
             
             AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
 
-            if (PBRMap.y > 0.02f){
-                AlbedoColor = BasicSaturation(AlbedoColor, 0.8f);
+            if (PBRMap.y >= 0.1f - 0.01f){
+                AlbedoColor = BasicSaturation(AlbedoColor, 0.75f);
             }
 
             vec3 NonAmplifiedNormal = NormalMapped;
@@ -819,17 +782,11 @@ void main()
             
            float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
 
-            //vec4 Diffuse = BilateralUpsample(u_DiffuseTexture, g_TexCoords, SampledNormals.xyz, WorldPosition.z);
-            //vec4 Diffuse = PositionOnlyBilateralUpsample(u_DiffuseTexture, g_TexCoords, WorldPosition.xyz);
-            //vec3 Diffuse = DepthOnlyBilateralUpsample(u_DiffuseTexture, g_TexCoords, WorldPosition.z).xyz;
-            //vec4 SampledIndirectDiffuse = BilateralUpsample2(u_DiffuseTexture, g_TexCoords, WorldPosition.xyz, SampledNormals.xyz).xyzw;
-            
             vec4 SHy;
             vec2 ShCoCg;
             vec4 SpecularSH;
             vec2 SpecularCoCg;
 			float UpscaledShadow=0.0f;
-
 		
             SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg,UpscaledShadow, PBRMap.x <= 0.1);
 			UpscaledShadow = clamp(UpscaledShadow,0.0f,1.0f);
@@ -842,7 +799,6 @@ void main()
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
 
             // VXAO from indirect diffuse trace : 
-            // 
 
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
 			
@@ -863,15 +819,11 @@ void main()
 
             vec3 LightAmbience = (vec3(120.0f, 172.0f, 255.0f) / 255.0f) * 1.01f;
             vec3 Ambient = (AlbedoColor * LightAmbience) * 0.09f;
-            float SampledAO = pow(PBRMap.w, 1.25f); // Ambient occlusion map
-
-            // Interpolate and find sun colors : 
-            //float DuskVisibility = clamp(pow(distance(u_SunDirection.y, 1.0), 1.5f), 0.0f, 1.0f);
-
-             //mix(SUN_COLOR, DUSK_COLOR * 0.5f, DuskVisibility);
+            float SampledAO = pow(PBRMap.w, 1.25f);
 
             vec3 SunColor = SAMPLED_SUN_COLOR;
             vec3 MoonColor = SAMPLED_MOON_COLOR;
+
             vec3 SunDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, (u_SunDirection), SunColor, SunColor, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 MoonDirectLighting = CalculateDirectionalLight(WorldPosition.xyz, (u_MoonDirection), MoonColor, MoonColor, AlbedoColor, NormalMapped, PBRMap.xyz, RayTracedShadow);
             vec3 DirectLighting = mix(SunDirectLighting, MoonDirectLighting, SunVisibility * vec3(1.0f));
@@ -899,7 +851,6 @@ void main()
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
             vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 
-            vec3 SpecularFactor = fresnelroughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
             
             // Final combine : 
             // Use fresnel to get the amount of diffuse and reflected light 
@@ -916,37 +867,42 @@ void main()
                 SubsurfaceScatter = IntegrateSubsurfaceScatter(FakeRefracted, WorldPosition.xyz, SampledNormals.xyz, AlbedoColor, SSSShadowMapFetch, 1.-SunVisibility);
             }
 
-           //o_Color = vec3(SubsurfaceScatter);
-            //o_Color = vec3(NormalMapped);
-           // return;
-
-
             if (!dfg) {
+                vec3 SpecularFactor = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
+                
+                if (PBRMap.y >= 0.1f) {
+                    SpecularIndirect *= 1.1f;
+                }
+
                 o_Color = ((DirectLighting + SubsurfaceScatter) + ((1.0f - SpecularFactor) * DiffuseIndirect) + 
                       (SpecularFactor * SpecularIndirect));
             }
 
             else {
 
-                // direct + ind_diff + ind_spec * dfg (fr) 
-                // dfg * fresnel to correct fresnel for energy conservation
-                // 1.0 + f0 * (1.0 / dfg.y - 1.0) usually
+                // Not physically accurate
+                // Done for stylization purposes 
+                // Metals have their reflections 75% brighter and have their albedos 20% more desaturated
+                if (PBRMap.y >= 0.1f) {
+                    SpecularIndirect *= 1.75f;
+                }
 
-                float NDotV = clamp(dot(NonAmplifiedNormal, Lo), 0.0f, 1.0f);
-                vec3 Tint = mix(vec3(1.0f), AlbedoColor, float(PBRMap.g > 0.0125f));
-                vec3 DFG = DFGPolynomialApproximate(F0, Roughness, NDotV); // dfg
-                vec3 IndirectSpecularBRDF = DFG * clamp(Tint, 0.0f, 1.0f);
+                else {
+                    SpecularIndirect *= 0.925f;
+                }
 
-                o_Color = (DirectLighting + SubsurfaceScatter) + DiffuseIndirect * (1.0f - IndirectSpecularBRDF);
-                o_Color += SpecularIndirect * IndirectSpecularBRDF;
+                vec3 FresnelTerm = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
+                FresnelTerm = clamp(FresnelTerm, 0.0f, 1.0f);
+                vec3 kS = FresnelTerm;
+                vec3 kD = 1.0f - kS;
+                kD *= 1.0f - PBRMap.y;
+                vec2 EnvironmentBRDFSampleLocation = vec2(max(dot(-I, NormalMapped.xyz), 0.000001f), PBRMap.x);
+                EnvironmentBRDFSampleLocation = clamp(EnvironmentBRDFSampleLocation, 0.0f, 1.0f);
+                vec2 EnvironmentBRDF = KarisEnvBRDFApprox(EnvironmentBRDFSampleLocation.x, EnvironmentBRDFSampleLocation.y);
+                vec3 IndirectSpecularFinal = SpecularIndirect * (FresnelTerm * EnvironmentBRDF.x + EnvironmentBRDF.y);
+                vec3 IndirectLighting = (kD * DiffuseIndirect) + IndirectSpecularFinal + SubsurfaceScatter;
+                o_Color = DirectLighting + IndirectLighting;
             }
-
-            //if (Emissivity > 0.05f) {
-            //    o_Color = AlbedoColor * 0.125f;
-            //}
-
-            
-			
 
             if (u_LPVDebugState == 1) {
                 o_Color = GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz);
@@ -964,11 +920,8 @@ void main()
                 o_Color = 1.0f - exp(-SpecularIndirect);
             }
           
-            // Output utility : 
-            //o_Normal = vec3(NormalMapped.x, NormalMapped.y, NormalMapped.z);
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
-
 
             // Fix bloom light leak around the edges : 
             const bool BloomLightLeakFix = true;
@@ -978,15 +931,12 @@ void main()
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
-			
-
         }
 
         else 
         {   
             vec3 CloudAndSky = GetAtmosphereAndClouds();
 			o_Color = (CloudAndSky);
-			//o_Normal = vec3(-1.0f);
 			o_PBR.xyz = vec3(-1.0f);
         }
     }
@@ -995,7 +945,6 @@ void main()
     {   
         vec3 CloudAndSky = GetAtmosphereAndClouds();
         o_Color = (CloudAndSky);
-        //o_Normal = vec3(-1.0f);
         o_PBR.xyz = vec3(-1.0f);
     }
 
@@ -1125,13 +1074,23 @@ float MiePhaseFunction(float x, float g){
     return (gg * -0.25 /3.14 + 0.25 /3.14) * pow(-2.0 * (g * x) + (gg + 1.0), -1.5);
 }
 
-vec3 fresnelroughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
+//vec3 FresnelSchlickRoughness(vec3 Eye, vec3 norm, vec3 F0, float roughness) 
+//{
+//    float cosTheta = max(dot(norm, Eye), 0.0);
+//    const float amplifier = 2.4f;
+//    return F0 + (max(vec3(pow(1.0f - roughness, amplifier)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+//}
+
+vec3 FresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
-    float cosTheta = max(dot(norm, Eye), 0.0);
-    const float magic = 2.4f;
-    return F0 + (max(vec3(pow(1.0f - roughness, magic)), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+    return F0 + (max(vec3(1.0-roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
+vec3 FresnelSchlickRoughness(vec3 Eye, vec3 norm, vec3 F0, float roughness)
+{
+    float cosTheta = clamp(dot(Eye, norm), 0.00001f, 1.0f);
+    return F0 + (max(vec3(1.0-roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
 
 float FastDistance(vec3 p1, vec3 p2)
 {
@@ -1191,16 +1150,6 @@ vec3 saturate(vec3 x)
     return clamp(x, 0.0f, 1.0f);
 }
 
-vec2 SmoothStepUV(vec2 uv, vec2 res, float width)
-{
-    uv = uv * res;
-    vec2 uv_floor = floor(uv + 0.5);
-    vec2 uv_fract = fract(uv + 0.5);
-    vec2 uv_aa = fwidth(uv) * width * 0.5;
-    uv_fract = smoothstep(vec2(0.5) - uv_aa, vec2(0.5) + uv_aa, uv_fract);
-    return (uv_floor + uv_fract - 0.5) / res;
-}
-
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
 }
@@ -1209,9 +1158,6 @@ vec4 ClampedTexture(sampler2D tex, vec2 txc)
 {
     return texture(tex, clamp(txc, 0.0f, 0.9999999f));
 }
-
-
-
 
 
 
@@ -1291,41 +1237,6 @@ vec3 InterpolateLPVColorData(vec3 uv)
     return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
 }
 
-vec3 InterpolateLPVColorDataBicubic(vec3 position) 
-{
-    position *= vec3(384.0f, 128.0f, 384.0f);
-    position = position - 0.5;
-
-	vec3 f = fract(position);
-	position -= f;
-
-	vec3 ff = f * f;
-	vec3 w0_1;
-	vec3 w0_2;
-	vec3 w1_1;
-	vec3 w1_2;
-
-	w0_1 = 1 - f; w0_1 *= w0_1 * w0_1;
-	w1_2 = ff * f;
-	w1_1 = 3 * w1_2 + 4 - 6 * ff;
-	w0_2 = 6 - w1_1 - w1_2 - w0_1;
-
-	vec3 s1 = w0_1 + w1_1;
-	vec3 s2 = w0_2 + w1_2;
-	vec3 cLo = position.xyz + vec3(-0.5f) + w1_1 / s1;
-	vec3 cHi = position.xyz + vec3(1.5f) + w1_2 / s2;
-	vec3 m = s1 / (s1 + s2);
-	m = 1.0 - m;
-
-	vec3 lightLoYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cLo.z)), m.x);
-	vec3 lightLoYHiZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cLo.y, cHi.z)), SampleLPVColorTexel(ivec3(cHi.x, cLo.y, cHi.z)), m.x);
-	vec3 lightHiYLoZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cHi.y, cLo.z)), SampleLPVColorTexel(ivec3(cHi.x, cHi.y, cLo.z)), m.x);
-	vec3 lightHiYHiZ = mix(SampleLPVColorTexel(ivec3(cLo.x, cHi.y, cHi.z)), SampleLPVColorTexel(ivec3(cHi.x, cHi.y, cHi.z)), m.x);
-	vec3 lightLoZ = mix(lightLoYLoZ, lightHiYLoZ, m.y);
-	vec3 lightHiZ = mix(lightLoYHiZ, lightHiYHiZ, m.y);
-	return mix(lightLoZ, lightHiZ, m.z);
-}
-
 vec3 InterpolateLPVColorDithered(vec3 UV) // Very few samples with fantastic results.
 { 
 	const bool TemporalIntegration = true;
@@ -1384,96 +1295,6 @@ vec3 GetSmoothLPVDensity(vec3 UV) {
     return vec3(InterpLPVDensity(UV)*54.0f);
 }
 
-// Bicubic
-
-vec4 cubic(float v){
-    vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
-    vec4 s = n * n * n;
-    float x = s.x;
-    float y = s.y - 4.0 * s.x;
-    float z = s.z - 4.0 * s.y + 6.0 * s.x;
-    float w = 6.0 - x - y - z;
-    return vec4(x, y, z, w) * (1.0/6.0);
-}
-
-vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
-{
-
-   vec2 texSize = textureSize(sampler, 0);
-   vec2 invTexSize = 1.0 / texSize;
-
-   texCoords = texCoords * texSize - 0.5;
-
-
-    vec2 fxy = fract(texCoords);
-    texCoords -= fxy;
-
-    vec4 xcubic = cubic(fxy.x);
-    vec4 ycubic = cubic(fxy.y);
-
-    vec4 c = texCoords.xxyy + vec2 (-0.5, +1.5).xyxy;
-
-    vec4 s = vec4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
-    vec4 offset = c + vec4 (xcubic.yw, ycubic.yw) / s;
-
-    offset *= invTexSize.xxyy;
-
-    vec4 sample0 = texture(sampler, offset.xz);
-    vec4 sample1 = texture(sampler, offset.yz);
-    vec4 sample2 = texture(sampler, offset.xw);
-    vec4 sample3 = texture(sampler, offset.yw);
-
-    float sx = s.x / (s.x + s.y);
-    float sy = s.z / (s.z + s.w);
-
-    return mix(
-       mix(sample3, sample2, sx), mix(sample1, sample0, sx)
-    , sy);
-}
-
-// catmull rom interpolation.
-#define sqr(x) (x*x)
-
-vec4 texture_catmullrom(sampler2D tex, vec2 uv) {
-    vec2 res    = textureSize(tex, 0);
-	vec2 pixelSize = 1.0f / res;
-
-    vec2 coord  = uv*res;
-    vec2 coord1 = floor(coord - 0.5) + 0.5;
-
-    vec2 f      = coord-coord1;
-
-    vec2 w0     = f*(-0.5 + f*(1.0-0.5*f));
-    vec2 w1     = 1.0 + sqr(f)*(-2.5+1.5*f);
-    vec2 w2     = f*(0.5 + f*(2.0-1.5*f));
-    vec2 w3     = sqr(f)*(-0.5+0.5*f);
-
-    vec2 w12    = w1+w2;
-    vec2 delta12 = w2/w12;
-
-    vec2 uv0    = coord1 - vec2(1.0);
-    vec2 uv3    = coord1 + vec2(1.0);
-    vec2 uv12   = coord1 + delta12;
-
-        uv0    *= pixelSize;
-        uv3    *= pixelSize;
-        uv12   *= pixelSize;
-
-    vec4 col    = vec4(0.0);
-        col    += textureLod(tex, vec2(uv0.x, uv0.y), 0)*w0.x*w0.y;
-        col    += textureLod(tex, vec2(uv12.x, uv0.y), 0)*w12.x*w0.y;
-        col    += textureLod(tex, vec2(uv3.x, uv0.y), 0)*w3.x*w0.y;
-
-        col    += textureLod(tex, vec2(uv0.x, uv12.y), 0)*w0.x*w12.y;
-        col    += textureLod(tex, vec2(uv12.x, uv12.y), 0)*w12.x*w12.y;
-        col    += textureLod(tex, vec2(uv3.x, uv12.y), 0)*w3.x*w12.y;
-
-        col    += textureLod(tex, vec2(uv0.x, uv3.y), 0)*w0.x*w3.y;
-        col    += textureLod(tex, vec2(uv12.x, uv3.y), 0)*w12.x*w3.y;
-        col    += textureLod(tex, vec2(uv3.x, uv3.y), 0)*w3.x*w3.y;
-
-    return clamp(col, 0.0, 65535.0);
-}
 
 float SRGBToLinear(float x){
     return x > 0.04045 ? pow(x * (1 / 1.055) + 0.0521327, 2.4) : x / 12.92;
