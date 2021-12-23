@@ -78,7 +78,7 @@ static bool LightListDebug = false;
 
 static bool HejlBurgessTonemap = false;
 
-static float TextureDesatAmount = 0.05f;
+static float TextureDesatAmount = 0.1f;
 static bool PreTemporalSpatialPass = true;
 static float PurkingeEffectStrength = 0.0f;
 static int SelectedColorGradingLUT = -1;

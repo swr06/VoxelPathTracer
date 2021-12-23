@@ -363,4 +363,7 @@ Saves/0
 # random backup files
 *.bak
 
+# scripts 
+*.bat
+
 # if you read this, you are a certified fuckin chad
