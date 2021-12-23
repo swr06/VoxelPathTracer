@@ -216,7 +216,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         {
             atmosphere_color = ATMOSPHERE_SUN_COLOR; 
             o_PBR.w = float(1.0f);
-            o_BloomAlbedos = ATMOSPHERE_SUN_COLOR;
+            o_BloomAlbedos = ATMOSPHERE_SUN_COLOR * 3.0f;
             return true;
         }
         
@@ -224,7 +224,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         {
             atmosphere_color = ATMOSPHERE_MOON_COLOR;
             o_PBR.w = float(1.2f);
-            o_BloomAlbedos = ATMOSPHERE_MOON_COLOR;
+            o_BloomAlbedos = vec3(0.6f,0.6f,1.0f) * 1.0f;
             return true;
         }
     }

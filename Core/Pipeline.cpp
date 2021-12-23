@@ -198,6 +198,8 @@ static float PreviousSunTick = 50.0f;
 static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 0.25f;
+static bool BloomWide = false;
+static float BloomStrength = 1.0f;
 
 static bool SoftShadows = true;
 static bool SSSSS = false;
@@ -243,7 +245,6 @@ static bool DeriveReflectionsFromDiffuseSH = true;
 
 
 static bool RenderParticles = true;
-static bool Bloom_HQ = false;
 
 static bool LensFlare = false;
 static bool SSAO = false;
@@ -592,6 +593,13 @@ public:
 			}
 			ImGui::NewLine();
 
+			ImGui::NewLine();
+			ImGui::Checkbox("Bloom?", &Bloom);
+			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
+			ImGui::Checkbox("Wide Bloom?", &BloomWide);
+			ImGui::SliderFloat("Bloom Strength", &BloomStrength, 0.0f, 1.25f);
+			ImGui::NewLine();
+
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
@@ -613,15 +621,13 @@ public:
 			//ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
 			ImGui::NewLine();
 			ImGui::NewLine();
-			ImGui::Checkbox("High Quality Bloom?", &Bloom_HQ);
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
 			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
 			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
 			ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
 			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
-			ImGui::Checkbox("Bloom?", &Bloom);
-			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
+
 			ImGui::NewLine();
 			
 			ImGui::NewLine();
@@ -1108,6 +1114,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer BlurredVolumetricFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	GLClasses::Framebuffer RTAO_FBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true), RTAO_TemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true), RTAO_TemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	VoxelRT::BloomFBO BloomFBO(16, 16);
+	VoxelRT::BloomFBO BloomFBOAlternate(16, 16);
 	GLClasses::Framebuffer SSAOFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	GLClasses::Framebuffer SSAOBlurred(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 
@@ -1392,6 +1399,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
 			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
+			BloomFBOAlternate.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
 			
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
@@ -3253,7 +3261,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, ColoredFBO.GetRawAlbedos(), ColoredFBO.GetPBRTexture(), Bloom_HQ, BrightTex);
+			BloomRenderer::RenderBloom(BloomFBO, BloomFBOAlternate, ColoredFBO.GetRawAlbedos(), ColoredFBO.GetPBRTexture(), false, BrightTex, BloomWide);
 		}
 
 		// ---- Auto Exposure ----
@@ -3550,6 +3558,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[1]", 6);
 		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
+		PostProcessingShader.SetInteger("u_BloomMips[4]", 23);
 		PostProcessingShader.SetInteger("u_BloomBrightTexture", 22);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
 		PostProcessingShader.SetInteger("u_Clouds", 20);
@@ -3570,6 +3579,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
 		PostProcessingShader.SetFloat("u_ExposureMultiplier", ExposureMultiplier);
 		PostProcessingShader.SetFloat("u_NebulaStrength", NebulaStrength);
+		PostProcessingShader.SetFloat("u_BloomStrength", BloomStrength);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -3598,6 +3608,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE8);
 		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[3]);
+
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
+
 		//
 
 		glActiveTexture(GL_TEXTURE9);
@@ -3639,6 +3653,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE22);
 		glBindTexture(GL_TEXTURE_2D, BrightTex);
 
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
 		
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

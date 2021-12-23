@@ -21,6 +21,7 @@ namespace VoxelRT
 			m_Mips[1] = v.m_Mips[1];
 			m_Mips[2] = v.m_Mips[2];
 			m_Mips[3] = v.m_Mips[3];
+			m_Mips[4] = v.m_Mips[4];
 			m_w = v.m_w;
 			m_h = v.m_h;
 
@@ -29,6 +30,7 @@ namespace VoxelRT
 			v.m_Mips[1] = 0;
 			v.m_Mips[2] = 0;
 			v.m_Mips[3] = 0;
+			v.m_Mips[4] = 0;
 			v.m_w = -1;
 			v.m_h = -1;
 		}
@@ -45,14 +47,14 @@ namespace VoxelRT
 		}
 
 		GLuint m_Framebuffer;
-		GLuint m_Mips[4];
+		GLuint m_Mips[5];
 
 		inline int GetWidth() const { return m_w; }
 		inline int GetHeight() const { return m_h; }
 
 		void BindMip(int v);
 
-		const float m_MipScales[4] = { 1.0f, 0.5f, 0.25f, 0.125f };
+		const float m_MipScales[5] = { 1.0f, 0.5f, 0.25f, 0.125f, 0.125f };
 
 	private :
 		void DeleteEverything();

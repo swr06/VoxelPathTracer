@@ -102,7 +102,7 @@ uniform sampler2D u_RTAOTexture;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_SSAOTexture;
 
-uniform sampler2D u_BloomMips[4];
+uniform sampler2D u_BloomMips[5];
 uniform sampler2D u_BloomBrightTexture;
 
 uniform sampler2D u_ShadowTexture;
@@ -131,6 +131,8 @@ uniform float u_Exposure;
 uniform float u_NebulaStrength;
 
 uniform float u_GodRaysStrength;
+
+uniform float u_BloomStrength;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -1102,7 +1104,7 @@ void main()
 	
 	if (u_Bloom)
 	{
-		vec3 Bloom[4] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
+		vec3 Bloom[5] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
 
 		// bicubic upsampling because the bloom textures are super low res
 		// res : 0.25, 0.125, 0.0625, 0.03125
@@ -1134,41 +1136,47 @@ void main()
 		Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz; 
 		Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz; 
 		Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz; 
+		Bloom[4] += textureBicubic(u_BloomMips[4], v_TexCoords).xyz; 
 
 		bool OldBloom = false;
 
 		if (OldBloom) {
 			vec3 TotalBloom = vec3(0.0f);
 			float AmplificationFactor = 1.250f;
-			float Weights[4] = float[4](0.5f, 0.25f, 0.25f, 0.25f);
+			float Weights[5] = float[5](0.5f, 0.25f, 0.25f, 0.25f, 0.1f);
 			const float DetailWeight = 1.25f;
 			TotalBloom = (BaseBrightTex * DetailWeight) + TotalBloom;
 			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
 			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
 			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
 			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+			TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
 			o_Color += TotalBloom;
 		}
 
 		else {
+
 			vec3 TotalBloom = vec3(0.0f);
+
+			// Tweaks the bloom color a bit
 			float AmplificationFactor = 1.125f;
 			
 			// Weighted average ->
 
-			float Weights[4] = float[4](5.75f, 3.7f, 3.475f, 3.2f);
-			const float DetailWeight = 6.650f;
+			float Weights[5] = float[5](5.75f, 4.7f, 4.0f, 3.7f, 3.7f);
+			const float DetailWeight = 7.2f;
 
 			TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;
 			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
 			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
 			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
 			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+			TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
 
-			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3];
+			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3] + Weights[4];
 			TotalBloom /= TotalWeights;
 
-			o_Color += TotalBloom;
+			o_Color += TotalBloom * u_BloomStrength;
 		}
 	}
 

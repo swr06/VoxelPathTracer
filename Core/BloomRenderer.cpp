@@ -34,16 +34,49 @@ namespace VoxelRT
 			BloomFBOVBO->VertexAttribPointer(1, 2, GL_FLOAT, 0, 4 * sizeof(GLfloat), (void*)(2 * sizeof(GLfloat)));
 			BloomFBOVAO->Unbind();
 
-			BloomBlurShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BloomBlur.glsl");
+			BloomBlurShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BloomBlurTwoPass.glsl");
 			BloomBlurShader->CompileShaders();
 
 			BloomMaskShader->CreateShaderProgramFromFile("Core/Shaders/FBOVert.glsl", "Core/Shaders/BloomMaskFrag.glsl");
 			BloomMaskShader->CompileShaders();
 		}
 
-		void BlurBloomMip(BloomFBO& bloomfbo, int mip_num, GLuint source_tex, GLuint bright_tex, bool hq)
+		void BlurBloomMip(BloomFBO& bloomfbo, BloomFBO& bloomfbo_alt, int mip_num, GLuint source_tex, GLuint bright_tex, bool hq, bool wide)
 		{
+			bool KernelWideFlags[5] = { false, false, false, false, false };
+
+			if (wide) {
+				KernelWideFlags[0] = false;
+				KernelWideFlags[1] = false;
+				KernelWideFlags[2] = true;
+				KernelWideFlags[3] = true;
+				KernelWideFlags[4] = true;
+			}
+
 			GLClasses::Shader& GaussianBlur = *BloomBlurShader;
+
+			// Pass 1 ->
+
+			GaussianBlur.Use();
+
+			bloomfbo_alt.BindMip(mip_num);
+
+			GaussianBlur.SetInteger("u_Texture", 0);
+			GaussianBlur.SetInteger("u_Lod", mip_num);
+			GaussianBlur.SetBool("u_HQ", hq);
+			GaussianBlur.SetBool("u_Direction", true);
+			GaussianBlur.SetBool("u_Wide", KernelWideFlags[mip_num]);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, bright_tex);
+
+			BloomFBOVAO->Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			BloomFBOVAO->Unbind();
+
+			glUseProgram(0);
+
+			// Pass 2 ->
 
 			GaussianBlur.Use();
 
@@ -52,16 +85,20 @@ namespace VoxelRT
 			GaussianBlur.SetInteger("u_Texture", 0);
 			GaussianBlur.SetInteger("u_Lod", mip_num);
 			GaussianBlur.SetBool("u_HQ", hq);
+			GaussianBlur.SetBool("u_Direction", false);
+			GaussianBlur.SetBool("u_Wide", KernelWideFlags[mip_num]);
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, bright_tex);
+			glBindTexture(GL_TEXTURE_2D, bloomfbo_alt.m_Mips[mip_num]);
 
 			BloomFBOVAO->Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			BloomFBOVAO->Unbind();
+
+			glUseProgram(0);
 		}
 
-		void RenderBloom(BloomFBO& bloom_fbo, GLuint source_tex, GLuint bright_tex, bool hq, GLuint& brighttex)
+		void RenderBloom(BloomFBO& bloom_fbo, BloomFBO& bloom_fbo_alternate, GLuint source_tex, GLuint bright_tex, bool hq, GLuint& brighttex, bool wide)
 		{
 			// Render the bright parts to a texture
 			GLClasses::Shader& BloomBrightShader = *BloomMaskShader;
@@ -88,10 +125,8 @@ namespace VoxelRT
 
 			brighttex = BloomAlternateFBO->GetTexture();
 
-			// mip gen
-
+			// Generate mip maps for the mask texture 
 			bool genmip = false;
-
 			if (genmip) {
 				glBindTexture(GL_TEXTURE_2D, BloomAlternateFBO->GetTexture(0));
 				glGenerateMipmap(GL_TEXTURE_2D);
@@ -99,10 +134,11 @@ namespace VoxelRT
 			}
 
 			// Blur the mips					
-			BlurBloomMip(bloom_fbo, 0, source_tex, BloomAlternateFBO->GetTexture(0), hq);
-			BlurBloomMip(bloom_fbo, 1, source_tex, bloom_fbo.m_Mips[0], hq);
-			BlurBloomMip(bloom_fbo, 2, source_tex, bloom_fbo.m_Mips[1], hq);
-			BlurBloomMip(bloom_fbo, 3, source_tex, bloom_fbo.m_Mips[2], hq);
+			BlurBloomMip(bloom_fbo, bloom_fbo_alternate, 0, source_tex, BloomAlternateFBO->GetTexture(0), hq, wide);
+			BlurBloomMip(bloom_fbo, bloom_fbo_alternate, 1, source_tex, bloom_fbo.m_Mips[0], hq, wide);
+			BlurBloomMip(bloom_fbo, bloom_fbo_alternate, 2, source_tex, bloom_fbo.m_Mips[1], hq, wide);
+			BlurBloomMip(bloom_fbo, bloom_fbo_alternate, 3, source_tex, bloom_fbo.m_Mips[2], hq, wide);
+			BlurBloomMip(bloom_fbo, bloom_fbo_alternate, 4, source_tex, bloom_fbo.m_Mips[3], hq, wide);
 
 			return;
 		}
