@@ -83,9 +83,15 @@ void main()
     vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
     vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
     float BaseLuminosity = SHToY(BaseSH);
-
     float ACCUMULATED_FRAMES = BaseUtility.x;
     float BaseMoment = BaseUtility.y;
+
+     if (!DO_SPATIAL) {
+        o_SH = BaseSH;
+        o_CoCg = BaseCoCg;
+        o_Variance = BaseMoment - BaseLuminosity * BaseLuminosity;
+        return;
+    }
 
     float TotalWeight = 0.0f;
     float TotalMoment = 0.0f;

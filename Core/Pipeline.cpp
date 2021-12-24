@@ -200,6 +200,9 @@ static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 0.25f;
 static bool BloomWide = false;
 static float BloomStrength = 1.0f;
+bool LensDirt = false;
+float LensDirtStrength = 1.1f;
+bool HQBloomUpscale = true;
 
 static bool SoftShadows = true;
 static bool SSSSS = false;
@@ -338,6 +341,8 @@ public:
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
 			ImGui::Text("Player Velocity : %f, %f, %f", MainPlayer.m_Velocity[0], MainPlayer.m_Velocity[1], MainPlayer.m_Velocity[2]);
+			ImGui::Text("Time : %f", glfwGetTime());
+			ImGui::Text("Sun Tick : %f", glfwGetTime());
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -598,6 +603,12 @@ public:
 			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
 			ImGui::Checkbox("Wide Bloom?", &BloomWide);
 			ImGui::SliderFloat("Bloom Strength", &BloomStrength, 0.0f, 1.25f);
+			ImGui::Checkbox("HQ Bloom Upscale?", &HQBloomUpscale);
+			ImGui::Checkbox("Lens Dirt?", &LensDirt);
+
+			if (LensDirt) {
+				ImGui::SliderFloat("Lens Dirt Strength", &LensDirtStrength, 0.001f, 4.0f);
+			}
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
@@ -1137,6 +1148,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Texture PlayerSprite;
 	GLClasses::Texture ColorGradingLUT;
 	GLClasses::Texture BlueNoiseLowResolution;
+	GLClasses::Texture LensDirtTexture;
 	GLClasses::CubeTextureMap NightSkyMap;
 
 
@@ -1192,6 +1204,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
 	//BlueNoise64x.CreateTexture("Res/Misc/blue_noise64x.png", false, false);
 	BlueNoiseLowResolution.CreateTexture("Res/Misc/blue_noise32x.png", false, false);
+	LensDirtTexture.CreateTexture("Res/Misc/lensdirt.png", true, true);
 
 	BlockDataSSBO BlockDataStorageBuffer;
 	BlockDataStorageBuffer.CreateBuffers();
@@ -3560,6 +3573,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
 		PostProcessingShader.SetInteger("u_BloomMips[4]", 23);
 		PostProcessingShader.SetInteger("u_BloomBrightTexture", 22);
+		PostProcessingShader.SetInteger("u_LensDirtOverlay", 24);
+		PostProcessingShader.SetInteger("u_SmallestBloomMip", 25);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
 		PostProcessingShader.SetInteger("u_Clouds", 20);
 
@@ -3580,6 +3595,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetFloat("u_ExposureMultiplier", ExposureMultiplier);
 		PostProcessingShader.SetFloat("u_NebulaStrength", NebulaStrength);
 		PostProcessingShader.SetFloat("u_BloomStrength", BloomStrength);
+
+		PostProcessingShader.SetBool("u_LensDirt", LensDirt);
+		PostProcessingShader.SetFloat("u_LensDirtStrength", LensDirtStrength);
+		PostProcessingShader.SetBool("u_HQBloomUpscale", HQBloomUpscale);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, TAAFBO.GetTexture());
@@ -3654,6 +3673,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, BrightTex);
 
 		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
+		
+		glActiveTexture(GL_TEXTURE24);
+		glBindTexture(GL_TEXTURE_2D, LensDirtTexture.GetTextureID());
+
+		glActiveTexture(GL_TEXTURE25);
 		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
 		
 		VAO.Bind();

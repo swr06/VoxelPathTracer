@@ -1,36 +1,5 @@
 #version 330 core
 
-
-
-
-//////
-#define CG_RR 255 
-#define CG_RG 0 
-#define CG_RB 0 
-#define CG_RI 1.00 
-#define CG_RM 0 
-#define CG_RC 1.00 
-
-#define CG_GR 0 
-#define CG_GG 255 
-#define CG_GB 0 
-#define CG_GI 1.00 
-#define CG_GM 0 
-#define CG_GC 1.00 
-
-#define CG_BR 0 
-#define CG_BG 0 
-#define CG_BB 255
-#define CG_BI 1.00 
-#define CG_BM 0 
-#define CG_BC 1.00 
-
-#define CG_TR 255 
-#define CG_TG 255 
-#define CG_TB 255 
-#define CG_TI 1.00 
-#define CG_TM 0.0 
-
 #define SATURATION 1.0f
 #define VIBRANCE 1.6f
 
@@ -54,6 +23,7 @@ layout(location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
+in vec3 v_BloomCenter;
 flat in int v_PlayerShadowed;
 
 uniform vec3 u_SunDirection;
@@ -113,6 +83,7 @@ uniform sampler2D u_CloudData;
 
 
 uniform sampler2D u_VolumetricsCompute;
+uniform sampler2D u_LensDirtOverlay;
 
 uniform samplerCube u_NightSkymap;
 
@@ -133,6 +104,10 @@ uniform float u_NebulaStrength;
 uniform float u_GodRaysStrength;
 
 uniform float u_BloomStrength;
+
+uniform bool u_LensDirt;
+uniform float u_LensDirtStrength;
+uniform bool u_HQBloomUpscale;
 
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
@@ -182,20 +157,6 @@ vec3 smoothfilter(in sampler2D tex, in vec2 uv)
 	uv = iuv + fuv*fuv*fuv*(fuv*(fuv*6.0-15.0)+10.0);
 	uv = (uv - 0.5)/textureResolution;
 	return WeightedSample( tex, uv);
-}
-
-vec3 sharpen(in sampler2D tex, in vec2 coords) 
-{
-	vec2 renderSize = textureSize(tex, 0);
-	float dx = 1.0 / renderSize.x;
-	float dy = 1.0 / renderSize.y;
-	vec3 sum = vec3(0.0);
-	sum += -1. * texture(tex, coords + vec2( -1.0 * dx , 0.0 * dy)).rgb;
-	sum += -1. * texture(tex, coords + vec2( 0.0 * dx , -1.0 * dy)).rgb;
-	sum += 5. * texture(tex, coords + vec2( 0.0 * dx , 0.0 * dy)).rgb;
-	sum += -1. * texture(tex, coords + vec2( 0.0 * dx , 1.0 * dy)).rgb;
-	sum += -1. * texture(tex, coords + vec2( 1.0 * dx , 0.0 * dy)).rgb;
-	return sum;
 }
 
 mat3 ACESInputMat = mat3(
@@ -258,29 +219,15 @@ void Vignette(inout vec3 color)
 	color.rgb *= 1.0f - dist * 0.5;
 }
 
-void ColorGrading(inout vec3 color)
-{
-	vec3 cgColor = pow(color.r, CG_RC) * pow(vec3(CG_RR, CG_RG, CG_RB) / 255.0, vec3(2.2)) +
-				   pow(color.g, CG_GC) * pow(vec3(CG_GR, CG_GG, CG_GB) / 255.0, vec3(2.2)) +
-				   pow(color.b, CG_BC) * pow(vec3(CG_BR, CG_BG, CG_BB) / 255.0, vec3(2.2));
-	vec3 cgMin = pow(vec3(CG_RM, CG_GM, CG_BM) / 255.0, vec3(2.2));
-	color = (cgColor * (1.0 - cgMin) + cgMin) * vec3(CG_RI, CG_GI, CG_BI);
-	
-	vec3 cgTint = pow(vec3(CG_TR, CG_TG, CG_TB) / 255.0, vec3(2.2)) * GetLuminance(color) * CG_TI;
-	color = mix(color, cgTint, CG_TM);
-}
-
 void ColorSaturation(inout vec3 color) 
 {
 	float grayVibrance = (color.r + color.g + color.b) / 3.0;
 	float graySaturation = grayVibrance;
 	if (SATURATION < 1.00) graySaturation = dot(color, vec3(0.299, 0.587, 0.114));
-
 	float mn = min(color.r, min(color.g, color.b));
 	float mx = max(color.r, max(color.g, color.b));
 	float sat = (1.0 - (mx - mn)) * (1.0 - mx) * grayVibrance * 5.0;
 	vec3 lightness = vec3((mn + mx) * 0.5);
-
 	color = mix(color, mix(color, lightness, 1.0 - VIBRANCE), sat);
 	color = mix(color, lightness, (1.0 - lightness) * (2.0 - VIBRANCE) / 2.0 * abs(VIBRANCE - 1.0));
 	color = color * SATURATION - graySaturation * (SATURATION - 1.0);
@@ -348,47 +295,33 @@ vec3 lensflare(vec2 uv, vec2 pos)
 {
 	vec2 main = uv - pos;
 	vec2 uvd = uv * (length(uv));
-	
 	float ang = atan(main.x,main.y);
 	float dist = length(main); 
 	dist = pow(dist, 0.1f);
-
 	float n = Fnoise(vec2(ang * 16.0f, dist * 32.0f));
-	
 	float f0 = 1.0 / (length(uv - pos) * 16.0f + 1.0f);
-	
 	f0 = f0 + f0 * (sin(Fnoise(sin(ang * 2.0f + pos.x) * 4.0f - cos(ang * 3.0f + pos.y)) * 16.0f) * 0.1 + dist * 0.1f + 0.8f);
-	
 	float f1 = max(0.01f - pow(length(uv + 1.2f * pos), 1.9f), 0.0f) * 7.0f;
 	float f2 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.8f * pos), 2.0f)), 0.0f) * 0.25f;
 	float f22 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.85f * pos), 2.0f)), 0.0f) * 0.23f;
 	float f23 = max(1.0f / (1.0f + 32.0f * pow(length(uvd + 0.9f * pos), 2.0f)), 0.0f) * 0.21f;
-	
 	vec2 uvx = mix(uv, uvd, -0.5f);
-	
 	float f4 = max(0.01f - pow(length(uvx + 0.4f * pos), 2.4f), 0.0f) * 6.0f;
 	float f42 = max(0.01f - pow(length(uvx + 0.45f * pos), 2.4f), 0.0f) * 5.0f;
 	float f43 = max(0.01f - pow(length(uvx + 0.5f *pos), 2.4f), 0.0f) * 3.0f;
-	
 	uvx = mix(uv, uvd, -0.4f);
-	
 	float f5 = max(0.01f - pow(length(uvx + 0.2f * pos), 5.5f), 0.0f) * 2.0f;
 	float f52 = max(0.01f - pow(length(uvx + 0.4f * pos), 5.5f), 0.0f) * 2.0f;
 	float f53 = max(0.01f - pow(length(uvx + 0.6f * pos), 5.5f), 0.0f) * 2.0f;
-	
 	uvx = mix(uv, uvd, -0.5f);
-	
 	float f6 = max(0.01f - pow(length(uvx - 0.3f * pos), 1.6f), 0.0f) * 6.0f;
 	float f62 = max(0.01f - pow(length(uvx - 0.325f * pos), 1.6f), 0.0f) * 3.0f;
 	float f63 = max(0.01f - pow(length(uvx - 0.35f * pos), 1.6f), 0.0f) * 5.0f;
-	
 	vec3 c = vec3(0.0f);
-	
 	c.r += f2 + f4 + f5 + f6; 
 	c.g += f22 + f42 + f52 + f62;
 	c.b += f23 + f43 + f53 + f63;
 	c = c * 1.3f - vec3(length(uvd) * 0.05f);
-	
 	return c;
 }
 
@@ -557,11 +490,10 @@ float Brightness(vec3 c)
     return max(max(c.r, c.g), c.b);
 }
 
-vec3 HighQualityBloomUpsample(int lod) { 
+vec3 HighQualityBloomUpsample(int lod, vec2 uv) { 
 	vec2 t = textureSize(u_BloomMips[lod], 0);
 	float scale = 1.1f;
 	vec4 d = t.xyxy * vec4(1, 1, -1, 0) * scale;
-	vec2 uv = v_TexCoords;
     vec3 s = vec3(0.0f);
     s  = texture(u_BloomMips[lod], uv - d.xy).xyz;
     s += texture(u_BloomMips[lod], uv - d.wy).xyz * 2;
@@ -574,37 +506,6 @@ vec3 HighQualityBloomUpsample(int lod) {
     s += texture(u_BloomMips[lod], uv + d.xy).xyz;
     return s * (1.0 / 16);
 }
-
-//void SampleVolumetrics(float BaseLinearDepth, in vec3 BaseNormal, out vec3 TotalPointVL) 
-//{
-//	float TotalWeight = 0.0f;
-//	vec2 TexelSize = 1.0f / textureSize(u_VolumetricsCompute, 0);
-//	const float AtrousWeights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
-//
-//	TotalPointVL = vec3(0.0f);
-//	vec3 GodRays = vec3(0.0f);
-//
-//	for (int x = -2 ; x <= 2 ; x++) {
-//		for (int y = -2 ; y <= 2 ; y++) {
-//			
-//			vec2 SampleCoord = v_TexCoords + vec2(x,y) * TexelSize;
-//			float LinearDepthAt = (texture(u_PositionTexture, SampleCoord).x);
-//            if (LinearDepthAt <= 0.0f + 1e-2) { continue; }
-//			vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
-//			float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
-//			DepthWeight = pow(DepthWeight, 12.0f);
-//            DepthWeight = clamp(DepthWeight, 0.0f, 0.99f);
-//			float NormalWeight = pow(abs(dot(NormalAt, BaseNormal)), 8.0f);
-//			float Kernel = AtrousWeights[x + 2] * AtrousWeights[y + 2];
-//			float Weight = Kernel * NormalWeight * DepthWeight;
-//			Weight = max(Weight, 0.01f);
-//			TotalPointVL += texture(u_VolumetricsCompute, SampleCoord).xyz * Weight;
-//			TotalWeight += Weight;
-//		}
-//	}
-//
-//	TotalPointVL /= TotalWeight + 1e-4;
-//}
 
 vec4 textureSmooth(sampler2D t, vec2 x, vec2 textureSize)
 {
@@ -1021,7 +922,6 @@ void main()
 		}
 
 		InputColor = ColorSaturate(InputColor, 1.1f);
-		ColorGrading(InputColor);
 
 		float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
 
@@ -1132,11 +1032,23 @@ void main()
 			BaseBrightTex = textureBicubic(u_BloomBrightTexture, v_TexCoords).xyz;
 		}
 
-		Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
-		Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz; 
-		Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz; 
-		Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz; 
-		Bloom[4] += textureBicubic(u_BloomMips[4], v_TexCoords).xyz; 
+
+
+		if (u_HQBloomUpscale) {
+			Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
+			Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz; 
+			Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz; 
+			Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz; 
+			Bloom[4] += textureBicubic(u_BloomMips[4], v_TexCoords).xyz; 
+		}
+
+		else {
+			Bloom[0] += smoothfilter(u_BloomMips[0], v_TexCoords).xyz;
+			Bloom[1] += smoothfilter(u_BloomMips[1], v_TexCoords).xyz; 
+			Bloom[2] += smoothfilter(u_BloomMips[2], v_TexCoords).xyz; 
+			Bloom[3] += smoothfilter(u_BloomMips[3], v_TexCoords).xyz; 
+			Bloom[4] += smoothfilter(u_BloomMips[4], v_TexCoords).xyz; 
+		}
 
 		bool OldBloom = false;
 
@@ -1175,6 +1087,11 @@ void main()
 
 			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3] + Weights[4];
 			TotalBloom /= TotalWeights;
+
+			if (u_LensDirt) {
+				vec3 LensDirtFetch = smoothfilter(u_LensDirtOverlay, v_TexCoords).xyz;
+				TotalBloom += v_BloomCenter * 5.33f * LensDirtFetch * u_LensDirtStrength * pow(1.0f-distance(v_TexCoords, vec2(0.5f)),6.0f);
+			}
 
 			o_Color += TotalBloom * u_BloomStrength;
 		}

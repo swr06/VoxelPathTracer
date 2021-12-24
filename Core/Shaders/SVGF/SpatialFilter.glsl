@@ -185,6 +185,14 @@ void main()
 	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
 	vec2 BaseAOSky = texture(u_AO, v_TexCoords).rg;
 
+	if (!DO_SPATIAL) { 
+		o_SH = BaseSH;
+		o_CoCg = BaseCoCg;
+		o_Variance = BaseVariance;
+		o_AOAndSkylighting = BaseAOSky;
+		return;
+	}
+
 	// Start with the base inputs, one iteration of the loop can then be skipped
 	vec4 TotalSH = BaseSH;
 	vec2 TotalCoCg = BaseCoCg;

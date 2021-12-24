@@ -887,7 +887,7 @@ void main()
                 // Done for stylization purposes 
                 // Metals have their reflections 75% brighter and have their albedos 20% more desaturated
                 if (PBRMap.y >= 0.1f) {
-                    SpecularIndirect *= 1.75f;
+                    SpecularIndirect *= 1.85f;
                 }
 
                 else {

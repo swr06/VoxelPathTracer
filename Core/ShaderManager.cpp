@@ -62,6 +62,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("SSSBLUR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS.glsl");
 	AddShader("SSSBLUR_POISSON", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FakeSSSSS_Poisson.glsl");
 	AddShader("CUBE_ITEM_RENDERER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CubeItemShader.glsl");
+	AddShader("DEPTH_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DownsampleDepth4x.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)
