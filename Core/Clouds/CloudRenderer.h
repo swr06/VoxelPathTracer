@@ -21,7 +21,7 @@ namespace Clouds
 					glm::vec3 PreviousPosition, GLuint pos_tex_prev, 
 					glm::vec2 modifiers, bool Clamp, glm::vec3 DetailParams, float, bool, float cirrusstrength,
 					float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, 
-					float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float, bool, float, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detail_contrib, bool );
+					float CloudDetailFBMPower, bool lodlighting, bool CloudForceSupersample, float, bool, float, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detail_contrib, bool, glm::vec3 CelestialDirections[2], GLuint skymapmain, glm::vec2 Strengths);
 		void ClearShit();
 		void RecompileShaders();
 		void SetCoverage(float v);

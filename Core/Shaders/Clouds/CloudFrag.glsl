@@ -38,6 +38,7 @@ uniform vec2 u_Dimensions;
 uniform sampler3D u_CloudNoise;
 uniform sampler3D u_CloudDetailedNoise;
 uniform samplerCube u_Atmosphere;
+uniform samplerCube u_MainSkymap;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_PositionTex;
 uniform sampler2D u_CurlNoise;
@@ -82,6 +83,11 @@ uniform float u_ResolutionScale;
 
 uniform float u_SunVisibility;
 uniform float CloudThickness = 1250.0f;
+
+uniform vec3 u_SunDirectionActual;
+uniform vec3 u_MoonDirectionActual;
+
+uniform vec2 u_CelestialStrengths;
 
 vec2 g_TexCoords;
 
@@ -774,6 +780,11 @@ vec2 GetBayerJitter(int Frame)
 	return BayerJitter;
 }
 
+vec3 SampleSunColor();
+vec3 SampleMoonColor();
+vec3 TemperatureToRGB(float temperatureInKelvins);
+vec3 BasicSaturation(vec3 Color, float Adjustment);
+
 void main()
 {
 	g_TexCoords = v_TexCoords;
@@ -924,10 +935,28 @@ void main()
 
 
 	// Fetch colors ->
-	vec3 SunColor = mix(vec3(38.0f),vec3(20.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 CirrusSunColor = mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = pow(texture(u_Atmosphere, normalize(vec3(0.01f,1.0f,0.01f))).xyz,vec3(1.1f))*8.0f*vec3(0.96f,0.96f,1.0f);
 
+	vec3 FinalSunColor = vec3(0.0f);
+	float SunVisibility = clamp(dot(u_SunDirectionActual, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+
+	// Todo : calculate this is in the vertex shader 
+	{
+		vec3 BaseSun = SampleSunColor() * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
+		float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
+		BaseSun = mix(vec3(2.3f), BaseSun, DuskVisibility);
+		vec3 ScatterColor = mix(BaseSun, BasicSaturation(SampleMoonColor() * 1.45f, 1.0f)*1.6*(0.9f/1.0f), SunVisibility); 
+		ScatterColor *= 1.0f / PI;
+		ScatterColor *= 1.2f;
+		ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
+		FinalSunColor = ScatterColor;
+	}
+
+
+	// Todo : calculate this is in the vertex shader 
+	vec3 SunColor = mix(vec3(38.0f),vec3(18.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor;
+	vec3 CirrusSunColor = SunColor * mix(2.0f, 1.35f, 1.0f-SunVisibility);//mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
+	vec3 SkyColor = mix(texture(u_MainSkymap, normalize(vec3(0.01f,1.0f,0.01f))).xyz*8.0f*vec3(0.96f,0.96f,1.0f),BasicSaturation(texture(u_Atmosphere, normalize(vec3(0.01f,1.0f,0.01f))).xyz,1.1f)*8.0f*vec3(0.96f,0.96f,1.0f),0.4f);
+	SkyColor *= mix(vec3(0.9f, 0.9f, 1.0f), vec3(1.0f), 1.0f - SunVisibility);
 
 	// Add scattering components ->
 
@@ -997,4 +1026,70 @@ void main()
 	o_Data = vec4(FinalData);
 
 	o_Transversal = AverageTransversalDistance / 10.0f;
+}
+
+
+vec3 SampleSunColor()
+{
+    vec3 TemperatureModifier = TemperatureToRGB(5778.0f);
+    vec3 SunTransmittance = texture(u_MainSkymap, u_SunDirection.xyz).xyz;
+    vec3 SunColor = SunTransmittance;
+    SunColor *= TemperatureModifier;
+    return BasicSaturation(SunColor, 1.2f) * PI * 2.2f * u_CelestialStrengths.x * 1.05f;
+}
+
+float GetLuminance(vec3 color) {
+	return dot(color, vec3(0.299, 0.587, 0.114));
+}
+
+vec3 SampleMoonColor() {
+    vec3 MoonTransmittance = texture(u_MainSkymap, u_MoonDirectionActual).xyz;
+    vec3 MoonColor = MoonTransmittance;
+    MoonColor = MoonColor * PI * 1.0f * u_CelestialStrengths.y;
+    float L = GetLuminance(MoonColor);
+    MoonColor = mix(MoonColor, vec3(L), 0.2f); 
+    return MoonColor * 0.5f;
+}
+
+float SRGBToLinear(float x){
+    return x > 0.04045 ? pow(x * (1 / 1.055) + 0.0521327, 2.4) : x / 12.92;
+}
+
+vec3 SRGBToLinearVec3(vec3 x){
+    return vec3(SRGBToLinear(x.x),
+                SRGBToLinear(x.y),
+                SRGBToLinear(x.z));
+}
+
+vec3 TemperatureToRGB(float temperatureInKelvins)
+{
+	vec3 retColor;
+	
+    temperatureInKelvins = clamp(temperatureInKelvins, 1000, 50000) / 100;
+    
+    if (temperatureInKelvins <= 66){
+        retColor.r = 1;
+        retColor.g = clamp01(0.39008157876901960784 * log(temperatureInKelvins) - 0.63184144378862745098);
+    } else {
+    	float t = temperatureInKelvins - 60;
+        retColor.r = clamp01(1.29293618606274509804 * pow(t, -0.1332047592));
+        retColor.g = clamp01(1.12989086089529411765 * pow(t, -0.0755148492));
+    }
+    
+    if (temperatureInKelvins >= 66)
+        retColor.b = 1;
+    else if(temperatureInKelvins <= 19)
+        retColor.b = 0;
+    else
+        retColor.b = clamp01(0.54320678911019607843 * log(temperatureInKelvins - 10) - 1.19625408914);
+
+    return SRGBToLinearVec3(retColor);
+}     
+
+
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
 }

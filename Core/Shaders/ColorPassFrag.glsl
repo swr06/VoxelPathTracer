@@ -216,7 +216,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         {
             atmosphere_color = ATMOSPHERE_SUN_COLOR; 
             o_PBR.w = float(1.0f);
-            o_BloomAlbedos = ATMOSPHERE_SUN_COLOR * 3.0f;
+            o_BloomAlbedos = vec3(3.0f,3.0f,2.0f);
             return true;
         }
         
@@ -240,18 +240,18 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 // fetch sky
 vec3 GetAtmosphereAndClouds()
 {
-    float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-
-    // Calculate colors ->
-    vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
-    float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
-    BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
-    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW * 1.2f, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
-
-    // Normalize ->
-    ScatterColor *= 1.0f / PI;
-    ScatterColor *= 1.2f;
-    ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
+    //float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+    //
+    //// Calculate colors ->
+    //vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
+    //float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
+    //BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
+    //vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW * 1.2f, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
+    //
+    //// Normalize ->
+    //ScatterColor *= 1.0f / PI;
+    //ScatterColor *= 1.2f;
+    //ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
 
     vec3 NormalizedDir = normalize(v_RayDirection);
     float Dither = bayer128(gl_FragCoord.xy);
@@ -282,7 +282,7 @@ vec3 GetAtmosphereAndClouds()
     }
 
     float transmittance = max(SampledCloudData.w, 0.07525f);
-    return (Sky * transmittance) + (((SampledCloudData.xyz * ScatterColor) + (Dither / 1024.0f)));
+    return (Sky * transmittance) + (((SampledCloudData.xyz) + (Dither / 1024.0f)));
 
 }
 
@@ -514,6 +514,60 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 }
 
 
+void InferSpecularIndirect(vec3 BaseNormal, float BaseLinearDepth, int BaseBlockID, inout vec4 SH, inout vec2 CoCg)
+{
+    const vec2 Offsets[8] = vec2[8](
+        vec2(0.0f, 1.4f),
+        vec2(1.4f, 0.0f),
+        vec2(-1.4f, 0.0f),
+        vec2(0.0, -1.4f),
+        
+        vec2(0.0f, 2.4f),
+        vec2(2.4f, 0.0f),
+        vec2(-2.4f, 0.0f),
+        vec2(0.0, -2.4f)
+    );
+
+    const float Diagonal = sqrt(2.0f);
+
+	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
+	const float Weights[5] = float[5] (0.0625, 0.25, 0.375, 0.25, 0.0625);
+
+    float BaseDot = dot(normalize(SH.xyz / SH.w * (0.282095f / 0.488603f)), BaseNormal);
+    float BestDot = BaseDot;
+
+	for (int s = 0 ; s < 8 ; s++) {
+		
+        vec2 SampleCoord = g_TexCoords + (vec2(Offsets[s]) * 3.0f) * TexelSize;
+        vec4 SampleSpecularSH = texture(u_ReflectionSHData, SampleCoord).xyzw;
+        vec3 MostProminentDirectionSpec = SampleSpecularSH.xyz / SampleSpecularSH.w * (0.282095f / 0.488603f);
+        MostProminentDirectionSpec = normalize(MostProminentDirectionSpec);
+        float NDotPD = dot(MostProminentDirectionSpec, BaseNormal.xyz);
+
+        if (!(NDotPD < -0.01f))
+        {
+            float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
+            vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+
+            if (abs(BaseLinearDepth-LinearDepthAt) > 1.2f || NormalAt != BaseNormal || LinearDepthAt < 0.001f) {
+                continue;
+            }
+
+            // Find the best sh to use
+            if (BestDot < NDotPD) 
+            {
+                int BlockIDAt = GetBlockID(SampleCoord);
+
+                if (BlockIDAt == BaseBlockID) {
+                    vec2 SampleSpecularCoCg = texture(u_ReflectionCoCgData, SampleCoord).xy;
+                    SH = SampleSpecularSH;
+                    CoCg = SampleSpecularCoCg;
+                }
+            }
+        }
+	}
+
+}
 
 // from quake2rtx
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
@@ -614,6 +668,21 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 
 // Converts a temperature to a color
 vec3 TemperatureToRGB(float temperatureInKelvins);
+
+vec3 SetColorLuminance(vec3 Color, float L) {
+    Color = RGBToXYZ(Color);
+    Color.y = L;
+    Color = XYZToRGB(Color);
+    return Color;
+}
+
+vec3 SetColorLuminance(vec3 Color, vec3 Color2) {
+    Color = RGBToXYZ(Color);
+    Color.y = RGBToXYZ(Color2).y;
+    Color = XYZToRGB(Color);
+    return Color;
+}
+
 
 vec3 SampleSunColor()
 {
@@ -801,6 +870,10 @@ void main()
             vec3 IndirectN = NormalMapped.xyz;
             vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
 
+            // Approximate invalid specular samples ->
+            bool CorrectedSpecular = false;
+
+            
             // VXAO from indirect diffuse trace : 
 
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
@@ -847,10 +920,26 @@ void main()
             if (InBiasedSS) {
                 vec3 R = reflect(I, NormalMapped).xyz;
                 SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, normalize(R)); 
+
+                // Handle invalid samples ->
+                vec3 MostProminentDirectionSpec = SpecularSH.xyz / SpecularSH.w * (0.282095f / 0.488603f);
+                MostProminentDirectionSpec = normalize(MostProminentDirectionSpec);
+                float NDotPD = dot(MostProminentDirectionSpec, SampledNormals.xyz);
+                
+                if (NDotPD < -0.05f) {
+                    vec3 RawSpecularIndirect =  SHToIrridiance(SpecularSH, SpecularCoCg);
+                    SpecularIndirect = RawSpecularIndirect * 0.875f;
+
+                    //InferSpecularIndirect(SampledNormals.xyz, WorldPosition.w, BaseBlockID, SpecularSH, SpecularCoCg);
+                    //SpecularIndirect = SHToIrridiance(SpecularSH, SpecularCoCg) * 1.8f;
+
+                }
             }
 
-           
 			SpecularIndirect = max(vec3(0.0001f), SpecularIndirect);
+            
+
+
             vec3 Lo = normalize(u_ViewerPosition - WorldPosition.xyz); // Outgoing direction 
             vec3 F0 = mix(vec3(0.04), AlbedoColor, PBRMap.g); // Fresnel at 0 degrees.
 

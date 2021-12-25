@@ -43,11 +43,11 @@ namespace VoxelRT
 
 		void BlurBloomMip(BloomFBO& bloomfbo, BloomFBO& bloomfbo_alt, int mip_num, GLuint source_tex, GLuint bright_tex, bool hq, bool wide)
 		{
-			bool KernelWideFlags[5] = { false, false, false, false, false };
+			bool KernelWideFlags[5] = { false, false, false, true, false };
 
 			if (wide) {
-				KernelWideFlags[0] = false;
-				KernelWideFlags[1] = false;
+				KernelWideFlags[0] = true;
+				KernelWideFlags[1] = true;
 				KernelWideFlags[2] = true;
 				KernelWideFlags[3] = true;
 				KernelWideFlags[4] = true;

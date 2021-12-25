@@ -89,9 +89,12 @@ vec3 InverseReinhard(vec3 RGB)
 
 float GetLuminosityWeightFXAA(vec3 color, bool edge, vec2 txc) 
 {
-	if (u_ExponentiallyMagnifyColorDifferences) 
+	// Amplify subpixel differences ->
+	if (edge) 
 	{
-		color = exp(color*20.0f);
+		color = clamp(color, 0.0f, 1.0f);
+		color = exp(color*vec3(32.0f, 64.0f, 24.0f))/2.0f; 
+		color = clamp(color, (1.175494351E-38)+10.5f,(3.402823466E+38)-10.5f);
 	}
 
 	float LuminanceRaw = dot(color, vec3(0.299, 0.587, 0.114));

@@ -88,7 +88,7 @@ GLuint Clouds::CloudRenderer::Update(
 	GLuint BlueNoise,
 	int AppWidth, int AppHeight, int CurrentFrame, GLuint atmosphere, GLuint pos_tex, glm::vec3 PreviousPosition, GLuint pos_tex_prev, glm::vec2 modifiers,
 	bool Clamp, glm::vec3 DetailParams, float TimeScale, bool curlnoise, float cirrusstrength, float CirrusScale, glm::ivec3 StepCounts, bool CHECKER_STEP_COUNT, float SunVisibility, float CloudDetailFBMPower,
-	bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale, float AmbientDensityMultiplier, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detailcontrib, bool equiangularrender)
+	bool lodlighting, bool CloudForceSupersample, float CloudSuperSampleRes, bool CloudSpatialUpscale, float AmbientDensityMultiplier, GLuint EquiangularCloudMap, bool update_projection, float thickness, float detailcontrib, bool equiangularrender, glm::vec3 CelestialDirections[2], GLuint skymapmain, glm::vec2 Strengths)
 {
 	Checkerboard = false;
 	DetailStrength = detailcontrib;
@@ -141,6 +141,7 @@ GLuint Clouds::CloudRenderer::Update(
 		CloudShader.SetInteger("u_CurlNoise", 6);
 		CloudShader.SetInteger("u_CloudWeatherMap", 8);
 		CloudShader.SetInteger("u_CirrusClouds", 9);
+		CloudShader.SetInteger("u_MainSkymap", 10);
 		CloudShader.SetFloat("u_Time", glfwGetTime());
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
@@ -159,6 +160,7 @@ GLuint Clouds::CloudRenderer::Update(
 		CloudShader.SetVector2f("u_Dimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_VertDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_Modifiers", glm::vec2(modifiers));
+		CloudShader.SetVector2f("u_CelestialStrengths", glm::vec2(Strengths));
 		CloudShader.SetVector3f("u_DetailParams", glm::vec3(DetailParams));
 		CloudShader.SetVector3f("u_SunDirection", glm::normalize(SunDirection));
 		CloudShader.SetVector3f("u_ViewerPosition", CurrentPosition);
@@ -176,6 +178,8 @@ GLuint Clouds::CloudRenderer::Update(
 		CloudShader.SetVector2f("u_WindowDimensions", glm::vec2(AppWidth, AppHeight));
 		CloudShader.SetVector2f("u_JitterValue", glm::vec2(JitterValue));
 		CloudShader.SetVector3f("u_StepCounts", glm::vec3(StepCounts));
+		CloudShader.SetVector3f("u_SunDirectionActual", CelestialDirections[0]);
+		CloudShader.SetVector3f("u_MoonDirectionActual", CelestialDirections[1]);
 		CloudShader.SetBool("CHECKER_STEP_COUNT", CHECKER_STEP_COUNT);
 
 		glActiveTexture(GL_TEXTURE1);
@@ -189,6 +193,9 @@ GLuint Clouds::CloudRenderer::Update(
 
 		glActiveTexture(GL_TEXTURE4);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, atmosphere);
+		
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, skymapmain);
 
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_2D, pos_tex);
@@ -201,6 +208,9 @@ GLuint Clouds::CloudRenderer::Update(
 
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D, CloudCirrus->GetTextureID());
+
+		glActiveTexture(GL_TEXTURE10);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, skymapmain);
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
