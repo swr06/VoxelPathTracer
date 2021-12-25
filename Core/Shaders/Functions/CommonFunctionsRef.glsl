@@ -1,5 +1,19 @@
 #version 430 core
 
+vec4 softwareBilinear(sampler2D tex, vec2 uv)
+{
+    vec2 texSize = textureSize(tex, 0).xy;
+	vec2 pos = uv * texSize - 0.5;
+    vec2 f = fract(pos);
+    vec2 pos_top_left = floor(pos);
+    vec4 tl = texture(tex, (pos_top_left + vec2(0.5, 0.5)) / texSize, -100.0);
+    vec4 tr = texture(tex, (pos_top_left + vec2(1.5, 0.5)) / texSize, -100.0);
+    vec4 bl = texture(tex, (pos_top_left + vec2(0.5, 1.5)) / texSize, -100.0);
+    vec4 br = texture(tex, (pos_top_left + vec2(1.5, 1.5)) / texSize, -100.0);
+    vec4 ret = mix(mix(tl, tr, f.x), mix(bl, br, f.x), f.y);
+    return ret;
+}
+
 vec4 nearest(sampler2D tex, vec2 uv) {
     vec2 res = textureSize(tex,0).xy;
     uv *= res;

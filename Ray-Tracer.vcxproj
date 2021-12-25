@@ -282,12 +282,14 @@
     <None Include="Core\Shaders\CubeItemShader.glsl" />
     <None Include="Core\Shaders\CubemapCombine.glsl" />
     <None Include="Core\Shaders\DownsampleDepth4x.glsl" />
+    <None Include="Core\Shaders\DownsampleNormals4x.glsl" />
     <None Include="Core\Shaders\EV100.glsl" />
     <None Include="Core\Shaders\FakeSSSSS.glsl" />
     <None Include="Core\Shaders\FakeSSSSS_Poisson.glsl" />
     <None Include="Core\Shaders\Functions\CommonFunctionsRef.glsl" />
     <None Include="Core\Shaders\Functions\FXAA.glsl" />
     <None Include="Core\Shaders\FXAA311.glsl" />
+    <None Include="Core\Shaders\GBufferDownsampler.glsl" />
     <None Include="Core\Shaders\HandleFlicker.glsl" />
     <None Include="Core\Shaders\IntegrateDFG.glsl" />
     <None Include="Core\Shaders\IntegrateDFG_2.glsl" />
