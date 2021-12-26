@@ -241,23 +241,11 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 // fetch sky
 vec3 GetAtmosphereAndClouds()
 {
-    //float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-    //
-    //// Calculate colors ->
-    //vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
-    //float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
-    //BaseSun = mix(vec3(2.2f), BaseSun, DuskVisibility);
-    //vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR_RAW * 1.2f, 1.64f)*1.6*(0.9f/1.0f), SunVisibility); 
-    //
-    //// Normalize ->
-    //ScatterColor *= 1.0f / PI;
-    //ScatterColor *= 1.2f;
-    //ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
+    float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
 
     vec3 NormalizedDir = normalize(v_RayDirection);
-    float Dither = bayer128(gl_FragCoord.xy);
 
-    vec2 SampleCoord = g_TexCoords + (Dither / 768.0f);
+    vec2 SampleCoord = g_TexCoords;
 
 	vec4 SampledCloudData;
 
@@ -270,20 +258,22 @@ vec3 GetAtmosphereAndClouds()
         SampledCloudData = BetterTexture(u_CloudData, SampleCoord).rgba;
     }
 
-    //vec4 Detail = UpscaleCloudDetail(SampledCloudData);
-    //SampledCloudData.xyz = mix(SampledCloudData.xyz, Detail.xyz, 1.0f - SampledCloudData.w);
 
     vec3 Sky = vec3(0.0f);
 
-    bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w*20.5f, SampledCloudData.w);
+    bool v = GetAtmosphere(Sky, NormalizedDir, SampledCloudData.w * 20.5f, SampledCloudData.w);
+
+    // Night sky color shifts ->
+    Sky = mix(BasicSaturation(Sky, 0.8f), Sky, SunVisibility);
+    Sky *= mix(2.6f, 1.0f, SunVisibility);
 
     if (!u_CloudsEnabled) {
 
         return Sky;
     }
 
-    float transmittance = max(SampledCloudData.w, 0.07525f);
-    return (Sky * transmittance) + (((SampledCloudData.xyz) + (Dither / 1024.0f)));
+    float transmittance = max(SampledCloudData.w, 0.01f);
+    return (Sky * transmittance) + SampledCloudData.xyz;
 
 }
 
@@ -696,11 +686,11 @@ vec3 SampleSunColor()
 
 vec3 SampleMoonColor(float sv, bool x) {
     vec3 MoonTransmittance = texture(u_Skybox, u_MoonDirection).xyz;
-    float TimeOfDayTransition = sv * sv;
     vec3 MoonColor = MoonTransmittance;
 
     if (u_NebulaCelestialColor)
     {
+        float TimeOfDayTransition = sv * sv;
         vec3 Nebula = BasicSaturation(texture(u_NebulaLowRes, u_MoonDirection).xyz, 1.25f) * 0.5f * u_NebulaStrength * TimeOfDayTransition;
         float MoonTransmittanceY = RGBToXYZ(MoonTransmittance).y;
 
@@ -717,8 +707,8 @@ vec3 SampleMoonColor(float sv, bool x) {
 
     MoonColor = MoonColor * PI * u_MoonStrengthModifier;
     float L = GetLuminance(MoonColor);
-    MoonColor = mix(MoonColor, vec3(L), 0.05f); 
-    return MoonColor * 0.5f;
+    //MoonColor = mix(MoonColor, vec3(L), 0.05f); 
+    return MoonColor * 0.5f * vec3(0.9f, 0.9f, 1.0f);
 }
 
 // Custom very non physically based subsurface scattering 
@@ -975,9 +965,9 @@ void main()
 
                 // Not physically accurate
                 // Done for stylization purposes 
-                // Metals have their reflections 75% brighter and have their albedos 20% more desaturated
+                // Metals have their reflections 65% brighter and have their albedos 20% more desaturated
                 if (PBRMap.y >= 0.1f) {
-                    SpecularIndirect *= 1.85f;
+                    SpecularIndirect *= 1.65f;
                 }
 
                 else {
@@ -1020,17 +1010,17 @@ void main()
           
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
+            o_BloomAlbedos = AlbedoColor;
 
             // Fix bloom light leak around the edges : 
             const bool BloomLightLeakFix = true;
             if (BloomLightLeakFix) {
-                float lbiasx = 0.032501f;
-                float lbiasy = 0.032501f;
+                float lbiasx = 0.0125f;
+                float lbiasy = 0.0125f;
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }
 
-            o_BloomAlbedos = AlbedoColor;
         }
 
         else 

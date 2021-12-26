@@ -62,6 +62,8 @@ static int DEBUGTraceLevel = 0;
 
 static bool VSync = false;
 
+static bool Fucktard = false;
+
 static bool DiffuseDirectLightSampling = false;
 
 static float DiffuseIndirectSuperSampleRes = 0.25f;
@@ -337,6 +339,8 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
+			ImGui::Checkbox("Fucktard", &Fucktard);
+
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
@@ -1540,19 +1544,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PreviousSunTick = SunTick;
 
-		// Render clouds to equiangular map once
-		// Updates are done through reprojection
 
 		const int CloudProjectionUpdateRate = 359; 
 
-		if (app.GetCurrentFrame() == 4 || CloudProjectionUpdateType != (StrongerLightDirection == SunDirection) || app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0 && CloudReflections) {
+		if (app.GetCurrentFrame() == 4 || app.GetCurrentFrame() == 12 || (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection))
+			|| app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate+2) == 0 && CloudReflections) {
 
-			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0;
+			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
 
 			// Cube views ->
-			glm::vec3 VirtualCenter = glm::vec3(384.0f / 2.0f, 50.0, 384.0f / 2.0f);
+			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 64.0, MainPlayer.m_Position.z);
 			auto Matrices = GetMatrices(VirtualCenter);
-			glm::mat4 VirtualProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 600.0f);
+			glm::mat4 VirtualProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 700.0f);
 
 			int StartIndex = 0;
 
@@ -1562,13 +1565,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 				}
 
 				else if (app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0) {
-					StartIndex = 3;
+					StartIndex = 2;
+				}
+
+				else if (app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0) {
+					StartIndex = 4;
 				}
 			}
 			glm::vec3 Motherfucker[2] = { SunDirection, MoonDirection };
 
 			// Render clouds for the entire cubemap ->
-			for (int i = 0; i < 6; i++) {
+			for (int i = (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection)) ? 0 : StartIndex; i < 6; i++) {
 
 				glm::mat4 ViewMatrixCube = Matrices[i];
 
@@ -1576,7 +1583,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					VirtualCenter, VAO, StrongerLightDirection, BluenoiseTexture.GetTextureID(),
 					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
 					CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale, CloudDetailWeightEnabled ? 1.0f : 0.0f, CloudErosionWeightExponent),
-					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, app.GetCurrentFrame() == 4 ? glm::ivec3(768, 64, 32) : (CutdownSteps ? glm::ivec3(32, 6, 2) : glm::ivec3(64, 24, 16)), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
+					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, app.GetCurrentFrame() == 4 ? glm::ivec3(64, 8, 4) : (CutdownSteps ? glm::ivec3(32, 6, 3) : glm::ivec3(32, 6, 3)), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
 					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true, Motherfucker, SkymapMain.GetTexture(), glm::vec2(SunStrengthModifier, MoonStrengthModifier));
 
 
@@ -3564,6 +3571,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
 		PostProcessingShader.SetBool("u_HejlBurgess", HejlBurgessTonemap);
+		PostProcessingShader.SetBool("u_Fucktard", Fucktard);
 		//PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
 		PostProcessingShader.SetBool("u_AutoExposure", AutoExposure);
@@ -3613,6 +3621,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingShader.SetInteger("u_DistanceFieldTexture", 18);
 		PostProcessingShader.SetInteger("u_VoxelVolume", 19);
+		PostProcessingShader.SetInteger("u_Sky", 26);
 
 		PostProcessingShader.SetFloat("u_Time", glfwGetTime());
 		PostProcessingShader.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
@@ -3705,6 +3714,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE25);
 		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
 		
+		glActiveTexture(GL_TEXTURE26);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, SkymapMain.GetTexture());
+
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();

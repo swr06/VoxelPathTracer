@@ -50,6 +50,8 @@ uniform float u_PurkingeEffectStrength;
 
 uniform sampler2D u_Clouds;
 
+uniform bool u_Fucktard;
+
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
 
@@ -87,6 +89,7 @@ uniform sampler2D u_CloudData;
 
 uniform sampler2D u_VolumetricsCompute;
 uniform sampler2D u_LensDirtOverlay;
+uniform samplerCube u_Sky;
 
 uniform samplerCube u_NightSkymap;
 
@@ -435,9 +438,10 @@ vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_dep
 // Exponential Distance fog
 vec3 ApplyFog(in vec3 InputColor, in float dist_to_point)
 {
-	float b = 0.00275f;
+	dist_to_point *= 2.0f;
+	float b = 0.00875f;
     float FogAmount = 1.0 - exp(-dist_to_point * b);
-    vec3 FogColor  = vec3(0.5f, 0.6f, 0.7f);
+    vec3 FogColor  = texture(u_Sky, normalize(v_RayDirection)).xyz * 1.5f; //vec3(0.5f, 0.6f, 0.7f);
     return mix(InputColor, FogColor, FogAmount );
 }
 
@@ -784,9 +788,9 @@ vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture 
 vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 void main()
 {
+
 	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 100.0f;
-
 
 
     float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
@@ -863,13 +867,40 @@ void main()
 		InputColor += PointVolumetrics;
 
 
-		if (u_ExponentialFog)
+		if (false)
 		{
 			InputColor = ApplyFog(InputColor, PositionAt.w); 
 			//InputColor = ApplyFog(InputColor, PositionAt.w, v_RayDirection, normalize(u_StrongerLightDirection));
 		}
 
 		o_Color = InputColor;
+
+	}
+
+	else 
+	{
+		vec3 Lo = normalize(v_RayDirection);
+		float star_visibility;
+		star_visibility = 1.- clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
+		
+		vec3 Nighteffects = vec3(0.0f);
+		if (star_visibility > 0.01f&&u_NebulaStrength>0.01f) {
+			Nighteffects = texture(u_NightSkymap, (u_RotationMatrix*vec4(Lo.xyz,1.)).xyz*2.).xyz;
+		}
+
+		float transmittance = texture(u_Clouds, v_TexCoords).w;
+
+
+		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
+		o_Color = o_Color  + ((Nighteffects * 0.5f * u_NebulaStrength * sqr(star_visibility) * transmittance));
+		o_Color = ShadeStars(o_Color, Lo, star_visibility, transmittance * transmittance);
+		o_Color += PointVolumetrics;
+	}
+
+
+	// Tonemap ->
+	const bool TONE_MAP = true;
+	if (TONE_MAP) {
 		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
 		if (u_PurkingeEffectStrength > 0.01f) {
 			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
@@ -887,36 +918,6 @@ void main()
 		}
 	}
 
-	else 
-	{
-		vec3 Lo = normalize(v_RayDirection);
-		float star_visibility;
-		star_visibility = 1.- clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; 
-		
-		vec3 Nighteffects = vec3(0.0f);
-		if (star_visibility > 0.01f&&u_NebulaStrength>0.01f) {
-			Nighteffects = texture(u_NightSkymap, (u_RotationMatrix*vec4(Lo.xyz,1.)).xyz*2.).xyz;
-		}
-
-		float transmittance = texture(u_Clouds, v_TexCoords).w;
-
-
-		//vec3 nebula = SampleNebula(Lo, star_visibility);
-
-		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
-		o_Color = o_Color  + ((Nighteffects * 0.5f * u_NebulaStrength * sqr(star_visibility) * transmittance));
-		o_Color = ShadeStars(o_Color, Lo, star_visibility, transmittance * transmittance);
-		o_Color += PointVolumetrics;
-		
-		
-		//o_Color += stars;
-		//o_Color += nebula * transmittance * transmittance;
-		o_Color *= clamp(clamp(u_Exposure * 0.5f, 0.0f, 10.0f) - 0.4256f, 0.0f, 10.0f);
-		if (u_PurkingeEffectStrength>0.01f) {
-			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
-		}
-		o_Color = BasicTonemap(o_Color);
-	}
 
 	
 	if (u_Bloom)
@@ -1038,22 +1039,7 @@ void main()
 	
 
 
-	// used to test out ways to animate blue noise
 
-	///ivec2 TxS = ivec2(textureSize(u_BlueNoise, 0).xy);
-	///vec3 Hash = texelFetch(u_BlueNoise, ivec2(gl_FragCoord.xy*2.0)%TxS, 0).xyz;//texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(TxS / 2.0f))).xy;
-	///const float GoldenRatio = 1.61803398875;
-	///vec3 Xi = mod(Hash + GoldenRatio * (u_CurrentFrame % 240), 1.0f);
-	///o_Color = vec3(Xi);
-
-	///vec3 Hash;
-	///int n = u_CurrentFrame%1024;
-	///vec2 off = fract(vec2(n*12664745, n*9560333)/16777216.0) * 1024.0;
-	///ivec2 TextureSize = textureSize(u_BlueNoise, 0);
-	///ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
-	///Hash = texelFetch(u_BlueNoise, SampleTexelLoc, 0).xyz;
-	///vec3 Xi = Hash;
-	///o_Color = Xi;
 
 }
 

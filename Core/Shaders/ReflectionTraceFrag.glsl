@@ -314,25 +314,8 @@ vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
 		return Sky;
 	}
 	
-	// Compute some fake colors and look close enough ->
-	float SunVisibility = clamp(dot(u_SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
-    vec3 BaseSun = SAMPLED_SUN_COLOR * vec3(1.0f, 0.9f, 0.9f) * 1.0f;
-	BaseSun *= 0.6f;
-    float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
-    BaseSun = mix(vec3(1.5f, 1.5f, 1.55f), BaseSun, DuskVisibility);
-	BaseSun = clamp01(BaseSun);
-    vec3 ScatterColor = mix(BaseSun, BasicSaturation(SAMPLED_MOON_COLOR, 0.5f) * 1.32525f, SunVisibility); 
-	ScatterColor = clamp01(ScatterColor);
-	ScatterColor *= 0.8f;
-
-	// Fake ambient ->
-	vec3 SkyAmbient = pow(max(SkyAmbientG, 0.45f), vec3(1.25f)) * 1.75f;
-
-	// Fetch with smooth filter to reduce bilinear artifacts ->
 	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
-
-	// Use projected clouds
-	vec3 Return = Sky * max(0.4f, CloudFetch.w) + clamp((CloudFetch.xyz * ScatterColor * vec3(0.8f, 0.8f, 1.0f) * SkyAmbient * 1.2f), 0.0f, 1.0f);
+	vec3 Return = Sky * max(0.0f, CloudFetch.w) + clamp(CloudFetch.xyz, 0.0f, 1.0f) * 0.925f;
 	return Return;
 }	
 

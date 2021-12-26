@@ -374,7 +374,7 @@ void main()
 
             ivec2 PixelProjection;
             PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
-            float ClampedTransmittance = clamp(CurrentColor.w, 0.2f, 1.0f);
+            float ClampedTransmittance = clamp(CurrentColor.w, 0.0f, 1.0f);
             imageStore(o_EquiangularProjection, PixelProjection, vec4(CurrentColor.xyz, ClampedTransmittance));
         }
 
@@ -479,10 +479,10 @@ void main()
 
     // Project and store in equiangular texture for gi ->
 
-    const bool StoreEquiangular = true;
+    const bool DoReprojection = false;
 
 
-    if (StoreEquiangular && u_UpdateProjection) {
+    if (DoReprojection && u_UpdateProjection) {
 
         bool SampleValidFlag = SampleValid(v_TexCoords);
         
@@ -494,7 +494,7 @@ void main()
 
                 ivec2 PixelProjection;
                 PixelProjection = ivec2(floor(UVProjection * vec2(imageSize(o_EquiangularProjection).xy)));
-                float ClampedTransmittance = clamp(o_Color.w, 0.2f, 1.0f);
+                float ClampedTransmittance = clamp(o_Color.w, 0.0f, 1.0f);
                 imageStore(o_EquiangularProjection, PixelProjection, vec4(o_Color.xyz, ClampedTransmittance));
             }
         }

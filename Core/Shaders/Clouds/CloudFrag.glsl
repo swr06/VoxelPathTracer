@@ -943,10 +943,10 @@ void main()
 	{
 		vec3 BaseSun = SampleSunColor() * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
 		float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
-		BaseSun = mix(vec3(2.3f), BaseSun, DuskVisibility);
+		BaseSun = mix(vec3(1.0f), BaseSun, DuskVisibility);
 		vec3 ScatterColor = mix(BaseSun, BasicSaturation(SampleMoonColor() * 1.45f, 1.0f)*1.6*(0.9f/1.0f), SunVisibility); 
 		ScatterColor *= 1.0f / PI;
-		ScatterColor *= 1.2f;
+		ScatterColor *= 0.65f;
 		ScatterColor = clamp(ScatterColor, 0.0f, 2.0f);
 		FinalSunColor = ScatterColor;
 	}
@@ -954,21 +954,26 @@ void main()
 
 	// Todo : calculate this is in the vertex shader? 
 	const vec3 NormalizedUpVector = normalize(vec3(0.01f,1.0f,0.01f));
-	vec3 SunColor = mix(vec3(38.0f),vec3(18.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor*vec3(1.05f);
+	vec3 SunColor = mix(vec3(38.0f),vec3(28.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor*vec3(1.05f);
+	SunColor = SunColor * mix(1.5f, 1.0f, 1.0f-SunVisibility);
 	vec3 CirrusSunColor = SunColor * mix(2.0f, 1.35f, 1.0f-SunVisibility);//mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = mix(texture(u_MainSkymap, NormalizedUpVector).xyz*8.0f*vec3(0.96f,0.96f,1.0f),BasicSaturation(texture(u_Atmosphere, NormalizedUpVector).xyz,1.1f)*8.0f*vec3(0.96f,0.96f,1.0f),0.4f);
-	SkyColor *= mix(vec3(0.9f, 0.9f, 1.0f), vec3(1.0f), 1.0f - SunVisibility);
+	vec3 SkyColor = texture(u_MainSkymap, vec3(0.0f, 1.0f, 0.0f)).xyz * 6.0f * mix(2.2f, 1.0f, 1.-SunVisibility);
 
-	// Add scattering components ->
+	// Dim colors if equiangular render 
+	if (u_InitialEquiangularRender) {
+		SkyColor *= 0.75f;
+		SunColor *= 0.75f;
+		CirrusSunColor *= 1.1f;
+	}
 
+	// Combine lighting ->
 	vec3 TotalScattering = vec3(0.0f);
 	TotalScattering += IntegratedScattering.x * SunColor;
 	TotalScattering += IntegratedScattering.y * SkyColor;
 
-	// Indirect bounced ->
 
+	// Account for Indirect bounced lighting (Not really worth it because it contributes like 1% of the color) ->
 	// Multiply by direct phase and divide by pi ->
-
 	if (DO_BOUNCED_LIGHTING) {
 		float RadianceBounced = IntegratedScattering.z;
 		float BouncedPhase = pow(phase2lobes(CosTheta.x) * 4.0f, 4.0f);
@@ -977,17 +982,11 @@ void main()
 		TotalScattering += RadianceBounced * 0.8f * (1.0 / (pi)) * BouncedPhase * 1.01f;
 	}
 
-
-
-
 	// Output transmittance ->
 	float FinalTransmittance = 1.0f;
 	FinalTransmittance *= Transmittance;
 
-
-
 	// Cirrus -> 
-
 	if (u_CirrusStrength > 0.012f) {
 			
 		vec3 CirrusPosition = CameraPosition + Direction * SphereMin.y;
@@ -1011,9 +1010,7 @@ void main()
 
 	vec4 FinalData = vec4(TotalScattering, FinalTransmittance);
 	
-	// Fade ->
-
-
+	// Basic Fade ->
 	if (DoFade && !u_InitialEquiangularRender) 
 	{
 		float Fade = 1.0f-(exp(-(SphereMin.y/15000.0f)));
