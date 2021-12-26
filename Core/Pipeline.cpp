@@ -244,7 +244,7 @@ static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
 static bool ReflectionDenoiserDeviationHandling = true;
 static bool ReprojectReflectionsToScreenSpace = true;
-static bool DeriveReflectionsFromDiffuseSH = true;
+static bool DeriveReflectionsFromDiffuseSH = false;
 
 
 static bool RenderParticles = true;
@@ -342,7 +342,7 @@ public:
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
 			ImGui::Text("Player Velocity : %f, %f, %f", MainPlayer.m_Velocity[0], MainPlayer.m_Velocity[1], MainPlayer.m_Velocity[2]);
 			ImGui::Text("Time : %f", glfwGetTime());
-			ImGui::Text("Sun Tick : %f", glfwGetTime());
+			ImGui::Text("Sun Tick : %f", SunTick);
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -361,7 +361,7 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
-			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular", &DEBUGTraceLevel, 0, 2);
+			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular, 3 : Direct", &DEBUGTraceLevel, 0, 3);
 
 			ImGui::NewLine();
 			ImGui::Checkbox("* Use accurate indirect light combining? (Option for stylization) (Accounts for metals)", &UseDFG);
@@ -1781,7 +1781,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SpatialInitial.SetInteger("u_NormalTexture", 5);
 
 
-					SpatialInitial.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+					SpatialInitial.SetVector2f("u_Dimensions", glm::vec2(DiffusePreTemporal_SpatialFBO.GetWidth(), DiffusePreTemporal_SpatialFBO.GetHeight()));
 					SpatialInitial.SetMatrix4("u_VertInverseView", inv_view);
 					SpatialInitial.SetMatrix4("u_VertInverseProjection", inv_projection);
 					SpatialInitial.SetMatrix4("u_InverseView", inv_view);
@@ -1857,7 +1857,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				SVGF_Temporal.SetFloat("u_ClampBias", 0.025f);
 				SVGF_Temporal.SetVector3f("u_PrevCameraPos", PreviousPosition);
 				SVGF_Temporal.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
-				SVGF_Temporal.SetVector2f("u_Dimensions", glm::vec2(DiffusePreTemporal_SpatialFBO.GetWidth(), DiffusePreTemporal_SpatialFBO.GetHeight()));
+				SVGF_Temporal.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
 
 
 				SVGF_Temporal.SetMatrix4("u_VertInverseView", inv_view);
@@ -2045,7 +2045,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetBool("u_LargeKernel", SVGF_LARGE_KERNEL);
 
 					SVGF_Spatial.SetInteger("u_Step", StepSizes[i]);
-					SVGF_Spatial.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+					SVGF_Spatial.SetVector2f("u_Dimensions", glm::vec2(CurrentDenoiseFBO.GetWidth(), CurrentDenoiseFBO.GetHeight()));
 					SVGF_Spatial.SetMatrix4("u_VertInverseView", inv_view);
 					SVGF_Spatial.SetMatrix4("u_VertInverseProjection", inv_projection);
 					SVGF_Spatial.SetMatrix4("u_InverseView", inv_view);
@@ -2210,7 +2210,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					AtrousSpatialFilter.SetInteger("u_InputTexture2", 5);
 					AtrousSpatialFilter.SetInteger("u_AO", 6);
 					AtrousSpatialFilter.SetInteger("u_Step", StepSizes[i]);
-					AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseTemporalFBO.GetWidth(), DiffuseTemporalFBO.GetHeight()));
+					AtrousSpatialFilter.SetVector2f("u_Dimensions", glm::vec2(CurrentDenoiseFBO.GetWidth(), CurrentDenoiseFBO.GetHeight()));
 					AtrousSpatialFilter.SetMatrix4("u_VertInverseView", inv_view);
 					AtrousSpatialFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 					AtrousSpatialFilter.SetMatrix4("u_InverseView", inv_view);
@@ -2300,6 +2300,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTestShadows);
 			ShadowTraceShader.SetFloat("u_FOV", MainCamera.GetFov());
 			ShadowTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
+			ShadowTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -2340,6 +2341,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
 			MainTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 			MainTemporalFilter.SetInteger("u_NormalTexture", 8);
+			MainTemporalFilter.SetInteger("u_ShadowTransversals", 17);
 
 			MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			MainTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -2374,6 +2376,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE8);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+			
+			glActiveTexture(GL_TEXTURE17);
+			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2391,7 +2396,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowFilter.SetInteger("u_PositionTexture", 1);
 			ShadowFilter.SetInteger("u_NormalTexture", 2);
 			ShadowFilter.SetInteger("u_IntersectionTransversals", 3);
-			ShadowFilter.SetVector2f("u_Dimensions", glm::vec2(DiffuseDenoisedFBO2.GetWidth(), DiffuseDenoisedFBO2.GetHeight()));
+			ShadowFilter.SetVector2f("u_Dimensions", glm::vec2(ShadowFiltered.GetWidth(), ShadowFiltered.GetHeight()));
 			ShadowFilter.SetMatrix4("u_VertInverseView", inv_view);
 			ShadowFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 			ShadowFilter.SetMatrix4("u_InverseView", inv_view);
@@ -3067,6 +3072,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
 		ColorShader.SetBool("u_DEBUGDiffuseGI", DEBUGTraceLevel==1);
 		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGTraceLevel==2);
+		ColorShader.SetBool("u_DEBUGShadows", DEBUGTraceLevel==3);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", UseDFG);
 		ColorShader.SetBool("u_SSSSS", SSSSS && SSSSSStrength > 0.01f);

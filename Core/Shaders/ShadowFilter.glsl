@@ -53,7 +53,7 @@ float Luminance(vec3 x)
 }
 
 float LuminancePow(float x) {
-    return x*x*x*x*x;
+    return x*x*x*x*x*x*x*x;
 }
 
 float ShadowSpatial(sampler2D tex, vec2 uv)
@@ -75,12 +75,18 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
         return CenterShadow;
     }
 
+    bool ReducedKernel = Transversal < TransversalCutoff * 2.4f;
+
     float TotalWeight = 0.0f;
     float TotalShadow = 0.0f;
     
     // 6 * 4 = 24 samples. 
-    for (int x = -3 ; x <= 3 ; x++) {
-        for (int y = -2 ; y <= 2 ; y++) 
+
+    int XSize = ReducedKernel ? 1 : 3;
+    int YSize = ReducedKernel ? 1 : 2;
+
+    for (int x = -XSize ; x <= XSize ; x++) {
+        for (int y = -YSize ; y <= YSize ; y++) 
         {
             vec2 d = vec2(x, y);
             vec2 SampleCoord = uv + d * TexelSize * 1.1f;
@@ -96,7 +102,7 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
             
             float ShadowAt = texture(u_InputTexture, SampleCoord).x;
             float LumaAt = Luminance(vec3(ShadowAt));
-            float LuminanceError = clamp(1.0f - clamp(abs(LumaAt - BaseLuminance) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
+            float LuminanceError = clamp(1.0f - clamp(abs(ShadowAt - CenterShadow) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
             float Weight = clamp(LuminancePow(LuminanceError), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
             Weight = clamp(Weight, 0.01f, 1.0f);
             TotalShadow += ShadowAt * Weight;

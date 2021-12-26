@@ -34,6 +34,7 @@ uniform bool u_ContactHardeningShadows;
 uniform bool u_ShouldAlphaTest;
 
 uniform vec2 u_Dimensions;
+uniform vec2 u_Halton;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -42,7 +43,9 @@ layout (std430, binding = 0) buffer SSBO_BlockData
     int BlockPBRData[128];
     int BlockEmissiveData[128];
 	int BlockTransparentData[128];
-};
+}; 
+
+vec2 g_TexCoords;
 
 vec2 CalculateUV(vec3 world_pos, in vec3 normal);
 
@@ -407,10 +410,14 @@ vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
 //#define ANIMATE_BY_GOLDEN_RATIO
 //#define USE_EW_WHITE_NOISE
 
+
 void main()
 {
+	g_TexCoords = v_TexCoords;
+	g_TexCoords += u_Halton * (1.0f / u_Dimensions) * 1.4f;
+
 	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
-	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 100.0 * 2.0f;
+	HASH2SEED = (g_TexCoords.x * g_TexCoords.y) * 100.0 * 2.0f;
 	HASH2SEED += fract(u_Time) * 102.0f;
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(800.0f * u_Time);
 	hash2(); hash2();
@@ -420,7 +427,7 @@ void main()
     RNG_SEED ^= RNG_SEED >> 17;
     RNG_SEED ^= RNG_SEED << 5;
 	
-	vec4 RayOrigin = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
+	vec4 RayOrigin = GetPositionAt(u_PositionTexture, g_TexCoords).rgba;
 
 	if (RayOrigin.w < 0.0f) {
 		o_Shadow = 0.0f;
@@ -442,7 +449,7 @@ void main()
 		#ifndef USE_EW_WHITE_NOISE 
 			#ifdef ANIMATE_BY_GOLDEN_RATIO
 				ivec2 TxS = ivec2(textureSize(u_BlueNoiseTexture, 0).xy);
-				vec3 Hash = texelFetch(u_BlueNoiseTexture, ivec2(gl_FragCoord.xy*2.0)%TxS, 0).xyz;//texture(u_BlueNoise, v_TexCoords * (u_Dimensions / vec2(TxS / 2.0f))).xy;
+				vec3 Hash = texelFetch(u_BlueNoiseTexture, ivec2(gl_FragCoord.xy*2.0)%TxS, 0).xyz;//texture(u_BlueNoise, g_TexCoords * (u_Dimensions / vec2(TxS / 2.0f))).xy;
 				const float GoldenRatio = 1.61803398875f;
 				vec3 Xi = mod(Hash + GoldenRatio * (u_CurrentFrame % 240), 1.0f);
 			#else
@@ -471,7 +478,7 @@ void main()
 	}
 
 	vec3 RayDirection = (JitteredLightDirection);
-	vec3 SampledNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
+	vec3 SampledNormal = SampleNormalFromTex(u_NormalTexture, g_TexCoords).rgb;
 	
 	float NDotL = dot(SampledNormal, RayDirection);
 

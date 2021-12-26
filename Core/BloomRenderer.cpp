@@ -55,6 +55,8 @@ namespace VoxelRT
 
 			GLClasses::Shader& GaussianBlur = *BloomBlurShader;
 
+			float AspectRatio = bloomfbo.GetWidth() / bloomfbo.GetHeight();
+
 			// Pass 1 ->
 
 			GaussianBlur.Use();
@@ -66,6 +68,7 @@ namespace VoxelRT
 			GaussianBlur.SetBool("u_HQ", hq);
 			GaussianBlur.SetBool("u_Direction", true);
 			GaussianBlur.SetBool("u_Wide", KernelWideFlags[mip_num]);
+			GaussianBlur.SetFloat("u_AspectRatioCorrect", AspectRatio);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, bright_tex);
@@ -87,6 +90,7 @@ namespace VoxelRT
 			GaussianBlur.SetBool("u_HQ", hq);
 			GaussianBlur.SetBool("u_Direction", false);
 			GaussianBlur.SetBool("u_Wide", KernelWideFlags[mip_num]);
+			GaussianBlur.SetFloat("u_AspectRatioCorrect", AspectRatio);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, bloomfbo_alt.m_Mips[mip_num]);

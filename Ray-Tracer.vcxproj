@@ -270,6 +270,7 @@
     <None Include="Core\Shaders\BloomBlurTwoPass.glsl" />
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl" />
     <None Include="Core\Shaders\BlurHitDistance_Bilateral.glsl" />
+    <None Include="Core\Shaders\DOFBokeh.glsl" />
     <None Include="Core\Shaders\CalculateAverageLuminance.comp" />
     <None Include="Core\Shaders\CheckerboardReconstruct.glsl" />
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl" />

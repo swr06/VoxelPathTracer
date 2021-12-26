@@ -5,6 +5,9 @@
 
 #define sqr(x) (x*x)
 #define square(x) sqr(x)
+#define Pow2(x) square(x)
+#define Clamp01(x) (clamp(x, 0.0f, 1.0f))
+#define clamp01(x) (clamp(x, 0.0f, 1.0f))
 
 //////
 
@@ -632,25 +635,41 @@ vec3 vibrance(in vec3 color)
 
 
 // Used to get a color for a temperature ->
-vec3 planckianLocus(float t) 
-{
-	vec4 vx = vec4(-0.2661239e9,-0.2343580e6,0.8776956e3,0.179910);
-	vec4 vy = vec4(-1.1063814,-1.34811020,2.18555832,-0.20219683);
-	float it = 1./t;
-	float it2= it*it;
-	float x = dot(vx,vec4(it*it2,it2,it,1.));
-	float x2 = x*x;
-	float y = dot(vy,vec4(x*x2,x2,x,1.));
-	float z = 1. - x - y;
-	
-	mat3 xyzToSrgb = mat3(
-		 3.2404542,-1.5371385,-0.4985314,
-		-0.9692660, 1.8760108, 0.0415560,
-		 0.0556434,-0.2040259, 1.0572252
+vec3 Blackbody(float temperature) 
+{ 
+	const mat3 tmp_r2020 = mat3(
+		0.708 / 0.292, 0.17  / 0.797, 0.131 / 0.046,
+		1.0,           1.0,           1.0,
+		0.0   / 0.292, 0.033 / 0.797, 0.823 / 0.046
+	);
+	const vec3 lc_r2020 = vec3(0.3127 / 0.3290, 1.0, 0.3583 / 0.3290) * inverse(tmp_r2020);
+	const mat3 R2020ToXyz = mat3(lc_r2020 * tmp_r2020[0], lc_r2020, lc_r2020 * tmp_r2020[2]);
+	const mat3 XyzToR2020 = inverse(R2020ToXyz);
+	const mat3 XyzToRgb = XyzToR2020;
+
+	const vec4[2] xc = vec4[2](
+		vec4(-0.2661293e9,-0.2343589e6, 0.8776956e3, 0.179910), // 1667k <= t <= 4000k
+		vec4(-3.0258469e9, 2.1070479e6, 0.2226347e3, 0.240390)  // 4000k <= t <= 25000k
 	);
 
-	vec3 srgb = vec3(x/y,1.,z/y) * xyzToSrgb;
-	return max(srgb,0.);
+	const vec4[3] yc = vec4[3](
+		vec4(-1.1063814,-1.34811020, 2.18555832,-0.20219683), // 1667k <= t <= 2222k
+		vec4(-0.9549476,-1.37418593, 2.09137015,-0.16748867), // 2222k <= t <= 4000k
+		vec4( 3.0817580,-5.87338670, 3.75112997,-0.37001483)  // 4000k <= t <= 25000k
+	);
+
+	float temperatureSquared = temperature * temperature;
+	vec4 t = vec4(temperatureSquared * temperature, temperatureSquared, temperature, 1.0);
+	float x = dot(1.0 / t, temperature < 4000.0 ? xc[0] : xc[1]);
+	float xSquared = x * x;
+	vec4 xVals = vec4(xSquared * x, xSquared, x, 1.0);
+	vec3 xyz = vec3(0.0);
+	xyz.y = 1.0;
+	xyz.z = 1.0 / dot(xVals, temperature < 2222.0 ? yc[0] : temperature < 4000.0 ? yc[1] : yc[2]);
+	xyz.x = x * xyz.z;
+	xyz.z = xyz.z - xyz.x - 1.0;
+
+	return xyz * XyzToRgb;
 }
 
 // Fragment
@@ -710,137 +729,37 @@ vec3 hash33uint(vec3 q){
     return vec3(p ^ (p >> 16U)) * (1 / vec3(0xffffffffU));
 }
 
-float BilinearStarSample(in vec2 InUV, const float NoiseThreshold)
-{
-    vec2 Offsets[5] = vec2[5](vec2(0.0f),
-                              vec2(0.0f, 1.0f),
-                              vec2(0.0f, -1.0f),
-                              vec2(1.0f, 0.0f),
-                              vec2(-1.0f, 0.0f));
 
-    const float Weights[5] = float[5](1.0f,0.25f,0.25f,0.25f,0.25f);
-
-    float StarTotal = 0.0f;
-    float TotalW = 0.0f;
-
-    for (int i = 0 ; i < 5 ; i++) {
-        // bilinear offset ->
-        vec2 UV = InUV.xy + Offsets[i] * (1.0f / u_Dimensions);
-        float FractUVx = fract(UV.x);
-        float FractUVy = fract(UV.y);
-        vec2 floorSample = floor(UV);
-
-        // Sample 4 points ->
-        float v1 = NoisyStarField(floorSample, NoiseThreshold);
-        float v2 = NoisyStarField(floorSample + vec2(0.0f, 1.0f), NoiseThreshold);
-        float v3 = NoisyStarField(floorSample + vec2(1.0f, 0.0f), NoiseThreshold);
-        float v4 = NoisyStarField(floorSample + vec2(1.0f, 1.0f), NoiseThreshold);
-
-        // Basic Bilinear interpolation to reduce aliasing :
-        float StarVal = v1 * (1.0 - FractUVx) * (1.0 - FractUVy)
-					    + v2 * (1.0 - FractUVx) * FractUVy
-					    + v3 * FractUVx * (1.0 - FractUVy)
-					    + v4 * FractUVx * FractUVy;
-
-        float w = Weights[i];
-	    StarTotal += StarVal*w;
-        TotalW += w;
-    }
-
-    StarTotal /= max(0.01f,TotalW);
-    return StarTotal;
+vec2 Hash2(vec3 p3) {
+	p3 = fract(p3 * vec3(443.897, 441.423, 437.195));
+	p3 += dot(p3, p3.yzx + 19.19);
+	return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-// fract-sin noise
-float rand(vec2 co){
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-}
-
-//#define STAR_AA
+float LinearStep(float e0, float e1, float x) { return clamp01((x - e0) / (e1 - e0)); }
 
 vec2 ProjectDirection(vec3 Direction, vec2);
 
-vec3 ShadeStars(vec3 fragpos)
+vec3 ShadeStars(vec3 sky, vec3 Lo, float sv, float base_transmittance)
 {
-    vec3 v = fragpos * 256.0f;
-	vec3 ll = vec3(0.0f, 1.0f, 0.0f); // = u_SunDirection
-    v = Rotate(v, ll, vec3(0.0f,0.0f,1.0f));
-        
-    // floor it to maintain temporal coherency
-    v = vec3(floor(v));
+    const float StarScale = 256.0f;
+	const float FakeCoverage = 0.01f;
+	const float LuminanceMax = 0.7f * 5.0f;
+	const float BlackbodyMinTemperature = 1000.0;
+	const float BlackbodyMaxTemperature = 9000.0;
 
-    // Hash 
-    vec3 hash = hash33(v);
-    vec3 hash22 = hash33(v+vec3(10.0f,283.238f,29.7236747f));
+	vec3  p = Lo * StarScale;
+	ivec3 i = ivec3(floor(p));
+	vec3  f = p - i;
+	float r = dot(f - 0.5f, f - 0.5f);
 
-    // Negatives make everything shit itself 
-    //fragpos.y = abs(fragpos.y);
+	vec2 hash = Hash2(i);
+	hash.y = 2.0f * hash.y - 4.0f * hash.y * hash.y + 3.0f * hash.y * hash.y * hash.y;
 
-    // Calculate elevation and approximate uv
-	
-	//float elevation = clamp(fragpos.y, 0.0f, 1.0f);
-	//vec2 uv = //fragpos.xz / (1.0f + elevation);
-	
-    // Project direction ->
-	fragpos = floor(fragpos * 100.0f);
-	vec2 tuv = clamp(ProjectDirection(fragpos, vec2(2048.)), 0.0f, 1.0f);
-
-	vec3 FinalStar = vec3(0.);
-	bool AntiAlias = false;
-
-	if (AntiAlias) {
-
-		float A = 1.0f, s = 1.0f / A, x, y;
-		A = clamp(A, 1, 16);
-    
-		for (x = -0.5f; x < 0.5f; x += s) 
-		{
-			for (y = -0.5f; y < 0.5f; y += s) 
-			{
-				vec2 uv = tuv + vec2(x,y) * (1.0f / 2048.0f);
-
-				// Add some variation to the scale 
-				float scale = mix(800.0f, 1100.0f, 1.0f-hash.x)*3.;
-				float star = BilinearStarSample(uv * scale, 0.9965f);
-
-				// Use blackbody to get a color from a temperature value.
-				float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
-				vec3 Color = planckianLocus(RandomTemperature);
-        
-				// Twinkle
-				float twinkle = sin(u_Time * 0.5f * hash.z);
-				twinkle = twinkle * twinkle;
-
-				star *= 0.35f;
-
-				FinalStar += clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
-			}
-		}
-    
-
-		return FinalStar / float(A*A);
-	}
-
-	else {
-		vec2 uv = tuv ;
-
-		// Add some variation to the scale 
-		float scale = mix(800.0f, 1100.0f, 1.0f-hash.x)*3.;
-		float star = BilinearStarSample(uv * scale, 0.9965f);
-
-		// Use blackbody to get a color from a temperature value.
-		float RandomTemperature = mix(1750.0f, 9000.0f, clamp(pow(hash.x, 1.0f), 0.0f, 1.0f));
-		vec3 Color = planckianLocus(RandomTemperature);
-        
-		// Twinkle
-		float twinkle = sin(u_Time * 0.5f * hash.z);
-		twinkle = twinkle * twinkle;
-
-		star *= 0.35f;
-
-		FinalStar += clamp(star, 0.0f, 32.0f) * twinkle * 8.0f * 1.5f * Color;
-		return FinalStar;
-	}
+	vec3 BlackbodyColor = pow(Blackbody(mix(BlackbodyMinTemperature, BlackbodyMaxTemperature, hash.y)), vec3(1.33f));
+	vec3 Stars = clamp((LuminanceMax * LinearStep(0.25f, 0.0f, r) * sqr(LinearStep(1.0f-FakeCoverage, 1.0f, hash.x)) * BlackbodyColor * sv * base_transmittance), 0.0f, 8.0f);
+	float StarTransmittance = 1.0f; // GetLuminance(Stars) * LinearStep(0.2,0.6f,GetLuminance(BlackbodyColor)) * sqr(base_transmittance) * sv 
+	return sky * StarTransmittance + Stars;
 }
 
 
@@ -983,12 +902,10 @@ void main()
 
 
 		//vec3 nebula = SampleNebula(Lo, star_visibility);
-		vec3 stars = vec3(ShadeStars(vec3(Lo)) * star_visibility);
-		stars = clamp(stars, 0.0f, 1.3f) * transmittance * transmittance;
-		stars *= 1.20f;
+
 		o_Color = u_ChromaticAberrationStrength <= 0.001f ? texture(u_FramebufferTexture, v_TexCoords).rgb : BasicChromaticAberation() ;
 		o_Color = o_Color  + ((Nighteffects * 0.5f * u_NebulaStrength * sqr(star_visibility) * transmittance));
-		o_Color += stars;
+		o_Color = ShadeStars(o_Color, Lo, star_visibility, transmittance * transmittance);
 		o_Color += PointVolumetrics;
 		
 		

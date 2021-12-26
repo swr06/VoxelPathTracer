@@ -5,6 +5,7 @@ layout (location = 0) out vec3 o_Color;
 uniform sampler2D u_Texture;
 uniform bool u_Direction;
 uniform bool u_Wide;
+uniform float u_AspectRatioCorrect;
 
 in vec2 v_TexCoords;
 
@@ -32,7 +33,7 @@ void main()
 
         for (int i = -5; i <= 5; i++)
         {
-            vec2 S = v_TexCoords + vec2(i) * Direction * TexelSize;
+            vec2 S = v_TexCoords + vec2(i) * Direction * TexelSize * vec2(u_AspectRatioCorrect, 1.0f);
             if (!InThresholdedScreenSpace(S)) { continue; }
             float CurrentWeight = GaussianWeightsSmall[i + 5];
             TotalBloom += texture(u_Texture, S).rgb * CurrentWeight;
@@ -43,7 +44,7 @@ void main()
     else {
         for (int i = -8; i <= 8; i++)
         {
-            vec2 S = v_TexCoords + vec2(i) * Direction * TexelSize;
+            vec2 S = v_TexCoords + vec2(i) * Direction * TexelSize * vec2(u_AspectRatioCorrect, 1.0f);
             if (!InThresholdedScreenSpace(S)) { continue; }
             float CurrentWeight = GaussianWeightsWide[i + 8];
             TotalBloom += texture(u_Texture, S).rgb * CurrentWeight;

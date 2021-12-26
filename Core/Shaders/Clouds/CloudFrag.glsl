@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 #define PI 3.14159265359
 #define pi PI
@@ -952,10 +952,11 @@ void main()
 	}
 
 
-	// Todo : calculate this is in the vertex shader 
-	vec3 SunColor = mix(vec3(38.0f),vec3(18.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor;
+	// Todo : calculate this is in the vertex shader? 
+	const vec3 NormalizedUpVector = normalize(vec3(0.01f,1.0f,0.01f));
+	vec3 SunColor = mix(vec3(38.0f),vec3(18.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor*vec3(1.05f);
 	vec3 CirrusSunColor = SunColor * mix(2.0f, 1.35f, 1.0f-SunVisibility);//mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
-	vec3 SkyColor = mix(texture(u_MainSkymap, normalize(vec3(0.01f,1.0f,0.01f))).xyz*8.0f*vec3(0.96f,0.96f,1.0f),BasicSaturation(texture(u_Atmosphere, normalize(vec3(0.01f,1.0f,0.01f))).xyz,1.1f)*8.0f*vec3(0.96f,0.96f,1.0f),0.4f);
+	vec3 SkyColor = mix(texture(u_MainSkymap, NormalizedUpVector).xyz*8.0f*vec3(0.96f,0.96f,1.0f),BasicSaturation(texture(u_Atmosphere, NormalizedUpVector).xyz,1.1f)*8.0f*vec3(0.96f,0.96f,1.0f),0.4f);
 	SkyColor *= mix(vec3(0.9f, 0.9f, 1.0f), vec3(1.0f), 1.0f - SunVisibility);
 
 	// Add scattering components ->
@@ -1025,13 +1026,14 @@ void main()
 
 	o_Data = vec4(FinalData);
 
+	// Store transversal for reprojection
 	o_Transversal = AverageTransversalDistance / 10.0f;
 }
 
 
 vec3 SampleSunColor()
 {
-    vec3 TemperatureModifier = TemperatureToRGB(5778.0f);
+    const vec3 TemperatureModifier = TemperatureToRGB(5778.0f);
     vec3 SunTransmittance = texture(u_MainSkymap, u_SunDirection.xyz).xyz;
     vec3 SunColor = SunTransmittance;
     SunColor *= TemperatureModifier;

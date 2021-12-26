@@ -43,6 +43,7 @@ uniform bool u_CloudCatmullRomUpsampling;
 
 uniform bool u_DEBUGDiffuseGI;
 uniform bool u_DEBUGSpecGI;
+uniform bool u_DEBUGShadows;
 
 
 uniform sampler2D u_SSSShadowMap;
@@ -1010,6 +1011,11 @@ void main()
 
             if (u_DEBUGSpecGI) {
                 o_Color = 1.0f - exp(-SpecularIndirect);
+            }
+
+            if (u_DEBUGShadows) {
+                o_Color = vec3(1.0f - RayTracedShadow);
+               // o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
             }
           
             o_PBR.xyz = PBRMap.xyz;
