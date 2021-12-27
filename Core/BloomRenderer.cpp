@@ -69,6 +69,7 @@ namespace VoxelRT
 			GaussianBlur.SetBool("u_Direction", true);
 			GaussianBlur.SetBool("u_Wide", KernelWideFlags[mip_num]);
 			GaussianBlur.SetFloat("u_AspectRatioCorrect", AspectRatio);
+			GaussianBlur.SetVector2f("u_Dimensions", glm::vec2(bloomfbo.GetWidth() * bloomfbo.m_MipScales[mip_num], bloomfbo.GetHeight() * bloomfbo.m_MipScales[mip_num]));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, bright_tex);

@@ -695,7 +695,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 		else 
 		{	
-			float x = mix(2.333f, 1.05f, u_SunVisibility);
+			float x = mix(1.0, 1.05f, u_SunVisibility);
 			x = clamp(x*1.0f*u_GISkyStrength,0.0f,5.0f);
 			vec3 sky =  (GetSkyColorAt(new_ray.Direction) * x);
 			RayContribution += sky * RayThroughput;
@@ -865,7 +865,7 @@ vec3 GetNormalFromID(float n) {
     int idx = int(round(n*10.0f));
 
     if (idx > 5) {
-        return vec3(1.0f, 1.0f, 1.0f);
+        return vec3(0.5f);
     }
 
     return Normals[idx];

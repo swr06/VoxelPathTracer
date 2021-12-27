@@ -118,17 +118,16 @@ uniform bool u_HQBloomUpscale;
 vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
 
 
-// PRNG 
-const int NUM_OCTAVES = 4;
-float NB_hash(float n) { return fract(sin(n) * 1e4); }
-float NB_hash(vec2 p) { return fract(1e4 * sin(17.0 * p.x + p.y * 0.1) * (0.1 + abs(sin(p.y * 13.0 + p.x)))); }
-float NB_noise(float x) { float i = floor(x); float f = fract(x); float u = f * f * (3.0 - 2.0 * f); return mix(NB_hash(i), NB_hash(i + 1.0), u); }
-float NB_noise(vec2 x) { vec2 i = floor(x); vec2 f = fract(x);	float a = NB_hash(i); float b = NB_hash(i + vec2(1.0, 0.0)); float c = NB_hash(i + vec2(0.0, 1.0)); float d = NB_hash(i + vec2(1.0, 1.0)); vec2 u = f * f * (3.0 - 2.0 * f); return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y; }
-float NB_noise(vec3 x) { const vec3 step = vec3(110, 241, 171); vec3 i = floor(x); vec3 f = fract(x); float n = dot(i, step); vec3 u = f * f * (3.0 - 2.0 * f); return mix(mix(mix( NB_hash(n + dot(step, vec3(0, 0, 0))), NB_hash(n + dot(step, vec3(1, 0, 0))), u.x), mix( NB_hash(n + dot(step, vec3(0, 1, 0))), NB_hash(n + dot(step, vec3(1, 1, 0))), u.x), u.y), mix(mix( NB_hash(n + dot(step, vec3(0, 0, 1))), NB_hash(n + dot(step, vec3(1, 0, 1))), u.x), mix( NB_hash(n + dot(step, vec3(0, 1, 1))), NB_hash(n + dot(step, vec3(1, 1, 1))), u.x), u.y), u.z); }
-float NB_NOISE(float x) { float v = 0.0; float a = 0.5; float shift = float(100); for (int i = 0; i < NUM_OCTAVES; ++i) { v += a * NB_noise(x); x = x * 2.0 + shift; a *= 0.5; } return v; }
-float NB_NOISE(vec2 x) { float v = 0.0; float a = 0.5; vec2 shift = vec2(100); mat2 rot = mat2(cos(0.5), sin(0.5), -sin(0.5), cos(0.50)); for (int i = 0; i < NUM_OCTAVES; ++i) { v += a * NB_noise(x); x = rot * x * 2.0 + shift; a *= 0.5; } return v; }
-// PRNG 
-
+vec4 TextureSmooth(sampler2D samp, vec2 uv) 
+{
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return texture(samp, uv).xyzw;
+}
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -145,55 +144,6 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 
 float GetLuminance(vec3 color) {
 	return dot(color, vec3(0.299, 0.587, 0.114));
-}
-
-//Due to low sample count we "tonemap" the inputs to preserve colors and smoother edges
-vec3 WeightedSample(sampler2D colorTex, vec2 texcoord)
-{
-	vec3 wsample = texture(colorTex,texcoord).rgb * 1.0f;
-	return wsample / (1.0f + GetLuminance(wsample));
-}
-
-vec3 smoothfilter(in sampler2D tex, in vec2 uv)
-{
-	vec2 textureResolution = textureSize(tex, 0);
-	uv = uv*textureResolution + 0.5;
-	vec2 iuv = floor( uv );
-	vec2 fuv = fract( uv );
-	uv = iuv + fuv*fuv*fuv*(fuv*(fuv*6.0-15.0)+10.0);
-	uv = (uv - 0.5)/textureResolution;
-	return WeightedSample( tex, uv);
-}
-
-mat3 ACESInputMat = mat3(
-    0.59719, 0.07600, 0.02840,
-    0.35458, 0.90834, 0.13383,
-    0.04823, 0.01566, 0.83777
-);
-
-// ODT_SAT => XYZ => D60_2_D65 => sRGB
-mat3 ACESOutputMat = mat3(
-    1.60475, -0.10208, -0.00327,
-    -0.53108, 1.10813, -0.07276,
-    -0.07367, -0.00605, 1.07602
-);
-
-vec3 RRTAndODTFit(vec3 v)
-{
-    vec3 a = v * (v + 0.0245786f) - 0.000090537f;
-    vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-    return a / b;
-}
-
-vec4 ACESFitted(vec4 Color, float Exposure)
-{
-    Color.rgb *= Exposure * 0.6;
-    
-    Color.rgb = ACESInputMat * Color.rgb;
-    Color.rgb = RRTAndODTFit(Color.rgb);
-    Color.rgb = ACESOutputMat * Color.rgb;
-
-    return Color;
 }
 
 bool CompareFloatNormal(float x, float y) {
@@ -221,22 +171,7 @@ void Vignette(inout vec3 color)
 {
 	float dist = distance(v_TexCoords.xy, vec2(0.5f)) * 2.0f;
 	dist /= 1.5142f;
-
 	color.rgb *= 1.0f - dist * 0.5;
-}
-
-void ColorSaturation(inout vec3 color) 
-{
-	float grayVibrance = (color.r + color.g + color.b) / 3.0;
-	float graySaturation = grayVibrance;
-	if (SATURATION < 1.00) graySaturation = dot(color, vec3(0.299, 0.587, 0.114));
-	float mn = min(color.r, min(color.g, color.b));
-	float mx = max(color.r, max(color.g, color.b));
-	float sat = (1.0 - (mx - mn)) * (1.0 - mx) * grayVibrance * 5.0;
-	vec3 lightness = vec3((mn + mx) * 0.5);
-	color = mix(color, mix(color, lightness, 1.0 - VIBRANCE), sat);
-	color = mix(color, lightness, (1.0 - lightness) * (2.0 - VIBRANCE) / 2.0 * abs(VIBRANCE - 1.0));
-	color = color * SATURATION - graySaturation * (SATURATION - 1.0);
 }
 
 float Bayer2(vec2 a) 
@@ -331,71 +266,6 @@ vec3 lensflare(vec2 uv, vec2 pos)
 	return c;
 }
 
-vec3 DepthOnlyBilateralUpsample(sampler2D tex, vec2 txc, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec3 color = vec3(0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-		vec4 sampled_pos = SamplePositionAt(u_PositionTexture, txc + Kernel[i] * texel_size);
-
-		if (sampled_pos.w <= 0.0f)
-		{
-			continue;
-		}
-
-        float sampled_depth = (sampled_pos.z); 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.001f);
-
-        float computed_weight = dweight;
-        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    color /= max(weight_sum, 0.2f);
-    color = clamp(color, texture(tex, txc).rgb * 0.12f, vec3(1.0f));
-    return color;
-}
-
-bool DetectAtEdge(in vec2 txc)
-{
-	vec2 TexelSize = 1.0f / textureSize(u_PositionTexture, 0);
-
-	vec2 NeighbourhoodOffsets[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-	for (int i = 0 ; i < 8 ; i++)
-	{
-		float T_at = SamplePositionAt(u_PositionTexture, txc + (NeighbourhoodOffsets[i] * TexelSize)).w;
-
-		if (T_at <= 0.0f) 
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 vec3 ToClipSpace(in vec3 pos)
 {
 	vec4 ViewSpace = u_ViewMatrix * vec4(pos, 1.0f);
@@ -403,36 +273,6 @@ vec3 ToClipSpace(in vec3 pos)
     Projected.xyz /= Projected.w;
 
     return Projected.xyz;
-}
-
-vec3 BilateralUpsample(sampler2D tex, vec2 txc, vec3 base_normal, float base_depth)
-{
-    const vec2 Kernel[4] = vec2[](
-        vec2(0.0f, 1.0f),
-        vec2(1.0f, 0.0f),
-        vec2(-1.0f, 0.0f),
-        vec2(0.0, -1.0f)
-    );
-
-    vec2 texel_size = 1.0f / textureSize(tex, 0);
-
-    vec3 color = vec3(0.0f, 0.0f, 0.0f);
-    float weight_sum;
-
-    for (int i = 0; i < 4; i++) 
-    {
-        vec3 sampled_normal = SampleNormal(u_NormalTexture, txc + Kernel[i] * texel_size).xyz;
-        float nweight = clamp(pow(abs(dot(sampled_normal, base_normal)), 8), 0.001f, 1.0f);
-        float sampled_depth = texture(u_PositionTexture, txc + Kernel[i] * texel_size).x; 
-        float dweight = 1.0f / (abs(base_depth - sampled_depth) + 0.01f);
-		dweight = clamp(pow(dweight,32.0),0.01f,1.0f);
-        float computed_weight = nweight * dweight;
-        color.rgb += texture(tex, txc + Kernel[i] * texel_size).rgb * computed_weight;
-        weight_sum += computed_weight;
-    }
-
-    color /= max(weight_sum, 0.01f);
-    return color;
 }
 
 // Exponential Distance fog
@@ -455,91 +295,13 @@ vec3 ApplyFog(in vec3 InputColor, in float dist_to_point, in vec3 RayDir, in vec
     return mix(InputColor, FogColor, FogAmount );
 }
 
-vec3 BasicTonemap(vec3 color)
-{
-    float l = length(color);
-    color = mix(color, color * 0.5f, l / (l + 1.0f));
-    color = (color / sqrt(color * color + 1.0f));
-
-    return color;
-}
-
-
-
-vec3 ColorSaturate(vec3 rgb, float adjustment)
-{
-    // Algorithm from Chapter 16 of OpenGL Shading Language
-    const vec3 W = vec3(0.2125, 0.7154, 0.0721);
-    vec3 intensity = vec3(dot(rgb, W));
-    return mix(intensity, rgb, adjustment);
-}
-
-vec4 textureGood( sampler2D sam, vec2 uv )
-{
-    vec2 res = textureSize( sam, 0 );
-
-    vec2 st = uv*res - 0.5;
-
-    vec2 iuv = floor( st );
-    vec2 fuv = fract( st );
-
-    vec4 a = texture( sam, (iuv+vec2(0.5,0.5))/res );
-    vec4 b = texture( sam, (iuv+vec2(1.5,0.5))/res );
-    vec4 c = texture( sam, (iuv+vec2(0.5,1.5))/res );
-    vec4 d = texture( sam, (iuv+vec2(1.5,1.5))/res );
-
-    return mix( mix( a, b, fuv.x),
-                mix( c, d, fuv.x), fuv.y );
-}
 
 float Brightness(vec3 c)
 {
     return max(max(c.r, c.g), c.b);
 }
 
-vec3 HighQualityBloomUpsample(int lod, vec2 uv) { 
-	vec2 t = textureSize(u_BloomMips[lod], 0);
-	float scale = 1.1f;
-	vec4 d = t.xyxy * vec4(1, 1, -1, 0) * scale;
-    vec3 s = vec3(0.0f);
-    s  = texture(u_BloomMips[lod], uv - d.xy).xyz;
-    s += texture(u_BloomMips[lod], uv - d.wy).xyz * 2;
-    s += texture(u_BloomMips[lod], uv - d.zy).xyz;
-    s += texture(u_BloomMips[lod], uv + d.zw).xyz * 2;
-    s += texture(u_BloomMips[lod], uv       ).xyz * 4;
-    s += texture(u_BloomMips[lod], uv + d.xw).xyz * 2;
-    s += texture(u_BloomMips[lod], uv + d.zy).xyz;
-    s += texture(u_BloomMips[lod], uv + d.wy).xyz * 2;
-    s += texture(u_BloomMips[lod], uv + d.xy).xyz;
-    return s * (1.0 / 16);
-}
 
-vec4 textureSmooth(sampler2D t, vec2 x, vec2 textureSize)
-{
-    x *= vec2(textureSize);
-    vec2 p = floor(x);
-    vec2 f = fract(x);
-    vec4 a = texture(t, (p                 ) / vec2(textureSize));
-    vec4 b = texture(t, (p + vec2(1.0, 0.0)) / vec2(textureSize));
-    vec4 c = texture(t, (p + vec2(0.0, 1.0)) / vec2(textureSize));
-    vec4 d = texture(t, (p + vec2(1.0, 1.0)) / vec2(textureSize));
-    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-
-float HASH2SEED = 0.0f;
-vec2 hash2() 
-{
-	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
-}
-
-void FilmGrain(inout vec3 oc) 
-{
-	float Strength = u_FilmGrainStrength;
-	vec3 NoiseColor = vec3(0.2001f, 0.804f, 1.02348f);
-    vec3 Noise = vec3(hash2().x, hash2().y, hash2().x);
-	oc += Noise * exp(-oc) * NoiseColor * 0.01f;
-    oc *= mix(vec3(1.0f), Noise, Strength / 5.0f);
-}
 
 // Chromatic aberration.
 vec3 BasicChromaticAberation()
@@ -609,33 +371,6 @@ vec3 PurkinjeEffect(vec3 Color)
     return mix(max(Color, 0.0), BaseColor, clamp(1.0f-u_PurkingeEffectStrength,0.0f,1.0f));
 }
 
-#define CONE_OVERLAP_SIMULATION 0.25
-
-const mat3 HejlBurgessConeOverlapMatrix2Deg = mat3(
-    mix(vec3(1.0, 0.0, 0.0), vec3(0.5595088340965042, 0.39845359892109633, 0.04203756698239944), vec3(CONE_OVERLAP_SIMULATION)),
-    mix(vec3(0.0, 1.0, 0.0), vec3(0.43585871315661756, 0.5003841413971261, 0.06375714544625634), vec3(CONE_OVERLAP_SIMULATION)),
-    mix(vec3(0.0, 0.0, 1.0), vec3(0.10997368482498855, 0.15247972169325025, 0.7375465934817612), vec3(CONE_OVERLAP_SIMULATION))
-);
-
-const mat3 InverseHejlBurgessConeOverlapMatrix2Deg = inverse(HejlBurgessConeOverlapMatrix2Deg);
-
-vec3 TonemapHejlBurgess(in vec3 color) 
-{
-	color = (color * (6.2 * color + 0.5)) / (color * (6.2 * color + 1.7) + 0.06);
-	return color;
-}
-
-
-vec3 vibrance(in vec3 color) 
-{
-	const vec3 lumacoeff_rec709 = vec3(0.2125, 0.7154, 0.0721);
-    float lum = dot(color, lumacoeff_rec709);
-    vec3 mask = (color - vec3(lum));
-    mask = clamp(mask, 0.0, 1.0);
-    float lum_mask = dot(lumacoeff_rec709, mask);
-    lum_mask = 1.0 - lum_mask;
-    return mix(vec3(lum), color, (1.0 + 0.2) * lum_mask);
-}
 
 
 // Used to get a color for a temperature ->
@@ -711,29 +446,6 @@ vec3 Rotate(vec3 vector, vec3 from, vec3 to)
 	return sc.y * vector + sc.x * cross(axis, vector) + (1.0 - sc.y) * dot(axis, vector) * axis;
 }
 
-vec2 hash23(vec3 p3) 
-{
-    p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
-    p3 += dot(p3, p3.yzx + 19.19f);
-    return fract((p3.xx + p3.yz) * p3.zy);
-}
-
-
-vec3 hash33(vec3 p3) {
-	p3 = fract(p3 * vec3(0.1031f, 0.1030f, 0.0973f));
-    p3 += dot(p3, p3.yxz + 19.19);
-    return fract((p3.xxy + p3.yxx) * p3.zyx);
-}
-
-vec3 hash33uint(vec3 q){
-    uvec3 p = uvec3(ivec3(q));
-          p = p * uvec3(374761393U, 1103515245U, 668265263U) + p.zxy + p.yzx;
-          p = p.yzx * (p.zxy ^ (p >> 3U));
-
-    return vec3(p ^ (p >> 16U)) * (1 / vec3(0xffffffffU));
-}
-
-
 vec2 Hash2(vec3 p3) {
 	p3 = fract(p3 * vec3(443.897, 441.423, 437.195));
 	p3 += dot(p3, p3.yzx + 19.19);
@@ -767,19 +479,6 @@ vec3 ShadeStars(vec3 sky, vec3 Lo, float sv, float base_transmittance)
 }
 
 
-vec3 SampleNebula(vec3 dir, float visibility) 
-{
-    float purple = abs(dir.x);
-    float yellow = NB_noise(dir.y);
-    vec3 streakyHue = vec3(purple + yellow, yellow * 0.7, purple);
-    vec3 puffyHue = vec3(0.8, 0.1, 1.0);
-    float streaky = min(1.0, 8.0 * pow(NB_NOISE(dir.yz * square(dir.x) * 13.0 + dir.xy * square(dir.z) * 7.0 + vec2(150.0, 2.0)), 10.0));
-    float puffy = square(NB_NOISE(dir.xz * 4.0 + vec2(30, 10)) * dir.y);
-	vec3 color = clamp(puffyHue * puffy * (1.0 - streaky) + streaky * streakyHue, 0.0, 1.0);
-	color *= visibility * visibility * 1.0f;
-    return color;
-}
-
 
 vec4 SampleTextureCatmullRom(sampler2D tex, in vec2 uv); // catmull rom texture interp
 
@@ -789,11 +488,6 @@ vec4 texture_catmullrom(sampler2D tex, vec2 uv);
 void main()
 {
 
-	HASH2SEED = (v_TexCoords.x * v_TexCoords.y) * 489.0 * 20.0f;
-	HASH2SEED += fract(u_Time) * 100.0f;
-
-
-    float exposure = mix(u_LensFlare ? 3.77777f : 4.77777f, 1.25f, min(distance(-u_SunDirection.y, -1.0f), 0.99f));
 	vec4 PositionAt = SamplePositionAt(u_PositionTexture, v_TexCoords).rgba;
 	vec3 NormalAt = SampleNormal(u_NormalTexture, v_TexCoords).rgb;
 	vec3 ClipSpaceAt = ToClipSpace(PositionAt.xyz);
@@ -805,13 +499,9 @@ void main()
 	if (u_PointVolumetricsToggled) {
 	
 		PointVolumetrics.xyz = textureBicubic(u_VolumetricsCompute, v_TexCoords+(Bayer128(gl_FragCoord.xy)*1.2*(1.0f/textureSize(u_VolumetricsCompute,0)))).xyz;
-		//PointVolumetrics *= clamp(Bayer128(gl_FragCoord.xy),0.5f,1.0f);
-		//PointVolumetrics.xyz = texture_catmullrom(u_VolumetricsCompute, v_TexCoords).xyz;
-		//PointVolumetrics += BayerDither * (1.0f-exp(-GetLuminance(PointVolumetrics.xyz)));
 	}
 
 
-	//if (PositionAt.w > 0.0f && !DetectAtEdge(v_TexCoords))
 	if ( (PositionAt.w > 0.0f ))
 	{
 		vec3 InputColor;
@@ -824,7 +514,8 @@ void main()
 			float max_ssao_strength = 2.5f;
 			ssao_strength = ((1.0f - ClipSpaceAt.z) * 100.0f) * max_ssao_strength;
 			ssao_strength = clamp(ssao_strength, 0.0f, max_ssao_strength);
-			float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
+			//float SampledSSAO = DepthOnlyBilateralUpsample(u_SSAOTexture, v_TexCoords, PositionAt.z).r;
+			float SampledSSAO = texture(u_SSAOTexture, v_TexCoords).r;
 			float SSAO = pow(SampledSSAO, ssao_strength);
 			SSAO = clamp(SSAO, 0.00001, 1.0f);
 			InputColor *= SSAO;
@@ -836,22 +527,21 @@ void main()
 			float max_rtao_strength = 1.1f;
 			rtao_strength = ((1.0f - ClipSpaceAt.z) * 200.0f) * max_rtao_strength;
 			rtao_strength = clamp(rtao_strength, 0.0f, max_rtao_strength);
-
-			float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.w).r;
+			//float RTAO = BilateralUpsample(u_RTAOTexture, v_TexCoords, NormalAt, PositionAt.w).r;
+			float RTAO = texture(u_RTAOTexture, v_TexCoords).r;
 			RTAO = pow(RTAO, rtao_strength);
 			RTAO = max(RTAO, 0.825f);
-
 			InputColor = (RTAO * InputColor) + (0.01f * InputColor);
 		}
 
-		InputColor = ColorSaturate(InputColor, 1.1f);
 
-		float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
 
 		if (u_GodRays)
 		{
+			float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
 			float intensity = u_SunIsStronger ? 0.55f : 0.025f;
-			float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity * u_GodRaysStrength;
+			//float god_rays = DepthOnlyBilateralUpsample(u_VolumetricTexture, v_TexCoords, PositionAt.z).r * intensity * u_GodRaysStrength;
+			float god_rays = texture(u_VolumetricTexture, v_TexCoords).r * intensity * u_GodRaysStrength;
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(250.0f, 250.0f, 230.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
 			fake_vol_multiplier = 0.3f;
@@ -859,6 +549,7 @@ void main()
 
 		if (u_SSGodRays)
 		{
+			float fake_vol_multiplier = u_SunIsStronger ? 1.21f : 0.9f;
 			float god_rays = GetScreenSpaceGodRays(PositionAt.xyz) * fake_vol_multiplier * u_GodRaysStrength;
 			vec3 ss_volumetric_color = u_SunIsStronger ? (vec3(250.0f, 250.0f, 230.0f) / 255.0f) : (vec3(96.0f, 192.0f, 255.0f) / 255.0f);
 			InputColor += god_rays * ss_volumetric_color;
@@ -897,26 +588,6 @@ void main()
 		o_Color += PointVolumetrics;
 	}
 
-
-	// Tonemap ->
-	const bool TONE_MAP = true;
-	if (TONE_MAP) {
-		float Exposure = mix(clamp(u_Exposure, 0.2f, 10.0f), clamp(u_Exposure - 1.25f, 0.2f, 10.0f), SunVisibility);
-		if (u_PurkingeEffectStrength > 0.01f) {
-			o_Color.xyz = PurkinjeEffect(o_Color.xyz);
-		}
-
-		if (u_HejlBurgess) {
-			o_Color *= 0.275f * (Exposure * 0.5f);
-			o_Color = TonemapHejlBurgess(o_Color * HejlBurgessConeOverlapMatrix2Deg) * InverseHejlBurgessConeOverlapMatrix2Deg;
-			o_Color = vibrance(o_Color);
-			o_Color = mix(vibrance(o_Color), o_Color, 0.5f);
-		}
-
-		else {
-			o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure * 0.9f).rgb;
-		}
-	}
 
 
 	
@@ -961,58 +632,39 @@ void main()
 		}
 
 		else {
-			Bloom[0] += smoothfilter(u_BloomMips[0], v_TexCoords).xyz;
-			Bloom[1] += smoothfilter(u_BloomMips[1], v_TexCoords).xyz; 
-			Bloom[2] += smoothfilter(u_BloomMips[2], v_TexCoords).xyz; 
-			Bloom[3] += smoothfilter(u_BloomMips[3], v_TexCoords).xyz; 
-			Bloom[4] += smoothfilter(u_BloomMips[4], v_TexCoords).xyz; 
+			Bloom[0] += TextureSmooth(u_BloomMips[0], v_TexCoords).xyz;
+			Bloom[1] += TextureSmooth(u_BloomMips[1], v_TexCoords).xyz; 
+			Bloom[2] += TextureSmooth(u_BloomMips[2], v_TexCoords).xyz; 
+			Bloom[3] += TextureSmooth(u_BloomMips[3], v_TexCoords).xyz; 
+			Bloom[4] += TextureSmooth(u_BloomMips[4], v_TexCoords).xyz; 
 		}
 
-		bool OldBloom = false;
+		vec3 TotalBloom = vec3(0.0f);
 
-		if (OldBloom) {
-			vec3 TotalBloom = vec3(0.0f);
-			float AmplificationFactor = 1.250f;
-			float Weights[5] = float[5](0.5f, 0.25f, 0.25f, 0.25f, 0.1f);
-			const float DetailWeight = 1.25f;
-			TotalBloom = (BaseBrightTex * DetailWeight) + TotalBloom;
-			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
-			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
-			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
-			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
-			TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
-			o_Color += TotalBloom;
-		}
-
-		else {
-
-			vec3 TotalBloom = vec3(0.0f);
-
-			// Tweaks the bloom color a bit
-			float AmplificationFactor = 1.125f;
+		// Tweaks the bloom color a bit
+		float AmplificationFactor = 1.125f;
 			
-			// Weighted average ->
+		// Weighted average ->
 
-			float Weights[5] = float[5](5.75f, 4.7f, 4.0f, 3.7f, 3.7f);
-			const float DetailWeight = 7.2f;
+		float Weights[5] = float[5](5.75f, 4.7f, 4.0f, 3.7f, 3.7f);
+		const float DetailWeight = 7.2f;
 
-			TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;
-			TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
-			TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
-			TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
-			TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
-			TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
+		TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;
+		TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
+		TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
+		TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
+		TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
+		TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
 
-			float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3] + Weights[4];
-			TotalBloom /= TotalWeights;
+		float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3] + Weights[4];
+		TotalBloom /= TotalWeights;
 
-			if (u_LensDirt) {
-				vec3 LensDirtFetch = smoothfilter(u_LensDirtOverlay, v_TexCoords).xyz;
-				TotalBloom += v_BloomCenter * 5.33f * LensDirtFetch * u_LensDirtStrength * pow(1.0f-distance(v_TexCoords, vec2(0.5f)),6.0f);
-			}
-
-			o_Color += TotalBloom * u_BloomStrength;
+		if (u_LensDirt) {
+			vec3 LensDirtFetch = TextureSmooth(u_LensDirtOverlay, v_TexCoords).xyz;
+			TotalBloom += v_BloomCenter * 5.33f * LensDirtFetch * u_LensDirtStrength * pow(1.0f-distance(v_TexCoords, vec2(0.5f)),6.0f);
 		}
+
+		o_Color += TotalBloom * u_BloomStrength ;
 	}
 
 	else 
@@ -1033,14 +685,12 @@ void main()
 		o_Color += LensFlare * u_LensFlareIntensity;
 	}
 
-	if (u_FilmGrain) {
-		FilmGrain(o_Color);
+
+
+
+	if (u_PurkingeEffectStrength > 0.01f) {
+		o_Color.xyz = PurkinjeEffect(o_Color.xyz);
 	}
-	
-
-
-
-
 }
 
 
@@ -1087,67 +737,6 @@ vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
     return mix(
        mix(sample3, sample2, sx), mix(sample1, sample0, sx)
     , sy);
-}
-
-vec4 sampleLevel0(sampler2D tex, vec2 uv )
-{
-    return texture( tex, uv, -10.0 );
-}
-
-// note: entirely stolen from https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
-//
-// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
-// See http://vec3.ca/bicubic-filtering-in-fewer-taps/ for more details
-vec4 SampleTextureCatmullRom(sampler2D tex, vec2 uv)
-{
-	vec2 texSize = textureSize(tex, 0);
-
-    // We're going to sample a a 4x4 grid of texels surrounding the target UV coordinate. We'll do this by rounding
-    // down the sample location to get the exact center of our "starting" texel. The starting texel will be at
-    // location [1, 1] in the grid, where [0, 0] is the top left corner.
-    vec2 samplePos = uv * texSize;
-    vec2 texPos1 = floor(samplePos - 0.5) + 0.5;
-
-    // Compute the fractional offset from our starting texel to our original sample location, which we'll
-    // feed into the Catmull-Rom spline function to get our filter weights.
-    vec2 f = samplePos - texPos1;
-
-    // Compute the Catmull-Rom weights using the fractional offset that we calculated earlier.
-    // These equations are pre-expanded based on our knowledge of where the texels will be located,
-    // which lets us avoid having to evaluate a piece-wise function.
-    vec2 w0 = f * ( -0.5 + f * (1.0 - 0.5*f));
-    vec2 w1 = 1.0 + f * f * (-2.5 + 1.5*f);
-    vec2 w2 = f * ( 0.5 + f * (2.0 - 1.5*f) );
-    vec2 w3 = f * f * (-0.5 + 0.5 * f);
-    
-    // Work out weighting factors and sampling offsets that will let us use bilinear filtering to
-    // simultaneously evaluate the middle 2 samples from the 4x4 grid.
-    vec2 w12 = w1 + w2;
-    vec2 offset12 = w2 / w12;
-
-    // Compute the final UV coordinates we'll use for sampling the texture
-    vec2 texPos0 = texPos1 - vec2(1.0);
-    vec2 texPos3 = texPos1 + vec2(2.0);
-    vec2 texPos12 = texPos1 + offset12;
-
-    texPos0 /= texSize;
-    texPos3 /= texSize;
-    texPos12 /= texSize;
-
-    vec4 result = vec4(0.0);
-    result += sampleLevel0(tex, vec2(texPos0.x,  texPos0.y)) * w0.x * w0.y;
-    result += sampleLevel0(tex, vec2(texPos12.x, texPos0.y)) * w12.x * w0.y;
-    result += sampleLevel0(tex, vec2(texPos3.x,  texPos0.y)) * w3.x * w0.y;
-
-    result += sampleLevel0(tex, vec2(texPos0.x,  texPos12.y)) * w0.x * w12.y;
-    result += sampleLevel0(tex, vec2(texPos12.x, texPos12.y)) * w12.x * w12.y;
-    result += sampleLevel0(tex, vec2(texPos3.x,  texPos12.y)) * w3.x * w12.y;
-
-    result += sampleLevel0(tex, vec2(texPos0.x,  texPos3.y)) * w0.x * w3.y;
-    result += sampleLevel0(tex, vec2(texPos12.x, texPos3.y)) * w12.x * w3.y;
-    result += sampleLevel0(tex, vec2(texPos3.x,  texPos3.y)) * w3.x * w3.y;
-
-    return result;
 }
 
 #define sqr(x) (x*x)

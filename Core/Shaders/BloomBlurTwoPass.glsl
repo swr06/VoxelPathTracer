@@ -6,6 +6,7 @@ uniform sampler2D u_Texture;
 uniform bool u_Direction;
 uniform bool u_Wide;
 uniform float u_AspectRatioCorrect;
+uniform vec2 u_Dimensions;
 
 in vec2 v_TexCoords;
 
@@ -23,7 +24,7 @@ const float GaussianWeightsSmall[11] = float[] (0.000003, 0.000229, 0.005977, 0.
 
 void main()
 {
-    vec2 TexelSize = 1.0f / textureSize(u_Texture, 0);
+    vec2 TexelSize = 1.0f / u_Dimensions;
 
     vec3 TotalBloom = vec3(0.0f); 
     float TotalWeight = 0.0f;

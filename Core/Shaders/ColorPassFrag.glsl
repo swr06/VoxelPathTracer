@@ -472,12 +472,12 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 		float LinearDepthAt = (texture(u_InitialTracePositionTexture, SampleCoord).x);
         
         float DepthWeight = 1.0f / (abs(LinearDepthAt - BaseLinearDepth) + 0.01f);
-		DepthWeight = pow(DepthWeight, 16.0f);
-        DepthWeight = max(DepthWeight, 0.0f);
+		DepthWeight = pow(DepthWeight, 48.0f);
+        DepthWeight = max(DepthWeight, 0.0001f);
 
         vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
-		float NormalWeight = pow(max(abs(dot(NormalAt, BaseNormal)),0.000001f), 64.0f);
-        NormalWeight = max(NormalWeight, 0.0f);
+		float NormalWeight = pow(max(abs(dot(NormalAt, BaseNormal)),0.000001f), 32.0f);
+        NormalWeight = max(NormalWeight, 0.0001f);
 
 		float Weight = clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
 
@@ -859,9 +859,17 @@ void main()
 
 
             vec3 IndirectN = NormalMapped.xyz;
-            vec3 SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
+            vec3 SampledIndirectDiffuse = vec3(0.0f);
 
-            // Approximate invalid specular samples ->
+            if (true) {
+
+                vec3 MostProminentDirectionDiffuse = SHy.xyz / SHy.w * (0.282095f / 0.488603f);
+                SampledIndirectDiffuse = SHToIrridiance(SHy, ShCoCg, IndirectN);
+
+           
+            }
+
+
             bool CorrectedSpecular = false;
 
             
@@ -880,7 +888,7 @@ void main()
                     float ao = BetterTexture(u_VXAO, g_TexCoords).x;
 					
 					// Multiply indirect diffuse by ao 
-                    SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 1.85f), 0.1f, 1.0f));
+                    SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 2.2f), 0.05, 1.0f));
                 }
             }
 
@@ -919,7 +927,7 @@ void main()
                 
                 if (NDotPD < -0.05f) {
                     vec3 RawSpecularIndirect =  SHToIrridiance(SpecularSH, SpecularCoCg);
-                    SpecularIndirect = RawSpecularIndirect * 0.875f;
+                    SpecularIndirect = RawSpecularIndirect * 0.625f;
 
                     //InferSpecularIndirect(SampledNormals.xyz, WorldPosition.w, BaseBlockID, SpecularSH, SpecularCoCg);
                     //SpecularIndirect = SHToIrridiance(SpecularSH, SpecularCoCg) * 1.8f;
@@ -1015,8 +1023,8 @@ void main()
             // Fix bloom light leak around the edges : 
             const bool BloomLightLeakFix = true;
             if (BloomLightLeakFix) {
-                float lbiasx = 0.0125f;
-                float lbiasy = 0.0125f;
+                float lbiasx = 0.02f;
+                float lbiasy = 0.02f;
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
             }

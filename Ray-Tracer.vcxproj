@@ -347,6 +347,7 @@
     <None Include="Core\Shaders\SSAO.glsl" />
     <None Include="Core\Shaders\SSAOBlur.glsl" />
     <None Include="Core\Shaders\TemporalAA.glsl" />
+    <None Include="Core\Shaders\Tonemapper.glsl" />
     <None Include="Core\Shaders\Utility\Noise.glsl" />
     <None Include="Core\Shaders\Utility\Offsets.glsl" />
     <None Include="Core\Shaders\Utility\SphericalHarmonics.glsl" />

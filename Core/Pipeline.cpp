@@ -916,7 +916,8 @@ GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, 
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false),
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false) };
 
-GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
+GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+GLClasses::Framebuffer TonemappedFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer FXAA_FBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
 //GLClasses::Framebuffer AntiFlickerFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
@@ -1112,6 +1113,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& AntiFlickerShader = ShaderManager::GetShader("ANTI_FLICKER");
 	GLClasses::Shader& CubeItemRenderer = ShaderManager::GetShader("CUBE_ITEM_RENDERER");
 	GLClasses::Shader& FXAA_Secondary = ShaderManager::GetShader("FXAA_SECONDARY");
+	GLClasses::Shader& Tonemapper = ShaderManager::GetShader("TONEMAPPER");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -1420,6 +1422,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			TonemappedFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			FXAA_FBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
 			//PostProcessingFBO_History[0].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
@@ -2049,6 +2052,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					SVGF_Spatial.SetInteger("u_Utility", 6);
 					SVGF_Spatial.SetInteger("u_AO", 8);
 					SVGF_Spatial.SetInteger("u_TemporalMoment", 9);
+					SVGF_Spatial.SetInteger("u_CurrentPass", i);
 					SVGF_Spatial.SetBool("u_LargeKernel", SVGF_LARGE_KERNEL);
 
 					SVGF_Spatial.SetInteger("u_Step", StepSizes[i]);
@@ -3723,6 +3727,25 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingFBO.Unbind();
 
+		// Tonemapping ->
+
+		TonemappedFBO.Bind();
+		Tonemapper.Use();
+		Tonemapper.SetInteger("u_Texture", 0);
+		Tonemapper.SetBool("u_FilmGrain", FilmGrainStrength > 0.001f);
+		Tonemapper.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
+		Tonemapper.SetFloat("u_Time", glfwGetTime());
+		Tonemapper.SetFloat("u_Exposure", ComputedExposure* ExposureMultiplier);
+		Tonemapper.SetBool("u_HejlBurgess", HejlBurgessTonemap);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+		VAO.Bind();
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		VAO.Unbind();
+
+		TonemappedFBO.Unbind();
 
 		// ---- CUBE ITEM ---- //
 
@@ -3733,7 +3756,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
-			PostProcessingFBO.Bind();
+			TonemappedFBO.Bind();
 
 			CubeItemRenderer.Use();
 			CubeItemRenderer.SetFloat("u_Time", glfwGetTime());
@@ -3789,13 +3812,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			BlockDataStorageBuffer.Bind(0);
 
-			glBindImageTexture(1, PostProcessingFBO.GetTexture(), 0, 0, 0, GL_READ_WRITE, GL_RGBA16F);
+			glBindImageTexture(1, TonemappedFBO.GetTexture(), 0, 0, 0, GL_READ_WRITE, GL_RGBA16F);
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
-			PostProcessingFBO.Unbind();
+			TonemappedFBO.Unbind();
 
 			BlockDatabase::SetTextureArraysFilteringNearest();
 		}
@@ -3822,7 +3845,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			FXAA_Secondary.SetFloat("u_Time", glfwGetTime());
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, TonemappedFBO.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -3880,7 +3903,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetFloat("u_Time", glfwGetTime());
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, DoSecondaryFXAA ? FXAA_FBO.GetTexture() : PostProcessingFBO.GetTexture());
+		glBindTexture(GL_TEXTURE_2D, DoSecondaryFXAA ? FXAA_FBO.GetTexture() : TonemappedFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));

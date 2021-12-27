@@ -452,7 +452,7 @@ void main()
 
 	else
 	{
-		o_Normal = 0.0f;
+		o_Normal = 1.0f;
 	}
 
 	o_HitDistance = t;

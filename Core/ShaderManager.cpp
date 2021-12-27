@@ -55,6 +55,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	// FXAA
 	AddShader("FXAA_SECONDARY", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FXAA311.glsl");
 
+
 	// anti flicker
 	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");
 	AddShader("BILATERAL_HITDIST1", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BlurHitDistance_Bilateral.glsl");
@@ -65,6 +66,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("DEPTH_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DownsampleDepth4x.glsl");
 	AddShader("NORMAL_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DownsampleNormals4x.glsl");
 	AddShader("GBUFFER_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GBufferDownsampler.glsl");
+	AddShader("TONEMAPPER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Tonemapper.glsl");
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)
