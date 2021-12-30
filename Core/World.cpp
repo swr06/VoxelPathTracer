@@ -30,13 +30,17 @@ void VoxelRT::World::InitializeLightList()
 
 void VoxelRT::World::RebufferLightChunks()
 {
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkDataSSBO);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (LightChunkData.size()), &LightChunkData[0]);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	if (LightChunkData.size() > 0) {
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkDataSSBO);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::vec4) * (LightChunkData.size()), &LightChunkData[0]);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
 
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkOffsetSSBO);
-	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec2) * (LightChunkOffsets.size()), &LightChunkOffsets[0]);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	if (LightChunkOffsets.size() > 0) {
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, LightChunkOffsetSSBO);
+		glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(glm::ivec2) * (LightChunkOffsets.size()), &LightChunkOffsets[0]);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	}
 }
 
 

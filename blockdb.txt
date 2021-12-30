@@ -14,6 +14,8 @@
 	
 	SND_STEP : Grass
 	SND_MODIFY : Grass
+	
+	MC_ID : 2
 }
 
 {
@@ -25,6 +27,8 @@
 	
 	SND_STEP : Dirt
 	SND_MODIFY : Dirt
+	
+	MC_ID : 3
 }
 
 {
@@ -35,6 +39,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 1
 }
 
 {
@@ -45,6 +51,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 4
 }
 
 {
@@ -55,6 +63,8 @@
 	
 	SND_STEP : Sand
 	SND_MODIFY : Sand
+	
+	MC_ID : 12
 }
 
 {
@@ -66,6 +76,8 @@
 	
 	SND_STEP : Wood
 	SND_MODIFY : Wood
+	
+	MC_ID : 17
 }
 
 {
@@ -78,6 +90,8 @@
 	
 	SND_STEP : Leaves
 	SND_MODIFY : Leaves
+	
+	MC_ID : 18
 }
 
 {
@@ -88,6 +102,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 45
 }
 
 {
@@ -98,6 +114,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 97
 }
 
 {
@@ -108,6 +126,8 @@
 	
 	SND_STEP : Cloth
 	SND_MODIFY : Cloth
+	
+	MC_ID : 35
 }
 
 {
@@ -118,6 +138,8 @@
 	
 	SND_STEP : Gravel
 	SND_MODIFY : Gravel
+	
+	MC_ID : 13
 }
 
 {
@@ -129,6 +151,8 @@
 	
 	SND_STEP : Metal
 	SND_MODIFY : Metal
+	
+	MC_ID : 50, 51, 76, 123, 124
 }
 
 {
@@ -179,6 +203,8 @@
 	
 	SND_STEP : Cloth
 	SND_MODIFY : Cloth
+	
+	MC_ID : 249, 250
 }
 
 {
@@ -189,6 +215,8 @@
 	
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 216, 155, 156
 }
 
 {
@@ -209,6 +237,8 @@
 	
 	SND_STEP : Wood
 	SND_MODIFY : Wood
+	
+	MC_ID : 5
 }
 
 {
@@ -239,6 +269,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 87, 153
 }
 
 {
@@ -270,6 +302,8 @@
 	
 	SND_STEP : Metal
 	SND_MODIFY : Metal
+	
+	MC_ID : 169
 }
 
 {
@@ -324,6 +358,8 @@
 	
 	SND_STEP : Metal
 	SND_MODIFY : Metal
+	
+	MC_ID : 42
 }
 
 {
@@ -334,6 +370,8 @@
 	
 	SND_STEP : Metal
 	SND_MODIFY : Metal
+	
+	MC_ID : 41
 }
 
 {
@@ -354,6 +392,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+
+	MC_ID : 24, 179
 }
 
 {
@@ -374,6 +414,8 @@
 	
 	SND_STEP : Cloth
 	SND_MODIFY : Cloth
+	
+	MC_ID : 35
 }
 
 {
@@ -404,6 +446,8 @@
 	SSS;
 	SND_STEP : Snow
 	SND_MODIFY : Snow
+	
+	MC_ID : 78
 }
 
 {
@@ -424,6 +468,8 @@
 	
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 49
 }
 
 {
@@ -434,6 +480,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 121
 }
 
 {
@@ -444,6 +492,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 206
 }
 
 {
@@ -594,6 +644,8 @@
 	SSS;
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 174, 212, 79
 }
 
 {
@@ -605,6 +657,8 @@
 	
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 129
 }
 
 {
@@ -616,6 +670,8 @@
 	
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 56
 }
 
 {
@@ -627,6 +683,8 @@
 	
 	SND_STEP : Marble
 	SND_MODIFY : Stone
+	
+	MC_ID : 129
 }
 
 {
@@ -637,6 +695,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250
 }
 
 {
@@ -667,6 +727,8 @@
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone
+	
+	MC_ID : 251
 }
 
 {
@@ -909,6 +971,8 @@
 	
 	SND_STEP : SqueakyWood
 	SND_MODIFY : Wood
+	
+	MC_ID : 58
 }
 
 {
@@ -977,6 +1041,29 @@
 	Normal : Res/Block/Glowstone2/Normal.png
 	PBR : Res/Block/Glowstone2/PBR.png
 	Emissive : Res/Block/Glowstone2/Emissive.png
+	
+	SND_STEP : Stone
+	SND_MODIFY : Stone
+	
+	MC_ID : 89
+}
+
+{
+	Name : Lava
+	Albedo : Res/Block/Lava/Albedo.png
+	Normal : Res/Block/Lava/Normal.png
+	PBR : Res/Block/Lava/PBR.png
+	Emissive : Res/Block/Lava/Emissive.png
+	MC_ID : 10, 11
+	SND_STEP : Stone
+	SND_MODIFY : Stone
+}
+
+{
+	Name : INVALID_BLOCK
+	Albedo : Res/Block/Misc/Albedo.png
+	Normal : Res/Block/Misc/Normal.png
+	PBR : Res/Block/Misc/PBR.png
 	
 	SND_STEP : Stone
 	SND_MODIFY : Stone

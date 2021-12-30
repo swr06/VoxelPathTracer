@@ -4,6 +4,7 @@ namespace VoxelRT
 {
 	extern std::unordered_map<std::string, BlockDatabaseParser::ParsedBlockData> ParsedBlockDataList;
 	std::unordered_map<uint8_t, BlockDatabaseParser::ParsedBlockData> ParsedBlockDataListID;
+	std::unordered_map<uint8_t, uint8_t> MinecraftIDLUT;
 	GLClasses::TextureArray BlockTextureArray;
 	GLClasses::TextureArray BlockNormalTextureArray;
 	GLClasses::TextureArray BlockPBRTextureArray;
@@ -32,6 +33,8 @@ namespace VoxelRT
 
 		std::pair<int, int> texture_resolutions = { 512,512 };
 
+		int BlockCount = 0;
+
 		for (auto& e : ParsedBlockDataList)
 		{
 			paths.push_back(e.second.AlbedoMap.front);
@@ -59,6 +62,8 @@ namespace VoxelRT
 			{
 				emissive_paths.push_back(e.second.EmissiveMap);
 			}
+
+			BlockCount++;
 		}
 
 		std::string res_str = "     |     RES : (" + std::to_string(texture_resolutions.first) + "," + std::to_string(texture_resolutions.second) + ")";
@@ -82,6 +87,20 @@ namespace VoxelRT
 		Logger::Log("Successfully created emissive texture array!");
 
 		std::cout << ("\n\n\n-- SUCCESSFULLY LOADED TEXTURES --\n\n\n");
+
+		std::cout << "\n\nBLOCK COUNT : " << BlockCount << "\n\n";
+
+		// Parse minecraft ids and create an LUT ->
+
+		auto& MCIDMap = BlockDatabaseParser::GetParsedMCIDs();
+		for (auto& e : MCIDMap) {
+			int BaseBlockID = static_cast<uint8_t>(BlockDatabase::GetBlockID(e.first.c_str()));
+			
+			for (auto& ve : e.second) {
+				int IDAt = static_cast<uint8_t>(ve);
+				MinecraftIDLUT[IDAt] = BaseBlockID;
+			}
+		}
 	}
 
 	uint8_t BlockDatabase::GetBlockID(const std::string& block_name)
@@ -575,5 +594,20 @@ namespace VoxelRT
 		}
 
 		return false;
+	}
+
+	uint8_t BlockDatabase::GetIDFromMCID(uint8_t MCID)
+	{
+		if (MCID == 0) {
+			return 0;
+		}
+
+		if (MinecraftIDLUT.find(MCID) == MinecraftIDLUT.end())
+		{
+			return GetBlockID("INVALID_BLOCK");
+		}
+
+
+		return MinecraftIDLUT[MCID];
 	}
 }

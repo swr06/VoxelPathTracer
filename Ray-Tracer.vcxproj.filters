@@ -84,6 +84,15 @@
     <Filter Include="Source Files\Shaders\Volumetrics\Ground Volumetrics">
       <UniqueIdentifier>{95fa8dd1-951d-4d58-bf10-a24eca7bcf87}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\voxel-rt\NBT">
+      <UniqueIdentifier>{597a5e4f-af8a-45f5-a54f-fac1d833d560}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\voxel-rt\NBT\Lib">
+      <UniqueIdentifier>{e970f00b-2e31-4ddc-be22-85142868c52f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Shaders\Bakers">
+      <UniqueIdentifier>{533c3ca6-d1b8-4831-a2d9-9ed1ed7e4801}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Dependencies\glad\src\glad.c">
@@ -244,6 +253,18 @@
     </ClCompile>
     <ClCompile Include="Core\LightChunk.cpp">
       <Filter>Source Files\voxel-rt\Light Chunks</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\enkiMI\enkimi.c">
+      <Filter>Source Files\voxel-rt\NBT\Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="Dependencies\enkiMI\miniz.c">
+      <Filter>Source Files\voxel-rt\NBT\Lib</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\NBT\Importer.cpp">
+      <Filter>Source Files\voxel-rt\NBT</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\AnimatedTexture.cpp">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -417,6 +438,18 @@
     </ClInclude>
     <ClInclude Include="Core\LightChunk.h">
       <Filter>Source Files\voxel-rt\Light Chunks</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\enkiMI\enkimi.h">
+      <Filter>Source Files\voxel-rt\NBT\Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="Dependencies\enkiMI\miniz.h">
+      <Filter>Source Files\voxel-rt\NBT\Lib</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\NBT\Importer.h">
+      <Filter>Source Files\voxel-rt\NBT</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\AnimatedTexture.h">
+      <Filter>Source Files\voxel-rt</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -716,6 +749,12 @@
     </None>
     <None Include="Core\Shaders\Tonemapper.glsl">
       <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\Bakers\BakeAnimatedPBR.glsl">
+      <Filter>Source Files\Shaders\Bakers</Filter>
+    </None>
+    <None Include="Core\Shaders\Bakers\BakeTexture.glsl">
+      <Filter>Source Files\Shaders\Bakers</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

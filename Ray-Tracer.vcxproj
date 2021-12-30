@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Core\AnimatedTexture.cpp" />
     <ClCompile Include="Core\AORenderer.cpp" />
     <ClCompile Include="Core\Application\Application.cpp" />
     <ClCompile Include="Core\Application\Logger.cpp" />
@@ -167,6 +168,7 @@
     <ClCompile Include="Core\GLClasses\CubeTextureMap.cpp" />
     <ClCompile Include="Core\LightChunk.cpp" />
     <ClCompile Include="Core\LightChunkHandler.cpp" />
+    <ClCompile Include="Core\NBT\Importer.cpp" />
     <ClCompile Include="Core\ParticleSystem.cpp" />
     <ClCompile Include="Core\Pipeline.cpp" />
     <ClCompile Include="Core\Player.cpp" />
@@ -193,6 +195,8 @@
     <ClCompile Include="Core\Texture3D.cpp" />
     <ClCompile Include="Core\WorldFileHandler.cpp" />
     <ClCompile Include="Core\WorldGenerator.cpp" />
+    <ClCompile Include="Dependencies\enkiMI\enkimi.c" />
+    <ClCompile Include="Dependencies\enkiMI\miniz.c" />
     <ClCompile Include="Dependencies\fast_noise\FastNoise.cpp" />
     <ClCompile Include="Dependencies\glad\src\glad.c" />
     <ClCompile Include="Dependencies\imgui\imgui.cpp" />
@@ -204,6 +208,7 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Core\AnimatedTexture.h" />
     <ClInclude Include="Core\AORenderer.h" />
     <ClInclude Include="Core\Application\Application.h" />
     <ClInclude Include="Core\Application\Logger.h" />
@@ -225,6 +230,7 @@
     <ClInclude Include="Core\LightChunk.h" />
     <ClInclude Include="Core\LightChunkHandler.h" />
     <ClInclude Include="Core\Macros.h" />
+    <ClInclude Include="Core\NBT\Importer.h" />
     <ClInclude Include="Core\Particle.h" />
     <ClInclude Include="Core\ParticleSystem.h" />
     <ClInclude Include="Core\Physics\AABB.h" />
@@ -252,6 +258,8 @@
     <ClInclude Include="Core\Texture3D.h" />
     <ClInclude Include="Core\WorldFileHandler.h" />
     <ClInclude Include="Core\WorldGenerator.h" />
+    <ClInclude Include="Dependencies\enkiMI\enkimi.h" />
+    <ClInclude Include="Dependencies\enkiMI\miniz.h" />
     <ClInclude Include="Dependencies\fast_noise\FastNoise.h" />
     <ClInclude Include="Dependencies\imgui\imconfig.h" />
     <ClInclude Include="Dependencies\imgui\imgui.h" />
@@ -266,6 +274,8 @@
     <None Include="Core\Shaders\2DElementShaderFrag.glsl" />
     <None Include="Core\Shaders\2DElementShaderVert.glsl" />
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
+    <None Include="Core\Shaders\Bakers\BakeAnimatedPBR.glsl" />
+    <None Include="Core\Shaders\Bakers\BakeTexture.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\BloomBlurTwoPass.glsl" />
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl" />

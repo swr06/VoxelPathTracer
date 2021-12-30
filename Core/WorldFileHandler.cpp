@@ -96,4 +96,9 @@ namespace VoxelRT
 
 		return true;
 	}
+
+	bool DirectoryValid(const std::string& name)
+	{
+		return std::filesystem::is_directory(name);
+	}
 }

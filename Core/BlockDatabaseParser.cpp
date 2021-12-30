@@ -2,7 +2,31 @@
 
 namespace VoxelRT
 {
-	std::unordered_map<std::string, BlockDatabaseParser::ParsedBlockData> ParsedBlockDataList;
+	std::unordered_map<std::string, BlockDatabaseParser::ParsedBlockData> ParsedBlockDataList; 
+	std::unordered_map<std::string, std::vector<int>> MinecraftIDs;
+
+	std::vector<int> ParseIDsFromCommaSeparatedString(const std::string& str) {
+
+		std::vector<std::string> v;
+
+		std::stringstream ss(str);
+		
+		while (ss.good()) {
+			std::string substr;
+			std::getline(ss, substr, ',');
+			v.push_back(substr);
+		}
+
+		std::vector<int> ret;
+
+		for (int i = 0; i < v.size(); i++) {
+			ret.push_back(std::stoi(v[i]));
+		}
+
+		return ret;
+	}
+
+
 
 	uint8_t GenerateBlockID()
 	{
@@ -331,6 +355,17 @@ namespace VoxelRT
 
 						parsed_data.snd_modify = s;
 					}
+
+					else if (field.find("MC_ID") != std::string::npos|| field.find("MCID") != std::string::npos||
+							 field.find("mc_id") != std::string::npos || field.find("mcid") != std::string::npos)
+					{
+						std::string s;
+						size_t loc = field.find(":");
+						s = field.substr(loc + 1, field.size());
+						
+						std::vector<int> ParsedIDsAt = ParseIDsFromCommaSeparatedString(s);
+						MinecraftIDs[parsed_data.BlockName] = ParsedIDsAt;
+					}
 				}
 
 				parsed_data.ID = GenerateBlockID();
@@ -338,4 +373,10 @@ namespace VoxelRT
 			}
 		}
 	}
+
+	std::unordered_map<std::string, std::vector<int>>& BlockDatabaseParser::GetParsedMCIDs()
+	{
+		return MinecraftIDs;
+	}
+
 }

@@ -484,7 +484,7 @@ void main()
 
 	if (NDotL <= 0.01f) {
 		o_Shadow = 1.0f;
-		o_IntersectionTransversal = 32.0f / 100.0f; // -> Any transversal. Doesn't matter 
+		o_IntersectionTransversal = 1.0f / 100.0f; // -> Any transversal. Doesn't matter 
 		return;
 	}
 
@@ -503,7 +503,7 @@ void main()
 		}
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
-		o_IntersectionTransversal = T / 100.0f;
+		o_IntersectionTransversal = -1.0f;
 	}
 }
 

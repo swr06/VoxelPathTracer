@@ -46,6 +46,8 @@
 #include "SoundManager.h"
 #include "TAAJitter.h"
 #include "VolumetricFloodFill.h"
+#include "NBT/Importer.h"
+#include "AnimatedTexture.h"
 
 // includes
 
@@ -96,7 +98,7 @@ static bool TEMPORAL_SPEC = true;
 
 static bool APPLY_PLAYER_SHADOW_FOR_GI = false;
 
-static int RenderDistance = 350;
+static int RenderDistance = 400;
 
 static bool REFLECT_PLAYER = false;
 
@@ -351,7 +353,7 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
-			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.1f); 
+			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.3f); 
 
 			ImGui::NewLine();
 			if (ImGui::Button("Reset Speed/Sensitivity")) 
@@ -398,7 +400,7 @@ public:
 			ImGui::Text("--- Initial hit Settings ---");
 			ImGui::NewLine();
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
-			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 350);
+			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 500);
 			ImGui::NewLine();
 
 
@@ -968,6 +970,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		\n\tShift->Accelerate down\
 		\n\tQ / E->Change current block\
 		\n\tF->Toggle freefly\
+		\n\tTAB->Boost Player Speed\
 		\n\tC->Toggle Collisions(only toggles IF on freefly mode)\
 		\n\tESC->Save and quit\
 		\n\tV->Toggle VSync\
@@ -979,6 +982,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	VoxelRT::BlockDatabase::Initialize();
 
 	bool gen_type = 0;
+	int create_type = 0;
 
 	std::string world_name;
 
@@ -993,28 +997,51 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	if (!LoadWorld(world, world_name, LightLocations))
 	{
-		std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
-		std::cin >> gen_type;
+		std::cout << "\nWhat would you like to create your world with? (0 : TERRAIN GENERATOR, 1 : IMPORT MINECRAFT WORLD) : ";
+		std::cin >> create_type;
 		std::cout << "\n\n";
 
-		GenerateWorld(world, gen_type);
+		if (create_type == 0) {
+
+			std::cout << "\nWhat type of world would you like to generate? (FLAT = 0, PLAINS = 1) : ";
+			std::cin >> gen_type;
+			std::cout << "\n\n";
+
+			GenerateWorld(world, gen_type);
+		}
+
+		else if (create_type == 1) {
+			std::string MinecraftWorldPath = "\\";
+
+			do
+			{
+				std::cout << "\n\nEnter the path of a valid readable/accessible minecraft *SAVE REGION* directory : ";
+				std::cin.ignore();
+				std::getline(std::cin, MinecraftWorldPath);
+			} while (!VoxelRT::DirectoryValid(MinecraftWorldPath));
+
+			VoxelRT::MCWorldImporter::ImportWorld(MinecraftWorldPath, &world->m_WorldData);
+		}
 	}
+
 
 	int HardwareProfile = 0;
 
 	std::cout << "\nHardware Spec? (0 -> Low, 1 -> Medium, 2 -> High, 3 -> Insane) : ";
 	std::cin >> HardwareProfile;
 
+	std::cout << "\n\n\n";
+
 	if (HardwareProfile == 0)
 	{
-		// //
+		// Defaults.
 	}
 
 	if (HardwareProfile == 1)
 	{
 		InitialTraceResolution = 1.0f;
 		ShadowTraceResolution = 0.75f;
-		DiffuseSPP = 8;
+		DiffuseSPP = 6;
 		ColorPhiBias = 3.5f;
 		ReflectionTraceResolution = 0.25f;
 		DiffuseTraceResolution = 0.25f;
@@ -1027,7 +1054,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ShadowTraceResolution = 0.75f;
 		DiffuseSPP = 2;
 		ColorPhiBias = 3.25f;
-		ReflectionTraceResolution = 0.5f;
+		SVGF_LARGE_KERNEL = true;
+		WiderSVGF = true;
+		ReflectionTraceResolution = 0.350f;
 		DiffuseTraceResolution = 0.5f;
 		RTAO = false;
 	}
@@ -1040,6 +1069,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceResolution = 0.5f;
 		DiffuseSPP = 4;
 		ColorPhiBias = 3.5f;
+		SVGF_LARGE_KERNEL = true;
+		WiderSVGF = true;
 		RTAO = false;
 	}
 
@@ -1221,6 +1252,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		"Res/Misc/BL_2.png",
 		"Res/Misc/BL_3.png"
 		}, { 256, 256 }, true, false);
+
+
+	AnimatedTexture LavaAlbedo;
+	LavaAlbedo.Create("Res/Block/Lava/Frames/Albedo", 256, 7);
+	AnimatedTexture LavaNormals;
+	LavaNormals.Create("Res/Block/Lava/Frames/Normal", 256, 7);
+
 
 	float Vertices[] =
 	{
@@ -1509,7 +1547,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		if (UpdatePlayerCollision && app.GetCurrentFrame() > 6) {
-			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum);
+			bool TabPressed = glfwGetKey(app.GetWindow(), GLFW_KEY_TAB) == 1;
+			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum, TabPressed);
 		}
 
 		MainPlayer.ClampVelocity();
@@ -1556,9 +1595,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
 
 			// Cube views ->
-			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 64.0, MainPlayer.m_Position.z);
+			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 150.0, MainPlayer.m_Position.z);
 			auto Matrices = GetMatrices(VirtualCenter);
-			glm::mat4 VirtualProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 700.0f);
+			glm::mat4 VirtualProjection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 1000.0f);
 
 			int StartIndex = 0;
 
@@ -3098,6 +3137,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_SSSShadowMap", 24);
 
 
+		ColorShader.SetInteger("u_LavaBlockID", BlockDatabase::GetBlockID("Lava"));
+		ColorShader.SetInteger("u_LavaTextures[0]", 26);
+		ColorShader.SetInteger("u_LavaTextures[1]", 27);
+
+
 		ColorShader.SetInteger("u_NebulaLowRes", 25);
 		ColorShader.SetFloat("u_NebulaStrength", NebulaStrength);
 
@@ -3195,6 +3239,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE25);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, NightSkyMapLowRes.GetID());
+
+		glActiveTexture(GL_TEXTURE26);
+		glBindTexture(GL_TEXTURE_3D, LavaAlbedo.m_ID);
+		glActiveTexture(GL_TEXTURE27);
+		glBindTexture(GL_TEXTURE_3D, LavaNormals.m_ID);
 
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
@@ -4021,17 +4070,17 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		// World bounds check
-		glm::vec3 CP = MainCamera.GetPosition(); // Camera position
-		if (MainCamera.GetPosition().y <= 2.0f || CP.x > WORLD_SIZE_X - 2 || CP.x < 2 || CP.z > WORLD_SIZE_Z - 2 || CP.z < 2)
-		{
-			MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X/2, 75, WORLD_SIZE_Z/2));
-			MainPlayer.m_Position = MainCamera.GetPosition();
-			MainPlayer.m_Velocity = glm::vec3(0.0f);
-			MainPlayer.m_Acceleration = glm::vec3(0.0f);
-			MainPlayer.m_isOnGround = false;
-			MainPlayer.InitialCollisionDone = false;
-			MainPlayer.InitialCollisionDone2 = false;
-		}
+		//glm::vec3 CP = MainCamera.GetPosition(); // Camera position
+		//if (MainCamera.GetPosition().y <= 2.0f || CP.x > WORLD_SIZE_X - 2 || CP.x < 2 || CP.z > WORLD_SIZE_Z - 2 || CP.z < 2)
+		//{
+		//	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X/2, 75, WORLD_SIZE_Z/2));
+		//	MainPlayer.m_Position = MainCamera.GetPosition();
+		//	MainPlayer.m_Velocity = glm::vec3(0.0f);
+		//	MainPlayer.m_Acceleration = glm::vec3(0.0f);
+		//	MainPlayer.m_isOnGround = false;
+		//	MainPlayer.InitialCollisionDone = false;
+		//	MainPlayer.InitialCollisionDone2 = false;
+		//}
 
 		// velocity clamp
 		MainPlayer.ClampVelocity();

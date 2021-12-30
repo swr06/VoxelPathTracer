@@ -169,6 +169,53 @@ void main()
 	// Sample neighbours and hope to find a good sample : 
 	// Verified that this is indeed *much* better than just sampling at the reprojected coordinate 
 
+
+	// Base distance weights on distance
+	bool DoBlockWeight = true;
+	float PositionErrorTolerance = 0.75f;
+	float DistanceToPlayer = distance(BasePosition.xyz, u_InverseView[3].xyz);
+
+	if (DistanceToPlayer < 4.0f) {
+		PositionErrorTolerance = 0.3f;
+		DoBlockWeight = true;
+	}
+
+	else if (DistanceToPlayer < 6.0f) {
+		PositionErrorTolerance = 0.6f;
+		DoBlockWeight = true;
+	}
+
+	else if (DistanceToPlayer < 8.0f) {
+		PositionErrorTolerance = 0.85f;
+		DoBlockWeight = true;
+	}
+
+	else if (DistanceToPlayer < 16.0f) {
+		PositionErrorTolerance = 1.8f;
+		DoBlockWeight = true;
+	}
+
+	else if (DistanceToPlayer < 32.0f) {
+		PositionErrorTolerance = 3.6f;
+		DoBlockWeight = false;
+	}
+
+	else if (DistanceToPlayer < 64.0f) {
+		PositionErrorTolerance = 6.0f;
+		DoBlockWeight = false;
+	}
+
+	else if (DistanceToPlayer < 128.0f) {
+		PositionErrorTolerance = 12.0f;
+		DoBlockWeight = false;
+	}
+
+	else if (DistanceToPlayer < 200.0f) {
+		PositionErrorTolerance = 24.0f;
+		DoBlockWeight = false;
+	}
+
+
 	for (int i = 0 ; i < 5 ; i++)
 	{
 		vec2 Offset = Offsets[i];
@@ -183,22 +230,26 @@ void main()
 		float idat = texture(u_PrevBlockIDTexture, SampleCoord).r;
 		int SampleBlock = clamp(int(floor((idat) * 255.0f)), 0, 127);
 
-		if (PositionError < 0.8f &&
-			PreviousNormalAt == BaseNormal &&
-			BaseBlock == SampleBlock && PreviousPositionAt.w < 0.0f == BasePosition.w < 0.0f)
+		if (PositionError < PositionErrorTolerance &&
+			PreviousNormalAt == BaseNormal 
+			 && PreviousPositionAt.w < 0.0f == BasePosition.w < 0.0f)
 		{
-			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
-			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
-			vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
+			if ((DoBlockWeight && BaseBlock == SampleBlock) || !DoBlockWeight) {
+				vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
+				vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
+				vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
 
-			SumSH += PreviousSH * CurrentWeight;
-			SumCoCg += PreviousCoCg * CurrentWeight;
-			SumSPP += PreviousUtility.x * CurrentWeight;
-			SumMoment += PreviousUtility.y * CurrentWeight;
-			SumLuminosity += PreviousUtility.z * CurrentWeight;
-			SumAOSky += texture(u_PreviousAO, SampleCoord).xy * CurrentWeight;
-			TotalWeight += CurrentWeight;
-			SuccessfulSamples++;
+				SumSH += PreviousSH * CurrentWeight;
+				SumCoCg += PreviousCoCg * CurrentWeight;
+				SumSPP += PreviousUtility.x * CurrentWeight;
+				SumMoment += PreviousUtility.y * CurrentWeight;
+				SumLuminosity += PreviousUtility.z * CurrentWeight;
+				SumAOSky += texture(u_PreviousAO, SampleCoord).xy * CurrentWeight;
+				TotalWeight += CurrentWeight;
+				SuccessfulSamples++;
+			}
+
+			
 		}
 	}
 

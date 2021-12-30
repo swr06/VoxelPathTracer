@@ -20,7 +20,7 @@ namespace VoxelRT
 	// Basic aabb collisions :p
 	// Nothing too complex here
 
-	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt)
+	void Player::OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt, bool tab)
 	{
 		// Flag to make sure to ONLY play sounds after the player has touched down atleast once
 		// Another hack but who gives a shit anymore
@@ -29,7 +29,12 @@ namespace VoxelRT
 		glm::vec3 StartPosition = m_Position;
 
 		dt = glm::min(dt, 35.0f);
-		const float camera_speed = Freefly ? 0.2f : 0.1f;
+		float camera_speed = Freefly ? this->Speed * 2.0 : this->Speed;
+
+		if (tab) {
+			camera_speed = 0.3f;
+			camera_speed *= Freefly ? 2.0f : 1.0f;
+		}
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
 		{

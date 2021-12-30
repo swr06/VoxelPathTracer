@@ -52,5 +52,8 @@ namespace VoxelRT
 		GLuint GetEmissiveTextureArray();
 
 		bool HasEmissiveTexture(BlockIDType block_id);
+
+		uint8_t GetIDFromMCID(uint8_t MCID);
+
 	}
 }

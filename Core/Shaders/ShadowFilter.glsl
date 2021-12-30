@@ -52,30 +52,34 @@ float Luminance(vec3 x)
 	return dot(x, vec3(0.2125f, 0.7154f, 0.0721f));
 }
 
-float LuminancePow(float x) {
-    return x*x*x*x*x*x*x*x;
+float remap(float x, float a, float b, float c, float d)
+{
+    return (((x - a) / (b - a)) * (d - c)) + c;
 }
 
 float ShadowSpatial(sampler2D tex, vec2 uv)
 {
+    const float Diagonal = sqrt(2.0f);
+
     vec4 CenterPosition = GetPositionAt(u_PositionTexture, v_TexCoords);
+    bool Sky = CenterPosition.w < 0.0f;
+
     vec3 CenterNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).rgb;
     float CenterShadow = texture(u_InputTexture, v_TexCoords).x;
     float BaseLuminance = Luminance(vec3(CenterShadow));
     vec2 TexelSize = 1.0f / vec2(textureSize(tex, 0));
 
     float Transversal = texture(u_IntersectionTransversals, v_TexCoords).x;
-
     Transversal = Transversal * 100.0f;
 
     const float TransversalCutoff = sqrt(2.0f);
     bool SharpShadow = Transversal > 0.0f && Transversal < TransversalCutoff;
 
-    if (SharpShadow) {
+    if (SharpShadow||Sky) {
         return CenterShadow;
     }
 
-    bool ReducedKernel = Transversal < TransversalCutoff * 2.4f;
+    bool ReducedKernel = Transversal < TransversalCutoff * 1.414;
 
     float TotalWeight = 0.0f;
     float TotalShadow = 0.0f;
@@ -83,18 +87,23 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
     // 6 * 4 = 24 samples. 
 
     int XSize = ReducedKernel ? 1 : 3;
-    int YSize = ReducedKernel ? 1 : 2;
+    int YSize = ReducedKernel ? 1 : 3;
+
+    float Scale = Transversal > 8.0f ? 1.2f : 1.0f;
+
+    float ClampedTransversal = clamp(Transversal, 0.0f, 10.0f);
+    float VarianceEstimate = mix(20.0f, 6.0f, ClampedTransversal / 10.0f)+(Transversal < 6.0f ? 5.0f : 2.0f);
 
     for (int x = -XSize ; x <= XSize ; x++) {
         for (int y = -YSize ; y <= YSize ; y++) 
         {
             vec2 d = vec2(x, y);
-            vec2 SampleCoord = uv + d * TexelSize * 1.1f;
+            vec2 SampleCoord = uv + d * TexelSize * 1.1f * Scale;
             vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord);
             vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
             // Sample valiation : 
-            if (distance(SamplePosition.xyz, CenterPosition.xyz) > 0.75 ||
+            if (distance(SamplePosition.xyz, CenterPosition.xyz) > Diagonal ||
                 SampleNormal != CenterNormal)
             {
                 continue;
@@ -103,7 +112,7 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
             float ShadowAt = texture(u_InputTexture, SampleCoord).x;
             float LumaAt = Luminance(vec3(ShadowAt));
             float LuminanceError = clamp(1.0f - clamp(abs(ShadowAt - CenterShadow) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
-            float Weight = clamp(LuminancePow(LuminanceError), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
+            float Weight = clamp(pow(LuminanceError, VarianceEstimate), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
             Weight = clamp(Weight, 0.01f, 1.0f);
             TotalShadow += ShadowAt * Weight;
             TotalWeight += Weight;

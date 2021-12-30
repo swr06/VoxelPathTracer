@@ -4,6 +4,7 @@ Space -> Jump/Fly
 Shift -> Accelerate down
 Q/E -> Change current block
 F -> Toggle freefly
+TAB -> Boost Player Speed
 C -> Toggle Collisions (only toggles IF on freefly mode) 
 ESC -> Save and quit
 V -> Toggle VSync

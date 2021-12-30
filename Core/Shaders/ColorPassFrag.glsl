@@ -112,6 +112,8 @@ uniform int u_GrassBlockProps[10];
 
 uniform vec2 u_Halton;
 
+uniform int u_LavaBlockID;
+uniform sampler3D u_LavaTextures[2];
 
 uniform samplerCube u_NebulaLowRes;
 uniform float u_NebulaStrength;
@@ -730,6 +732,17 @@ float remap(float x, float a, float b, float c, float d)
     return (((x - a) / (b - a)) * (d - c)) + c;
 }
 
+vec3 BasicTextureDistortion(vec3 UV) {
+    vec2 UVxy = UV.xy;
+    float time = u_Time;
+    UV.x += sin(time * 0.25f);
+    UV.y += pow(cos(time * 0.15f),2.);
+    UV.x += cos(UV.x*10.0f + time)*0.3f;
+    UV.y += sin(UV.y*5.0f + UV.x*4.0f + time*1.3f)*0.4f;
+    UV.xy = mix(UV.xy,UVxy.xy,0.91f);
+    return UV;
+}
+
 void main()
 {
     g_TexCoords = v_TexCoords;
@@ -822,11 +835,17 @@ void main()
             } else { UV.y = 1.0f - UV.y; }
 
 
+            bool IsLiquid =  (u_LavaBlockID == BaseBlockID) ;
+            bool IsLava =  (u_LavaBlockID == BaseBlockID) ;
+            vec3 DistortedUV = IsLiquid ? BasicTextureDistortion(vec3(UV,fract(u_Time*0.3f))) : vec3(0.0f);
 
+            vec3 AlbedoColor = IsLava ? (texture(u_LavaTextures[0], DistortedUV).xyz) :
+                               textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
+            vec3 NormalMapped = IsLava ? (texture(u_LavaTextures[1], DistortedUV).xyz) : (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).xyz);
+            NormalMapped = NormalMapped * 2.0f - 1.0f;
+            NormalMapped = tbn * NormalMapped;
 
             vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
-            vec3 AlbedoColor = textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
-            vec3 NormalMapped = tbn * (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).rgb * 2.0f - 1.0f);
             
             AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
 
@@ -1015,14 +1034,20 @@ void main()
                 o_Color = vec3(1.0f - RayTracedShadow);
                // o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
             }
-          
+
             o_PBR.xyz = PBRMap.xyz;
             o_PBR.w = Emissivity;
+             
+            // Flicker
+            if (IsLava) {
+                o_PBR.w *= clamp(pow(sin(u_Time * 4.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
+            }
+
             o_BloomAlbedos = AlbedoColor;
 
             // Fix bloom light leak around the edges : 
             const bool BloomLightLeakFix = true;
-            if (BloomLightLeakFix) {
+            if (BloomLightLeakFix&&!IsLiquid) {
                 float lbiasx = 0.02f;
                 float lbiasy = 0.02f;
                 o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&

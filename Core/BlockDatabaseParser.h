@@ -40,5 +40,6 @@ namespace VoxelRT
 		};
 
 		void Parse(const std::string& path);
+		std::unordered_map<std::string, std::vector<int>>& GetParsedMCIDs();
 	}
 }

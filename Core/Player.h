@@ -16,7 +16,7 @@ namespace VoxelRT
 	public :
 
 		Player();
-		void OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt);
+		void OnUpdate(GLFWwindow* window, World* world, float dt, int frame, float& dtt, bool tab);
 
 		FPSCamera Camera;
 		void TestBlockCollision(glm::vec3& position, World* world, glm::vec3 vel);
@@ -25,7 +25,7 @@ namespace VoxelRT
 		bool InWater = false;
 		bool Freefly = false;
 		float Sensitivity = 0.25;
-		float Speed = 0.045f;
+		float Speed = 0.11250f;
 		bool InitialCollisionDone = false;
 		bool InitialCollisionDone2 = false;
 
