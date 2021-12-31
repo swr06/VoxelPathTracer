@@ -91,7 +91,7 @@ vec3 Saturate(vec3 x)
 	return clamp(x, 0.0f, 1.0f);
 }
 
-float GetVarianceEstimate(out float BaseVariance)
+float GaussianVariance(out float BaseVariance)
 {
 #ifdef ESTIMATE_VARIANCE_BASED_ON_NEIGHBOURS
 	vec2 TexelSize = 1.0f / textureSize(u_SH, 0);
@@ -103,7 +103,7 @@ float GetVarianceEstimate(out float BaseVariance)
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
-		for (int y = -1 ; y <= 1 ; y++)
+		for (int y = -2 ; y <= 2 ; y++)
 		{
 			vec2 SampleCoord = v_TexCoords + vec2(x, y) * TexelSize;
 			
@@ -164,6 +164,14 @@ float GradientNoise()
 	return noise;
 }
 
+float CurveVariance(float V, float E) {
+	float FittedEstimate = V;
+	FittedEstimate = clamp(FittedEstimate, 0.0f, 1.0f);
+	float T = 1.0f - FittedEstimate;
+	FittedEstimate = FittedEstimate * pow(T, E);
+	return FittedEstimate;
+}
+
 void main()
 {
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
@@ -172,17 +180,23 @@ void main()
 	vec2 TexelSize = 1.0f / u_Dimensions;
 	vec4 TotalColor = vec4(0.0f);
 
-	bool FilterAO = u_Step < 5;
+	bool FilterAO = u_Step <= 4;
+	bool FilterSky = u_Step <= 6;
+	FilterSky = FilterSky || FilterAO;
+
+
+
 	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(u_Step * 0.8f));
-	vec4 BasePosition = GetPositionAt(v_TexCoords);
-	bool BaseIsSky = BasePosition.w < 0.0f;
+	//vec4 BasePosition = GetPositionAt(v_TexCoords);
+	float BaseDepth = texture(u_PositionTexture, v_TexCoords).x;
+	bool BaseIsSky = BaseDepth < 0.0f;
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 	vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
 	vec4 BaseSH = texture(u_SH, v_TexCoords).xyzw;
 	vec2 BaseCoCg = texture(u_CoCg, v_TexCoords).xy;
 	float BaseLuminance = SHToY(BaseSH);
 	float BaseVariance = 0.0f;
-	float VarianceEstimate = GetVarianceEstimate(BaseVariance);
+	float VarianceEstimate = GaussianVariance(BaseVariance);
 	vec2 BaseAOSky = texture(u_AO, v_TexCoords).rg;
 
 	if (!DO_SPATIAL) { 
@@ -202,14 +216,34 @@ void main()
 	float TotalAOWeight = 1.0f;
 
 	float AccumulatedFrames = texture(u_TemporalMoment, v_TexCoords).x;
-	bool DoStrongSpatial = AccumulatedFrames < 12.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
-	float PhiColor = sqrt(max(0.0f, 0.000001f + VarianceEstimate<0.006?pow(VarianceEstimate,3.2f):VarianceEstimate));
-	PhiColor /= max(u_ColorPhiBias, 0.4f); 
+	bool DoStrongSpatial = AccumulatedFrames < 5.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
+
+	float CurveExponent = 0.0f;
+
+	if (VarianceEstimate < 0.01f) {
+		CurveExponent = 128.0f;
+	}
+
+	else if (VarianceEstimate < 0.05f) {
+		CurveExponent = 96.0f;
+	}
+
+	else if (VarianceEstimate < 0.075f) {
+		CurveExponent = 80.0f;
+	}
+
+	else if (VarianceEstimate < 0.1f) {
+		CurveExponent = 70.0f;
+	}
+
+	float TweakedVariance = VarianceEstimate < 0.1f ? CurveVariance(VarianceEstimate, CurveExponent) : VarianceEstimate;
+	float PhiColor = sqrt(max(0.0f, 0.000001f + TweakedVariance));
+	PhiColor /= max(u_ColorPhiBias, 0.1f); 
 
 
 	//float Bayer = bayer2(gl_FragCoord.xy);
 
-	// 9 samples, with 5 atrous passes and 1 initial pass
+	// 9 SPATIAL samples, with 5 atrous passes and 1 initial pass
 	int KernelSampleSize = u_LargeKernel ? 2 : 1;
 
 	// Resolution scale weight ->
@@ -225,13 +259,16 @@ void main()
 			vec2 SampleCoord = v_TexCoords + (((vec2(x, y) * float(u_Step) * AdditionalScale) + (vec2(Jitter) * 0.5f))) * TexelSize ;
 			if (!InScreenSpace(SampleCoord)) { continue; }
 
-			vec4 SamplePosition = GetPositionAt(SampleCoord).xyzw;
+
+			float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
 
 			// Weights : 
-			vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
-            float DistSqr = dot(PositionDifference, PositionDifference);
+			//vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
+            //float DistSqr = dot(PositionDifference, PositionDifference);
+			float DepthDiff = abs(SampleDepth - BaseDepth);
+			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 
-			if (DistSqr < 1.2f && SamplePosition.w < 0.0f == BasePosition.w < 0.0f) 
+			if (BaseDepth < 0.0f == DepthDiff < 0.0f) 
 			{
 				//float DepthDiff = abs(BasePosition.w-SamplePosition.w);
 				//float DepthWeight =  clamp(exp(-DepthDiff), 0.001f, 1.0f);
@@ -241,15 +278,15 @@ void main()
 				// Samples :
 				vec4 SampleSH = texture(u_SH, SampleCoord).xyzw;
 				vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
-				vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 				float SampleLuma = SHToY(SampleSH);
 				float SampleVariance = texture(u_VarianceTexture, SampleCoord).r;
 
 				// :D
-				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
+				float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 32.0f);
 				NormalWeight = clamp(NormalWeight, 0.001f, 1.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
-				float Weight = DoStrongSpatial ? exp(-NormalWeight) : exp(-LuminosityWeight - NormalWeight); // * DepthWeight;
+				float DepthWeight = clamp(pow(exp(-max(DepthDiff, 0.00001f)), 2.0f), 0.0001f, 1.0f);
+				float Weight = DoStrongSpatial ? NormalWeight * DepthWeight : (exp(-LuminosityWeight) * NormalWeight * DepthWeight); // * DepthWeight;
 				Weight = clamp(Weight, 0.001f, 1.0f);
 
 				// Kernel Weights : 
@@ -264,11 +301,13 @@ void main()
 				TotalVariance += sqr(Weight) * SampleVariance;
 				TotalWeight += Weight;
 
+				// Remove this later?
+				if (FilterSky || FilterAO)
 				{
 					float CurrAOWeight = 1.0f;
 
 					const float aopow = pow(2.0f, 6.0f);
-					CurrAOWeight = clamp((XWeight * YWeight)*NormalWeight*clamp(pow(1.0f/abs(SamplePosition.w-BasePosition.w),aopow),0.001f,1.0f),0.001f,1.0f);
+					CurrAOWeight = clamp((XWeight * YWeight) * NormalWeight * DepthWeight, 0.000001f, 1.0f);
 
 					vec2 AOAndSkySample = texture(u_AO, SampleCoord).xy;
 					TotalAOSky.x += AOAndSkySample.x * CurrAOWeight;

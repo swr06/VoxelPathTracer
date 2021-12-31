@@ -125,7 +125,7 @@ void main()
                 vec3 PositionDifference = abs(SamplePosition - BasePosition);
                 float DistSqr = dot(PositionDifference, PositionDifference);
 
-                if (DistSqr < 1.2f) 
+                if (DistSqr < 1.0f) 
                 { 
                     vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
                     vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
@@ -141,8 +141,8 @@ void main()
                     float Weight = exp(-LuminosityWeight - NormalWeight);
                     float Weight_2 = Weight;
 
-                    Weight = max(Weight, 0.015f);
-                    Weight_2 = max(Weight_2, 0.015f);
+                    Weight = max(Weight, 0.0015f);
+                    Weight_2 = max(Weight_2, 0.0015f);
 
                     TotalWeight += Weight;
                     TotalMoment += SampleMoment * Weight_2;

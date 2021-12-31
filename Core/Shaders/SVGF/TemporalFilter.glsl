@@ -162,7 +162,7 @@ void main()
 	const vec2 Offsets[5] = vec2[5](vec2(1, 0), vec2(0, 1), vec2(0.0f), vec2(-1, 0), vec2(0, -1));
 
 	int BaseBlock = clamp(int(floor((texture(u_CurrentBlockIDTexture, v_TexCoords).r) * 255.0f)), 0, 127);
-	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.5f));
+	ivec2 Jitter = ivec2((GradientNoise() - 0.5f) * float(1.0f));
 
 	int SuccessfulSamples = 0;
 
@@ -172,47 +172,76 @@ void main()
 
 	// Base distance weights on distance
 	bool DoBlockWeight = true;
+	bool DoNormalWeight = true;
 	float PositionErrorTolerance = 0.75f;
 	float DistanceToPlayer = distance(BasePosition.xyz, u_InverseView[3].xyz);
 
 	if (DistanceToPlayer < 4.0f) {
 		PositionErrorTolerance = 0.3f;
 		DoBlockWeight = true;
+		DoNormalWeight = true;
 	}
 
 	else if (DistanceToPlayer < 6.0f) {
-		PositionErrorTolerance = 0.6f;
+		PositionErrorTolerance = 0.5f;
 		DoBlockWeight = true;
+		DoNormalWeight = true;
+
 	}
 
 	else if (DistanceToPlayer < 8.0f) {
-		PositionErrorTolerance = 0.85f;
+		PositionErrorTolerance = 0.75f;
 		DoBlockWeight = true;
+		DoNormalWeight = true;
+
 	}
 
 	else if (DistanceToPlayer < 16.0f) {
-		PositionErrorTolerance = 1.8f;
+		PositionErrorTolerance = 1.0f;
 		DoBlockWeight = true;
+		DoNormalWeight = true;
+
 	}
 
 	else if (DistanceToPlayer < 32.0f) {
-		PositionErrorTolerance = 3.6f;
+		PositionErrorTolerance = 2.4f;
+		DoBlockWeight = true;
+		DoNormalWeight = true;
+
+	}
+
+	else if (DistanceToPlayer < 48.0f) {
+		PositionErrorTolerance = 3.5f;
 		DoBlockWeight = false;
+		DoNormalWeight = true;
+
 	}
 
 	else if (DistanceToPlayer < 64.0f) {
-		PositionErrorTolerance = 6.0f;
+		PositionErrorTolerance = 4.2f;
 		DoBlockWeight = false;
+		DoNormalWeight = true;
+
+	}
+
+	else if (DistanceToPlayer < 96.0f) {
+		PositionErrorTolerance = 6.25f;
+		DoBlockWeight = false;
+		DoNormalWeight = false;
+
 	}
 
 	else if (DistanceToPlayer < 128.0f) {
-		PositionErrorTolerance = 12.0f;
+		PositionErrorTolerance = 7.0f;
 		DoBlockWeight = false;
+		DoNormalWeight = false;
+
 	}
 
 	else if (DistanceToPlayer < 200.0f) {
-		PositionErrorTolerance = 24.0f;
+		PositionErrorTolerance = 8.0f;
 		DoBlockWeight = false;
+		DoNormalWeight = false;
 	}
 
 
@@ -230,26 +259,41 @@ void main()
 		float idat = texture(u_PrevBlockIDTexture, SampleCoord).r;
 		int SampleBlock = clamp(int(floor((idat) * 255.0f)), 0, 127);
 
-		if (PositionError < PositionErrorTolerance &&
-			PreviousNormalAt == BaseNormal 
-			 && PreviousPositionAt.w < 0.0f == BasePosition.w < 0.0f)
-		{
-			if ((DoBlockWeight && BaseBlock == SampleBlock) || !DoBlockWeight) {
-				vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
-				vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
-				vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
+		bool SampleValid = false;
 
-				SumSH += PreviousSH * CurrentWeight;
-				SumCoCg += PreviousCoCg * CurrentWeight;
-				SumSPP += PreviousUtility.x * CurrentWeight;
-				SumMoment += PreviousUtility.y * CurrentWeight;
-				SumLuminosity += PreviousUtility.z * CurrentWeight;
-				SumAOSky += texture(u_PreviousAO, SampleCoord).xy * CurrentWeight;
-				TotalWeight += CurrentWeight;
-				SuccessfulSamples++;
+		if (PositionError < PositionErrorTolerance  && PreviousPositionAt.w < 0.0f == BasePosition.w < 0.0f)
+		{
+
+			SampleValid = true;
+			
+			if (DoNormalWeight) {
+				if (PreviousNormalAt != BaseNormal) {
+					SampleValid = false;
+				}
 			}
 
-			
+			if (DoBlockWeight ) 
+			{
+				if (BaseBlock != SampleBlock) {
+					SampleValid = false;
+				}
+			}
+
+		}
+
+		if (SampleValid) {
+			vec3 PreviousUtility = texture(u_PreviousUtility, SampleCoord).xyz;
+			vec4 PreviousSH = texture(u_PreviousSH, SampleCoord).xyzw;
+			vec2 PreviousCoCg = texture(u_PrevCoCg, SampleCoord).xy;
+
+			SumSH += PreviousSH * CurrentWeight;
+			SumCoCg += PreviousCoCg * CurrentWeight;
+			SumSPP += PreviousUtility.x * CurrentWeight;
+			SumMoment += PreviousUtility.y * CurrentWeight;
+			SumLuminosity += PreviousUtility.z * CurrentWeight;
+			SumAOSky += texture(u_PreviousAO, SampleCoord).xy * CurrentWeight;
+			TotalWeight += CurrentWeight;
+			SuccessfulSamples++;
 		}
 	}
 

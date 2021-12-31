@@ -393,7 +393,7 @@ void main()
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
 			
-			if (abs(PreviousT - HitDistanceCurrent) >= 2.2f) {
+			if (abs(PreviousT - HitDistanceCurrent) >= 4.2f) {
 			
 				// If hit distance is invalid, fallback on very-approximate reprojection
 				

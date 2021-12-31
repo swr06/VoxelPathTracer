@@ -1589,8 +1589,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		const int CloudProjectionUpdateRate = 359; 
 
-		if (app.GetCurrentFrame() == 4 || app.GetCurrentFrame() == 12 || (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection))
-			|| app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate+2) == 0 && CloudReflections) {
+		if ((app.GetCurrentFrame() == 4) || (app.GetCurrentFrame() == 12) || (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection))
+			|| (app.GetCurrentFrame() % CloudProjectionUpdateRate == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+2) == 0)) {
 
 			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
 
@@ -1614,10 +1614,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 					StartIndex = 4;
 				}
 			}
+
 			glm::vec3 Motherfucker[2] = { SunDirection, MoonDirection };
 
 			// Render clouds for the entire cubemap ->
-			for (int i = (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection)) ? 0 : StartIndex; i < 6; i++) {
+			for (int i = StartIndex; i < 6; i++) {
 
 				glm::mat4 ViewMatrixCube = Matrices[i];
 
@@ -1633,7 +1634,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
 
-			CloudProjectionUpdateType = StrongerLightDirection == SunDirection;
 
 			std::cout << "\n\n---CLOUD PROJECTION UPDATE---\n\n";
 			std::cout << "\nCLOUD PROJECTION DETAILS : \n";
@@ -1641,6 +1641,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			std::cout << "\n";
 		}
 
+		CloudProjectionUpdateType = StrongerLightDirection == SunDirection;
 
 		// GBuffer ->
 		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||

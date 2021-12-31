@@ -274,7 +274,7 @@ void main()
 
 			float PositionError = dot(PositionDifference, PositionDifference);
 
-			if (PositionError > 1.069420f || SamplePosition.w < 0.0f) { 
+			if (PositionError > Diagonal || SamplePosition.w < 0.0f) { 
 				continue;
 			}
 			

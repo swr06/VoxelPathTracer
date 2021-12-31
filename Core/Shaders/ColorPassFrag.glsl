@@ -478,7 +478,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
         DepthWeight = max(DepthWeight, 0.0001f);
 
         vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
-		float NormalWeight = pow(max(abs(dot(NormalAt, BaseNormal)),0.000001f), 32.0f);
+		float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 32.0f);
         NormalWeight = max(NormalWeight, 0.0001f);
 
 		float Weight = clamp(NormalWeight * DepthWeight, 0.0f, 1.0f);
