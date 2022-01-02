@@ -23,6 +23,6 @@
 namespace VoxelRT
 {
 	namespace MCWorldImporter {
-		void ImportWorld(const std::string& Filepath, void* Output);
+		void ImportWorld(const std::string& Filepath, void* Output, const glm::vec3&);
 	}
 }

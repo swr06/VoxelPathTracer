@@ -4,6 +4,7 @@ namespace VoxelRT {
 	namespace MCWorldImporter {
 		const int HALF_WORLD_X = 384 / 2;
 		const int HALF_WORLD_Z = 384 / 2;
+		static glm::vec3 ImportOrigin;
 
 		static std::array<uint8_t, 384 * 128 * 384> ReadWorldData;
 
@@ -62,18 +63,24 @@ namespace VoxelRT {
 			return !Valid;
 		}
 
-		void WriteVoxel(uint8_t voxel, glm::ivec3 Position) {
+		void WriteVoxel(uint8_t voxel, glm::ivec3 Position)
+		{
+			Position -= glm::ivec3(ImportOrigin);
 			Position.x += HALF_WORLD_X;
 			Position.z += HALF_WORLD_Z;
-			
+
+			if (Position.y >= 128 || Position.x >= 384 || Position.z >= 384 || Position.y < 0 || Position.x < 0 || Position.z < 0 || voxel == 0) {
+				return;
+			}
+
 			int index = ConvertTo1DIDXWorld(Position.x, Position.y, Position.z);
-			
+
 			if (index < 0 || index > 384 * 128 * 384) {
 				return;
 			}
 
 			ReadWorldData[index] = voxel;
-		}
+		} // 4524 10 937
 
 		void ImportRegionFile(const std::string& Path) {
 			FILE* RegionFilePointer = fopen(Path.c_str(), "rb");
@@ -111,8 +118,10 @@ namespace VoxelRT {
 									for (sPos.x = 0; sPos.x < ENKI_MI_SIZE_SECTIONS; ++sPos.x)
 									{
 										uint8_t voxel = enkiGetChunkSectionVoxel(&aChunk, section, sPos);
+										glm::ivec3 StoreLoc = storeOrigin + glm::ivec3(sPos.x, sPos.y, sPos.z);
+
 										voxel = BlockDatabase::GetIDFromMCID(voxel);
-										WriteVoxel(voxel, storeOrigin + glm::ivec3(sPos.x, sPos.y, sPos.z));
+										WriteVoxel(voxel, StoreLoc);
 									}
 								}
 							}
@@ -132,8 +141,9 @@ namespace VoxelRT {
 
 		}
 
-		void ImportWorld(const std::string& Filepath, void* Output)
+		void ImportWorld(const std::string& Filepath, void* Output, const glm::vec3& origin)
 		{
+			ImportOrigin = origin;
 			memset(&ReadWorldData, 0, 384 * 128 * 384);
 			memset(Output, 0, 384 * 128 * 384);
 

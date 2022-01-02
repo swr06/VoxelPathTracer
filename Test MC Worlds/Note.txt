@@ -1,0 +1,3 @@
+The worlds *HAVE* to be compatible with minecraft versions 1.8.1 -> 1.14.4
+
+Only saved chunks can be read, so try turning up your render distance or using /forceload, if the chunks don't load right.

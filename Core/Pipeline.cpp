@@ -1020,7 +1020,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 				std::getline(std::cin, MinecraftWorldPath);
 			} while (!VoxelRT::DirectoryValid(MinecraftWorldPath));
 
-			VoxelRT::MCWorldImporter::ImportWorld(MinecraftWorldPath, &world->m_WorldData);
+			glm::vec3 ImportOrigin = glm::vec3(0.0f);
+			std::cout << "\nEnter the import origin (X Y Z) : ";
+			std::cin >> ImportOrigin.x;
+			std::cin >> ImportOrigin.y;
+			std::cin >> ImportOrigin.z;
+			VoxelRT::MCWorldImporter::ImportWorld(MinecraftWorldPath, &world->m_WorldData, ImportOrigin);
 		}
 	}
 

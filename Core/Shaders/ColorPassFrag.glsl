@@ -896,7 +896,7 @@ void main()
 
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
 			
-			const int VXGI_CUTOFF = 69 + 7;
+			const int VXGI_CUTOFF = 128;
 			
             if ((do_vxao && !u_RTAO && (distance(WorldPosition.xyz, u_ViewerPosition) < VXGI_CUTOFF)) || (!u_VXAOCutoff)) // -> Causes artifacts if the AO is applied too far away
             {

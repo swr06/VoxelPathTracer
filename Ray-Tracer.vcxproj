@@ -276,6 +276,7 @@
     <None Include="Core\Shaders\AtrousSpatialFilter.glsl" />
     <None Include="Core\Shaders\Bakers\BakeAnimatedPBR.glsl" />
     <None Include="Core\Shaders\Bakers\BakeTexture.glsl" />
+    <None Include="Core\Shaders\BasicCubemapBlit.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\BloomBlurTwoPass.glsl" />
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl" />
@@ -292,6 +293,7 @@
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\CubeItemShader.glsl" />
     <None Include="Core\Shaders\CubemapCombine.glsl" />
+    <None Include="Core\Shaders\DownsampleColorTexture.glsl" />
     <None Include="Core\Shaders\DownsampleDepth4x.glsl" />
     <None Include="Core\Shaders\DownsampleNormals4x.glsl" />
     <None Include="Core\Shaders\EV100.glsl" />
@@ -341,6 +343,9 @@
     <None Include="Core\Shaders\SampleVarianceCompute.glsl" />
     <None Include="Core\Shaders\ShadowFilter.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
+    <None Include="Core\Shaders\ShadowTransversalDenoiser_1.glsl" />
+    <None Include="Core\Shaders\ShadowTransversalDenoiser_2.glsl" />
+    <None Include="Core\Shaders\ShadowVarianceEstimate.glsl" />
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
     <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\Spatial3x3Initial_Gaussian.glsl" />

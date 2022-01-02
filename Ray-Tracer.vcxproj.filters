@@ -756,6 +756,21 @@
     <None Include="Core\Shaders\Bakers\BakeTexture.glsl">
       <Filter>Source Files\Shaders\Bakers</Filter>
     </None>
+    <None Include="Core\Shaders\BasicCubemapBlit.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\DownsampleColorTexture.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ShadowTransversalDenoiser_1.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ShadowTransversalDenoiser_2.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\ShadowVarianceEstimate.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="Core\Shaders\DiffuseRayTraceFrag.glsl">
