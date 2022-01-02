@@ -10,7 +10,7 @@ uniform sampler2D u_HitDist;
 void main() {
 	
 	vec2 TexelSize = 1.0f/textureSize(u_HitDist,0);
-	float Scale = 4.2f;
+	float Scale = 2.4f;
 	const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
 
 	float BaseHitDistance = texture(u_PositionTexture,v_TexCoords).x;
@@ -20,7 +20,7 @@ void main() {
 	int SamplesValid = 0;
 
 	for (int x = -1 ; x <= 1 ; x++) {
-		for (int y = -2 ; y <= 2 ; y++) {
+		for (int y = -1 ; y <= 1 ; y++) {
 			if (x == 0 && y == 0) { continue; }
 			float DistAt = texture(u_PositionTexture,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;
 			float HitDistAt = texture(u_HitDist,v_TexCoords+vec2(x,y)*TexelSize*Scale).x;

@@ -162,9 +162,7 @@ void enkiRegionFileFreeAllocations( enkiRegionFile* pRegionFile_ );
 // Note that both NULL gives 0.
 int enkiAreStringsEqual( const char* lhs_, const char* rhs_ );
 
-// World height changes (1.17 21w06a) increase num sections to a potential 256 (-128 to 127 as Y uses signed byte)
-#define ENKI_MI_NUM_SECTIONS_PER_CHUNK 256
-#define ENKI_MI_SECTIONS_Y_OFFSET 128
+#define ENKI_MI_NUM_SECTIONS_PER_CHUNK 16
 #define ENKI_MI_SIZE_SECTIONS 16
 
 typedef struct enkiMICoordinate_s
@@ -174,43 +172,24 @@ typedef struct enkiMICoordinate_s
 	int32_t z;
 } enkiMICoordinate;
 
-typedef struct enkiMINamespaceAndBlockID_s
+typedef struct enkiMIBlockID_s
 {
 	const char* pNamespaceID; // e.g. "minecraft:stone"
-	uint8_t     blockID;    // block ID returned by enkiGetChunkSectionVoxel and enkiGetChunkSectionVoxelData
-	uint8_t     dataValue;  // dataValue returned by enkiGetChunkSectionVoxelData
-} enkiMINamespaceAndBlockID;
-
-typedef struct enkiMIProperty_s {
-	char*         pName;
-	enkiNBTString value;
-} enkiMIProperty;
-
-// ENKI_MI_MAX_PROPERTIES can be modified but 6 appears to be the maximum
-#ifndef ENKI_MI_MAX_PROPERTIES
-	#define ENKI_MI_MAX_PROPERTIES 6
-#endif
-
-typedef struct enkiMIProperties_s {
-	uint32_t        size;      // capped to ENKI_MI_MAX_PROPERTIES
-	enkiMIProperty  properties[ ENKI_MI_MAX_PROPERTIES ];
-} enkiMIProperties;
+	uint32_t    numericID;    // numeric ID returned by enkiGetChunkSectionVoxel
+} enkiMIBlockID;
 
 typedef struct enkiChunkSectionPalette_s
 {
-	uint32_t       size;
-	uint32_t       numBitsPerBlock;
-	uint32_t       blockArraySize;
-	int32_t*       pDefaultBlockIndex;  // lookup index into the default enkiMINamespaceAndBlockIDTable - these values may change with versions of enkiMI, <0 means not found
-	enkiNBTString* pNamespaceIDStrings; // e.g. "minecraft:stone"
-	enkiMIProperties* pBlockStateProperties; // pointer to start of stream properties
+	uint32_t  size;
+	uint32_t  numBitsPerBlock;
+	uint32_t  blockArraySize;
+	uint32_t* pNumericIDs;
 } enkiChunkSectionPalette;
 
 typedef struct enkiChunkBlockData_s
 {
 	uint8_t* sections[ ENKI_MI_NUM_SECTIONS_PER_CHUNK ];
-	uint8_t* dataValues[ ENKI_MI_NUM_SECTIONS_PER_CHUNK ];
-	enkiChunkSectionPalette palette[ ENKI_MI_NUM_SECTIONS_PER_CHUNK ]; // if there is a palette[k].size, then sections[k] represents BlockStates
+	enkiChunkSectionPalette palette[ ENKI_MI_NUM_SECTIONS_PER_CHUNK ]; // if there is a paletteSize, then sections represents BlockStates
 	int32_t xPos; // section coordinates
 	int32_t zPos; // section coordinates
 	int32_t countOfSections;
@@ -221,6 +200,7 @@ typedef struct enkiChunkBlockData_s
 void enkiChunkInit( enkiChunkBlockData* pChunk_ );
 
 // enkiNBTReadChunk gets a chunk from an enkiNBTDataStream
+// No allocation occurs - section data points to enkiNBTDataStream.
 // pStream_ mush be kept valid whilst chunk is in use.
 enkiChunkBlockData enkiNBTReadChunk( enkiNBTDataStream* pStream_ );
 
@@ -237,23 +217,6 @@ enkiMICoordinate enkiGetChunkSectionOrigin( enkiChunkBlockData* pChunk_, int32_t
 uint8_t enkiGetChunkSectionVoxel( enkiChunkBlockData* pChunk_, int32_t section_, enkiMICoordinate sectionOffset_ );
 
 uint32_t* enkiGetMineCraftPalette(); //returns a 256 array of uint32_t's in uint8_t rgba order.
-
-typedef struct enkiMIVoxelData_s {
-	
-	uint8_t        blockID;     // pre-flattening blockIDs values, as returned by enkiGetChunkSectionVoxel(), can use to index into enkiGetMineCraftPalette
-	uint8_t        dataValue;   // pre-flattening data values, blockId::dataValue identifies block varients
-	int32_t        paletteIndex; // if >=0 index into enkiChunkBlockData.palette[section].pDefaultBlockIndex and enkiChunkBlockData.palette[section].pNamespaceIDStrings
-} enkiMIVoxelData;
-
-enkiMIVoxelData enkiGetChunkSectionVoxelData( enkiChunkBlockData* pChunk_, int32_t section_, enkiMICoordinate sectionOffset_ );
-
-typedef struct enkiMINamespaceAndBlockIDTable_s {
-	
-	uint32_t                   size;
-	enkiMINamespaceAndBlockID* namespaceAndBlockIDs;
-} enkiMINamespaceAndBlockIDTable;
-
-enkiMINamespaceAndBlockIDTable enkiGetNamespaceAndBlockIDTable();
 
 #ifdef __cplusplus
 };

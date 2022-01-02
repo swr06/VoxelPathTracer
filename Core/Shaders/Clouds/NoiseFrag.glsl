@@ -7,6 +7,7 @@ in vec2 v_TexCoords;
 uniform float u_CurrentSlice;
 uniform float u_CurrentSliceINT;
 uniform vec2 u_Dims;
+uniform vec2 u_Offset;
 
 float saturate(float x) {
     return clamp(x,0.0f,1.0f);
@@ -25,7 +26,7 @@ void PerlinHash(vec3 gridcell, float s, bool tile,
 								out vec4 highz_hash_1,
 								out vec4 highz_hash_2)
 {
-    const vec2 OFFSET = vec2(50.0, 161.0);
+    vec2 OFFSET = u_Offset;
     const float DOMAIN = 69.0;
     const vec3 SOMELARGEFLOATS = vec3(635.298681, 682.357502, 668.926525);
     const vec3 ZINC = vec3(48.500388, 65.294118, 63.934599);

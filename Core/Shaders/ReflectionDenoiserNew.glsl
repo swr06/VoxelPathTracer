@@ -224,6 +224,7 @@ void main()
 
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias, 1.0f));
 	float d = length(ViewSpaceBase);
+	d = max(d, 3.0f);
 	float f = SpecularHitDistance / max((SpecularHitDistance + d), 0.00001f);
 	
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);

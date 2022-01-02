@@ -42,6 +42,15 @@ namespace Clouds
 		glGenFramebuffers(1, &FBO);
 		glBindFramebuffer(GL_FRAMEBUFFER, FBO);
 
+		srand(static_cast <unsigned>(time(0)));
+		rand(); rand();
+		float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+		float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+		glm::vec2 Offset = glm::vec2(
+			glm::mix(10.0f, 800.0f, r),
+			glm::mix(870.0f, 12.0f, r2)
+		);
+		
 		for (int i = 0; i < slices; i++)
 		{
 			glViewport(0, 0, tex.GetWidth(), tex.GetHeight());
@@ -53,6 +62,7 @@ namespace Clouds
 			NoiseShader.SetFloat("u_CurrentSlice", (float)i / (float)slices);
 			NoiseShader.SetInteger("u_CurrentSliceINT", i);
 			NoiseShader.SetVector2f("u_Dims", glm::vec2(tex.GetWidth(), tex.GetHeight()));
+			NoiseShader.SetVector2f("u_Offset", Offset);
 			
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

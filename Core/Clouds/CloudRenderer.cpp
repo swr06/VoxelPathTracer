@@ -18,6 +18,7 @@ static std::unique_ptr<GLClasses::Shader> CloudCheckerUpscalerPtr;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoise;
 static std::unique_ptr<Clouds::NoiseTexture3D> CloudNoiseDetail;
 static std::unique_ptr<GLClasses::Texture> CloudCirrus;
+static std::unique_ptr<GLClasses::Texture> GrayNoise;
 
 namespace Clouds {
 	GLClasses::Framebuffer CurlCloudNoise(128, 128, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false, false);
@@ -32,6 +33,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudNoise = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
 	CloudNoiseDetail = std::unique_ptr<Clouds::NoiseTexture3D>(new Clouds::NoiseTexture3D);
 	CloudCirrus = std::unique_ptr<GLClasses::Texture>(new GLClasses::Texture);
+	GrayNoise = std::unique_ptr<GLClasses::Texture>(new GLClasses::Texture);
 
 	CloudShaderPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/CloudVert.glsl", "Core/Shaders/Clouds/CloudFrag.glsl");
 	CloudShaderPtr->CompileShaders();
@@ -40,6 +42,7 @@ void Clouds::CloudRenderer::Initialize()
 	CloudCheckerUpscalerPtr->CreateShaderProgramFromFile("Core/Shaders/Clouds/FBOVert.glsl", "Core/Shaders/Clouds/CheckerUpscaler.glsl");
 	CloudCheckerUpscalerPtr->CompileShaders();
 	CloudCirrus->CreateTexture("Res/Misc/cirrus_density.png", false, false);
+	GrayNoise->CreateTexture("Res/Misc/GrayNoise.png", false, false);
 
 	CloudNoise->CreateTexture(64, 64, 64, nullptr); // (32 * 3) ^ 3
 	CloudNoiseDetail->CreateTexture(32, 32, 32, nullptr);
@@ -142,6 +145,7 @@ GLuint Clouds::CloudRenderer::Update(
 		CloudShader.SetInteger("u_CloudWeatherMap", 8);
 		CloudShader.SetInteger("u_CirrusClouds", 9);
 		CloudShader.SetInteger("u_MainSkymap", 10);
+		CloudShader.SetInteger("u_GrayNoise", 12);
 		CloudShader.SetFloat("u_Time", glfwGetTime());
 		CloudShader.SetFloat("u_Coverage", Coverage);
 		CloudShader.SetFloat("BoxSize", BoxSize);
@@ -211,6 +215,9 @@ GLuint Clouds::CloudRenderer::Update(
 
 		glActiveTexture(GL_TEXTURE10);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, skymapmain);
+		
+		glActiveTexture(GL_TEXTURE12);
+		glBindTexture(GL_TEXTURE_2D, GrayNoise->GetTextureID());
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

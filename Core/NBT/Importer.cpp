@@ -117,11 +117,17 @@ namespace VoxelRT {
 								{
 									for (sPos.x = 0; sPos.x < ENKI_MI_SIZE_SECTIONS; ++sPos.x)
 									{
-										uint8_t voxel = enkiGetChunkSectionVoxel(&aChunk, section, sPos);
+										//uint8_t voxel = enkiGetChunkSectionVoxel(&aChunk, section, sPos);
+										enkiMIVoxelData ReadVoxel = enkiGetChunkSectionVoxelData(&aChunk, section, sPos);
 										glm::ivec3 StoreLoc = storeOrigin + glm::ivec3(sPos.x, sPos.y, sPos.z);
+										uint8_t voxel = ReadVoxel.blockID;
+										uint8_t dataval = ReadVoxel.dataValue;
 
-										voxel = BlockDatabase::GetIDFromMCID(voxel);
-										WriteVoxel(voxel, StoreLoc);
+										if (dataval == 0) {
+											voxel = BlockDatabase::GetIDFromMCID(voxel);
+											WriteVoxel(voxel, StoreLoc);
+										}
+										
 									}
 								}
 							}

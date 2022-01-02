@@ -927,7 +927,7 @@ GLClasses::Framebuffer FXAA_FBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
 
 // lut
-// (x % y) + (t % y) 
+// (x % y) + (t % y)  
 const glm::ivec3 HistoryLUT[4] = {
 	glm::ivec3(1, 2, 3),
 	glm::ivec3(2, 3, 0),

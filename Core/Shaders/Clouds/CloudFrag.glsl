@@ -235,14 +235,13 @@ float SampleDensity(vec3 p, float lod)
 	vec3 OriginalP = p;
 	float HeightFraction = GetHeightFraction(p);
 
-	p.xyz += vec3(500.0f, 0.0f, 750.0f);
+	p.xyz += vec3(100.0f, 0.0f, 750.0f);
 
 
 	// Curl noise ->
 
-	if (u_CurlNoiseOffset) {
-
-		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.0004f).xyz);
+	if (u_CurlNoiseOffset || true) {
+		vec3 CurlNoise = DecodeCurlNoise(TextureSmooth(u_CurlNoise,p.xz * 0.0002f).xyz);
 		//CurlNoise = pow(CurlNoise, vec3(1.0f));
 		p += CurlNoise * 32.0f;
 	}
@@ -301,7 +300,7 @@ float SampleDensity(vec3 p, float lod)
 	RemappedToCoverage = remap(RemappedToCoverage / 0.5f, (HighFreqFBM) * 0.2f, 1.0f, 0.0f, 1.0f);
 	
 	// Multiply by coverage ->
-	return clamp((RemappedToCoverage * u_Coverage), 0.0f, 1.0f);
+	return clamp((RemappedToCoverage * u_Coverage * 1.35f), 0.0f, 1.0f);
 } 
 
 
@@ -909,7 +908,7 @@ void main()
 
 		float DensityAtPosition = SampleDensity(RayPosition, 0.0f) * 1.2525f;
 
-		AverageTransversalDistance += DensityAtPosition * TransversalDistance;
+		AverageTransversalDistance += DensityAtPosition * 100.0f * TransversalDistance;
 		TransversalWeight += DensityAtPosition;
 
 		if (DensityAtPosition < 0.012f) {
@@ -943,7 +942,7 @@ void main()
 	{
 		vec3 BaseSun = SampleSunColor() * vec3(1.0f, 0.9f, 0.9f)* 1.0f;
 		float DuskVisibility = clamp(pow(abs(u_SunDirection.y - 1.0), 2.0f), 0.0f, 1.0f);
-		BaseSun = mix(vec3(1.0f), BaseSun, DuskVisibility);
+		BaseSun = mix(vec3(2.5f), BaseSun, DuskVisibility);
 		vec3 ScatterColor = mix(BaseSun, BasicSaturation(SampleMoonColor() * 1.45f, 1.0f)*1.6*(0.9f/1.0f), SunVisibility); 
 		ScatterColor *= 1.0f / PI;
 		ScatterColor *= 0.65f;
@@ -954,14 +953,14 @@ void main()
 
 	// Todo : calculate this is in the vertex shader? 
 	const vec3 NormalizedUpVector = normalize(vec3(0.01f,1.0f,0.01f));
-	vec3 SunColor = mix(vec3(38.0f),vec3(28.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor*vec3(1.05f);
+	vec3 SunColor = mix(vec3(35.0f),vec3(28.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)))*FinalSunColor*vec3(1.05f);
 	SunColor = SunColor * mix(1.5f, 1.0f, 1.0f-SunVisibility);
 	vec3 CirrusSunColor = SunColor * mix(2.0f, 1.35f, 1.0f-SunVisibility);//mix(vec3(38.0f),vec3(40.0f),float(1.0f-clamp(u_SunVisibility,0.0f,1.0f)));
 	vec3 SkyColor = texture(u_MainSkymap, vec3(0.0f, 1.0f, 0.0f)).xyz * 6.0f * mix(2.2f, 1.0f, 1.-SunVisibility);
 
 	// Dim colors if equiangular render 
 	if (u_InitialEquiangularRender) {
-		SkyColor *= 0.75f;
+		SkyColor *= 1.35f;
 		SunColor *= 0.75f;
 		CirrusSunColor *= 1.1f;
 	}
@@ -987,7 +986,7 @@ void main()
 	FinalTransmittance *= Transmittance;
 
 	// Cirrus -> 
-	if (u_CirrusStrength > 0.012f) {
+	if (u_CirrusStrength > 0.012f && false) {
 			
 		vec3 CirrusPosition = CameraPosition + Direction * SphereMin.y;
 		float CirrusTransversal = 0.001f;
