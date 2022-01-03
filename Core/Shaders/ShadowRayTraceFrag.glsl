@@ -414,7 +414,7 @@ vec2 Vogel(uint sampleIndex, uint samplesCount, float Offset)
 void main()
 {
 	g_TexCoords = v_TexCoords;
-	g_TexCoords += u_Halton * (1.0f / u_Dimensions);
+	//g_TexCoords += u_Halton * (1.0f / u_Dimensions);
 
 	g_K = 1.0f / (tan(radians(u_FOV) / (2.0f * u_Dimensions.x)) * 2.0f);
 	HASH2SEED = (g_TexCoords.x * g_TexCoords.y) * 100.0 * 2.0f;

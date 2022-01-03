@@ -1071,11 +1071,13 @@ void main()
         o_PBR.xyz = vec3(-1.0f);
     }
 
-    if (!true) {
+    const bool DEBUG_SHIT = false;
+
+    if (DEBUG_SHIT) {
         //vec4 DebugData = texture(u_DebugTexture, ProjectDirection(v_RayDirection)).xyzw;
         vec4 DebugData = texture(u_DebugTexture, g_TexCoords).xyzw;
         //o_Color = max(vec3(DebugData.x / 20.0f), 0.0f);
-        o_Color = max(vec3(DebugData.x)/2.0f,0.00001f);
+        o_Color = max(vec3(DebugData.xyz),0.00001f);
     }
 
 	o_Color = max(o_Color, vec3(0.000001f));

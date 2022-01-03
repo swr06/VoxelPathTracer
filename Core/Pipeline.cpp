@@ -303,6 +303,11 @@ static bool CloudProjectionUpdateType = true;
 
 
 
+static glm::vec3 g_SunDirection;
+static glm::vec3 g_MoonDirection;
+
+
+
 std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
 
 	std::array<glm::mat4, 6> view_matrices = {
@@ -341,12 +346,13 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::Checkbox("Fucktard", &Fucktard);
 
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
 			ImGui::Text("Player Velocity : %f, %f, %f", MainPlayer.m_Velocity[0], MainPlayer.m_Velocity[1], MainPlayer.m_Velocity[2]);
+			ImGui::Text("Sun Direction : %f, %f, %f", g_SunDirection[0], g_SunDirection[1], g_SunDirection[2]);
+			ImGui::Text("Moon Direction : %f, %f, %f", g_MoonDirection[0], g_MoonDirection[1], g_MoonDirection[2]);
 			ImGui::Text("Time : %f", glfwGetTime());
 			ImGui::Text("Sun Tick : %f", SunTick);
 			
@@ -1415,6 +1421,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		SunDirection = glm::normalize(SunDirection);
 		MoonDirection = glm::normalize(MoonDirection);
+		g_SunDirection = SunDirection;
+		g_MoonDirection = MoonDirection;
 		StrongerLightDirection = glm::normalize(StrongerLightDirection);
 
 
@@ -1574,30 +1582,33 @@ void VoxelRT::MainPipeline::StartPipeline()
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
 		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0f;
 
-		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || SunTick != PreviousSunTick)
+		// Projection update ->
+		bool CloudProjectionTimeChangeUpdate = (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection));
+
+		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || CloudProjectionTimeChangeUpdate)
 		{
 			AtmosphereRenderer.RenderAtmosphere(SkymapMain, glm::normalize(SunDirection), 30, 4);
 		}
 
-		if (app.GetCurrentFrame() % 2 == 0) {
+		if (app.GetCurrentFrame() % 2 == 0 || CloudProjectionTimeChangeUpdate) {
 			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
 			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength : 0.00f);
 		}
 		
-		if (app.GetCurrentFrame() % 3 == 0) {
+		if (app.GetCurrentFrame() % 3 == 0 || CloudProjectionTimeChangeUpdate) {
 			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
 			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary_2, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f * 0.95f : 0.00f);
 		}
 
 		PreviousSunTick = SunTick;
 
-
 		const int CloudProjectionUpdateRate = 359; 
 
-		if ((app.GetCurrentFrame() == 4) || (app.GetCurrentFrame() == 12) || (CloudProjectionUpdateType != (StrongerLightDirection == SunDirection))
+		if ((app.GetCurrentFrame() == 4) || (app.GetCurrentFrame() == 12) || CloudProjectionTimeChangeUpdate
 			|| (app.GetCurrentFrame() % CloudProjectionUpdateRate == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+2) == 0)) {
 
 			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
+
 
 			// Cube views ->
 			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 150.0, MainPlayer.m_Position.z);
@@ -1620,7 +1631,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				}
 			}
 
-			glm::vec3 Motherfucker[2] = { SunDirection, MoonDirection };
+			glm::vec3 CelestialDirections[2] = { SunDirection, MoonDirection };
 
 			// Render clouds for the entire cubemap ->
 			for (int i = StartIndex; i < 6; i++) {
@@ -1632,7 +1643,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 					PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), VirtualCenter, InitialTraceFBOPrev->GetTexture(0),
 					CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale, CloudDetailWeightEnabled ? 1.0f : 0.0f, CloudErosionWeightExponent),
 					CloudTimeScale, CurlNoiseOffset, CirrusStrength, CirrusScale, app.GetCurrentFrame() == 4 ? glm::ivec3(64, 8, 4) : (CutdownSteps ? glm::ivec3(32, 6, 3) : glm::ivec3(32, 6, 3)), CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower,
-					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true, Motherfucker, SkymapMain.GetTexture(), glm::vec2(SunStrengthModifier, MoonStrengthModifier));
+					CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), true, CloudThiccness, CloudDetailScale, true, CelestialDirections, SkymapMain.GetTexture(), glm::vec2(SunStrengthModifier, MoonStrengthModifier));
 
 
 				glBindFramebuffer(GL_FRAMEBUFFER, CloudFramebuffer);
@@ -1642,11 +1653,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			std::cout << "\n\n---CLOUD PROJECTION UPDATE---\n\n";
 			std::cout << "\nCLOUD PROJECTION DETAILS : \n";
-			std::cout << "\nTIME UPDATE : " << CutdownSteps << "\tSTART INDEX : " << StartIndex;
+			std::cout << "\nTIME UPDATE : " << CutdownSteps << "\tSTART INDEX : " << StartIndex << "\tSUN_VISIB : " << sun_visibility;
 			std::cout << "\n";
 		}
 
 		CloudProjectionUpdateType = StrongerLightDirection == SunDirection;
+
+
+
+
+
+
+
 
 		// GBuffer ->
 		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
@@ -3039,7 +3057,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		{
 			bool UpdateCloudProjection = (CloudReflections) || app.GetCurrentFrame() % 2 == 0;
 
-			glm::vec3 Motherfucker[2] = { SunDirection, MoonDirection };
+			glm::vec3 CelestialDirections[2] = { SunDirection, MoonDirection };
 
 			CloudData = Clouds::CloudRenderer::Update(MainCamera.GetProjectionMatrix(), MainCamera.GetViewMatrix(), PreviousProjection,
 				PreviousView, CurrentPosition,
@@ -3047,7 +3065,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				PADDED_WIDTH, PADDED_HEIGHT, app.GetCurrentFrame(), SkymapSecondary.GetTexture(), InitialTraceFBO->GetTexture(0), PreviousPosition, InitialTraceFBOPrev->GetTexture(0),
 				CloudModifiers, ClampCloudTemporal, glm::vec3(CloudDetailScale,CloudDetailWeightEnabled?1.0f:0.0f,CloudErosionWeightExponent), 
 				CloudTimeScale, CurlNoiseOffset, CirrusStrength,CirrusScale, CloudStepCount, CloudCheckerStepCount, sun_visibility, CloudDetailFBMPower, 
-				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection, CloudThiccness, CloudDetailScale, false, Motherfucker, SkymapMain.GetTexture(), glm::vec2(SunStrengthModifier, MoonStrengthModifier));
+				CloudLODLighting, CloudForceSupersample, CloudForceSupersampleRes, CloudSpatialUpscale, CloudAmbientDensityMultiplier, CloudProjection.GetTexture(0), UpdateCloudProjection, CloudThiccness, CloudDetailScale, false, CelestialDirections, SkymapMain.GetTexture(), glm::vec2(SunStrengthModifier, MoonStrengthModifier));
 			
 
 
@@ -3881,7 +3899,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// FXAA 
 
-		bool DoSecondaryFXAA = true && StrongerLightDirection == MoonDirection && FXAA;
+		bool DoSecondaryFXAA = true && FXAA;
 
 		if (DoSecondaryFXAA) {
 
