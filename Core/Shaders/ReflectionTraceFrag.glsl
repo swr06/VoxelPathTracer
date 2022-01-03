@@ -72,6 +72,7 @@ uniform bool u_TemporalFilterReflections;
 
 uniform bool u_RoughReflections;
 uniform bool CHECKERBOARD_SPEC_SPP;
+uniform bool u_ScreenSpaceSkylightingValid;
 
 uniform samplerCube u_Skymap;
 
@@ -637,8 +638,12 @@ vec3 SampleLPV(vec3 P, vec3 B)
 	// Fake desat ->
 	Sky = mix(vec3(L), Sky, SunStronger ? 0.3f : 0.6f); 
 	vec3 Skylighting = texture(u_IndirectAO, v_TexCoords).y * (SunStronger ? 3.5f : 4.0f) * Sky; // The y component of the ao texture contains the amount of skylight
-	Skylighting += bayer16(gl_FragCoord.xy)/128.0f;
+	Skylighting += bayer16(gl_FragCoord.xy)/256.0f;
 	Skylighting = clamp(Skylighting, vec3(0.0f), B + vec3(0.075f));
+
+	if (!u_ScreenSpaceSkylightingValid) {
+		Skylighting = B;
+	}
 
 	vec3 LPV = SampleLPVData(P);
 	return Skylighting + LPV;

@@ -447,10 +447,6 @@ void main()
 
 			}
 
-			if (!u_ShadowTemporal) {
-				BlendFactor = 0.0f;
-			}
-
 			o_Color = mix(CurrentColor, PrevColor, clamp(BlendFactor, 0.0f, 0.96f));
 
 			if (u_ShadowTemporal) {  

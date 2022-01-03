@@ -2612,6 +2612,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_RoughnessBias", ReflectionRoughnessBias&&DenoiseReflections);
 			ReflectionTraceShader.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 			ReflectionTraceShader.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
+			ReflectionTraceShader.SetBool("u_ScreenSpaceSkylightingValid", USE_SVGF);
 
 				
 
