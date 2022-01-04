@@ -475,7 +475,7 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
             vec2 SampleCoord = g_TexCoords + (vec2(x,y)) * TexelSize;
 		    float LinearDepthAt = (1.0f/texture(u_InitialTracePositionTexture, SampleCoord).x);
         
-            float DepthWeight = pow(exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f)),4.0f);
+            float DepthWeight = pow(exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f)),4.25f);
 
             vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
 		    float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 16.0f);
@@ -1070,7 +1070,7 @@ void main()
 
             // Approximate specular ->
 
-            const bool DebugApproximateSpecular = true;
+            const bool DebugApproximateSpecular = false;
 
             if (DebugApproximateSpecular) {
                 o_Color = DeriveApproxSpecular(SHy, SampledIndirectDiffuse, I, NormalMapped.xyz, Roughness);
