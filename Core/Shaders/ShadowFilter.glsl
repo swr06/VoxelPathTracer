@@ -89,7 +89,19 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
     int XSize = ReducedKernel ? 1 : 3;
     int YSize = ReducedKernel ? 1 : 3;
 
-    float Scale = Transversal > 8.0f ? 1.2f : 1.0f;
+    float Scale = 1.0f;
+
+    if (Transversal > 6.0f) {
+        Scale = 2.0f;
+    }
+
+    if (Transversal > 16.0f) {
+        Scale = 2.4f;
+    }
+
+    if (Transversal > 32.0f) {
+        Scale = 2.6f;
+    }
 
     float ClampedTransversal = clamp(Transversal, 0.0f, 10.0f);
     float VarianceEstimate = mix(20.0f, 6.0f, ClampedTransversal / 10.0f)+(Transversal < 6.0f ? 5.0f : 2.0f);

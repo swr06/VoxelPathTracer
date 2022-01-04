@@ -216,7 +216,7 @@ void main()
 	float TotalAOWeight = 1.0f;
 
 	float AccumulatedFrames = texture(u_TemporalMoment, v_TexCoords).x;
-	bool DoStrongSpatial = AccumulatedFrames < 5.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
+	bool DoStrongSpatial = AccumulatedFrames <= 8.0f && AGGRESSIVE_DISOCCLUSION_HANDLING && u_Step <= 8;
 
 	float CurveExponent = 0.0f;
 
@@ -224,12 +224,16 @@ void main()
 		CurveExponent = 128.0f;
 	}
 
+	else if (VarianceEstimate < 0.025f) {
+		CurveExponent = 112.0f;
+	}
+
 	else if (VarianceEstimate < 0.05f) {
 		CurveExponent = 96.0f;
 	}
 
 	else if (VarianceEstimate < 0.075f) {
-		CurveExponent = 80.0f;
+		CurveExponent = 84.0f;
 	}
 
 	else if (VarianceEstimate < 0.1f) {
@@ -286,7 +290,7 @@ void main()
 				NormalWeight = clamp(NormalWeight, 0.001f, 1.0f);
 				float LuminosityWeight = abs(SampleLuma - BaseLuminance) / PhiColor;
 				float DepthWeight = clamp(pow(exp(-max(DepthDiff, 0.00001f)), 2.0f), 0.0001f, 1.0f);
-				float Weight = DoStrongSpatial ? NormalWeight * DepthWeight : (exp(-LuminosityWeight) * NormalWeight * DepthWeight); // * DepthWeight;
+				float Weight = DoStrongSpatial ? (NormalWeight * DepthWeight) : (exp(-LuminosityWeight) * NormalWeight * DepthWeight); // * DepthWeight;
 				Weight = clamp(Weight, 0.001f, 1.0f);
 
 				// Kernel Weights : 
@@ -294,7 +298,7 @@ void main()
 				float YWeight = AtrousWeights[abs(y)];
 
 				Weight = (XWeight * YWeight) * Weight;
-				Weight = max(Weight, 0.01f);
+				Weight = max(Weight, 0.001f);
 
 				TotalSH += SampleSH * Weight;
 				TotalCoCg += SampleCoCg * Weight;

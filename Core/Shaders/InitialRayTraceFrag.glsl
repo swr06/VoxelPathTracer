@@ -14,6 +14,7 @@ Traversal Paper used : https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1
 layout (location = 0) out float o_HitDistance;
 layout (location = 1) out float o_Normal;
 layout (location = 2) out float o_BlockID;
+layout (location = 3) out float o_DepthNonLinear;
 
 in vec2 v_TexCoords;
 
@@ -403,7 +404,7 @@ void GetRayStuff(out vec3 r0, out vec3 rD) {
 	vec2 TexelSize = 1.0f / u_Dimensions;
 
 	if (u_JitterSceneForTAA) {
-		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame) * 0.5f;
+		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame) * 0.7f;
 		screenspace.x += (TAAJitter.x) * TexelSize.x;
 		screenspace.y += (TAAJitter.y) * TexelSize.y;
 	}
@@ -456,6 +457,7 @@ void main()
 	}
 
 	o_HitDistance = t;
+	o_DepthNonLinear = 1.0f / t;
 
 	bool transparent;
 

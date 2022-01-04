@@ -901,8 +901,8 @@ public:
 
 };
 
-GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
-GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_R32F, GL_RED, GL_FLOAT, true, true} }, false);
+GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_R32F, GL_RED, GL_FLOAT, true, true} }, false);
 
 
 GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
@@ -3128,6 +3128,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetVector3f("u_MoonDirection", glm::normalize(MoonDirection));
 		ColorShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
 		ColorShader.SetVector3f("u_ViewerPosition", MainCamera.GetPosition());
+
+		ColorShader.SetVector3f("u_StrongerLightDirectionVert", StrongerLightDirection);
+		ColorShader.SetVector3f("u_SunDirectionVert", SunDirection);
+		ColorShader.SetVector3f("u_MoonDirectionVert", MoonDirection);
+
 		ColorShader.SetFloat("u_Time", glfwGetTime());
 		ColorShader.SetFloat("u_GrassblockAlbedoID", BlockDatabase::GetBlockTexture("Grass", BlockDatabase::BlockFaceType::Front));
 		ColorShader.SetFloat("u_SunStrengthModifier", SunStrengthModifier);
@@ -3159,6 +3164,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetMatrix4("u_InverseView", inv_view);
 		ColorShader.SetMatrix4("u_InverseProjection", inv_projection);
 		ColorShader.SetInteger("u_DebugTexture", 22);
+		ColorShader.SetInteger("u_CloudProjectionVert", 28);
+		ColorShader.SetInteger("u_CloudProjection", 28);
 		ColorShader.SetInteger("u_SSSShadowMap", 24);
 
 
@@ -3192,7 +3199,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
@@ -3270,6 +3277,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE27);
 		glBindTexture(GL_TEXTURE_3D, LavaNormals.m_ID);
 
+		glActiveTexture(GL_TEXTURE28);
+		glBindTexture(GL_TEXTURE_2D, CloudProjection.GetTexture());
+
 		BlockDataStorageBuffer.Bind(0);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, VoxelRT::Volumetrics::GetAverageColorSSBO());
 
@@ -3312,13 +3322,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, PrevTAAFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE3);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(0));
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(3));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3922,7 +3932,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, TonemappedFBO.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
@@ -3980,7 +3990,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glBindTexture(GL_TEXTURE_2D, DoSecondaryFXAA ? FXAA_FBO.GetTexture() : TonemappedFBO.GetTexture());
 
 		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
 
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
@@ -4046,6 +4056,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
+
+		
+		if (MainPlayer.m_Position.y < 2.0f) {
+			MainPlayer.m_Position.y = 127.0f;
+			MainPlayer.Camera.SetPosition(MainPlayer.m_Position);
+		}
+
 
 		// Prime numbers taken to make sure that there arent any lag spikes.
 		// (You want to make sure that too many heavy operations don't take place on the exact same frame) 

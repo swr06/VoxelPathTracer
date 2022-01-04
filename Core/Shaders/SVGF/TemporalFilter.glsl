@@ -183,21 +183,21 @@ void main()
 	}
 
 	else if (DistanceToPlayer < 6.0f) {
-		PositionErrorTolerance = 0.5f;
+		PositionErrorTolerance = 0.65f;
 		DoBlockWeight = true;
 		DoNormalWeight = true;
 
 	}
 
 	else if (DistanceToPlayer < 8.0f) {
-		PositionErrorTolerance = 0.75f;
+		PositionErrorTolerance = 0.85f;
 		DoBlockWeight = true;
 		DoNormalWeight = true;
 
 	}
 
 	else if (DistanceToPlayer < 16.0f) {
-		PositionErrorTolerance = 1.0f;
+		PositionErrorTolerance = 1.414f;
 		DoBlockWeight = true;
 		DoNormalWeight = true;
 
@@ -232,14 +232,14 @@ void main()
 	}
 
 	else if (DistanceToPlayer < 128.0f) {
-		PositionErrorTolerance = 7.0f;
+		PositionErrorTolerance = 9.0f;
 		DoBlockWeight = false;
 		DoNormalWeight = false;
 
 	}
 
 	else if (DistanceToPlayer < 200.0f) {
-		PositionErrorTolerance = 8.0f;
+		PositionErrorTolerance = 14.0f;
 		DoBlockWeight = false;
 		DoNormalWeight = false;
 	}

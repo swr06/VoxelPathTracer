@@ -788,7 +788,7 @@ void main()
 		//}
 
 		// importance sample :
-		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection((BaseEmissivity>0.05f?InitialTraceNormal:NormalMappedInitial),clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (BaseEmissivity>0.05f?InitialTraceNormal:NormalMappedInitial);
+		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (NormalMappedInitial);
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;

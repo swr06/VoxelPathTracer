@@ -61,7 +61,7 @@ vec3 GetRayDirection(vec2 screenspace)
 
 vec4 SampleBasePosition(sampler2D pos_tex)
 {
-	float Dist = texture(pos_tex, v_TexCoords).r;
+	float Dist = 1./texture(pos_tex, v_TexCoords).r;
 	return vec4(v_RayOrigin + normalize(v_RayDirection) * Dist, Dist);
 }
 
@@ -77,7 +77,7 @@ vec3 GetPREVRayDirectionAt(vec2 screenspace)
 
 vec4 GetPREVPositionAt(vec2 txc)
 {
-	float Dist = texture(u_PreviousPositionTexture, txc).r;
+	float Dist = 1./texture(u_PreviousPositionTexture, txc).r;
 	return vec4(u_InversePrevView[3].xyz + normalize(GetPREVRayDirectionAt(txc)) * Dist, Dist);
 }
 
@@ -163,7 +163,7 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
-			float DepthAt = texture(u_PositionTexture, v_TexCoords).x;
+			float DepthAt = 1./texture(u_PositionTexture, v_TexCoords).x;
 
             MinColor = min(Sample, MinColor); 
 			MaxColor = max(Sample, MaxColor); 

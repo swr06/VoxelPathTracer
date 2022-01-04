@@ -165,7 +165,7 @@ vec3 GetRayDirectionAt(vec2 screenspace)
 vec4 SamplePositionAt(vec2 txc)
 {
 	vec3 O = u_InverseView[3].xyz;
-	float Dist = texture(u_PositionTexture, txc).r;
+	float Dist = 1./texture(u_PositionTexture, txc).r;
 	return vec4(O + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
 }
 
@@ -241,7 +241,7 @@ float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0,
 
 bool DetectEdge(out bool Skyedge)
 {
-	vec3 BasePosition = SamplePositionAt(TexCoords).xyz;
+	vec4 BasePosition = SamplePositionAt(TexCoords).xyzw;
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords).xyz;
 	vec3 BaseColor = texture(u_FramebufferTexture, TexCoords).xyz;
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
@@ -250,12 +250,12 @@ bool DetectEdge(out bool Skyedge)
 
 	for (int x = -1 ; x <= 1 ; x++)
 	{
-		for (int y = -2 ; y <= 2 ; y++)
+		for (int y = -1 ; y <= 1 ; y++)
 		{
 			vec2 SampleCoord = TexCoords + vec2(x, y) * TexelSize;
 			vec4 SamplePosition = SamplePositionAt(SampleCoord).xyzw;
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-			float PositionError = distance(BasePosition, SamplePosition.xyz);
+			float PositionError = abs(SamplePosition.w - BasePosition.w);//distance(BasePosition, SamplePosition.xyz);
 			int SampleBlock = GetBlockAt(SampleCoord);
 
 			if (SamplePosition.w < 0.0f) {
@@ -282,7 +282,7 @@ void FXAA311(inout vec3 color)
 	float edgeThresholdMax = 0.125;
 	bool Skyedge = false;
 	bool IsAtEdge = DetectEdge(Skyedge);
-	float subpixelQuality = IsAtEdge ? 0.975f : 0.0925f; 
+	float subpixelQuality = IsAtEdge ? 0.935f : 0.0925f; 
 
 	//if (IsAtEdge) {
 	//	color = vec3(1.,0.,0.);

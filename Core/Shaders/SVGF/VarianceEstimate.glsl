@@ -75,7 +75,7 @@ void main()
     vec2 Dimensions = textureSize(u_SH, 0);
     vec2 TexelSize = 1.0f / Dimensions;
 
-    vec3 BasePosition = GetPositionAt(v_TexCoords).xyz;
+    vec4 BasePosition = GetPositionAt(v_TexCoords).xyzw;
     vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 
     vec3 BaseUtility = texture(u_Utility, v_TexCoords).xyz;
@@ -119,40 +119,34 @@ void main()
 
                 if (!InScreenSpace(SampleCoord)) { continue; }
 
-                vec3 SamplePosition = GetPositionAt(SampleCoord).xyz;
+                vec4 SamplePosition = GetPositionAt(SampleCoord).xyzw;
 
-                // Weights : 
-                vec3 PositionDifference = abs(SamplePosition - BasePosition);
-                float DistSqr = dot(PositionDifference, PositionDifference);
+                vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
+                vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
+                float SampleMoment = SampleUtility.y;
 
-                if (DistSqr < 1.0f) 
-                { 
-                    vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-                    vec3 SampleUtility = texture(u_Utility, SampleCoord).xyz;
-                    float SampleMoment = SampleUtility.y;
+                // Sample SH : 
+                vec4 SampleSH = texture(u_SH, SampleCoord);
+                vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
+                float SampleLuminosity = SHToY(SampleSH);
 
-                    // Sample SH : 
-                    vec4 SampleSH = texture(u_SH, SampleCoord);
-                    vec2 SampleCoCg = texture(u_CoCg, SampleCoord).xy;
-                    float SampleLuminosity = SHToY(SampleSH);
+                float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
+                float DepthWeight = pow(exp(-abs(SamplePosition.w - BasePosition.w)), 2.0f);
+                float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / ColorPhi;
+                float Weight = exp(-LuminosityWeight) * NormalWeight * DepthWeight;
+                float Weight_2 = Weight;
 
-                    float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.0f), 16.0f);
-                    float LuminosityWeight = abs(SampleLuminosity - BaseLuminosity) / ColorPhi;
-                    float Weight = exp(-LuminosityWeight - NormalWeight);
-                    float Weight_2 = Weight;
+                Weight = max(Weight, 0.0015f);
+                Weight_2 = max(Weight_2, 0.0015f);
 
-                    Weight = max(Weight, 0.0015f);
-                    Weight_2 = max(Weight_2, 0.0015f);
+                TotalWeight += Weight;
+                TotalMoment += SampleMoment * Weight_2;
 
-                    TotalWeight += Weight;
-                    TotalMoment += SampleMoment * Weight_2;
+                TotalSH += SampleSH * Weight;
+                TotalCoCg += SampleCoCg * Weight;
+                TotalLuminosity += SampleLuminosity * Weight_2;
 
-                    TotalSH += SampleSH * Weight;
-                    TotalCoCg += SampleCoCg * Weight;
-                    TotalLuminosity += SampleLuminosity * Weight_2;
-
-                    TotalWeight2 += Weight_2;
-                }
+                TotalWeight2 += Weight_2;
             }
         }
 
