@@ -402,123 +402,10 @@ vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float p
 }   
 
 
-
-
-bool IsAtEdge(in vec2 txc)
-{
-    vec2 TexelSize = 1.0f / textureSize(u_InitialTracePositionTexture, 0);
-
-    const vec2 Kernel[8] = vec2[8]
-	(
-		vec2(-1.0, -1.0),
-		vec2( 0.0, -1.0),
-		vec2( 1.0, -1.0),
-		vec2(-1.0,  0.0),
-		vec2( 1.0,  0.0),
-		vec2(-1.0,  1.0),
-		vec2( 0.0,  1.0),
-		vec2( 1.0,  1.0)
-	);
-
-    for (int i = 0 ; i < 8 ; i++)
-    {
-        if (SamplePositionAt(u_InitialTracePositionTexture, txc + Kernel[i] * TexelSize).w <= 0.0f)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 float SHToY(vec4 shY)
 {
     return max(0, 3.544905f * shY.w); // get luminance (Y) from the first spherical harmonic
 }
-
-// Spatially upscales indirect data ->
-void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, out float ShadowSample, bool fuckingsmooth, out float ao)
-{
-    const bool BE_FUCKING_USELESS = false;
-
-    if (BE_FUCKING_USELESS) {
-        vec2 SampleCoord = g_TexCoords;
-        SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
-		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
-        SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
-        SpecularCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy;
-        ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
-        return;
-    }
-
-	vec4 TotalSH = vec4(0.0f);
-	vec2 TotalCoCg = vec2(0.0f);
-    vec4 TotalSpecSH = vec4(0.0f);
-    vec2 TotalSpecCoCg = vec2(0.0f);
-    float TotalShadow = 0.0f;
-	float TotalWeight = 0.0f;
-    ao = 0.0f;
-
-    bool FilterShadows = BaseLinearDepth > 128.0f;
-
-    if (!FilterShadows) {
-        TotalShadow = BetterTexture(u_ShadowTexture, g_TexCoords).x;
-    }
-
-	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
-    const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
-
-	for (int x = -1 ; x <= 1 ; x++) {
-
-        for (int y = -1 ; y <= 1 ; y++) {
-		
-            vec2 SampleCoord = g_TexCoords + (vec2(x,y)) * TexelSize;
-		    float LinearDepthAt = (1.0f/texture(u_InitialTracePositionTexture, SampleCoord).x);
-        
-            float DepthWeight = pow(exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f)),4.25f);
-
-            vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
-		    float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 16.0f);
-            NormalWeight = max(NormalWeight, 0.0001f);
-
-            float KernelWeight = AtrousWeights[abs(x)] * AtrousWeights[abs(y)];
-		    
-            float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
-		    Weight = max(Weight, 0.01f);
-
-
-		    TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
-		    TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
-            TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
-            TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
-            ao += texture(u_VXAO, SampleCoord).x * Weight;
-		    TotalWeight += Weight;
-
-            if (FilterShadows) {
-		        TotalShadow += BetterTexture(u_ShadowTexture, SampleCoord).x * Weight;
-            }
-
-
-        }
-	}
-
-    TotalWeight = max(TotalWeight, 0.001f);
-
-    SH = TotalSH / TotalWeight;
-    CoCg = TotalCoCg / TotalWeight;
-    TotalSpecSH = TotalSpecSH / TotalWeight;
-    TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
-    ao = ao / TotalWeight;
-
-    if (FilterShadows) {
-        TotalShadow = TotalShadow / TotalWeight;
-    }
-
-    SpecularSHy = TotalSpecSH;
-    SpecularCoCg = TotalSpecCoCg;
-    ShadowSample = TotalShadow;
-}
-
 
 // from quake2rtx
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
@@ -645,6 +532,19 @@ float SpecularGGX(vec3 V, vec3 L, vec3 N, float roughness, float NoH_offset)
     return 0;
 }
 
+// Custom very non physically based subsurface scattering 
+vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shadow, float SunVisibility) 
+{
+    float VDotL = dot(V, u_StrongerLightDirection);
+    float MiePhase = MiePhaseFunction(VDotL, 0.8f);
+    MiePhase = pow(MiePhase,(0.9f/1.0f)*PI*(0.9f/1.0f));
+    float ScatteringAmount = (1.0f - exp(-pow(MiePhase * PI * 2.0f * PI, 1.0f)));
+    ScatteringAmount = clamp(ScatteringAmount * PI * 1.1f * u_SubsurfaceScatterStrength * mix(0.5f, 1.0f, SunVisibility), 0.0001f, 7.0f);
+    float VisibilityTerm = (1.0f - Shadow);
+    vec3 Scattering = vec3(ScatteringAmount * mix(SAMPLED_MOON_COLOR,SAMPLED_SUN_COLOR/3.5f,SunVisibility) * VisibilityTerm) * Albedo;
+    return Scattering;
+}
+
 // Derives approximate specular from diffuse spherical harmonic 
 // credits : q2rtx
 vec3 DeriveApproxSpecular(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 Normal, float rough) 
@@ -674,6 +574,104 @@ vec3 DeriveApproxSpecular(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 Normal,
 
 }
 
+
+bool IsImmediateNeighbour(ivec2 x) {
+    if (x == ivec2(-1, 0) || x == ivec2(1, 0) || x == ivec2(0, -1) || x == ivec2(0, 1) || x == ivec2(0, 0)) {
+        return true;
+    }
+
+    return false;
+}
+
+
+// Spatially upscales indirect data ->
+void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, out float ShadowSample, bool fuckingsmooth, out float ao)
+{
+    const bool BE_FUCKING_USELESS = false;
+
+    if (BE_FUCKING_USELESS) {
+        vec2 SampleCoord = g_TexCoords;
+        SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
+		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
+        SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
+        SpecularCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy;
+        ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
+        return;
+    }
+
+	vec4 TotalSH = vec4(0.0f);
+	vec2 TotalCoCg = vec2(0.0f);
+    vec4 TotalSpecSH = vec4(0.0f);
+    vec2 TotalSpecCoCg = vec2(0.0f);
+    float TotalShadow = 0.0f;
+	float TotalWeight = 0.0f;
+	float TotalShadowWeight = 0.0f;
+    ao = 0.0f;
+
+    bool FilterShadows = BaseLinearDepth > 128.0f;
+
+    if (!FilterShadows) {
+        TotalShadow = BetterTexture(u_ShadowTexture, g_TexCoords).x;
+    }
+
+	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
+    const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
+
+	for (int x = -1 ; x <= 1 ; x++) {
+
+        for (int y = -1 ; y <= 1 ; y++) {
+
+            bool SampleDirect = IsImmediateNeighbour(ivec2(x,y));
+            
+            vec2 SampleCoord = g_TexCoords + (vec2(x,y)) * TexelSize;
+		    float LinearDepthAt = (1.0f/texture(u_InitialTracePositionTexture, SampleCoord).x);
+        
+            float ExpDepth = exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f));
+            float DepthWeight = pow(ExpDepth, 4.25f);
+
+            vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
+		    float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 16.0f);
+            NormalWeight = max(NormalWeight, 0.0001f);
+
+            float KernelWeight = AtrousWeights[abs(x)] * AtrousWeights[abs(y)];
+		    
+            float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
+		    Weight = max(Weight, 0.01f);
+
+
+		    TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
+		    TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
+            TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
+            TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
+            ao += texture(u_VXAO, SampleCoord).x * Weight;
+		    TotalWeight += Weight;
+
+            if (FilterShadows) {
+                if (SampleDirect) {
+                    float ShadowWeight = KernelWeight * clamp(pow(ExpDepth, 32.0f), 0.00001f, 1.0f) * (NormalWeight * NormalWeight);
+		            TotalShadow += texture(u_ShadowTexture, SampleCoord).x * ShadowWeight;
+                    TotalShadowWeight += ShadowWeight;
+                }
+            }
+        }
+	}
+
+    TotalWeight = max(TotalWeight, 0.001f);
+
+    SH = TotalSH / TotalWeight;
+    CoCg = TotalCoCg / TotalWeight;
+    TotalSpecSH = TotalSpecSH / TotalWeight;
+    TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
+    ao = ao / TotalWeight;
+
+    if (FilterShadows) {
+        TotalShadow = TotalShadow / TotalShadowWeight;
+    }
+
+    SpecularSHy = TotalSpecSH;
+    SpecularCoCg = TotalSpecCoCg;
+    ShadowSample = TotalShadow;
+}
 
 
 // Converts a temperature to a color
@@ -728,19 +726,6 @@ vec3 SampleMoonColor(float sv, bool x) {
     float L = GetLuminance(MoonColor);
     //MoonColor = mix(MoonColor, vec3(L), 0.05f); 
     return MoonColor * 0.5f * vec3(0.9f, 0.9f, 1.0f);
-}
-
-// Custom very non physically based subsurface scattering 
-vec3 IntegrateSubsurfaceScatter(vec3 V, vec3 P, vec3 N, vec3 Albedo, float Shadow, float SunVisibility) 
-{
-    float VDotL = dot(V, u_StrongerLightDirection);
-    float MiePhase = MiePhaseFunction(VDotL, 0.8f);
-    MiePhase = pow(MiePhase,(0.9f/1.0f)*PI*(0.9f/1.0f));
-    float ScatteringAmount = (1.0f - exp(-pow(MiePhase * PI * 2.0f * PI, 1.0f)));
-    ScatteringAmount = clamp(ScatteringAmount * PI * 1.1f * u_SubsurfaceScatterStrength * mix(0.5f, 1.0f, SunVisibility), 0.0001f, 7.0f);
-    float VisibilityTerm = (1.0f - Shadow);
-    vec3 Scattering = vec3(ScatteringAmount * mix(SAMPLED_MOON_COLOR,SAMPLED_SUN_COLOR/3.5f,SunVisibility) * VisibilityTerm) * Albedo;
-    return Scattering;
 }
 
 // Converts a value from one range to another

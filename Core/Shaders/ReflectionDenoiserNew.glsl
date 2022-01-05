@@ -6,6 +6,8 @@
 
 #version 430 core
 
+//#define NORMAL_MAP_KERNEL_WEIGHT
+
 layout (location = 0) out vec4 o_SpatialResult;
 layout (location = 1) out vec2 o_CoCg;
 
@@ -132,10 +134,16 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
 
 vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
 {
-    vec3 StandardDeviation = vec3(sqrt(max(0.00001f, VarianceEstimate))); // Calculate standard deviation 
+	// Calculate standard deviation 
+	// Mean is the mean of a box kernel on a 3x3 or 5x5 area
+	// While calculating the mean, average the luminance squared as well to calculate variance.
+
+    vec3 StandardDeviation = vec3(sqrt(max(0.00001f, VarianceEstimate))); 
     vec3 Threshold = 0.1f + Mean + StandardDeviation * 8.0;
     vec3 ErrorEstimate = vec3(max(vec3(0.0f), Radiance - Threshold));
-    return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); // -> Dim based on variance error 
+
+	// dim based on variance error
+    return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); 
 }
 
 vec2 CalculateUV(vec3 world_pos, in vec3 normal);
@@ -223,19 +231,55 @@ void main()
 	vec3 NormalMapLobeBias = NormalMappedBase * 4096.0 * float(u_NormalMapAware);
 
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias, 1.0f));
-	float d = length(ViewSpaceBase);
-	d = max(d, 3.0f);
-	float f = SpecularHitDistance / max((SpecularHitDistance + d), 0.00001f);
+	float ViewLength = length(ViewSpaceBase);
+	float ViewLengthWeight = 0.001f + ViewLength;
+
+
+	// View length weight ->
+
+	if (RoughnessAt > 0.135f) {
+		ViewLengthWeight = max(ViewLengthWeight, 0.750);
+	}
+
+	else {
+		ViewLengthWeight = max(ViewLengthWeight, 3.0f);
+	}
+
+	if (RoughnessAt < 0.125f) {
+		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 6.0f);
+	}
+
+	else if (RoughnessAt < 0.25f) {
+		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 8.0f+1.0f);
+	}
+
+	else if (RoughnessAt < 0.5f) {
+		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 16.0f);
+	}
+
+	else if (RoughnessAt < 0.75f) {
+		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 24.0f);
+	}
+
+	else {
+		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 32.0f);
+	}
+
+	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
+	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	
-	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, f), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
+	// Calculate gaussian radius ->
 	int EffectiveRadius = int(floor(Radius * 15.0f));
 	EffectiveRadius = clamp(EffectiveRadius, 1, 15);
 
 	// reduce noise on too rough objects 
 	bool BaseTooRough = RoughnessAt > 0.897511f;
 	EffectiveRadius = BaseTooRough ? 15 : EffectiveRadius;
+
+	// Basic jitter to reduce 2 pass gaussian artifacts 
 	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
 	
+	// Sample scale based on resolution scale
 	float Scale = 1.0f;
 	Scale = mix(1.1f, 3.2525f, u_ResolutionScale / 1.25f);
 	
@@ -319,13 +363,15 @@ void main()
 				CurrentWeight *= clamp(LuminanceWeight, 0.0f, 1.0f);
 			}
 
-			//if (u_NormalMapAware && !SampleTooRough) {
-			//	vec3 NormalMappedSample = texture(u_BlockNormals, vec3(SampleUV, SampleTexArrayRef)).xyz * 2.0f - 1.0f;
-			//	NormalMappedSample = NormalMappedSample;
-			//	float NormalMapWeight = pow(abs(dot(NormalMappedSample, NormalMapRaw)), 16.0f);
-			//	NormalMapWeight = clamp(pow(NormalMapWeight, 64.0f), 0.001f, 1.0f);
-			//	CurrentWeight *= clamp(NormalMapWeight, 0.001f, 1.0f);
-			//}
+			#ifdef NORMAL_MAP_KERNEL_WEIGHT
+				if (u_NormalMapAware && !SampleTooRough) {
+					vec3 NormalMappedSample = texture(u_BlockNormals, vec3(SampleUV, SampleTexArrayRef)).xyz * 2.0f - 1.0f;
+					NormalMappedSample = NormalMappedSample;
+					float NormalMapWeight = pow(abs(dot(NormalMappedSample, NormalMapRaw)), 16.0f);
+					NormalMapWeight = clamp(pow(NormalMapWeight, 64.0f), 0.001f, 1.0f);
+					CurrentWeight *= clamp(NormalMapWeight, 0.001f, 1.0f);
+				}
+			#endif
 
 			//CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
 			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
