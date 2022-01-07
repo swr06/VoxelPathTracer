@@ -326,7 +326,7 @@ void main()
 		
 		
 		
-		if (RoughnessAt <= 0.70f+0.01f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
+		if (RoughnessAt <= 0.80f+0.01f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
 		{
 			// Reconstruct the reflected position to properly reproject
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
@@ -341,7 +341,7 @@ void main()
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
 			
-			if (abs(PreviousT - HitDistanceCurrent) >= 4.2f) {
+			if (abs(PreviousT - HitDistanceCurrent) >= 3.0f) {
 			
 				// If hit distance is invalid, fallback on very-approximate reprojection
 				
@@ -364,7 +364,7 @@ void main()
 		if (SkySample) {
 			
 			// We can make some reprojection assumptions when the sky is reflected (such as a constant transversal) ->
-			float SkyTransversalApproximate = 64.0f;
+			const float SkyTransversalApproximate = 64.0f;
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
 			vec3 ReflectedPosition = CurrentPosition.xyz - I * SkyTransversalApproximate;
 			vec4 ProjectedPosition = u_PrevProjection * u_PrevView  * vec4(ReflectedPosition, 1.0f);
@@ -395,7 +395,7 @@ void main()
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
-			float BlendFactor = LessValid ? (Moved ? 0.725f : 0.875f) : (Moved ? 0.875f : 0.95f); 
+			float AccumulationFactor = LessValid ? (Moved ? (RoughnessAt > 0.75f ? 0.825f : (RoughnessAt > 0.575f ? 0.7f : 0.575f)) : 0.875f) : (Moved ? 0.875f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
@@ -417,11 +417,11 @@ void main()
 			//	BlendFactor *= 1.15f;
 			//}
 
-			BlendFactor *= 1.07f;
-			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);
+			AccumulationFactor *= 1.07f;
+			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.95f);
 
 			// mix sh
-			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
+			o_Color = mix(CurrentColor, PrevColor, AccumulationFactor);
 		}
 
 		else 

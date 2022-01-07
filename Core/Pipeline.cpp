@@ -162,7 +162,7 @@ static float CloudThiccness = 1250.0f;
 
 // basic nebula settings ->
 static float NebulaStrength = 1.0f;
-static float NebulaGIStrength = 0.5f;
+static float NebulaGIStrength = 0.50f;
 static bool NebulaCelestialColor = false;
 static bool NebulaGIColor = true;
 
@@ -244,6 +244,7 @@ static bool SmartReflectionClip = true;
 static bool ReflectionNormalMapWeight = false;
 static int ReflectionDenoisingRadiusBias = 0;
 static bool ReflectionLPVGI = true;
+static bool RefectionUseDecoupledGI = false;
 static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
 static bool ReflectionDenoiserDeviationHandling = true;
@@ -479,6 +480,7 @@ public:
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
 			ImGui::Checkbox("Use screen space data for GI in reflections?", &ReprojectReflectionsToScreenSpace);
 			ImGui::Checkbox("Approximate GI in reflections using LPV?", &ReflectionLPVGI);
+			ImGui::Checkbox("Decouple GI (Decouples sky and point light gi)?", &RefectionUseDecoupledGI);
 
 			if (ReflectionLPVGI) {
 				ImGui::Checkbox("High Quality LPVGI in reflections?", &ReflectionHighQualityLPVGI);
@@ -1605,12 +1607,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (app.GetCurrentFrame() % 2 == 0 || CloudProjectionTimeChangeUpdate) {
 			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
-			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength : 0.00f);
+			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f : 0.00f);
 		}
 		
 		if (app.GetCurrentFrame() % 3 == 0 || CloudProjectionTimeChangeUpdate) {
 			glm::mat4 CuberotationMap = glm::rotate(glm::mat4(1.0f), (float)glm::radians(glfwGetTime() * 2.0f), glm::vec3(0.3f, 0.1f, 1.0f));
-			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary_2, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f * 0.95f : 0.00f);
+			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary_2, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f : 0.00f);
 		}
 
 		PreviousSunTick = SunTick;
@@ -2670,6 +2672,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 			ReflectionTraceShader.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 			ReflectionTraceShader.SetBool("u_ScreenSpaceSkylightingValid", USE_SVGF);
+			ReflectionTraceShader.SetBool("u_UseDecoupledGI", RefectionUseDecoupledGI);
 
 				
 

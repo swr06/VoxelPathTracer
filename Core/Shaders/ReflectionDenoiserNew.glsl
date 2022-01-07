@@ -187,6 +187,7 @@ void main()
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 
 	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	RoughnessAt += 0.001f;
 	float RawRoughness = RoughnessAt;
 	RoughnessAt *= mix(1.0f, 0.91f, float(u_RoughnessBias));
 
@@ -195,7 +196,7 @@ void main()
 	vec3 NormalMapRaw = NormalMappedBase;
 	NormalMappedBase = TangentBasis * NormalMappedBase;
 
-	float HitDistanceFetch = texture(u_SpecularHitData, v_TexCoords).x;
+	float HitDistanceFetch = texture(u_SpecularHitData, v_TexCoords).x + 0.0001f;
 	float RawHitDistance = HitDistanceFetch;
 
 	const float LobeDistanceCurveBias = 1.0f / 1.3f;
@@ -267,8 +268,16 @@ void main()
 
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
 
-	if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.6f) {
+	if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.625f) {
 		TransversalContrib = pow(TransversalContrib, 2.5f);
+	}
+
+	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.525f) {
+		TransversalContrib = pow(TransversalContrib, 1.35f);
+	}
+
+	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.35f) {
+		TransversalContrib = pow(TransversalContrib, 1.4f);
 	}
 
 
@@ -327,7 +336,7 @@ void main()
 
 			bool KillDepthWeight = false;
 
-			if (BasePosition.w < 32.0f) {
+			if (BasePosition.w < 42.0f) {
 				if (!BlockValidity) {
 					continue;
 				}
@@ -336,7 +345,7 @@ void main()
 			
 				float PositionError = dot(PositionDifference, PositionDifference);
 				
-				if (PositionError > Diagonal || SamplePosition.w < 0.0f) { 
+				if (PositionError > 2.0f || SamplePosition.w < 0.0f) { 
 					continue;
 				}
 

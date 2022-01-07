@@ -117,6 +117,7 @@ uniform bool u_QualityLPVGI;
 uniform vec2 u_Halton;
 uniform bool u_RoughnessBias;
 
+uniform bool u_UseDecoupledGI;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -605,25 +606,33 @@ vec3 SampleLPVData(vec3 UV);
 
 
 // Samples LPV for GI
-vec3 SampleLPV(vec3 P, vec3 B)
+vec3 ApproximateGILPV(vec3 P, vec3 B)
 {
-	vec3 Sky = SkyAmbientG; 
-	float L = dot(Sky, vec3(0.2125, 0.7154, 0.0721));
+	if (u_UseDecoupledGI) {
 
-	// Fake it till you make it sky gi
+		// Decouples sky gi by sampling sky contribution in screen space and combining that with the LPV data 
+		
+		vec3 Sky = SkyAmbientG; 
+		float L = dot(Sky, vec3(0.2125, 0.7154, 0.0721));
+		Sky = mix(vec3(L), Sky, SunStronger ? 0.3f : 0.6f); 
+		vec3 Skylighting = texture(u_IndirectAO, v_TexCoords).y * (SunStronger ? 3.5f : 4.0f) * Sky; // The y component of the ao texture contains the amount of skylight
+		Skylighting += bayer16(gl_FragCoord.xy)/512.0f;
+		Skylighting = clamp(Skylighting * 13.0f, vec3(0.0f), B + vec3(0.075f));
 
-	// Fake desat ->
-	Sky = mix(vec3(L), Sky, SunStronger ? 0.3f : 0.6f); 
-	vec3 Skylighting = texture(u_IndirectAO, v_TexCoords).y * (SunStronger ? 3.5f : 4.0f) * Sky; // The y component of the ao texture contains the amount of skylight
-	Skylighting += bayer16(gl_FragCoord.xy)/256.0f;
-	Skylighting = clamp(Skylighting, vec3(0.0f), B + vec3(0.075f));
+		if (!u_ScreenSpaceSkylightingValid) {
+			Skylighting = B;
+		}
 
-	if (!u_ScreenSpaceSkylightingValid) {
-		Skylighting = B;
+		vec3 LPV = SampleLPVData(P);
+		return Skylighting + LPV;
+
 	}
 
-	vec3 LPV = SampleLPVData(P);
-	return Skylighting + LPV;
+	else {
+		vec3 BaseAmbient = B * 0.9;
+		vec3 LPV = SampleLPVData(P);
+		return LPV + BaseAmbient;
+	}
 }
 
 vec3 LPVDither = vec3(0.0f);
@@ -804,7 +813,7 @@ void main()
 			}
 
 			if (u_LPVGI && !ReprojectionSuccessful) {
-				Ambient = SampleLPV(HitPosition+Normal*0.5f, BaseIndirectDiffuse);
+				Ambient = ApproximateGILPV(HitPosition+Normal*0.5f, BaseIndirectDiffuse);
 			}
 
 
@@ -1443,8 +1452,9 @@ vec3 SampleLPVData(vec3 UV)
 		InterpolatedColor = InterpolateLPVColorData(UV);
 	}
 
-	vec3 FinalInterpolated = vec3(level*100.0f)*pow(pow(InterpolatedColor,vec3(1.0f/2.0f)),vec3(1.0f,1.0f,1.0f/1.40f))*2.0f*vec3(1.,1.,0.9);
-	FinalInterpolated = mix(vec3(Luma(FinalInterpolated)), FinalInterpolated, 0.75f);
+	// Tweak colors to look close to reprojected gi
+	vec3 FinalInterpolated = vec3(level * 325.0f) * InterpolatedColor;
+	FinalInterpolated = mix(vec3(Luma(FinalInterpolated)), FinalInterpolated, 0.5f);
     return FinalInterpolated;
 }
 

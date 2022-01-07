@@ -986,9 +986,9 @@ void main()
 
                 // Not physically accurate
                 // Done for stylization purposes 
-                // Metals have their reflections 85% brighter and have their albedos 10% more desaturated
+                // Metals have their reflections 60% brighter and have their albedos 10% more desaturated
                 if (PBRMap.y >= 0.1f) {
-                    SpecularIndirect *= 1.85f;
+                    SpecularIndirect *= 1.6f;
                 }
 
                 vec3 FresnelTerm = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
@@ -1373,8 +1373,8 @@ vec3 InterpolateLPVColorDithered(vec3 UV) // Very few samples with fantastic res
     vec3 LinearOffset = (FractTexel * (FractTexel - 1.0f) + 0.5f) / Resolution;
     vec3 W0 = UV - LinearOffset;
     vec3 W1 = UV + LinearOffset;
-    const float DitherWeights[4] = float[4](1.0f, 0.5f, 0.35f, 0.25f);
-    const float GlobalDitherNoiseWeight = 3.0f;
+    const float DitherWeights[4] = float[4](1.0f, 1.0f, 1.0f, 1.0f);
+    const float GlobalDitherNoiseWeight = 2.0f;
 
     vec3 Interpolated = SampleLPVColor(vec3(W0.x, W0.y, W0.z) + Dither * DitherWeights[0] * GlobalDitherNoiseWeight)
     	   + SampleLPVColor(vec3(W1.x, W0.y, W0.z) - Dither * DitherWeights[0] * GlobalDitherNoiseWeight)
@@ -1410,8 +1410,8 @@ float InterpLPVDensity(vec3 UV)
 
 vec3 GetSmoothLPVData(vec3 UV) {    
     UV *= 1.0f/vec3(384.0f,128.0f,384.0f);
-    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
-    //return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorDithered(UV),vec3(1.0f/1.8f))*2.0f;
+    //return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorData(UV),vec3(1.0f/1.8f))*2.0f;
+    return vec3(InterpLPVDensity(UV)*50.0f)*pow(InterpolateLPVColorDithered(UV),vec3(1.0f/1.8f))*2.0f;
 }
 
 vec3 GetSmoothLPVDensity(vec3 UV) {    
