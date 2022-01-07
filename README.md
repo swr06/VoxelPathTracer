@@ -31,14 +31,15 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Ray Traced Ambient Occlusion
 - Bloom (Mip based) 
 - Volumetric 3D clouds (Implemented Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
-- Reprojected Cloud Reflections 
-- Particle system
-- Spherical harmonics (First order harmonic that integrates over luminance, used to encode indirect radiance data, used for both specular and diffuse) 
+- Cloud Reflections 
+- Basic Particle system
+- Spherical harmonics (First order harmonic that integrates over luminance, used to encode indirect radiance data, used for indirect diffuse) 
 - Alpha testing
 - Fully 3D Audio
 - Light Propogation Volumes with custom smooth interpolation and support for colored lights
 - Point Light Volumetrics using ray marching and the Light Propogation Volume
 - Contrast Adaptive Sharpening
+- Minecraft world loading (WIP)
 
 # Todo Features / QOL Improvements
 - Depth Of Field
