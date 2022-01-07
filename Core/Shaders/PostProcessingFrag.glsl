@@ -642,11 +642,11 @@ void main()
 		vec3 TotalBloom = vec3(0.0f);
 
 		// Tweaks the bloom color a bit
-		float AmplificationFactor = 1.125f;
+		float AmplificationFactor = 1.1;
 			
 		// Weighted average ->
 
-		float Weights[5] = float[5](5.75f, 4.7f, 4.0f, 3.7f, 3.7f);
+		float Weights[5] = float[5](5.75f, 4.85f, 4.75f, 4.5f, 4.35f);
 		const float DetailWeight = 7.2f;
 
 		TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;

@@ -58,8 +58,7 @@ uniform sampler2D u_DiffuseCoCg;
 
 uniform float u_TextureDesatAmount;
 
-uniform sampler2D u_ReflectionSHData;
-uniform sampler2D u_ReflectionCoCgData;
+uniform sampler2D u_SpecularIndirect;
 
 uniform sampler2D u_HighResBL;
 
@@ -585,7 +584,7 @@ bool IsImmediateNeighbour(ivec2 x) {
 
 
 // Spatially upscales indirect data ->
-void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularSHy, out vec2 SpecularCoCg, out float ShadowSample, bool fuckingsmooth, out float ao)
+void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
 {
     const bool BE_FUCKING_USELESS = false;
 
@@ -593,19 +592,18 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
         vec2 SampleCoord = g_TexCoords;
         SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
 		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
-        SpecularSHy += texture(u_ReflectionSHData, SampleCoord).xyzw;
-        SpecularCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy;
+        SpecularIndirect += texture(u_SpecularIndirect, SampleCoord).xyzw;
         ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
         return;
     }
 
 	vec4 TotalSH = vec4(0.0f);
 	vec2 TotalCoCg = vec2(0.0f);
-    vec4 TotalSpecSH = vec4(0.0f);
-    vec2 TotalSpecCoCg = vec2(0.0f);
+    vec4 TotalSpecColor = vec4(0.0f);
     float TotalShadow = 0.0f;
 	float TotalWeight = 0.0f;
 	float TotalShadowWeight = 0.0f;
+	float TotalSpecWeight = 0.0f;
     ao = 0.0f;
 
     bool FilterShadows = BaseLinearDepth > 128.0f;
@@ -636,15 +634,16 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
             float KernelWeight = AtrousWeights[abs(x)] * AtrousWeights[abs(y)];
 		    
             float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
+            float SpecWeight = clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
 		    Weight = max(Weight, 0.01f);
 
 
 		    TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
 		    TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
-            TotalSpecSH += texture(u_ReflectionSHData, SampleCoord).xyzw * Weight;
-            TotalSpecCoCg += texture(u_ReflectionCoCgData, SampleCoord).xy * Weight;
+            TotalSpecColor += texture(u_SpecularIndirect, SampleCoord).xyzw * SpecWeight;
             ao += texture(u_VXAO, SampleCoord).x * Weight;
 		    TotalWeight += Weight;
+            TotalSpecWeight += SpecWeight;
 
             if (FilterShadows) {
                 if (SampleDirect) {
@@ -660,16 +659,14 @@ void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out
 
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
-    TotalSpecSH = TotalSpecSH / TotalWeight;
-    TotalSpecCoCg = TotalSpecCoCg / TotalWeight;
+    TotalSpecColor = TotalSpecColor / TotalSpecWeight;
     ao = ao / TotalWeight;
 
     if (FilterShadows) {
         TotalShadow = TotalShadow / TotalShadowWeight;
     }
 
-    SpecularSHy = TotalSpecSH;
-    SpecularCoCg = TotalSpecCoCg;
+    SpecularIndirect = TotalSpecColor;
     ShadowSample = TotalShadow;
 }
 
@@ -839,7 +836,7 @@ void main()
 
             bool IsLiquid =  (u_LavaBlockID == BaseBlockID) ;
             bool IsLava =  (u_LavaBlockID == BaseBlockID) ;
-            vec3 DistortedUV = IsLiquid ? BasicTextureDistortion(vec3(UV,fract(u_Time*0.3f))) : vec3(0.0f);
+            vec3 DistortedUV = IsLiquid ? BasicTextureDistortion(vec3(UV,fract(u_Time*0.3f))) : vec3(UV,0.0f);
 
             vec3 AlbedoColor = IsLava ? (texture(u_LavaTextures[0], DistortedUV).xyz) :
                                textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
@@ -852,7 +849,7 @@ void main()
             AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
 
             if (PBRMap.y >= 0.1f - 0.01f){
-                AlbedoColor = BasicSaturation(AlbedoColor, 0.75f);
+                AlbedoColor = BasicSaturation(AlbedoColor, 0.9f);
             }
 
             vec3 NonAmplifiedNormal = NormalMapped;
@@ -864,16 +861,16 @@ void main()
                 NormalMapped = normalize(NormalMapped);
             }
             
-           float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(UV, data.w)).r : 0.0f;
+            float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(DistortedUV.xy, data.w)).r : 0.0f;
+            Emissivity *= mix(1.,1.5,float(IsLava));
 
             vec4 SHy;
             vec2 ShCoCg;
-            vec4 SpecularSH;
-            vec2 SpecularCoCg;
+            vec4 UpscaledSpecularIndirect;
 			float UpscaledShadow=0.0f;
             float UpscaledAO = 0.0f;
 		
-            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, SpecularSH, SpecularCoCg,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
+            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, UpscaledSpecularIndirect,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
 			UpscaledShadow = clamp(UpscaledShadow,0.0f,1.0f);
 
 			float RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz,UpscaledShadow);
@@ -947,21 +944,8 @@ void main()
             vec3 R = reflect(I, NormalMapped).xyz;
 
             if (InBiasedSS) {
-                SpecularIndirect += SHToIrridiance(SpecularSH, SpecularCoCg, normalize(R)); 
-
-                // Handle invalid samples ->
-                vec3 MostProminentDirectionSpec = SpecularSH.xyz / SpecularSH.w * (0.282095f / 0.488603f);
-                MostProminentDirectionSpec = normalize(MostProminentDirectionSpec);
-                float NDotPD = dot(MostProminentDirectionSpec, SampledNormals.xyz);
-                
-                if (NDotPD < -0.05f) {
-                    vec3 RawSpecularIndirect =  SHToIrridiance(SpecularSH, SpecularCoCg);
-                    SpecularIndirect = RawSpecularIndirect * 0.75f;
-                
-                    //InferSpecularIndirect(SampledNormals.xyz, WorldPosition.w, BaseBlockID, SpecularSH, SpecularCoCg);
-                    //SpecularIndirect = SHToIrridiance(SpecularSH, SpecularCoCg) * 1.8f;
-                
-                }
+                float Attenuation = clamp(pow(max(dot(SampledNormals.xyz, NonAmplifiedNormal), 0.00000001f),2.0f)*1.5f, 0.1f, 1.0f);
+                SpecularIndirect = UpscaledSpecularIndirect.xyz * 1.5f * Attenuation;
             }
 
 			SpecularIndirect = max(vec3(0.0001f), SpecularIndirect);
@@ -1002,13 +986,9 @@ void main()
 
                 // Not physically accurate
                 // Done for stylization purposes 
-                // Metals have their reflections 65% brighter and have their albedos 20% more desaturated
+                // Metals have their reflections 85% brighter and have their albedos 10% more desaturated
                 if (PBRMap.y >= 0.1f) {
-                    SpecularIndirect *= 1.65f;
-                }
-
-                else {
-                    SpecularIndirect *= 0.925f;
+                    SpecularIndirect *= 1.85f;
                 }
 
                 vec3 FresnelTerm = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
@@ -1050,22 +1030,16 @@ void main()
              
             // Flicker
             if (IsLava) {
-                o_PBR.w *= clamp(pow(sin(u_Time * 4.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
+                o_PBR.w *= clamp(pow(sin(u_Time * 5.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
+                o_PBR.w *= 1.50f;
             }
 
             // Approximate specular ->
-
             const bool DebugApproximateSpecular = false;
 
             if (DebugApproximateSpecular) {
                 o_Color = DeriveApproxSpecular(SHy, SampledIndirectDiffuse, I, NormalMapped.xyz, Roughness);
             }
-
-
-
-
-
-
 
             o_BloomAlbedos = AlbedoColor;
             //o_Color = DiffuseIndirect;

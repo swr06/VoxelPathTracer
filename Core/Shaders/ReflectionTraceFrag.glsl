@@ -29,10 +29,9 @@ float bayer2(vec2 a){
 #define bayer256(a) (bayer128(0.5 * (a)) * 0.25 + bayer2(a))
 
 
-layout (location = 0) out vec4 o_SH;
-layout (location = 1) out vec2 o_CoCg;
-layout (location = 2) out float o_HitDistance;
-layout (location = 3) out float o_EmissivityHitMask; // -> Used as input to the firefly rejection filter 
+layout (location = 0) out vec4 o_Color;
+layout (location = 1) out float o_HitDistance;
+layout (location = 2) out float o_EmissivityHitMask; // -> Used as input to the firefly rejection filter 
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -345,28 +344,6 @@ vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = texture(pos_tex, txc).r;
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
-}
-
-// Quake2RTX
-float[6] IrridianceToSH(vec3 Radiance, vec3 Direction) {
-	
-	float Co = Radiance.x - Radiance.z; 
-	float T = Radiance.z + Co * 0.5f; 
-	float Cg = Radiance.y - T;
-	float Y  = max(T + Cg * 0.5f, 0.0);
-	float L00  = 0.282095f;
-    float L1_1 = 0.488603f * Direction.y;
-    float L10  = 0.488603f * Direction.z;
-    float L11  = 0.488603f * Direction.x;
-	float ReturnValue[6];
-	ReturnValue[0] = max(L11 * Y, -100.0f);
-	ReturnValue[1] = max(L1_1 * Y, -100.0f);
-	ReturnValue[2] = max(L10 * Y, -100.0f);
-	ReturnValue[3] = max(L00 * Y, -100.0f);
-
-	ReturnValue[4] = Co;
-	ReturnValue[5] = Cg;
-	return ReturnValue;
 }
 
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
@@ -686,8 +663,7 @@ void main()
 
 	int total_hits = 0;
 
-	vec4 TotalSH = vec4(0.0f);
-	vec2 TotalCoCg = vec2(0.0f);
+	vec4 TotalColor = vec4(0.0f);
 
 	// For temporal supersampling/antialiasing ->
 	vec2 g_TexCoords = v_TexCoords;
@@ -706,8 +682,7 @@ void main()
 	
 	if (SampledWorldPosition.w < 0.0f)
 	{
-		o_SH = vec4(0.0f);
-		o_CoCg.xy = vec2(0.0f, 0.0f);
+		o_Color = vec4(0.0f);
 		o_EmissivityHitMask = 0.0f;
 		o_HitDistance = -1.0f;
 		return;
@@ -731,7 +706,7 @@ void main()
 	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal)); 
 	
 	vec3 NormalMappedInitial = tbn * (texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.04f; // Apply bias.
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.06f; // Apply bias.
     NormalMappedInitial = normalize(NormalMappedInitial);
 	
 	float ComputedShadow = 0.0f;
@@ -771,9 +746,7 @@ void main()
 	if (FuckingRough && u_DeriveFromDiffuseSH) {
 		vec3 ReflectedNormal = reflect(I,NormalMappedInitial);
 		vec3 DerivedRadiance = DeriveSpecularFromDiffuseSH(DiffuseSH, SHToIrridiance(DiffuseSH, DiffuseCoCg, NormalMappedInitial.xyz), I, NormalMappedInitial);
-		float[6] SH = IrridianceToSH(DerivedRadiance, ReflectedNormal);
-		o_SH = vec4(SH[0], SH[1], SH[2], SH[3]);
-		o_CoCg = vec2(SH[4], SH[5]);
+		o_Color = vec4(DerivedRadiance, 0.0f);
 		o_HitDistance = 0.5f;
 		o_EmissivityHitMask = 0.0f;
 		return;
@@ -955,10 +928,7 @@ void main()
 				ComputePlayerReflection(refpos, R, Computed, T);
 			}
 			
-			// Project to 2nd level spherical harmonic 
-			float[6] SH = IrridianceToSH(Computed, R);
-			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
-			TotalCoCg += vec2(SH[4], SH[5]);
+			TotalColor += vec4(Computed, 1.0f);
 
 			// Store hit distance for reprojection and denoiser ->
 			AveragedHitDistance += T;
@@ -972,9 +942,8 @@ void main()
 			if (u_ReflectPlayer) {
 				ComputePlayerReflection(refpos.xyz, R, AtmosphereColor, 10000.0f);
 			}
-			float[6] SH = IrridianceToSH(AtmosphereColor, R);
-			TotalSH += vec4(SH[0], SH[1], SH[2], SH[3]);
-			TotalCoCg += vec2(SH[4], SH[5]);
+			
+			TotalColor += vec4(AtmosphereColor*mix(1.0f,1.175f,float(PBRMap.y>0.05f)), 1.0f);
 		}
 
 
@@ -982,18 +951,15 @@ void main()
 	}
 
 	AveragedHitDistance /= max(TotalMeaningfulHits, 0.01f);
-	TotalSH /= max(float(total_hits), 1.0f);
-	TotalCoCg /= max(float(total_hits), 1.0f);
-	
+	TotalColor /= float(total_hits);
+
 	// Store ->
-	o_SH = TotalSH;
-	o_CoCg = TotalCoCg;
+	o_Color = TotalColor;
 	o_HitDistance = TotalMeaningfulHits > 0.01f ? AveragedHitDistance : -1.0f;
 	o_EmissivityHitMask = EmissivityMask;
 	
 	// Clamp ->
-	o_SH = clamp(o_SH, -100.0f, 100.0f);
-	o_CoCg = clamp(o_CoCg, -50.0f, 50.0f);
+	o_Color = clamp(o_Color, 0.0000001f, 100.0f);
 	o_HitDistance = clamp(o_HitDistance, -10.0f, 200.0f);
 	o_EmissivityHitMask = clamp(o_EmissivityHitMask, 0.0f, 1.0f);
 }

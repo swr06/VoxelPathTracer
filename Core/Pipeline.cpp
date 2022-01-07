@@ -126,7 +126,7 @@ static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 static bool ContrastAdaptiveSharpening = true;
 static float CAS_SharpenAmount = 0.3 + 0.05f;
 
-static bool UseDFG = false;
+static bool UseEnvironmentBRDF = true;
 static bool RemoveTiling = false;
 
 
@@ -306,6 +306,11 @@ static bool CloudProjectionUpdateType = true;
 static glm::vec3 g_SunDirection;
 static glm::vec3 g_MoonDirection;
 
+static bool RandomDebugVar = false;
+
+
+const bool DOWNSAMPLE_GBUFFERS = false;
+
 
 
 std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
@@ -346,7 +351,7 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-
+			ImGui::Checkbox("Debug Variable", &RandomDebugVar);
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
@@ -376,7 +381,7 @@ public:
 			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular, 3 : Direct", &DEBUGTraceLevel, 0, 3);
 
 			ImGui::NewLine();
-			ImGui::Checkbox("* Use accurate indirect light combining? (Option for stylization) (Accounts for metals)", &UseDFG);
+			ImGui::Checkbox("* Use accurate indirect light combining? (Option for stylization) (Accounts for metals)", &UseEnvironmentBRDF);
 			ImGui::NewLine();
 
 			// Sun/Moon ->
@@ -903,6 +908,8 @@ public:
 
 GLClasses::Framebuffer InitialTraceFBO_1(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_R32F, GL_RED, GL_FLOAT, true, true} }, false);
 GLClasses::Framebuffer InitialTraceFBO_2(16, 16, { {GL_R16F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_R32F, GL_RED, GL_FLOAT, true, true} }, false);
+GLClasses::Framebuffer HalfResGBuffer(16, 16, { {GL_R32F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer QuarterResGBuffer(16, 16, { {GL_R32F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
 
 GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
@@ -942,12 +949,12 @@ const glm::ivec3 HistoryLUT[4] = {
 };
 
 
-GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
+GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
 // shadow buffers
@@ -1144,6 +1151,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& BilateralHitDist_2 = ShaderManager::GetShader("BILATERAL_HITDIST2");
 	GLClasses::Shader& SSSBlur = ShaderManager::GetShader("SSSBLUR");
 	GLClasses::Shader& SSSBlurPoisson = ShaderManager::GetShader("SSSBLUR_POISSON");
+	GLClasses::Shader& GBuffer4xDownsample = ShaderManager::GetShader("GBUFFER_DOWNSAMPLE");
 	
 	// wip.
 	GLClasses::Shader& SVGF_Temporal = ShaderManager::GetShader("SVGF_TEMPORAL");
@@ -1446,6 +1454,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			InitialTraceFBO_1.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
+			
+			if (DOWNSAMPLE_GBUFFERS) {
+				HalfResGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution * 0.5f), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution * 0.5f));
+				QuarterResGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution * 0.25f), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution * 0.25f));
+			}
 
 			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
 			VolumetricsComputeBlurred.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
@@ -1718,6 +1731,50 @@ void VoxelRT::MainPipeline::StartPipeline()
 			VAO.Unbind();
 
 			InitialTraceFBO->Unbind();
+
+			if (DOWNSAMPLE_GBUFFERS) {
+				// Downsampling ->
+
+				// Half res ->
+				GBuffer4xDownsample.Use();
+				HalfResGBuffer.Bind();
+				GBuffer4xDownsample.SetInteger("u_DepthFullRes", 0);
+				GBuffer4xDownsample.SetInteger("u_NormalsFullRes", 1);
+				GBuffer4xDownsample.SetInteger("u_BlockIDs", 2);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+
+				// Quarter res ->
+				QuarterResGBuffer.Bind();
+				GBuffer4xDownsample.Use();
+				GBuffer4xDownsample.SetInteger("u_DepthFullRes", 0);
+				GBuffer4xDownsample.SetInteger("u_NormalsFullRes", 1);
+				GBuffer4xDownsample.SetInteger("u_BlockIDs", 2);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, HalfResGBuffer.GetTexture(0));
+
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, HalfResGBuffer.GetTexture(1));
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, HalfResGBuffer.GetTexture(2));
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
 		}
 
 		// Diffuse tracing
@@ -2626,7 +2683,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
 
 			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+
+			if (false && DOWNSAMPLE_GBUFFERS) {
+				glBindTexture(GL_TEXTURE_2D, QuarterResGBuffer.GetTexture(1));
+
+			}
+
+			else {
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
+			}
 
 			glActiveTexture(GL_TEXTURE4);
 			glBindTexture(GL_TEXTURE_2D_ARRAY, VoxelRT::BlockDatabase::GetNormalTextureArray());
@@ -2706,7 +2771,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 				glActiveTexture(GL_TEXTURE1);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2748,8 +2813,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 			SpecularTemporalFilter.SetInteger("u_PBRTex", 4);
 
-			SpecularTemporalFilter.SetInteger("u_CurrentCoCg", 5);
-			SpecularTemporalFilter.SetInteger("u_PrevCoCg", 6);
 
 			SpecularTemporalFilter.SetInteger("u_SpecularHitDist", 7);
 			SpecularTemporalFilter.SetInteger("u_PrevSpecularHitDist", 8);
@@ -2771,6 +2834,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetBool("u_FireflyRejection", ReflectionFireflyRejection);
 			SpecularTemporalFilter.SetBool("u_AggressiveFireflyRejection", AggressiveFireflyRejection);
 			SpecularTemporalFilter.SetBool("u_SmartClip", SmartReflectionClip);
+			SpecularTemporalFilter.SetBool("u_RoughnessWeight", RoughReflections);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -2796,15 +2860,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
 
-			glActiveTexture(GL_TEXTURE5);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
-			glActiveTexture(GL_TEXTURE6);
-			glBindTexture(GL_TEXTURE_2D, PrevReflectionTemporalFBO.GetTexture(1));
 
 			glActiveTexture(GL_TEXTURE7);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 			glActiveTexture(GL_TEXTURE8);
-			glBindTexture(GL_TEXTURE_2D, PrevReflectionTraceFBO.GetTexture(2));
+			glBindTexture(GL_TEXTURE_2D, PrevReflectionTraceFBO.GetTexture(1));
 
 			glActiveTexture(GL_TEXTURE9);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
@@ -2813,7 +2873,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBOPrev->GetTexture(1));
 
 			glActiveTexture(GL_TEXTURE11);
-			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(3));
+			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
 
 
 			VAO.Bind();
@@ -2836,7 +2896,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_PositionTexture", 1);
 				ReflectionDenoiser.SetInteger("u_NormalTexture", 2);
 				ReflectionDenoiser.SetInteger("u_PBRTex", 3);
-				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockNormals", 11);
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
@@ -2876,8 +2935,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE3);
 				glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetPBRTexture());
 
-				glActiveTexture(GL_TEXTURE5);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(1));
 
 				glActiveTexture(GL_TEXTURE6);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
@@ -2886,7 +2943,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 
 				glActiveTexture(GL_TEXTURE10);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 
 				glActiveTexture(GL_TEXTURE11);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
@@ -2905,7 +2962,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_InputTexture", 0);
 				ReflectionDenoiser.SetInteger("u_PositionTexture", 1);
 				ReflectionDenoiser.SetInteger("u_NormalTexture", 2);
-				ReflectionDenoiser.SetInteger("u_InputCoCgTexture", 5);
 				ReflectionDenoiser.SetInteger("u_BlockIDTex", 6);
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
@@ -2938,8 +2994,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE2);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
-				glActiveTexture(GL_TEXTURE5);
-				glBindTexture(GL_TEXTURE_2D, ReflectionDenoised_1.GetTexture(1));
 
 				glActiveTexture(GL_TEXTURE6);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(2));
@@ -2948,7 +3002,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 				
 				glActiveTexture(GL_TEXTURE10);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
+				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
 
 				glActiveTexture(GL_TEXTURE11);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
@@ -3105,6 +3159,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_DiffuseCoCg", 15);
 
 		ColorShader.SetInteger("u_ReflectionSHData", 16);
+		ColorShader.SetInteger("u_SpecularIndirect", 16);
 		ColorShader.SetInteger("u_ReflectionCoCgData", 17);
 		ColorShader.SetInteger("u_VXAO", 18);
 		ColorShader.SetInteger("u_HighResBL", 19);
@@ -3154,7 +3209,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGTraceLevel==2);
 		ColorShader.SetBool("u_DEBUGShadows", DEBUGTraceLevel==3);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
-		ColorShader.SetBool("u_UseDFG", UseDFG);
+		ColorShader.SetBool("u_UseDFG", UseEnvironmentBRDF);
 		ColorShader.SetBool("u_SSSSS", SSSSS && SSSSSStrength > 0.01f);
 		ColorShader.SetBool("u_NebulaCelestialColor", NebulaCelestialColor);
 		ColorShader.SetBool("u_InferSpecularDetailSpatially", InferSpecularDetailSpatially);
@@ -3241,8 +3296,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE16);
 		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture() : ReflectionTemporalFBO.GetTexture()) : ReflectionTemporalFBO.GetTexture());
-		glActiveTexture(GL_TEXTURE17);
-		glBindTexture(GL_TEXTURE_2D, RoughReflections ? (DenoiseReflections ? ReflectionDenoised_2.GetTexture(1) : ReflectionTemporalFBO.GetTexture(1)) : ReflectionTemporalFBO.GetTexture(1));
 
 		glActiveTexture(GL_TEXTURE18);
 		glBindTexture(GL_TEXTURE_2D, DiffuseDenoiseFBO.GetTexture(3));

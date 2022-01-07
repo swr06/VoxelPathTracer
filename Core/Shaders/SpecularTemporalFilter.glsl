@@ -5,8 +5,7 @@
 #define USE_NEW_REPROJECTION 1
 #define EPS 0.01f
 
-layout (location = 0) out vec4 o_SH;
-layout (location = 1) out vec2 o_CoCg;
+layout (location = 0) out vec4 o_Color;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -17,9 +16,6 @@ uniform sampler2D u_PreviousColorTexture; // -> Previous SHy
 
 uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
-
-uniform sampler2D u_CurrentCoCg;
-uniform sampler2D u_PrevCoCg;
 
 uniform sampler2D u_PreviousNormalTexture;
 
@@ -53,6 +49,8 @@ uniform bool u_SmartClip = true;
 // Firefly rejection ->
 uniform bool u_FireflyRejection;
 uniform bool u_AggressiveFireflyRejection;
+
+uniform bool u_RoughnessWeight;
 
 vec2 Dimensions;
 
@@ -140,7 +138,7 @@ vec3 ClipToAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
     return denom > 1.0 ? pClip + vClip / denom : prevColor;
 }
 
-void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Reprojected, float Roughness) {
+void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughness, float Metalness) {
 	
 	const float RoughnessThreshold = 0.275f + 0.01f;
 	
@@ -148,10 +146,8 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 		return;
 	}
 	
-	vec4 MinSH = vec4(1000.0f), MaxSH = vec4(-1000.0f);
-	vec2 MinCoCg = vec2(1000.0f), MaxCoCg = vec2(-1000.0f);
-	vec3 MinRadiance = vec3(1000.0f);
-	vec3 MaxRadiance = vec3(-1000.0f);
+	vec4 MinColor = vec4(1000.0f), MaxColor = vec4(-1000.0f);
+
 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
 	
@@ -169,24 +165,16 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 				AdditionalMaxBias += 0.1f;
 			}
 
-			vec4 SampleSH = texture(u_CurrentColorTexture, SampleCoord);
-			vec2 SampleCoCg = texture(u_CurrentCoCg, SampleCoord).xy;
+			vec4 SampleColor = texture(u_CurrentColorTexture, SampleCoord);
 			
-			vec3 Irradiance = SHToIrridiance(SampleSH, SampleCoCg);
-			
-			if (MinRadiance != min(Irradiance, MinRadiance)) {
-				MinSH = SampleSH;
-				MinCoCg = SampleCoCg;
-				MinRadiance = min(Irradiance, MinRadiance);
-			}
-			
-			if (MaxRadiance != max(Irradiance, MaxRadiance)) {
-				MaxSH = SampleSH;
-				MaxCoCg = SampleCoCg;
-				MaxRadiance = max(Irradiance, MaxRadiance);
-			}
+			MinColor = min(SampleColor, MinColor);
+			MaxColor = max(SampleColor, MaxColor);
 		}
 	}
+
+	vec3 OriginalMinColor = MinColor.xyz;
+	vec3 OriginalMaxColor = MaxColor.xyz;
+
 
 	bool ADD_BIAS = true;
 	
@@ -209,31 +197,32 @@ void ReflectionClipping(inout vec4 PreviousSH, inout vec2 PreviousCoCg, vec2 Rep
 				Bias *= 1.75f;
 			}
 			
-			MinRadiance -= (Bias * 0.95f);
-			MaxRadiance += (Bias * 0.95f) + AdditionalMaxBias;
+			MinColor -= (Bias * 0.95f);
+			MaxColor += (Bias * 0.95f) + AdditionalMaxBias;
 		}
 		
 		else if (Roughish) 
 		{
-			MinRadiance -= 0.37f;
-			MaxRadiance += 0.37f + (AdditionalMaxBias * 1.1f);
+			MinColor -= 0.37f;
+			MaxColor += 0.37f + (AdditionalMaxBias * 1.1f);
 		}
 	}
 
-	// Clipping ->
-	vec3 BaseRadiance = SHToIrridiance(PreviousSH, PreviousCoCg);
-	vec3 ClampedRadiance = ClipToAABB(BaseRadiance, MinRadiance, MaxRadiance);
-	//vec3 ClampedRadiance = clamp(BaseRadiance, MinRadiance, MaxRadiance);
+	// Adjust bias by importance 
+	MinColor.xyz = mix(MinColor.xyz, OriginalMinColor, mix(0.05f,0.25f,float(Metalness>0.05f)));
+	MaxColor.xyz = mix(MaxColor.xyz, OriginalMaxColor, mix(0.05f,0.25f,float(Metalness>0.05f)));
 
-	if (ClampedRadiance != BaseRadiance) {
-		if (distance(ClampedRadiance, MinRadiance) > distance(ClampedRadiance, MaxRadiance)) {
-			PreviousSH = MaxSH;
-			PreviousCoCg = MaxCoCg;
+
+	// Clipping ->
+	vec3 ClampedRadiance = ClipToAABB(PreviousColor.xyz, MinColor.xyz, MaxColor.xyz).xyz;
+
+	if (ClampedRadiance != PreviousColor.xyz) {
+		if (distance(ClampedRadiance, MinColor.xyz) > distance(ClampedRadiance, MaxColor.xyz)) {
+			PreviousColor = MaxColor;
 		}
 
 		else {
-			PreviousSH = MinSH;
-			PreviousCoCg = MinCoCg; 
+			PreviousColor = MinColor;
 		}
 	}
 	
@@ -260,85 +249,43 @@ vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
     return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); 
 }
 
-void FireflyReject(inout vec4 InputSH, inout vec2 InputCoCg) 
+void FireflyReject(inout vec4 InputColor) 
 {
-	float Y = SHToY(InputSH);
+	float Y = GetLuminance(InputColor.xyz);
 	int SampleThreshold = u_AggressiveFireflyRejection ? 3 : 4;
 
 	vec2 Offsets[4] = vec2[4](vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(-1.0f, 0.0f), vec2(0.0f, -1.0f));
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
 
-	vec4 NonLitSHySum = vec4(0.0f);
-	vec2 NonLitCoCgSum = vec2(0.0f);
+	vec4 NonLitColor = vec4(0.0f);
 	float MinY = 1000.0f;
 	int UnlitSampleSum = 0;
 	
 	for (int i = 0 ; i < 4 ; i++) {
 		vec2 SampleCoord = v_TexCoords + Offsets[i] * TexelSize;
 		float Mask = texture(u_EmissivityIntersectionMask, SampleCoord).x;
-		vec4 SHy = texture(u_CurrentColorTexture, SampleCoord);
+		vec4 Color = texture(u_CurrentColorTexture, SampleCoord);
 
 		if (Mask < 0.01f) {
-			NonLitSHySum += SHy;
-			NonLitCoCgSum += texture(u_CurrentCoCg, SampleCoord).xy;
+			NonLitColor += Color;
 			UnlitSampleSum++;
 		}
 
-		float yy = SHToY(SHy);
+		float yy = GetLuminance(Color.xyz);
 		MinY = min(MinY, yy);
 	}
 
 	if (UnlitSampleSum >= SampleThreshold) {
 
 		// Average ->
-		NonLitSHySum /= float(UnlitSampleSum);
-		NonLitCoCgSum /= float(UnlitSampleSum);
+		NonLitColor /= float(UnlitSampleSum);
 
-		InputSH = NonLitSHySum;
-		InputCoCg = NonLitCoCgSum;
+		InputColor = NonLitColor;
+
 	}
 
 	return;
 }
-
-void FireflyRejectLuminosity(inout vec4 InputSH, inout vec2 InputCoCg) 
-{
-	float Y = SHToY(InputSH);
-
-	vec2 Offsets[4] = vec2[4](vec2(1.0f, 0.0f), vec2(0.0f, 1.0f), vec2(-1.0f, 0.0f), vec2(0.0f, -1.0f));
-	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
-	int SampleThreshold = u_AggressiveFireflyRejection ? 3 : 4;
-
-	vec4 NonLitSHy = vec4(0.0f);
-	vec2 NonLitCoCg = vec2(0.0f);
-	float MinY = 1000.0f;
-	int Count = 0;
-	
-	for (int i = 0 ; i < 4 ; i++) {
-		vec2 SampleCoord = v_TexCoords + Offsets[i] * TexelSize;
-		vec4 SHy = texture(u_CurrentColorTexture, SampleCoord);
-
-		float yy = SHToY(SHy);
-		float yerror = abs(yy - Y);
-
-		if (yerror > 0.25f) {
-			NonLitSHy = SHy;
-			NonLitCoCg = texture(u_CurrentCoCg, SampleCoord).xy;
-			Count++;
-		}
-
-		MinY = min(MinY, yy);
-	}
-
-	if (Count >= SampleThreshold) {
-		InputSH = NonLitSHy;
-		InputCoCg = NonLitCoCg;
-	}
-
-	return;
-}
-
-
 
 void main()
 {
@@ -347,8 +294,7 @@ void main()
 	vec2 CurrentCoord = v_TexCoords;
 	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = SampleNormal(u_NormalTexture, v_TexCoords);
-	vec4 CurrentSHy = texture(u_CurrentColorTexture, CurrentCoord).rgba;
-	vec2 CurrentCoCg = texture(u_CurrentCoCg, v_TexCoords).rg;
+	vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
 	
 	// Firefly rejection ->
 
@@ -357,7 +303,7 @@ void main()
 
 		if (Mask > 0.05f) 
 		{
-			FireflyReject(CurrentSHy, CurrentCoCg);
+			FireflyReject(CurrentColor);
 		}
 	}
 
@@ -366,7 +312,9 @@ void main()
 		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
 		bool SkySample = HitDistanceCurrent < 0.0f;
 
-		float RoughnessAt = texture(u_PBRTex, v_TexCoords).r;
+		vec2 pxy = texture(u_PBRTex, v_TexCoords).xy;
+		float RoughnessAt = mix(0.095f, pxy.x, float(u_RoughnessWeight));
+		float MetalnessAt = pxy.y;
 		
 		bool LessValid = false;
 		vec2 Reprojected; 
@@ -436,15 +384,11 @@ void main()
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && 
 		 d < 0.85f && PrevNormal==InitialNormal)
 		{
-			vec4 PrevSH;
-			vec2 PrevCoCg;
+			vec4 PrevColor;
 			//ComputeClamped(Reprojected, PrevSH, PrevCoCg);
 
-			PrevSH = texture(u_PreviousColorTexture, Reprojected);
-			PrevCoCg = texture(u_PrevCoCg, Reprojected).xy;
+			PrevColor = texture(u_PreviousColorTexture, Reprojected);
 			
-			vec4 PrevSHBck = PrevSH;
-			vec2 PrevCoCgBck = PrevCoCg;
 
 			const float DistanceEps = 0.0025f;
 			bool Moved = distance(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
@@ -461,15 +405,8 @@ void main()
 			if (TryClipping && Moved && u_SmartClip) {
 
 				// Clip sample ->
-				ReflectionClipping(PrevSH, PrevCoCg, v_TexCoords, RoughnessAt);
-				
-				
-				if (RoughnessAt > 0.26f) 
-				{
-					PrevSH = mix(PrevSHBck, PrevSH, 0.9f);
-					PrevCoCg = mix(PrevCoCgBck, PrevCoCg, 0.9f);
-					BlendFactor *= 1.072525f;
-				}
+
+				ReflectionClipping(PrevColor, v_TexCoords, RoughnessAt, MetalnessAt);
 				
 			
 			}
@@ -480,24 +417,22 @@ void main()
 			//	BlendFactor *= 1.15f;
 			//}
 
+			BlendFactor *= 1.07f;
 			BlendFactor = clamp(BlendFactor, 0.001f, 0.95f);
 
 			// mix sh
-			o_SH = mix(CurrentSHy, PrevSH, BlendFactor);
-			o_CoCg = mix(CurrentCoCg, PrevCoCg, BlendFactor);
+			o_Color = mix(CurrentColor, PrevColor, BlendFactor);
 		}
 
 		else 
 		{
-			o_SH = CurrentSHy.xyzw;
-			o_CoCg = CurrentCoCg;
+			o_Color = CurrentColor;
 		}
 	}
 
 	else 
 	{
-		o_SH = CurrentSHy;
-		o_CoCg = CurrentCoCg;
+		o_Color = CurrentColor;
 	}
 }
 

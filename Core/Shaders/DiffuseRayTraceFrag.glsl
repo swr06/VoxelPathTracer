@@ -907,15 +907,14 @@ void main()
 	LIGHT_COLOR *= 0.4f*u_GISunStrength;
 	StrongerLightDirection = SunStronger ? u_SunDirection : u_MoonDirection;
 	Moonstronger = !SunStronger;
-	EmissivityMultiplier = Moonstronger ? 15.0f : 12.0f;
-	// 
+	EmissivityMultiplier = Moonstronger ? 13.0f : 12.0f;
 
 
 	o_AOAndSkyLighting = vec2(1.0f, 0.0f);
 	
 
     #ifdef ANIMATE_NOISE
-		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 1000);
+		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x) * int(fract(u_Time) * 64.0f);
 	#else
 		RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
 	#endif

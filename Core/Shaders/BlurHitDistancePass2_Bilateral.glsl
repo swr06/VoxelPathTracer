@@ -1,6 +1,6 @@
 #version 330 core
 
-layout (location = 2) out float o_HitDistance;
+layout (location = 1) out float o_HitDistance;
 
 in vec2 v_TexCoords;
 
