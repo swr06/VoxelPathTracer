@@ -12,7 +12,8 @@ uniform sampler2D u_InputCoCgTexture;
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTex;
-uniform sampler2DArray u_BlockPBRTexArray;
+uniform sampler2D u_GBufferNormals;
+uniform sampler2D u_GBufferPBR;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform vec2 u_Dimensions;
@@ -152,8 +153,6 @@ vec4 FireflyReject(vec4 Col)
 	return vec4(clamp(Col.xyz, 0.0f, 1.0f + 0.8f), Col.w);
 }
 
-vec2 CalculateUV(vec3 world_pos, in vec3 normal);
-
 int GetBlockID(vec2 txc)
 {
 	float id = texelFetch(u_BlockIDTex, ivec2(txc * textureSize(u_BlockIDTex, 0).xy), 0).r;
@@ -184,13 +183,11 @@ void main()
 	vec4 BaseSH = texture(u_InputTexture, v_TexCoords).xyzw;
 	float BaseLuminance = SHToY(BaseSH);
 
-	vec2 BaseUV = CalculateUV(BasePosition, BaseNormal);
-	BaseUV = clamp(BaseUV, 0.001f, 0.999f);
 
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
-	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	float RoughnessAt = texture(u_GBufferPBR, v_TexCoords).r;
 
 	for (int s = 0 ; s < GAUSS_KERNEL; s++)
 	{
@@ -271,51 +268,3 @@ void main()
 	}
 }
 
-bool CompareVec3(vec3 v1, vec3 v2) {
-	float e = 0.0125f;
-	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
-}
-
-vec2 CalculateUV(vec3 world_pos, in vec3 normal)
-{
-	vec2 uv = vec2(0.0f);
-
-	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
-    if (CompareVec3(normal, NORMAL_TOP))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_BOTTOM))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_RIGHT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-
-    else if (CompareVec3(normal, NORMAL_LEFT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-    
-    else if (CompareVec3(normal, NORMAL_FRONT))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-     else if (CompareVec3(normal, NORMAL_BACK))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-	return uv;
-}

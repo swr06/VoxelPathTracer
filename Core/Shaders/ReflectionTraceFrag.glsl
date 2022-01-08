@@ -92,6 +92,7 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 
 uniform vec3 u_ViewerPosition;
 uniform int u_SPP;
+uniform int u_LavaBlockID;
 
 uniform int u_CurrentFrame;
 
@@ -118,6 +119,10 @@ uniform vec2 u_Halton;
 uniform bool u_RoughnessBias;
 
 uniform bool u_UseDecoupledGI;
+
+uniform sampler2D u_GBufferNormals;
+uniform sampler2D u_GBufferPBR;
+
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -635,6 +640,18 @@ vec3 ApproximateGILPV(vec3 P, vec3 B)
 	}
 }
 
+vec2 LavaDistortion(vec2 UV) {
+    vec2 UVxy = UV.xy;
+    float time = u_Time*mix(1.0f,1.25f,float(u_TemporalFilterReflections));
+    UV.x += sin(time * 0.25f) * 1.2f;
+    UV.y += pow(cos(time * 0.15f),2.) * 1.1f;
+    UV.x += cos(UV.x*10.0f + time * 0.8f)*0.6f;
+    UV.y += sin(UV.y*5.0f + UV.x*4.0f + time*1.1f)*0.7f;
+    UV.xy = mix(UV.xy,UVxy.xy,0.89f);
+    return UV;
+}
+
+
 vec3 LPVDither = vec3(0.0f);
 
 
@@ -699,23 +716,17 @@ void main()
 
 
 	vec3 InitialTraceNormal = SampleNormalFromTex(u_InitialTraceNormalTexture, g_TexCoords).rgb;
-	vec4 data = GetTextureIDs(GetBlockID(g_TexCoords));
 
-	vec2 iUV; 
-	vec3 iTan, iBitan;
-	CalculateVectors(SampledWorldPosition.xyz, InitialTraceNormal, iTan, iBitan, iUV);
-	iUV.y = 1.0f - iUV.y;
-	vec4 PBRMap = texture(u_BlockPBRTextures, vec3(iUV, data.z)).rgba; // -> Base pbr data 
-	float BaseEmissivity = textureLod(u_BlockEmissiveTextures, vec3(iUV, data.w), 5).x;
+	vec4 PBRMap = texture(u_GBufferPBR, v_TexCoords).xyzw; // -> Base pbr data 
+	float BaseEmissivity = PBRMap.w;
 
 	float RoughnessAt = PBRMap.r;
 
 	float MetalnessAt = PBRMap.g;
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
-	mat3 tbn = mat3((iTan), (iBitan), (InitialTraceNormal)); 
 	
-	vec3 NormalMappedInitial = tbn * (texture(u_BlockNormalTextures, vec3(vec2(iUV.x, iUV.y), data.g)).rgb * 2.0f - 1.0f);
-	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.06f; // Apply bias.
+	vec3 NormalMappedInitial = texture(u_GBufferNormals, v_TexCoords).xyz;
+	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.035f; // Apply bias.
     NormalMappedInitial = normalize(NormalMappedInitial);
 	
 	float ComputedShadow = 0.0f;
@@ -784,6 +795,8 @@ void main()
 			vec2 UV; 
 			vec3 Tangent, Bitangent;
 			CalculateVectors(HitPosition, Normal, Tangent, Bitangent, UV); UV.y = 1.0f - UV.y;
+			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
+			UV = u_LavaBlockID == reference_id ? LavaDistortion(UV) : UV;
 
 			bool ReprojectionSuccessful = false;
 			vec2 ScreenSpaceReprojected = vec2(-1.0f);
@@ -818,7 +831,6 @@ void main()
 
 
 			MaxHitDistance = max(MaxHitDistance, T); Hit = true;
-			int reference_id = clamp(int(floor(Blocktype * 255.0f)), 0, 127);
 
 			vec4 texture_ids = vec4(
 				float(BlockAlbedoData[reference_id]),
@@ -854,11 +866,9 @@ void main()
 
 			mat3 TBN;
 			TBN = mat3((Tangent), (Bitangent), (Normal));
-
-			vec3 Albedo = textureLod(u_BlockAlbedoTextures, vec3(UV,texture_ids.x), 2).rgb;
+			vec3 Albedo = texture(u_BlockAlbedoTextures, vec3(UV,texture_ids.x)).rgb;
 			vec3 Radiance = SAMPLED_COLOR_MIXED * 0.6f; 
-				
-			vec4 SampledPBR = textureLod(u_BlockPBRTextures, vec3(UV, texture_ids.z), 4).rgba;
+			vec4 SampledPBR = texture(u_BlockPBRTextures, vec3(UV, texture_ids.z)).rgba;
 			float AO = pow(SampledPBR.w, 2.0f);
 
 			bool PlayerInShadow = GetPlayerIntersect(HitPosition + Normal*0.035f, NormalizedStrongerDir);
@@ -911,7 +921,7 @@ void main()
 			{
 				float Emissivity = textureLod(u_BlockEmissiveTextures, vec3(UV, texture_ids.w), 2).r;
 				
-				if (Emissivity > 0.2f)
+				if (Emissivity > 0.1f)
 				{
 					float m = 19.0f;
 					
@@ -922,7 +932,8 @@ void main()
                                  UV.y > lbiasy && UV.y < 1.0f - lbiasy);
 					
 					// Compute direct lighting 
-					DirectLighting = Albedo * max(Emissivity * m, 2.0f);
+					float Flicker = reference_id == u_LavaBlockID ? (clamp(pow(sin(u_Time * 5.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.8f, 1.0f))*1.2f : 1.;
+					DirectLighting = Albedo * max(Emissivity * m * Flicker, 2.0f);
 					
 					// Set emissivity mask 
 					// This is used as in input to the denoiser

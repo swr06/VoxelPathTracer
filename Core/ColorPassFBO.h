@@ -33,11 +33,9 @@ namespace VoxelRT
 			m_Height = v.m_Height;
 
 			m_ColorTexture = v.m_ColorTexture;
-			m_PBR = v.m_PBR;
 			m_FBO = v.m_FBO;
 
 			v.m_ColorTexture = 0;
-			v.m_PBR = 0;
 			v.m_FBO = 0;
 		}
 
@@ -64,8 +62,7 @@ namespace VoxelRT
 
 		inline GLuint GetFramebufferID() const noexcept { return m_FBO; }
 		inline GLuint GetColorTexture() const noexcept { return m_ColorTexture; }
-		inline GLuint GetPBRTexture() const noexcept { return m_PBR; }
-		inline GLuint GetRawAlbedos() const noexcept { return m_RawAlbedoColors; }
+		inline GLuint GetEmissiveMask() const noexcept { return m_EmissivityMask; }
 		void GenerateFramebuffers();
 
 	private:
@@ -73,8 +70,7 @@ namespace VoxelRT
 		void DeleteEverything();
 
 		GLuint m_ColorTexture = 0;
-		GLuint m_PBR = 0;
-		GLuint m_RawAlbedoColors = 0;
+		GLuint m_EmissivityMask = 0;
 
 		GLuint m_FBO = 0;
 		uint32_t m_Width = 0;

@@ -19,8 +19,9 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_BlockIDTex;
 uniform sampler2D u_SpecularHitData;
-uniform sampler2DArray u_BlockPBRTexArray;
-uniform sampler2DArray u_BlockNormals;
+
+uniform sampler2D u_GBufferNormals;
+uniform sampler2D u_GBufferPBR;
 
 uniform bool u_Dir; // 1 -> X, 0 -> Y (Meant to be separable)
 uniform bool u_RoughnessBias; 
@@ -139,8 +140,6 @@ vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
     return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); 
 }
 
-vec2 CalculateUV(vec3 world_pos, in vec3 normal);
-
 int GetBlockID(vec2 txc)
 {
 	float id = texelFetch(u_BlockIDTex, ivec2(txc * textureSize(u_BlockIDTex, 0).xy), 0).r;
@@ -159,7 +158,6 @@ float GetLuminance(vec3 color)
     return dot(color, vec3(0.299, 0.587, 0.114));
 }
 
-mat3 CalculateTangentBasis(in vec3 normal);
 
 void main()
 {
@@ -178,23 +176,17 @@ void main()
 	vec4 BaseColor = texture(u_InputTexture, v_TexCoords).xyzw;
 	float BaseLuminance = GetLuminance(BaseColor.xyz);
 
-	vec2 BaseUV = CalculateUV(BasePosition.xyz, BaseNormal);
-	BaseUV = clamp(BaseUV, 0.001f, 0.999f);
-	BaseUV.y = 1.0f - BaseUV.y;
-
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 
-	float RoughnessAt = texture(u_BlockPBRTexArray, vec3(BaseUV, TexArrayRef)).r;
+	vec3 SampledPBR = texture(u_GBufferPBR, v_TexCoords).xyz;
+	float RoughnessAt = SampledPBR.x;
 	RoughnessAt += 0.001f;
 	float RawRoughness = RoughnessAt;
 	RoughnessAt *= mix(1.0f, 0.91f, float(u_RoughnessBias));
 
-	mat3 TangentBasis = CalculateTangentBasis(BaseNormal);
-	vec3 NormalMappedBase = texture(u_BlockNormals, vec3(BaseUV, TexArrayRef)).xyz * 2.0f - 1.0f;
-	vec3 NormalMapRaw = NormalMappedBase;
-	NormalMappedBase = TangentBasis * NormalMappedBase;
+	vec3 NormalMappedBase = texture(u_GBufferNormals, v_TexCoords).xyz;
 
 	float HitDistanceFetch = texture(u_SpecularHitData, v_TexCoords).x + 0.0001f;
 	float RawHitDistance = HitDistanceFetch;
@@ -267,6 +259,7 @@ void main()
 	}
 
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
+	float TransversalContrib_ = TransversalContrib;
 
 	if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.625f) {
 		TransversalContrib = pow(TransversalContrib, 2.5f);
@@ -296,15 +289,29 @@ void main()
 	
 	// Sample scale based on resolution scale
 	float Scale = 1.0f;
-	Scale = mix(1.5f, 1.0f, clamp(u_ResolutionScale, 0.0000001f, 1.0f));
+	Scale = mix(1.0f, 2.0f, clamp(u_ResolutionScale, 0.0000001f, 1.0f)) + 0.5f;
 	
 	int RadiusBias = 0;
 	
-	if (RoughnessAt > 0.45f) {
+	if (RoughnessAt > 0.4f) {
 		RadiusBias = 1;
+	}
+
+	if (RoughnessAt > 0.5f) {
+		RadiusBias += 1;
+	}
+
+	if (SampledPBR.y > 0.1f && RoughnessAt > 0.45f) {
+		RadiusBias += 1;
 	}
 	
 	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
+	
+	
+	
+
+
+	//Scale = mix(1.0f, 2.0f, (clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib_), pow((1.0f-RoughnessAt),1.0/2.4f)*8.0f), 0.0f, 1.0f) * 1.75f)+0.4f);
 
 	// Since we derived this pixel from the diffuse spherical harmonic (which is already denoised)
 	// We can improve performance by limiting the spatial filter's radius and using a higher scale
@@ -312,6 +319,8 @@ void main()
 		EffectiveRadius = 4; // 8 spatial samples 
 		Scale *= 1.25f;
 	}
+
+	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
 	// -- Gaussian filter -- 
 
@@ -326,9 +335,10 @@ void main()
 		{
 
 			vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
+			float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
 			int BlockAt = GetBlockID(SampleCoord);
 			bool BlockValidity = BlockAt == BaseBlockID;
-			bool SampleIsSky = SamplePosition.w < 0.0f;
+			bool SampleIsSky = SampleDepth < 0.0f;
 			
 			if (SampleIsSky != BaseIsSky) {
 				continue;
@@ -337,15 +347,13 @@ void main()
 			bool KillDepthWeight = false;
 
 			if (BasePosition.w < 42.0f) {
-				if (!BlockValidity) {
-					continue;
-				}
-
-				vec3 PositionDifference = abs(SamplePosition.xyz - BasePosition.xyz);
 			
-				float PositionError = dot(PositionDifference, PositionDifference);
+				float PositionTolerance = BlockValidity ? 0.925f : 1.414f;
+
+				float PositionError = abs(SampleDepth-BasePosition.w);
+			
 				
-				if (PositionError > 2.0f || SamplePosition.w < 0.0f) { 
+				if (PositionError > PositionTolerance || SampleDepth < 0.0f) { 
 					continue;
 				}
 
@@ -354,7 +362,7 @@ void main()
 			
 			
 
-			float DepthDifference = abs(SamplePosition.w-BasePosition.w);
+			float DepthDifference = abs(SampleDepth-BasePosition.w);
 			float DepthWeight = mix(clamp(pow(exp(-max(DepthDifference, 0.00001f)), 3.0f), 0.0001f, 1.0f),1.0f,float(KillDepthWeight));
 			
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
@@ -364,10 +372,7 @@ void main()
 			}
 
 			//float NormalWeight = pow(abs(dot(SampleNormal, BaseNormal)), 12.0f);
-			vec2 SampleUV = CalculateUV(SamplePosition.xyz, SampleNormal);
-			SampleUV = clamp(SampleUV, 0.001f, 0.999f);
-			float SampleTexArrayRef = float(BlockPBRData[BlockAt]);
-			float SampleRoughness = texture(u_BlockPBRTexArray, vec3(SampleUV, SampleTexArrayRef)).r;
+			float SampleRoughness = texture(u_GBufferPBR, SampleCoord).r;
 
 			
 
@@ -444,114 +449,4 @@ void main()
 	else {
 		o_SpatialResult = BaseSampled;
 	}
-}
-
-bool CompareVec3(vec3 v1, vec3 v2) {
-	float e = 0.0125f;
-	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
-}
-
-vec2 CalculateUV(vec3 world_pos, in vec3 normal)
-{
-	vec2 uv = vec2(0.0f);
-
-	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
-    if (CompareVec3(normal, NORMAL_TOP))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_BOTTOM))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_RIGHT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-
-    else if (CompareVec3(normal, NORMAL_LEFT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-    
-    else if (CompareVec3(normal, NORMAL_FRONT))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-     else if (CompareVec3(normal, NORMAL_BACK))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-	return uv;
-}
-
-
-mat3 CalculateTangentBasis(in vec3 normal)
-{
-	vec3 tangent, bitangent;
-
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
-				   );
-
-	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
-					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
-	);
-
-
-	if (CompareVec3(normal, Normals[0]))
-    {
-		tangent = Tangents[0];
-		bitangent = BiTangents[0];
-    }
-
-    else if (CompareVec3(normal, Normals[1]))
-    {
-		tangent = Tangents[1];
-		bitangent = BiTangents[1];
-    }
-
-    else if (CompareVec3(normal, Normals[2]))
-    {
-		tangent = Tangents[2];
-		bitangent = BiTangents[2];
-    }
-
-    else if (CompareVec3(normal, Normals[3]))
-    {
-		tangent = Tangents[3];
-		bitangent = BiTangents[3];
-    }
-	
-    else if (CompareVec3(normal, Normals[4]))
-    {
-		tangent = Tangents[4];
-		bitangent = BiTangents[4];
-    }
-    
-
-    else if (CompareVec3(normal, Normals[5]))
-    {
-		tangent = Tangents[5];
-		bitangent = BiTangents[5];
-    }
-
-	return mat3(tangent, bitangent, normal);
 }

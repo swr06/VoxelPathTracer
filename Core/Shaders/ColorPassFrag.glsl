@@ -11,8 +11,7 @@
 
 // Outputs 
 layout (location = 0) out vec3 o_Color;
-layout (location = 1) out vec4 o_PBR;
-layout (location = 2) out vec3 o_BloomAlbedos;
+layout (location = 1) out float o_EmissivityData;
 
 // Vertex shader inputs 
 vec2 g_TexCoords;
@@ -27,11 +26,21 @@ uniform sampler2D u_NormalTexture;
 uniform sampler2D u_InitialTracePositionTexture;
 uniform sampler2D u_BlockIDTexture;
 uniform sampler2D u_ShadowTexture;
+
 uniform sampler2DArray u_BlockAlbedoTextures;
 uniform sampler2DArray u_BlockNormalTextures;
 uniform sampler2DArray u_BlockPBRTextures;
 uniform sampler2DArray u_BlueNoiseTextures;
 uniform sampler2DArray u_BlockEmissiveTextures;
+
+uniform sampler2D u_GBufferAlbedos;
+uniform sampler2D u_GBufferNormals;
+uniform sampler2D u_GBufferPBR;
+uniform sampler2D u_GBufferAO;
+
+
+
+
 uniform samplerCube u_Skybox;
 uniform sampler2D u_CloudData;
 uniform sampler2D u_PreviousNormalTexture; 
@@ -108,7 +117,6 @@ uniform bool u_ShouldDitherUpscale = true;
 uniform bool u_InferSpecularDetailSpatially = false;
 
 uniform float u_CloudBoxSize;
-uniform int u_GrassBlockProps[10];
 
 uniform vec2 u_Halton;
 
@@ -156,13 +164,11 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 vec3 GetSmoothLPVData(vec3 UV);
 vec3 GetSmoothLPVDensity(vec3 UV);
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative);
 bool CompareFloatNormal(float x, float y);
 vec3 GetNormalFromID(float n);
 vec3 SampleNormal(sampler2D samp, vec2 txc);
 vec3 GetRayDirectionAt(vec2 screenspace);
 vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc);
-vec4 GetTextureIDs(int BlockID);
 int GetBlockID(vec2 txc);
 bool InScreenSpace(vec2 x);
 vec2 hash2();
@@ -189,12 +195,7 @@ vec4 ClampedTexture(sampler2D tex, vec2 txc);
 
 const vec3 ATMOSPHERE_SUN_COLOR = vec3(1.0f);
 const vec3 ATMOSPHERE_MOON_COLOR =  vec3(0.1f, 0.1f, 1.0f);
-const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
 vec3 SAMPLED_SUN_COLOR = vec3(0.0f);
 vec3 SAMPLED_MOON_COLOR = vec3(0.0f);
 vec3 SAMPLED_MOON_COLOR_RAW = vec3(0.0f);
@@ -218,16 +219,16 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         if(dot(ray_dir, sun_dir) > 0.999825f)
         {
             atmosphere_color = ATMOSPHERE_SUN_COLOR; 
-            o_PBR.w = float(1.0f);
-            o_BloomAlbedos = vec3(3.0f,3.0f,2.0f);
+            o_EmissivityData = -8.0f;
+           // o_BloomAlbedos = vec3(3.0f,3.0f,2.0f);
             return true;
         }
         
         if(dot(ray_dir, moon_dir) > 0.99986f)
         {
             atmosphere_color = ATMOSPHERE_MOON_COLOR;
-            o_PBR.w = float(1.2f);
-            o_BloomAlbedos = vec3(0.6f,0.6f,1.0f) * 1.0f;
+            o_EmissivityData = -16.0f;
+           // o_BloomAlbedos = vec3(0.6f,0.6f,1.0f) * 1.0f;
             return true;
         }
     }
@@ -746,6 +747,7 @@ void main()
 {
     g_TexCoords = v_TexCoords;
     //g_TexCoords += u_Halton/u_Dimensions;
+     o_EmissivityData.x = (-1.0f);
 
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
@@ -768,6 +770,7 @@ void main()
     SAMPLED_MOON_COLOR = SampleMoonColor(SunVisibility, true);
     SAMPLED_MOON_COLOR_RAW = SampleMoonColor(SunVisibility, false);
     SAMPLED_COLOR_MIXED = mix(SAMPLED_SUN_COLOR, SAMPLED_MOON_COLOR, SunVisibility);
+    int BaseBlockID = GetBlockID(g_TexCoords);
 
     if (WorldPosition.w > 0.0f)
     {
@@ -780,72 +783,24 @@ void main()
         //if (!IsAtEdge(g_TexCoords))
         if (true)
         {
-            vec2 UV;
-            vec3 Tangent, Bitangent;
-            vec4 UVDerivative;
-
-            CalculateVectors(WorldPosition.xyz, SampledNormals, Tangent, Bitangent, UV, UVDerivative); 
-
-	        mat3 tbn = mat3((Tangent), (Bitangent), (SampledNormals));
-            int BaseBlockID = GetBlockID(g_TexCoords);
             bool DoSSS = BlockSSSSSData[BaseBlockID] > 0 && u_SSSSS;
-            vec4 data = GetTextureIDs(BaseBlockID);
 
 
-            // Handle grass block! 
-            // dont kill me pls :( 
-            if (BaseBlockID == u_GrassBlockProps[0])
-	        {
-	            if (SampledNormals == NORMAL_LEFT || SampledNormals == NORMAL_RIGHT || SampledNormals == NORMAL_FRONT || SampledNormals == NORMAL_BACK)
-	        	{
-	        		data.x = u_GrassBlockProps[4];
-	        		data.y = u_GrassBlockProps[5];
-	        		data.z = u_GrassBlockProps[6];
-	        	}
-
-	        	else if (SampledNormals == NORMAL_TOP)
-	        	{
-	        		data.x = u_GrassBlockProps[1];
-	        		data.y = u_GrassBlockProps[2];
-	        		data.z = u_GrassBlockProps[3];
-	        	}
-
-	        	else if (SampledNormals == NORMAL_BOTTOM)
-	        	{
-	        		data.x = u_GrassBlockProps[7];
-	        		data.y = u_GrassBlockProps[8];
-	        		data.z = u_GrassBlockProps[9];
-	        	}
-	        }
 
 
-            // For POM :
-            if (u_POM && data.r != u_GrassblockAlbedoID)
-            {
-                vec2 InitialUV = UV;
-
-                if (SampledNormals == vec3(-1.0f, 0.0f, 0.0f)) {  UV.x = 1.0f - UV.x; UV.y = 1.0f - UV.y; }
-                if (SampledNormals == vec3(1.0f, 0.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
-                if (SampledNormals == vec3(0.0f, -1.0f, 0.0f)) {  UV.y = 1.0f - UV.y; }
-                vec3 TangentViewPosition = tbn * u_ViewerPosition;
-                vec3 TangentFragPosition = tbn * WorldPosition.xyz; 
-                vec3 TangentViewDirection = normalize((TangentFragPosition - TangentViewPosition));
-                UV = ParallaxOcclusionMapping(UV, TangentViewDirection, data.z);
-            } else { UV.y = 1.0f - UV.y; }
 
 
             bool IsLiquid =  (u_LavaBlockID == BaseBlockID) ;
             bool IsLava =  (u_LavaBlockID == BaseBlockID) ;
-            vec3 DistortedUV = IsLiquid ? BasicTextureDistortion(vec3(UV,fract(u_Time*0.3f))) : vec3(UV,0.0f);
 
-            vec3 AlbedoColor = IsLava ? (texture(u_LavaTextures[0], DistortedUV).xyz) :
-                               textureGrad(u_BlockAlbedoTextures, vec3(UV, data.x), UVDerivative.xy, UVDerivative.zw).rgb;
-            vec3 NormalMapped = IsLava ? (texture(u_LavaTextures[1], DistortedUV).xyz) : (textureGrad(u_BlockNormalTextures, vec3(UV, data.y), UVDerivative.xy, UVDerivative.zw).xyz);
-            NormalMapped = NormalMapped * 2.0f - 1.0f;
-            NormalMapped = tbn * NormalMapped;
+            vec3 AlbedoColor = texture(u_GBufferAlbedos, g_TexCoords).xyz;
+                               
+            vec3 NormalMapped = texture(u_GBufferNormals, g_TexCoords).xyz;
 
-            vec4 PBRMap = textureGrad(u_BlockPBRTextures, vec3(UV, data.z), UVDerivative.xy, UVDerivative.zw).rgba;
-            
+            vec4 PBRMap = texture(u_GBufferPBR, g_TexCoords).xyzw;
+            float Emissivity = PBRMap.w;
+            PBRMap.w = texture(u_GBufferAO, g_TexCoords).x;
+
             AlbedoColor = BasicSaturation(AlbedoColor, 1.0f - u_TextureDesatAmount);
 
             if (PBRMap.y >= 0.1f - 0.01f){
@@ -861,7 +816,6 @@ void main()
                 NormalMapped = normalize(NormalMapped);
             }
             
-            float Emissivity = data.w > -0.5f ? texture(u_BlockEmissiveTextures, vec3(DistortedUV.xy, data.w)).r : 0.0f;
             Emissivity *= mix(1.,1.5,float(IsLava));
 
             vec4 SHy;
@@ -1025,13 +979,14 @@ void main()
                // o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
             }
 
-            o_PBR.xyz = PBRMap.xyz;
-            o_PBR.w = Emissivity;
+            
+            o_EmissivityData = Emissivity;
+
              
             // Flicker
             if (IsLava) {
-                o_PBR.w *= clamp(pow(sin(u_Time * 5.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
-                o_PBR.w *= 1.50f;
+                o_EmissivityData *= clamp(pow(sin(u_Time * 5.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
+                o_EmissivityData *= 1.50f;
             }
 
             // Approximate specular ->
@@ -1041,17 +996,10 @@ void main()
                 o_Color = DeriveApproxSpecular(SHy, SampledIndirectDiffuse, I, NormalMapped.xyz, Roughness);
             }
 
-            o_BloomAlbedos = AlbedoColor;
+          
             //o_Color = DiffuseIndirect;
 
-            // Fix bloom light leak around the edges : 
-            const bool BloomLightLeakFix = true;
-            if (BloomLightLeakFix&&!IsLiquid) {
-                float lbiasx = 0.02f;
-                float lbiasy = 0.02f;
-                o_PBR.w *= float(UV.x > lbiasx && UV.x < 1.0f - lbiasx &&
-                                 UV.y > lbiasy && UV.y < 1.0f - lbiasy);
-            }
+           
 
         }
 
@@ -1059,7 +1007,7 @@ void main()
         {   
             vec3 CloudAndSky = GetAtmosphereAndClouds();
 			o_Color = (CloudAndSky);
-			o_PBR.xyz = vec3(-1.0f);
+			//o_EmissivityData.x = (-1.0f);
         }
     }
 
@@ -1067,7 +1015,7 @@ void main()
     {   
         vec3 CloudAndSky = GetAtmosphereAndClouds();
         o_Color = (CloudAndSky);
-        o_PBR.xyz = vec3(-1.0f);
+        //o_EmissivityData.x = (-1.0f);
     }
 
     const bool DEBUG_SHIT = false;
@@ -1123,14 +1071,6 @@ vec4 SamplePositionAt(sampler2D pos_tex, vec2 txc)
 {
 	float Dist = 1.0f/texture(pos_tex, txc).r;
 	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
-}
-
-vec4 GetTextureIDs(int BlockID) 
-{
-	return vec4(float(BlockAlbedoData[BlockID]),
-				float(BlockNormalData[BlockID]),
-				float(BlockPBRData[BlockID]),
-				float(BlockEmissiveData[BlockID]));
 }
 
 int GetBlockID(vec2 txc)
@@ -1454,167 +1394,6 @@ vec3 TemperatureToRGB(float temperatureInKelvins)
 
     return SRGBToLinearVec3(retColor);
 }     
-
-bool CompareVec3(vec3 v1, vec3 v2) {
-	float e = 0.0125f;
-	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
-}
-
-// Use a derivative to fix the uv seam ->
-vec4 GetUVDerivative(in vec2 P) 
-{
-    vec2 UV = fract(P);
-    vec2 dx = dFdx(UV);
-    vec2 dy = dFdy(UV);
-    vec2 OffsettedUV_1  = fract(UV + 0.25f);
-	vec2 OffsettedUV_2 = fract(UV + 0.5f);
-    vec2 dx2 = dFdx(OffsettedUV_1);
-	vec2 dy2 = dFdy(OffsettedUV_1);
-
-	if(dot(dx, dx) + dot(dy, dy) > dot(dx2, dx2) + dot(dy2, dy2)) 
-    {
-		dx = dx2;
-		dy = dy2;
-	}
-
-    return vec4(dx, dy);
-}
-
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv)
-{
-	// Hard coded normals, tangents and bitangents
-
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
-				   );
-
-	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
-					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
-	);
-
-    uv = vec2(1.0f);
-
-	if (CompareVec3(normal, Normals[0]))
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[0];
-		bitangent = BiTangents[0];
-    }
-
-    else if (CompareVec3(normal, Normals[1]))
-    {
-        uv = vec2(fract(world_pos.xy));
-		tangent = Tangents[1];
-		bitangent = BiTangents[1];
-    }
-
-    else if (CompareVec3(normal, Normals[2]))
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[2];
-		bitangent = BiTangents[2];
-    }
-
-    else if (CompareVec3(normal, Normals[3]))
-    {
-        uv = vec2(fract(world_pos.xz));
-		tangent = Tangents[3];
-		bitangent = BiTangents[3];
-    }
-	
-    else if (CompareVec3(normal, Normals[4]))
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[4];
-		bitangent = BiTangents[4];
-    }
-    
-
-    else if (CompareVec3(normal, Normals[5]))
-    {
-        uv = vec2(fract(world_pos.zy));
-		tangent = Tangents[5];
-		bitangent = BiTangents[5];
-    }
-}
-
-void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv, out vec4 UVDerivative)
-{
-	// Hard coded normals, tangents and bitangents
-
-    const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f)
-			      );
-
-	const vec3 Tangents[6] = vec3[]( vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f),
-					 vec3(0.0f, 0.0f, -1.0f), vec3(0.0f, 0.0f, -1.0f)
-				   );
-
-	const vec3 BiTangents[6] = vec3[]( vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, 1.0f, 0.0f),
-				     vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, 1.0f),
-					 vec3(0.0f, -1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f)
-	);
-
-    uv = vec2(1.0f);
-
-	if (CompareVec3(normal, Normals[0]))
-    {
-        uv = vec2(fract(world_pos.xy));
-        UVDerivative = GetUVDerivative(world_pos.xy);
-		tangent = Tangents[0];
-		bitangent = BiTangents[0];
-    }
-
-    else if (CompareVec3(normal, Normals[1]))
-    {
-        uv = vec2(fract(world_pos.xy));
-        UVDerivative = vec4(GetUVDerivative(world_pos.xy));
-		tangent = Tangents[1];
-		bitangent = BiTangents[1];
-    }
-
-    else if (CompareVec3(normal, Normals[2]))
-    {
-        uv = vec2(fract(world_pos.xz));
-        UVDerivative = vec4(GetUVDerivative(world_pos.xz));
-		tangent = Tangents[2];
-		bitangent = BiTangents[2];
-    }
-
-    else if (CompareVec3(normal, Normals[3]))
-    {
-        uv = vec2(fract(world_pos.xz));
-        UVDerivative = vec4(GetUVDerivative(world_pos.xz));
-		tangent = Tangents[3];
-		bitangent = BiTangents[3];
-    }
-	
-    else if (CompareVec3(normal, Normals[4]))
-    {
-        uv = vec2(fract(world_pos.zy));
-        UVDerivative = vec4(GetUVDerivative(world_pos.zy));
-		tangent = Tangents[4];
-		bitangent = BiTangents[4];
-    }
-    
-
-    else if (CompareVec3(normal, Normals[5]))
-    {
-        uv = vec2(fract(world_pos.zy));
-        UVDerivative = vec4(GetUVDerivative(world_pos.zy));
-		tangent = Tangents[5];
-		bitangent = BiTangents[5];
-    }
-}
 
 
 

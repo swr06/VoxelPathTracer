@@ -82,7 +82,6 @@ uniform sampler2D u_BloomBrightTexture;
 
 uniform sampler2D u_ShadowTexture;
 
-uniform sampler2D u_PBRTexture;
 
 uniform sampler2D u_CloudData;
 

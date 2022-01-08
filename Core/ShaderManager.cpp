@@ -66,7 +66,10 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("DEPTH_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DownsampleDepth4x.glsl");
 	AddShader("NORMAL_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DownsampleNormals4x.glsl");
 	AddShader("GBUFFER_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GBufferDownsampler.glsl");
+	AddShader("GBUFFER_GENERATE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GenerateGBuffer.glsl");
 	AddShader("TONEMAPPER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Tonemapper.glsl");
+
+
 }
 
 void VoxelRT::ShaderManager::AddShader(const std::string& name, const std::string& vert, const std::string& frag, const std::string& geo)

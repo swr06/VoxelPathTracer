@@ -303,6 +303,7 @@
     <None Include="Core\Shaders\Functions\FXAA.glsl" />
     <None Include="Core\Shaders\FXAA311.glsl" />
     <None Include="Core\Shaders\GBufferDownsampler.glsl" />
+    <None Include="Core\Shaders\GenerateGBuffer.glsl" />
     <None Include="Core\Shaders\HandleFlicker.glsl" />
     <None Include="Core\Shaders\IntegrateDFG.glsl" />
     <None Include="Core\Shaders\IntegrateDFG_2.glsl" />
