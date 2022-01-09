@@ -248,6 +248,8 @@ static bool RefectionUseDecoupledGI = false;
 static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
 static bool ReflectionDenoiserDeviationHandling = true;
+static float NormalMapWeightStrength = 1.0f;
+static float ReflectionDenoiserScale = 1.0f;
 static bool ReprojectReflectionsToScreenSpace = true;
 static bool DeriveReflectionsFromDiffuseSH = false;
 
@@ -450,8 +452,11 @@ public:
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 24);
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
+			
+			ImGui::NewLine();
 			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::SliderFloat("Reflection denoiser scale", &ReflectionDenoiserScale, 0.25f, 6.0f);
 			ImGui::Checkbox("Derive reflections from diffuse spherical harmonic (derives when the material is too rough)", &DeriveReflectionsFromDiffuseSH);
 
 			if (DenoiseReflections) {
@@ -464,7 +469,12 @@ public:
 			if (USE_NEW_SPECULAR_SPATIAL) {
 				ImGui::SliderInt("Reflection Denoiser Radius Bias", &ReflectionDenoisingRadiusBias, -4, 4);
 				ImGui::Checkbox("Normal map aware filtering? (Slightly more noise.)", &ReflectionNormalMapWeight);
+				
+				if (ReflectionNormalMapWeight)
+					ImGui::SliderFloat("Normal map weight exponent", &NormalMapWeightStrength, 0.1f, 24.0f);
 			}
+
+			ImGui::NewLine();
 
 			if (TEMPORAL_SPEC) {
 				ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
@@ -476,6 +486,7 @@ public:
 			}
 			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
 
+			ImGui::NewLine();
 
 			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
 			ImGui::Checkbox("Use screen space data for GI in reflections?", &ReprojectReflectionsToScreenSpace);
@@ -914,7 +925,7 @@ GLClasses::Framebuffer HalfResGBuffer(16, 16, { {GL_R32F, GL_RED, GL_FLOAT, true
 GLClasses::Framebuffer QuarterResGBuffer(16, 16, { {GL_R32F, GL_RED, GL_FLOAT, true, true}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
 //GLClasses::Framebuffer GeneratedGBuffer(16, 16, { {GL_RGB16F, GL_RGB, GL_FLOAT, true, true}, {GL_RGB16F, GL_RED, GL_FLOAT, true, true}, {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
-GLClasses::Framebuffer GeneratedGBuffer(16, 16, { {GL_RGB, GL_RGB, GL_UNSIGNED_BYTE, true, true}, {GL_RGB16F, GL_RED, GL_FLOAT, true, true}, {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
+GLClasses::Framebuffer GeneratedGBuffer(16, 16, { {GL_RGB16F, GL_RGB, GL_FLOAT, true, true}, {GL_RGB16F, GL_RED, GL_FLOAT, true, true}, {GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, false, false}, {GL_RED, GL_RED, GL_UNSIGNED_BYTE, false, false} }, false);
 
 GLClasses::Framebuffer DiffuseRawTraceFBO(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
 GLClasses::Framebuffer DiffuseTemporalFBO1(16, 16, {{ GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_RG16F, GL_RG, GL_FLOAT }, { GL_RGB16F, GL_RGB, GL_FLOAT } , { GL_RG, GL_RG, GL_UNSIGNED_BYTE } }, false);
@@ -1688,8 +1699,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		// GBuffer ->
-		if (PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
-			ModifiedWorld || JitterSceneForTAA)
+
+		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
+			ModifiedWorld || JitterSceneForTAA;
+
+		if (UpdateGBufferThisFrame)
 		{
 			// Swap the initial trace framebuffers
 			InitialTraceFBO = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
@@ -1823,7 +1837,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			GenerateGBuffer.SetFloat("uTime", glfwGetTime());
 			GenerateGBuffer.SetInteger("u_LavaBlockID", BlockDatabase::GetBlockID("Lava"));
 
-
+			GenerateGBuffer.SetBool("u_UpdateGBufferThisFrame", UpdateGBufferThisFrame);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
@@ -3014,7 +3028,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
+				ReflectionDenoiser.SetFloat("u_NormalMapWeightStrength", NormalMapWeightStrength);
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
+				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3084,6 +3100,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
+				ReflectionDenoiser.SetFloat("u_NormalMapWeightStrength", NormalMapWeightStrength);
+				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 
 				BlockDataStorageBuffer.Bind(0);
 

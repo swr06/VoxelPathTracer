@@ -42,6 +42,8 @@ uniform float u_Time;
 
 uniform int u_ReflectionDenoisingRadiusBias;
 
+uniform float u_NormalMapWeightStrength;
+uniform float u_ReflectionDenoiserScale;
 
 uniform float u_ResolutionScale;
 
@@ -221,9 +223,9 @@ void main()
 	// If the normal map weight is enabled, we can get decent results by tweaking the view space position 
 	NormalMappedBase.z *= 1.5f;
 	NormalMappedBase.x *= 4.5f;
-	vec3 NormalMapLobeBias = NormalMappedBase * 4096.0 * float(u_NormalMapAware);
 
-	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + NormalMapLobeBias + (NormalMappedBase * Diagonal), 1.0f));
+
+	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + (NormalMappedBase * 0.75f), 1.0f));
 	float ViewLength = length(ViewSpaceBase);
 	float ViewLengthWeight = 0.001f + ViewLength;
 
@@ -320,6 +322,8 @@ void main()
 		Scale *= 1.25f;
 	}
 
+	Scale *= u_ReflectionDenoiserScale;
+
 	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
 	// -- Gaussian filter -- 
@@ -334,7 +338,7 @@ void main()
 		if (SampleCoord.x > 0.0f + bias && SampleCoord.x < 1.0f - bias && SampleCoord.y > 0.0f + bias && SampleCoord.y < 1.0f - bias) 
 		{
 
-			vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
+			//vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord).xyzw;
 			float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
 			int BlockAt = GetBlockID(SampleCoord);
 			bool BlockValidity = BlockAt == BaseBlockID;
@@ -405,15 +409,12 @@ void main()
 			CurrentWeight *= DepthWeight;
 
 
-			#ifdef NORMAL_MAP_KERNEL_WEIGHT
-				if (u_NormalMapAware && !SampleTooRough) {
-					vec3 NormalMappedSample = texture(u_BlockNormals, vec3(SampleUV, SampleTexArrayRef)).xyz * 2.0f - 1.0f;
-					NormalMappedSample = NormalMappedSample;
-					float NormalMapWeight = pow(abs(dot(NormalMappedSample, NormalMapRaw)), 16.0f);
-					NormalMapWeight = clamp(pow(NormalMapWeight, 64.0f), 0.001f, 1.0f);
-					CurrentWeight *= clamp(NormalMapWeight, 0.001f, 1.0f);
-				}
-			#endif
+
+			if (u_NormalMapAware && !SampleTooRough) {
+				vec3 NormalMapAt = texture(u_GBufferNormals, SampleCoord).xyz;
+				CurrentWeight *= pow(clamp(dot(NormalMapAt,NormalMappedBase), 0.00001f, 1.0f), 64.0f * u_NormalMapWeightStrength);
+			}
+
 
 			//CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
 			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);

@@ -24,6 +24,8 @@ uniform mat4 u_InverseProjection;
 uniform mat4 u_PrevProjection;
 uniform mat4 u_PrevView;
 
+uniform float u_ReflectionDenoiserScale;
+
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
     int BlockAlbedoData[128];
@@ -192,7 +194,7 @@ void main()
 	for (int s = 0 ; s < GAUSS_KERNEL; s++)
 	{
 		int Sample = GaussianOffsets[s]; // todo : use u_Step here!
-		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize));
+		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (Sample * TexelSize * u_ReflectionDenoiserScale), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (Sample * TexelSize * u_ReflectionDenoiserScale));
 		
 		// Solves clamp issues : 
 		float bias = 0.01f;

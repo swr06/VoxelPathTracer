@@ -721,8 +721,8 @@ void main()
 	float BaseEmissivity = PBRMap.w;
 
 	float RoughnessAt = PBRMap.r;
-
 	float MetalnessAt = PBRMap.g;
+
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
 	
 	vec3 NormalMappedInitial = texture(u_GBufferNormals, v_TexCoords).xyz;
@@ -738,12 +738,8 @@ void main()
 	bool Hit = false;
 	vec3 ReflectionVector;
 
-	//int MaxSPP = SPP;
-	//int MinSPP = clamp(SPP / 2, 2, 32);
-	//SPP = 4;
-
 	vec3 refpos = SampledWorldPosition.xyz - (InitialTraceNormal * 0.5f);  // Bias 
-
+	
 	vec4 DiffuseSH = texture(u_DiffuseSH, v_TexCoords).rgba;
 	vec2 DiffuseCoCg = texture(u_DiffuseCoCg, v_TexCoords).rg;
 	vec3 BaseIndirectDiffuse = SHToIrradianceA(DiffuseSH, DiffuseCoCg);
@@ -752,14 +748,12 @@ void main()
 	float TotalMeaningfulHits = 0.0f;
 	
 	SunStronger = u_StrongerLightDirection == u_SunDirection;
-	
 
 	float EmissivityMask = 0.0f;
 
 	// Roughness bias ->
 	float RoughnessBias = 1.0f;
 	RoughnessBias = mix(1.0f, 0.85, float(u_RoughnessBias));
-
 
 	// If the roughness is too high, we can derive an approximate specular value from the diffuse spherical harmonic
 	bool FuckingRough = PBRMap.x >= 0.865;
@@ -775,12 +769,6 @@ void main()
 	// trace ->
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		//if (MetalnessAt < 0.025f) 
-		//{
-		//	continue;
-		//}
-
-		// importance sample :
 		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (NormalMappedInitial);
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
@@ -788,7 +776,6 @@ void main()
 		float T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype, false);
 		vec3 HitPosition = SampledWorldPosition.xyz + (R * T);
 
-		
 
 		if (T > 0.0f)
 		{

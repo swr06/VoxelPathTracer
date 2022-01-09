@@ -585,7 +585,7 @@ bool IsImmediateNeighbour(ivec2 x) {
 
 
 // Spatially upscales indirect data ->
-void SpatialUpscaleData(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
+void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
 {
     const bool BE_FUCKING_USELESS = false;
 
@@ -732,7 +732,7 @@ float remap(float x, float a, float b, float c, float d)
     return (((x - a) / (b - a)) * (d - c)) + c;
 }
 
-vec3 BasicTextureDistortion(vec3 UV) {
+vec3 LavaTextureDistortion(vec3 UV) {
     vec2 UVxy = UV.xy;
     float time = u_Time;
     UV.x += sin(time * 0.25f);
@@ -824,7 +824,7 @@ void main()
 			float UpscaledShadow=0.0f;
             float UpscaledAO = 0.0f;
 		
-            SpatialUpscaleData(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, UpscaledSpecularIndirect,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
+            SpatiallyUpscaleBuffers(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, UpscaledSpecularIndirect,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
 			UpscaledShadow = clamp(UpscaledShadow,0.0f,1.0f);
 
 			float RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz,UpscaledShadow);
@@ -986,7 +986,7 @@ void main()
             // Flicker
             if (IsLava) {
                 o_EmissivityData *= clamp(pow(sin(u_Time * 5.5f) * 0.5f + 0.5f, 1.0f/3.0f), 0.7f, 1.0f);
-                o_EmissivityData *= 1.50f;
+                o_EmissivityData *= 1.325f;
             }
 
             // Approximate specular ->

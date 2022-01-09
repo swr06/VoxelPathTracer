@@ -1,3 +1,5 @@
+// Generates textures gbuffer  
+
 #version 330 core
 
 layout (location = 0) out vec3 o_Albedo; // Albedo
@@ -22,8 +24,10 @@ uniform int u_GrassBlockProps[10];
 
 uniform int u_LavaBlockID;
 uniform sampler3D u_LavaTextures[2];
+
 uniform float u_Time;
 uniform float uTime;
+uniform bool u_UpdateGBufferThisFrame;
 
 layout (std430, binding = 0) buffer SSBO_BlockData
 {
@@ -224,9 +228,25 @@ vec3 BasicTextureDistortion(vec3 UV) {
 }
 
 void main() {
-	vec4 WorldPosition = GetPositionAt(u_NonLinearDepth, v_TexCoords);
-	vec3 FlatNormal = SampleNormalFromTex(u_Normals, v_TexCoords).rgb;
 	int BaseID = GetBlockID(v_TexCoords);
+
+	bool ShouldUpdate = u_UpdateGBufferThisFrame || BaseID == u_LavaBlockID;
+
+	if (!ShouldUpdate) {
+		discard;
+	}
+
+	vec4 WorldPosition = GetPositionAt(u_NonLinearDepth, v_TexCoords);
+
+	if (WorldPosition.w < 0.0f) {
+		o_Albedo = vec3(0.0f);
+		o_Normal = vec3(1.0f); 
+		o_PBR = vec4(0.0f);
+		o_TextureAO = 0.0f; 
+		return;
+	}
+
+	vec3 FlatNormal = SampleNormalFromTex(u_Normals, v_TexCoords).rgb;
 	vec4 data = GetTextureIDs(BaseID, FlatNormal);
 
 	vec2 UV;
@@ -262,7 +282,6 @@ void main() {
 
     o_Albedo = AlbedoColor;
 
-	 // Fix bloom light leak around the edges : 
 	const bool BloomLightLeakFix = true;
 	if (BloomLightLeakFix&&!IsLiquid) {
 		float lbiasx = 0.02f;

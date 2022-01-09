@@ -11,8 +11,8 @@ in vec2 v_TexCoords;
 in vec3 v_RayDirection;
 in vec3 v_RayOrigin;
 
-uniform sampler2D u_CurrentColorTexture; // -> Current SHy 
-uniform sampler2D u_PreviousColorTexture; // -> Previous SHy
+uniform sampler2D u_CurrentColorTexture; 
+uniform sampler2D u_PreviousColorTexture; 
 
 uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
@@ -193,8 +193,8 @@ void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughn
 			
 			float Bias = mix(0.01f, 0.085f, RemappedRoughness);
 			
-			if (Roughness > 0.1925f) {
-				Bias *= 1.75f;
+			if (Roughness > 0.235f) {
+				Bias *= 1.55f;
 			}
 			
 			MinColor -= (Bias * 0.95f);
@@ -417,8 +417,8 @@ void main()
 			//	BlendFactor *= 1.15f;
 			//}
 
-			AccumulationFactor *= 1.07f;
-			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.95f);
+			AccumulationFactor *= 1.05f;
+			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.94f);
 
 			// mix sh
 			o_Color = mix(CurrentColor, PrevColor, AccumulationFactor);
