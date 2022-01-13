@@ -185,6 +185,7 @@ static bool PointVolTriquadraticDensityInterpolation = false;
 static bool PointVolGroundTruthColorInterpolation = false;
 
 static float InitialTraceResolution = 1.0f;
+static float GBufferResolution = 1.0f;
 static float DiffuseTraceResolution = 0.250f; 
 
 static float ShadowTraceResolution = 0.500f;
@@ -241,17 +242,19 @@ static bool DenoiseReflections = true;
 static bool ReflectionFireflyRejection = true;
 static bool AggressiveFireflyRejection = true;
 static bool SmartReflectionClip = true;
-static bool ReflectionNormalMapWeight = false;
+static bool ReflectionNormalMapWeight = true;
 static int ReflectionDenoisingRadiusBias = 0;
 static bool ReflectionLPVGI = true;
 static bool RefectionUseDecoupledGI = false;
 static bool ReflectionHighQualityLPVGI = false;
 static bool ReflectionRoughnessBias = true;
 static bool ReflectionDenoiserDeviationHandling = true;
-static float NormalMapWeightStrength = 1.0f;
+static float NormalMapWeightStrength = 0.750f;
 static float ReflectionDenoiserScale = 1.0f;
 static bool ReprojectReflectionsToScreenSpace = true;
 static bool DeriveReflectionsFromDiffuseSH = false;
+static bool TemporallyStabializeHitDistance = !false; // ;)
+static bool ReflectionTemporalWeight = true;
 
 
 static bool RenderParticles = true;
@@ -314,6 +317,8 @@ static bool RandomDebugVar = false;
 
 const bool DOWNSAMPLE_GBUFFERS = false;
 
+static bool HighlightFocusedBlock = false;
+
 
 
 std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
@@ -366,6 +371,7 @@ public:
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
+			ImGui::Checkbox("Highlight focused block?", &HighlightFocusedBlock);
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
 			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.3f); 
 
@@ -414,6 +420,7 @@ public:
 			ImGui::Text("--- Initial hit Settings ---");
 			ImGui::NewLine();
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
+			ImGui::SliderFloat("GBuffer Generate Resolution", &GBufferResolution, 0.1f, 1.0f);
 			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 500);
 			ImGui::NewLine();
 
@@ -454,9 +461,22 @@ public:
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			
 			ImGui::NewLine();
+			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
+			ImGui::NewLine();
 			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::NewLine();
+			ImGui::Checkbox("Denoise specular reprojection data? ", &DENOISE_REFLECTION_HIT_DATA);
+
+			if (TEMPORAL_SPEC)
+				ImGui::Checkbox("Temporally filter specular reprojection data? (gets rid of flickering artifacts from denoiser)", &TemporallyStabializeHitDistance);
 			ImGui::SliderFloat("Reflection denoiser scale", &ReflectionDenoiserScale, 0.25f, 6.0f);
+			ImGui::NewLine();
+
+			if (TEMPORAL_SPEC)
+				ImGui::Checkbox("Apply Reflection Denoiser Accumulation Weight?", &ReflectionTemporalWeight);
+			
+			ImGui::NewLine();
 			ImGui::Checkbox("Derive reflections from diffuse spherical harmonic (derives when the material is too rough)", &DeriveReflectionsFromDiffuseSH);
 
 			if (DenoiseReflections) {
@@ -471,7 +491,7 @@ public:
 				ImGui::Checkbox("Normal map aware filtering? (Slightly more noise.)", &ReflectionNormalMapWeight);
 				
 				if (ReflectionNormalMapWeight)
-					ImGui::SliderFloat("Normal map weight exponent", &NormalMapWeightStrength, 0.1f, 24.0f);
+					ImGui::SliderFloat("Normal map weight exponent", &NormalMapWeightStrength, 0.1f, 4.0f);
 			}
 
 			ImGui::NewLine();
@@ -499,8 +519,6 @@ public:
 			}
 
 			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
-			ImGui::Checkbox("Denoise specular reprojection data? (you want to keep this off, it won't have any effect, it is used for experimentation.)", &DENOISE_REFLECTION_HIT_DATA);
-			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
 			ImGui::NewLine();
 
 			// Shadows ->
@@ -966,8 +984,8 @@ const glm::ivec3 HistoryLUT[4] = {
 
 GLClasses::Framebuffer ReflectionTraceFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
 GLClasses::Framebuffer ReflectionTraceFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_RED, GL_RED, GL_UNSIGNED_BYTE } }, false);
-GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
-GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTemporalFBO_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
+GLClasses::Framebuffer ReflectionTemporalFBO_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT }, { GL_R16F, GL_RED, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL_FLOAT } }, false);
@@ -1400,6 +1418,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	// 
 
+	glm::ivec4 FocusedOnBlock = glm::ivec4(-1);
+
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
 		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -1472,7 +1492,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			InitialTraceFBO_1.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
 			InitialTraceFBO_2.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
-			GeneratedGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
+			GeneratedGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * GBufferResolution), floor(TRUE_PADDED_HEIGHT * GBufferResolution));
 			
 			if (DOWNSAMPLE_GBUFFERS) {
 				HalfResGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution * 0.5f), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution * 0.5f));
@@ -1642,6 +1662,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
 
 
+
 			// Cube views ->
 			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 150.0, MainPlayer.m_Position.z);
 			auto Matrices = GetMatrices(VirtualCenter);
@@ -1700,11 +1721,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// GBuffer ->
 
-		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 20 == 0 ||
+		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 60 == 0 ||
 			ModifiedWorld || JitterSceneForTAA;
 
 		if (UpdateGBufferThisFrame)
 		{
+			if (HighlightFocusedBlock) {
+				FocusedOnBlock = world->RaycastDetect(MainCamera.GetPosition(), MainCamera.GetFront());
+			}
+
 			// Swap the initial trace framebuffers
 			InitialTraceFBO = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
 			InitialTraceFBOPrev = InitialTraceFBO == &InitialTraceFBO_1 ? &InitialTraceFBO_2 : &InitialTraceFBO_1;
@@ -2926,6 +2951,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetInteger("u_NormalTexture", 9);
 			SpecularTemporalFilter.SetInteger("u_PreviousNormalTexture", 10);
 			SpecularTemporalFilter.SetInteger("u_EmissivityIntersectionMask", 11);
+			SpecularTemporalFilter.SetInteger("u_TemporalHitDist", 12);
 
 
 			SpecularTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
@@ -2942,6 +2968,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SpecularTemporalFilter.SetBool("u_AggressiveFireflyRejection", AggressiveFireflyRejection);
 			SpecularTemporalFilter.SetBool("u_SmartClip", SmartReflectionClip);
 			SpecularTemporalFilter.SetBool("u_RoughnessWeight", RoughReflections);
+			SpecularTemporalFilter.SetBool("u_TemporallyStabializeHitDistance", TemporallyStabializeHitDistance);
 
 			SpecularTemporalFilter.SetVector3f("u_PrevCameraPos", PreviousPosition);
 			SpecularTemporalFilter.SetVector3f("u_CurrentCameraPos", MainCamera.GetPosition());
@@ -2982,6 +3009,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glActiveTexture(GL_TEXTURE11);
 			glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(2));
 
+			glActiveTexture(GL_TEXTURE12);
+			glBindTexture(GL_TEXTURE_2D, PrevReflectionTemporalFBO.GetTexture(2));
+
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3008,6 +3038,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_GBufferNormals", 13);
 				ReflectionDenoiser.SetInteger("u_GBufferPBR", 14);
+				ReflectionDenoiser.SetInteger("u_Frames", 15);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", true);
 				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
@@ -3031,6 +3062,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetFloat("u_NormalMapWeightStrength", NormalMapWeightStrength);
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
+				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&&TEMPORAL_SPEC);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3054,7 +3086,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
 
 				glActiveTexture(GL_TEXTURE10);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
+
+				if (TEMPORAL_SPEC&&TemporallyStabializeHitDistance) {
+					glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(2));
+				}
+
+				else {
+					glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
+				}
 
 				glActiveTexture(GL_TEXTURE11);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
@@ -3063,6 +3102,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glBindTexture(GL_TEXTURE_2D, GeneratedGBuffer.GetTexture(1));
 				glActiveTexture(GL_TEXTURE14);
 				glBindTexture(GL_TEXTURE_2D, GeneratedGBuffer.GetTexture(2));
+				
+				glActiveTexture(GL_TEXTURE15);
+				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3084,6 +3126,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetInteger("u_BlockPBRTexArray", 7);
 				ReflectionDenoiser.SetInteger("u_SpecularHitData", 10);
 				ReflectionDenoiser.SetInteger("u_BlockNormals", 11);
+				ReflectionDenoiser.SetInteger("u_Frames", 15);
 				ReflectionDenoiser.SetInteger("u_Step", 1);
 				ReflectionDenoiser.SetBool("u_Dir", false);
 				ReflectionDenoiser.SetBool("TEMPORAL_SPEC", TEMPORAL_SPEC);
@@ -3097,11 +3140,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetFloat("u_Time", glfwGetTime());
 				ReflectionDenoiser.SetFloat("u_ResolutionScale", ReflectionSuperSampleResolution);
 				ReflectionDenoiser.SetBool("u_NormalMapAware", ReflectionNormalMapWeight);
+				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight);
 				ReflectionDenoiser.SetInteger("u_ReflectionDenoisingRadiusBias", ReflectionDenoisingRadiusBias);
 				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 				ReflectionDenoiser.SetFloat("u_NormalMapWeightStrength", NormalMapWeightStrength);
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
+				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&& TEMPORAL_SPEC);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3120,9 +3165,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				glActiveTexture(GL_TEXTURE7);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetPBRTextureArray());
-				
+
 				glActiveTexture(GL_TEXTURE10);
-				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
+
+				if (TEMPORAL_SPEC&&TemporallyStabializeHitDistance) {
+					glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(2));
+				}
+
+				else {
+					glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
+				}
 
 				glActiveTexture(GL_TEXTURE11);
 				glBindTexture(GL_TEXTURE_2D_ARRAY, BlockDatabase::GetNormalTextureArray());
@@ -3132,6 +3184,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glActiveTexture(GL_TEXTURE14);
 				glBindTexture(GL_TEXTURE_2D, GeneratedGBuffer.GetTexture(2));
 
+				glActiveTexture(GL_TEXTURE15);
+				glBindTexture(GL_TEXTURE_2D, ReflectionTemporalFBO.GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -3348,7 +3402,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetInteger("u_CloudProjectionVert", 28);
 		ColorShader.SetInteger("u_CloudProjection", 28);
 		ColorShader.SetInteger("u_SSSShadowMap", 24);
-
+		ColorShader.SetVector4f("u_FocusedOnBlock", HighlightFocusedBlock ? glm::vec4(FocusedOnBlock) : glm::vec4(-1.0f));
 
 		ColorShader.SetInteger("u_LavaBlockID", BlockDatabase::GetBlockID("Lava"));
 		ColorShader.SetInteger("u_LavaTextures[0]", 26);
@@ -3506,6 +3560,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		TemporalAAShader.SetVector3f("u_CameraHistory[0]", MainCamera.GetPosition());
 		TemporalAAShader.SetVector3f("u_CameraHistory[1]", PreviousPosition);
+		TemporalAAShader.SetVector2f("u_Halton", GetTAAJitter(app.GetCurrentFrame(), glm::vec2(TAAFBO.GetWidth(), TAAFBO.GetHeight())));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
@@ -4173,6 +4228,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		FinalShader.SetBool("u_BoostSkyLuminance", StrongerLightDirection==MoonDirection);
 		FinalShader.SetBool("u_ExponentiallyMagnifyColorDifferences", StrongerLightDirection==MoonDirection);
 		FinalShader.SetFloat("u_Time", glfwGetTime());
+		FinalShader.SetVector4f("u_FocusedOnBlock", HighlightFocusedBlock ? glm::vec4(FocusedOnBlock) : glm::vec4(-1.0f));
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, DoSecondaryFXAA ? FXAA_FBO.GetTexture() : TonemappedFBO.GetTexture());
@@ -4213,6 +4269,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CAS_Shader.SetInteger("u_SelectedLUT", SelectedColorGradingLUT);
 			CAS_Shader.SetBool("FXAA", FXAA);
 			CAS_Shader.SetBool("u_FXAA", FXAA);
+			CAS_Shader.SetVector4f("u_FocusedOnBlock", HighlightFocusedBlock ? glm::vec4(FocusedOnBlock) : glm::vec4(-1.0f));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, FXAA_Final.GetTexture());

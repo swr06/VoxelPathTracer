@@ -47,52 +47,14 @@ uniform float u_ReflectionDenoiserScale;
 
 uniform float u_ResolutionScale;
 
-layout (std430, binding = 0) buffer SSBO_BlockData
-{
-    int BlockAlbedoData[128];
-    int BlockNormalData[128];
-    int BlockPBRData[128];
-    int BlockEmissiveData[128];
-	int BlockTransparentData[128];
-};
+uniform sampler2D u_Frames;
+
+uniform bool u_TemporalWeight;
+
 
 // Large kernel gaussian denoiser //
 const int GAUSS_KERNEL = 33;
-const float GaussianWeightsNormalized[GAUSS_KERNEL] = float[GAUSS_KERNEL](
-	0.004013,
-	0.005554,
-	0.007527,
-	0.00999,
-	0.012984,
-	0.016524,
-	0.020594,
-	0.025133,
-	0.030036,
-	0.035151,
-	0.040283,
-	0.045207,
-	0.049681,
-	0.053463,
-	0.056341,
-	0.058141,
-	0.058754, // 16 idx
-	0.058141,
-	0.056341,
-	0.053463,
-	0.049681,
-	0.045207,
-	0.040283,
-	0.035151,
-	0.030036,
-	0.025133,
-	0.020594,
-	0.016524,
-	0.012984,
-	0.00999,
-	0.007527,
-	0.005554,
-	0.004013
-);
+const float GaussianWeightsNormalized[GAUSS_KERNEL] = float[GAUSS_KERNEL]( 0.004013, 0.005554, 0.007527, 0.00999, 0.012984, 0.016524, 0.020594, 0.025133, 0.030036, 0.035151, 0.040283, 0.045207, 0.049681, 0.053463, 0.056341, 0.058141, 0.058754, 0.058141, 0.056341, 0.053463, 0.049681, 0.045207, 0.040283, 0.035151, 0.030036, 0.025133, 0.020594, 0.016524, 0.012984, 0.00999, 0.007527, 0.005554, 0.004013 ); 
 
 vec3 GetRayDirectionAt(vec2 screenspace)
 {
@@ -163,10 +125,11 @@ float GetLuminance(vec3 color)
 
 void main()
 {
+	o_SpatialResult = vec4(0.000000001f);
+
 	const float Diagonal = sqrt(2.0f);
 	
 	vec4 FilteredColor = vec4(0.0f);
-	vec2 BlurredCoCg = vec2(0.0f);
 
 	vec4 BasePosition = GetPositionAt(u_PositionTexture, v_TexCoords).xyzw;
 	
@@ -180,7 +143,6 @@ void main()
 
 	float TotalWeight = 0.0f;
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
-	float TexArrayRef = float(BlockPBRData[BaseBlockID]);
 
 	vec3 SampledPBR = texture(u_GBufferPBR, v_TexCoords).xyz;
 	float RoughnessAt = SampledPBR.x;
@@ -220,15 +182,10 @@ void main()
 	// Distance weight ->
 	float SpecularHitDistance = max(HitDistanceFetch,0.02f) / 1.3f;
 
-	// If the normal map weight is enabled, we can get decent results by tweaking the view space position 
-	NormalMappedBase.z *= 1.5f;
-	NormalMappedBase.x *= 4.5f;
 
-
-	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz + (NormalMappedBase * 0.75f), 1.0f));
+	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz, 1.0f));
 	float ViewLength = length(ViewSpaceBase);
 	float ViewLengthWeight = 0.001f + ViewLength;
-
 
 	// View length weight ->
 
@@ -277,6 +234,7 @@ void main()
 
 
 	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
+	float NormalMapRadius = 1.0f - clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	
 	// Calculate gaussian radius ->
 	int EffectiveRadius = int(floor(Radius * 15.0f));
@@ -295,38 +253,60 @@ void main()
 	
 	int RadiusBias = 0;
 	
-	if (RoughnessAt > 0.4f) {
-		RadiusBias = 1;
-	}
-
-	if (RoughnessAt > 0.5f) {
-		RadiusBias += 1;
-	}
-
 	if (SampledPBR.y > 0.1f && RoughnessAt > 0.45f) {
 		RadiusBias += 1;
 	}
 	
 	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
-	
-	
-	
-
 
 	//Scale = mix(1.0f, 2.0f, (clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib_), pow((1.0f-RoughnessAt),1.0/2.4f)*8.0f), 0.0f, 1.0f) * 1.75f)+0.4f);
 
+
 	// Since we derived this pixel from the diffuse spherical harmonic (which is already denoised)
 	// We can improve performance by limiting the spatial filter's radius and using a higher scale
-	if (u_DeriveFromDiffuseSH && RawRoughness >= 0.865f) {
+
+	if (u_DeriveFromDiffuseSH && RawRoughness >= 0.865f) 
+	{
 		EffectiveRadius = 4; // 8 spatial samples 
 		Scale *= 1.25f;
 	}
 
 	Scale *= u_ReflectionDenoiserScale;
 
-	EffectiveRadius = clamp(EffectiveRadius,1,15);
+	// Temporal weight ->
+	float TemporalWeight = 0.0f;
 
-	// -- Gaussian filter -- 
+	float AccumulatedFramesClamped = 0.01f;
+
+	if (u_TemporalWeight) {
+
+		// Temporal luminance change 
+		float AccumulatedFrames = texture(u_Frames, v_TexCoords).x;
+		AccumulatedFramesClamped = AccumulatedFrames < -0.1f ? 0.0f : (1.0f - AccumulatedFrames);
+		AccumulatedFramesClamped = clamp(AccumulatedFramesClamped, 0.000001f, 1.0f);
+		TemporalWeight = clamp(AccumulatedFramesClamped * 0.85f, 0.0f, 1.0f);
+		Scale = mix(Scale, Scale * Diagonal, AccumulatedFramesClamped * 1.04f);
+	
+		// Temporal radius weight ->
+		float FLT_radius = EffectiveRadius;
+		FLT_radius = mix(FLT_radius, FLT_radius + 2, AccumulatedFramesClamped * 1.05f);
+		EffectiveRadius = int(FLT_radius);
+
+	}
+
+	// HF normal + transversal weight 
+	float HF_e = 64.0f * u_NormalMapWeightStrength * 1.350f;
+	HF_e *= pow(NormalMapRadius, 1.0f/1.333f);
+	
+	
+	
+	// --- Gaussian spatial filtering --- 
+
+	float SqrtScale = sqrt(Scale);
+
+	float RoughnessPow8 = clamp(pow(RoughnessAt * 1.0f, 7.0f), 0.0000000001f, 1.0f);
+
+	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
 	for (int Sample = -EffectiveRadius ; Sample <= EffectiveRadius; Sample++)
 	{
@@ -348,106 +328,92 @@ void main()
 				continue;
 			}
 
-			bool KillDepthWeight = false;
+			// Sample data ->
+			vec4 SampleData = texture(u_InputTexture, SampleCoord).xyzw;
 
-			if (BasePosition.w < 42.0f) {
-			
-				float PositionTolerance = BlockValidity ? 0.925f : 1.414f;
+			// Depth weight ->
+			float DepthDifference = abs(SampleDepth-BasePosition.w) * 1.5f;
+			float DepthWeight = pow(exp(-DepthDifference), 2.0f); // mix(clamp(pow(exp(-max(DepthDifference, 0.00001f)), 3.0f), 0.0001f, 1.0f),1.0f,float(KillDepthWeight));
 
-				float PositionError = abs(SampleDepth-BasePosition.w);
-			
-				
-				if (PositionError > PositionTolerance || SampleDepth < 0.0f) { 
-					continue;
-				}
-
-				KillDepthWeight = true;
-			}
-			
-			
-
-			float DepthDifference = abs(SampleDepth-BasePosition.w);
-			float DepthWeight = mix(clamp(pow(exp(-max(DepthDifference, 0.00001f)), 3.0f), 0.0001f, 1.0f),1.0f,float(KillDepthWeight));
-			
+			// Low frequency normal weight ->
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
+			float NormalWeight = pow(max(dot(BaseNormal, SampleNormal), 0.00000000001f), 32.0f);
 
-			if (SampleNormal != BaseNormal) {
-				continue;
+			// Detail weight ->
+			float LuminanceWeight = 1.0f;
+			float SampleRoughness = texture(u_GBufferPBR, SampleCoord).r;
+			bool SampleTooRough = SampleRoughness >= 0.89f;
+			if (!SampleTooRough) {
+				float LumaAt = GetLuminance(SampleData.xyz);
+				float LuminanceError = 1.0f / abs(LumaAt - BaseLuminance);//1.0f - clamp(abs(LumaAt - BaseLuminance) / 4.0f, 0.0f, 1.0f);
+				LuminanceError = pow(LuminanceError, 1.7f);
+				float LumaWeightExponent = 1.0f;
+				LumaWeightExponent = mix(0.001f, 8.0f, pow(SampleRoughness, 16.0f));
+				LuminanceWeight = pow(LuminanceError, LumaWeightExponent + 0.6f);
+				LuminanceWeight = clamp(LuminanceWeight, 0.0000000001f, 1.0f);
+				LuminanceWeight = mix(LuminanceWeight, 1.0f, TemporalWeight);
+				LuminanceWeight = clamp(LuminanceWeight, 0.0000000001f, 1.0f);
 			}
 
-			//float NormalWeight = pow(abs(dot(SampleNormal, BaseNormal)), 12.0f);
-			float SampleRoughness = texture(u_GBufferPBR, SampleCoord).r;
 
-			
+			// High frequency normal weight ->
+			float HFNormalWeight = 1.0f;
+			if (u_NormalMapAware && !SampleTooRough && RoughnessAt < 0.71f && AccumulatedFramesClamped <= 0.175f + 0.001f) {
+				vec3 NormalMapAt = texture(u_GBufferNormals, SampleCoord).xyz;
+				HFNormalWeight = pow(clamp(dot(NormalMapAt,NormalMappedBase), 0.00000001f, 1.0f), HF_e);
+				HFNormalWeight = clamp(HFNormalWeight, 0.00000000001f, 1.0f);
+			}
 
-			vec4 SampleColor = texture(u_InputTexture, SampleCoord).xyzw;
+			// Roughness transversal weight ->
+			float RoughnessError = abs(SampleRoughness - RoughnessAt);
+			float RoughnessTransversalWeight = 1.0f / RoughnessError;
+			RoughnessTransversalWeight = pow(RoughnessTransversalWeight, 16.0f);
+			RoughnessTransversalWeight = clamp(RoughnessTransversalWeight, 0.00000000001f, 1.0f);
 
-			// Luminosity weights
-			//float LumaAt = SHToY(SampleSH);
-			//float LuminanceError = 1.0f - abs(LumaAt - BaseLuminance);
-			//float LumaWeightExponent = 1.0f;
-			//LumaWeightExponent = mix(0.1f, 8.0f, pow(SampleRoughness, 16.0f));
-			//float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent+0.75f);
-
-			float LumaAt = GetLuminance(SampleColor.xyz);
-			float LuminanceError =  1.0f - clamp(abs(LumaAt - BaseLuminance) / 4.0f, 0.0f, 1.0f);
-			float LumaWeightExponent = 1.0f;
-			LumaWeightExponent = mix(0.01f, 8.0f, pow(SampleRoughness, 16.0f));
-			float LuminanceWeight = pow(abs(LuminanceError), LumaWeightExponent + 0.5525250f);
-
-
+			// Kernel weight ->
 			float CurrentKernelWeight = GaussianWeightsNormalized[clamp(16+Sample,0,32)];
 
+			// Combine weights ->
 			float CurrentWeight = 1.0f;
-
-			// dont weight by luminance error if the material smoothness < threshold 
-			bool SampleTooRough = SampleRoughness > 0.897511f;
-			if (!SampleTooRough) {
-				CurrentWeight *= clamp(LuminanceWeight, 0.0f, 1.0f);
-			}
-
 			CurrentWeight *= DepthWeight;
+			CurrentWeight *= NormalWeight;
+			CurrentWeight *= HFNormalWeight;
+			CurrentWeight *= LuminanceWeight;
+			CurrentWeight *= CurrentKernelWeight;
+			CurrentWeight *= RoughnessTransversalWeight;
 
+			// Prevent division by zero
+			CurrentWeight = clamp(CurrentWeight, 0.000000001f, 1.0f);
 
-
-			if (u_NormalMapAware && !SampleTooRough) {
-				vec3 NormalMapAt = texture(u_GBufferNormals, SampleCoord).xyz;
-				CurrentWeight *= pow(clamp(dot(NormalMapAt,NormalMappedBase), 0.00001f, 1.0f), 64.0f * u_NormalMapWeightStrength);
-			}
-
-
-			//CurrentWeight *= clamp(NormalWeight, 0.0f, 1.0f);
-			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
-			CurrentWeight = CurrentKernelWeight * CurrentWeight;
-			CurrentWeight = clamp(CurrentWeight,0.01,1.0f);
-			FilteredColor += SampleColor * CurrentWeight;
+			// Average ->
+			FilteredColor += SampleData * CurrentWeight;
 			TotalWeight += CurrentWeight;
 		}
 	}
 
-	vec4 BaseSampled = texture(u_InputTexture, v_TexCoords).rgba;
 
 	bool DoSpatial = true;
 
 	if (TotalWeight > 0.001f && DoSpatial) { 
 		FilteredColor = FilteredColor / TotalWeight;
-		BlurredCoCg = BlurredCoCg / TotalWeight;
 
-		float m = 1.0f;
+		float SmoothnessMixFactor = 1.0f;
 		
 		// Preserve a few more details in "too" smooth materials
 		if (RoughnessAt <= 0.10550f)
 		{
-			m = RoughnessAt * 16.0f;
-			m = 1.0f - m;
-			m = m * m * m * m;
-			m = clamp(m, 0.01f, 0.999f); 
+			SmoothnessMixFactor = RoughnessAt * 16.0f;
+			SmoothnessMixFactor = 1.0f - SmoothnessMixFactor;
+			SmoothnessMixFactor = pow(SmoothnessMixFactor, 4.0f);
+			SmoothnessMixFactor = clamp(SmoothnessMixFactor, 0.1f, 0.999f); 
 		}  
 
-		o_SpatialResult = mix(BaseSampled, FilteredColor, m);
+		o_SpatialResult = mix(BaseColor, FilteredColor, SmoothnessMixFactor);
 	}
 
 	else {
-		o_SpatialResult = BaseSampled;
+
+
+		o_SpatialResult = BaseColor;
 	}
 }

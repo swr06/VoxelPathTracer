@@ -635,8 +635,9 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
             float KernelWeight = AtrousWeights[abs(x)] * AtrousWeights[abs(y)];
 		    
             float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
-            float SpecWeight = clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
+            float SpecWeight = Weight;//clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
 		    Weight = max(Weight, 0.01f);
+		    SpecWeight = max(SpecWeight, 0.01f);
 
 
 		    TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;

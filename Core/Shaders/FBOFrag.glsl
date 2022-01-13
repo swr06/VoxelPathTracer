@@ -1,6 +1,8 @@
 #version 330 core
 #define INF 100000.0f
 
+#define saturate(x) (clamp(x,0.,1.))
+
 float bayer2(vec2 a){
     a = floor(a);
     return fract(dot(a, vec2(0.5, a.y * 0.75)));
@@ -41,6 +43,7 @@ uniform bool u_RenderItemCube;
 uniform bool u_ExponentiallyMagnifyColorDifferences;
 
 uniform float u_Time;
+uniform vec4 u_FocusedOnBlock;
 
 vec2 TexCoords;
 
@@ -239,10 +242,8 @@ float GetLuminosityWeightFXAANoBias(vec3 color, bool edge, vec2 txc)
 
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
-bool DetectEdge(out bool Skyedge)
+bool DetectEdge(out bool Skyedge, float BaseDepth, vec3 BaseNormal)
 {
-	vec4 BasePosition = SamplePositionAt(TexCoords).xyzw;
-	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords).xyz;
 	vec3 BaseColor = texture(u_FramebufferTexture, TexCoords).xyz;
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
 	int BaseBlock = GetBlockAt(TexCoords);
@@ -252,13 +253,15 @@ bool DetectEdge(out bool Skyedge)
 	{
 		for (int y = -1 ; y <= 1 ; y++)
 		{
+			
 			vec2 SampleCoord = TexCoords + vec2(x, y) * TexelSize;
-			vec4 SamplePosition = SamplePositionAt(SampleCoord).xyzw;
+			//vec4 SamplePosition = SamplePositionAt(SampleCoord).xyzw;
+			float SamplePosition = 1./texture(u_PositionTexture, SampleCoord).x;
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-			float PositionError = abs(SamplePosition.w - BasePosition.w);//distance(BasePosition, SamplePosition.xyz);
+			float PositionError = abs(SamplePosition - BaseDepth);//distance(BasePosition, SamplePosition.xyz);
 			int SampleBlock = GetBlockAt(SampleCoord);
 
-			if (SamplePosition.w < 0.0f) {
+			if (BaseDepth < 0.0f) {
 				Skyedge = true;
 			}
 
@@ -276,12 +279,12 @@ bool DetectEdge(out bool Skyedge)
 
 
 
-void FXAA311(inout vec3 color) 
+void FXAA311(inout vec3 color, float BaseDepth, vec3 BaseNormal) 
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
 	bool Skyedge = false;
-	bool IsAtEdge = DetectEdge(Skyedge);
+	bool IsAtEdge = DetectEdge(Skyedge, BaseDepth, BaseNormal);
 	float subpixelQuality = IsAtEdge ? 0.935f : 0.0925f; 
 
 	//if (IsAtEdge) {
@@ -564,6 +567,23 @@ void BasicColorDither(inout vec3 color)
     color += Lestyn.rgb / 255.0f;
 }
 
+float DistanceSquared(vec3 A, vec3 B)
+{
+    vec3 C = A - B;
+    return dot( C, C );
+}
+
+vec2 CalculateUV(vec3 world_pos, in vec3 normal);
+
+float GetEdgeGradient(in vec2 uv)
+{
+    vec2 OneMinusUV = 1.0 - uv;
+    vec4 GradientOne = smoothstep(0.85f, 0.99f, vec4(uv.x, OneMinusUV.x, uv.y, OneMinusUV.y));
+    vec4 GradientTwo = smoothstep( 0.85, 0.99, vec4(uv.x * uv.y, OneMinusUV.x * uv.y, OneMinusUV.x * OneMinusUV.y, uv.x * OneMinusUV.y));
+	vec4 Res = max(GradientOne, GradientTwo);
+    return pow(max(max(Res.x,Res.y), max(Res.z, Res.w)), 2.0f);
+}
+
 void main()
 {
 
@@ -573,15 +593,22 @@ void main()
 	TexCoords = TexCoords / vec2(u_Dimensions + float(u_Padding));
 
 	vec3 BaseSample = texture(u_FramebufferTexture, TexCoords).rgb;
+	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords);
 	vec3 ViewerPos = u_InverseView[3].xyz;
-	vec3 BasePos = SamplePositionAt(TexCoords).xyz;
+	vec4 BasePos = SamplePositionAt(TexCoords).xyzw;
+
+	vec3 FloorPosition = floor(BasePos.xyz - BaseNormal * 0.01f);
+	vec2 UV = CalculateUV(BasePos.xyz, BaseNormal);
+
+
+
 
     vec3 Color = BaseSample;
 	const bool CustomFXAA = false;
 	bool fxaa = false;
 
 	if (u_FXAA) {
-		FXAA311(Color);
+		FXAA311(Color, BasePos.w, BaseNormal);
 	}
 
 	o_Color = Color;
@@ -599,7 +626,66 @@ void main()
 		}
 	}
 
+
 	else {
 		o_Color = clamp(o_Color, 0.0f, 1.0f);
 	}
+
+	if (ivec3(FloorPosition) == ivec3(floor(u_FocusedOnBlock.xyz))) {
+		float Fade = GetEdgeGradient(UV);
+		vec3 FinalFade = (1.0f-mix(0.0f, 0.95f, (Fade))) * vec3(1.0f, 0.9f, 0.9f);
+		o_Color *= FinalFade;
+    }
+
+
+}
+
+
+bool CompareVec3(vec3 v1, vec3 v2) {
+	float e = 0.0125f;
+	return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+}
+
+vec2 CalculateUV(vec3 world_pos, in vec3 normal)
+{
+	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
+	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
+	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
+	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
+	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
+	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
+
+    vec2 uv = vec2(0.);
+
+    if (CompareVec3(normal, NORMAL_TOP))
+    {
+        uv = vec2(fract(world_pos.xz));
+    }
+
+    else if (CompareVec3(normal, NORMAL_BOTTOM))
+    {
+        uv = vec2(fract(world_pos.xz));
+    }
+
+    else if (CompareVec3(normal, NORMAL_RIGHT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+
+    else if (CompareVec3(normal, NORMAL_LEFT))
+    {
+        uv = vec2(fract(world_pos.zy));
+    }
+    
+    else if (CompareVec3(normal, NORMAL_FRONT))
+    {
+        uv = vec2(fract(world_pos.xy));
+    }
+
+    else if (CompareVec3(normal, NORMAL_BACK))
+    {
+        uv = vec2(fract(world_pos.xy));
+    }
+
+    return uv;
 }

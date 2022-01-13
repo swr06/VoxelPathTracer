@@ -690,9 +690,6 @@
     <None Include="Core\Shaders\BlurHitDistance_Bilateral.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl">
-      <Filter>Source Files\Shaders</Filter>
-    </None>
     <None Include="Core\Shaders\Volumetrics\ClearDataFloat.comp">
       <Filter>Source Files\Shaders\Volumetrics</Filter>
     </None>
@@ -772,6 +769,9 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\GenerateGBuffer.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

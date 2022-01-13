@@ -725,9 +725,9 @@ void main()
 
 	vec3 I = normalize(SampledWorldPosition.xyz - u_ViewerPosition); // Incident 
 	
-	vec3 NormalMappedInitial = texture(u_GBufferNormals, v_TexCoords).xyz;
 	SampledWorldPosition.xyz += InitialTraceNormal.xyz * 0.035f; // Apply bias.
-    NormalMappedInitial = normalize(NormalMappedInitial);
+	
+	vec3 NormalMappedInitial = texture(u_GBufferNormals, v_TexCoords).xyz;
 	
 	float ComputedShadow = 0.0f;
 	int ShadowItr = 0;

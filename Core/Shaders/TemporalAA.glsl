@@ -163,7 +163,6 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
 
 
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
-			float DepthAt = 1./texture(u_PositionTexture, v_TexCoords).x;
 
             MinColor = min(Sample, MinColor); 
 			MaxColor = max(Sample, MaxColor); 

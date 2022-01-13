@@ -6,6 +6,11 @@
 #define EPS 0.01f
 
 layout (location = 0) out vec4 o_Color;
+layout (location = 1) out float o_AccumulatedFrames;
+
+// Temporally stable hit distance 
+// To prevent flickering artifacts with denoiser
+layout (location = 2) out float o_HitDistanceStable;
 
 in vec2 v_TexCoords;
 in vec3 v_RayDirection;
@@ -18,6 +23,8 @@ uniform sampler2D u_CurrentPositionTexture;
 uniform sampler2D u_PreviousFramePositionTexture;
 
 uniform sampler2D u_PreviousNormalTexture;
+
+uniform sampler2D u_TemporalHitDist;
 
 
 uniform sampler2D u_PBRTex;
@@ -45,6 +52,7 @@ uniform vec3 u_CurrentCameraPos;
 uniform bool u_ReflectionTemporal = false;
 uniform bool TEMPORAL_SPEC = false;
 uniform bool u_SmartClip = true;
+uniform bool u_TemporallyStabializeHitDistance;
 
 // Firefly rejection ->
 uniform bool u_FireflyRejection;
@@ -138,6 +146,12 @@ vec3 ClipToAABB(vec3 prevColor, vec3 minColor, vec3 maxColor)
     return denom > 1.0 ? pClip + vClip / denom : prevColor;
 }
 
+float GetDistSquared(vec3 A, vec3 B)
+{
+    vec3 C = A - B;
+    return dot(C, C);
+}
+
 void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughness, float Metalness) {
 	
 	const float RoughnessThreshold = 0.275f + 0.01f;
@@ -217,7 +231,7 @@ void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughn
 	vec3 ClampedRadiance = ClipToAABB(PreviousColor.xyz, MinColor.xyz, MaxColor.xyz).xyz;
 
 	if (ClampedRadiance != PreviousColor.xyz) {
-		if (distance(ClampedRadiance, MinColor.xyz) > distance(ClampedRadiance, MaxColor.xyz)) {
+		if (GetDistSquared(ClampedRadiance, MinColor.xyz) > GetDistSquared(ClampedRadiance, MaxColor.xyz)) {
 			PreviousColor = MaxColor;
 		}
 
@@ -295,6 +309,9 @@ void main()
 	vec4 CurrentPosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).rgba;
 	vec3 InitialNormal = SampleNormal(u_NormalTexture, v_TexCoords);
 	vec4 CurrentColor = texture(u_CurrentColorTexture, CurrentCoord).rgba;
+	o_AccumulatedFrames = 0.0f;
+	float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
+
 	
 	// Firefly rejection ->
 
@@ -307,9 +324,9 @@ void main()
 		}
 	}
 
+
 	if (CurrentPosition.a > 0.0f && TEMPORAL_SPEC)
 	{
-		float HitDistanceCurrent = texture(u_SpecularHitDist, v_TexCoords).r;
 		bool SkySample = HitDistanceCurrent < 0.0f;
 
 		vec2 pxy = texture(u_PBRTex, v_TexCoords).xy;
@@ -326,9 +343,12 @@ void main()
 		
 		
 		
-		if (RoughnessAt <= 0.80f+0.01f && HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample)
+		if (HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample && RoughnessAt <= 0.875f+0.01f)
 		{
+
+
 			// Reconstruct the reflected position to properly reproject
+
 			vec3 I = normalize(v_RayOrigin - CurrentPosition.xyz);
 			vec3 ReflectedPosition = CurrentPosition.xyz - I * HitDistanceCurrent;
 
@@ -352,13 +372,13 @@ void main()
 			}
 		}
 
-		else {
+		else if (!SkySample) {
+		
 			// very approximate reprojection based on camera position delta
 			
 			vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
 			CameraOffset *= 0.6f;
 			Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
-			LessValid = true;
 		}
 
 		if (SkySample) {
@@ -388,10 +408,12 @@ void main()
 			//ComputeClamped(Reprojected, PrevSH, PrevCoCg);
 
 			PrevColor = texture(u_PreviousColorTexture, Reprojected);
+
+			vec3 BasePrevColor = PrevColor.xyz;
 			
 
-			const float DistanceEps = 0.0025f;
-			bool Moved = distance(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
+			const float DistanceEps = 0.001f;
+			bool Moved = GetDistSquared(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
@@ -402,6 +424,8 @@ void main()
 
 			// Radiance clipping -> 
 			// Used to reduce ghosting 
+
+
 			if (TryClipping && Moved && u_SmartClip) {
 
 				// Clip sample ->
@@ -422,17 +446,39 @@ void main()
 
 			// mix sh
 			o_Color = mix(CurrentColor, PrevColor, AccumulationFactor);
+
+			o_AccumulatedFrames = AccumulationFactor;
+
+			o_HitDistanceStable = HitDistanceCurrent;
+
+			// Stabialize hit distance data 
+			if (GetDistSquared(BasePrevColor, PrevColor.xyz) < 0.2f && u_TemporallyStabializeHitDistance) {
+
+				o_HitDistanceStable = mix(HitDistanceCurrent, texture(u_TemporalHitDist, Reprojected).x, clamp(AccumulationFactor * 1.1f, 0.0f, 0.9f));
+
+			}
 		}
 
 		else 
 		{
 			o_Color = CurrentColor;
+
+			o_AccumulatedFrames = 0.0f;
+
+			o_HitDistanceStable = HitDistanceCurrent;
 		}
 	}
 
 	else 
 	{
 		o_Color = CurrentColor;
+
+		o_HitDistanceStable = HitDistanceCurrent;
+	}
+
+	
+	if (!TEMPORAL_SPEC) {
+		o_AccumulatedFrames = -1.0f;
 	}
 }
 
