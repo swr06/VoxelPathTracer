@@ -255,6 +255,7 @@ static bool ReprojectReflectionsToScreenSpace = true;
 static bool DeriveReflectionsFromDiffuseSH = false;
 static bool TemporallyStabializeHitDistance = !false; // ;)
 static bool ReflectionTemporalWeight = true;
+static float RoughnessNormalWeightBiasStrength = 1.075f;
 
 
 static bool RenderParticles = true;
@@ -482,6 +483,7 @@ public:
 			if (DenoiseReflections) {
 				ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
 				ImGui::Checkbox("Reflection Roughness-Based Distance Weight Clamping?", &ReflectionDenoiserDeviationHandling);
+				
 			}
 
 
@@ -492,6 +494,7 @@ public:
 				
 				if (ReflectionNormalMapWeight)
 					ImGui::SliderFloat("Normal map weight exponent", &NormalMapWeightStrength, 0.1f, 4.0f);
+					ImGui::SliderFloat("Normal map - Roughness bias strength (Higher = lesser clarity with lesser noise, lower = more clarity with more noise", &RoughnessNormalWeightBiasStrength, 0.0f, 3.0f);
 			}
 
 			ImGui::NewLine();
@@ -3063,6 +3066,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&&TEMPORAL_SPEC);
+				ReflectionDenoiser.SetFloat("u_RoughnessNormalWeightBiasStrength", RoughnessNormalWeightBiasStrength);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3145,6 +3149,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetBool("u_HandleLobeDeviation", ReflectionDenoiserDeviationHandling);
 				ReflectionDenoiser.SetBool("u_DeriveFromDiffuseSH", DeriveReflectionsFromDiffuseSH);
 				ReflectionDenoiser.SetFloat("u_NormalMapWeightStrength", NormalMapWeightStrength);
+				ReflectionDenoiser.SetFloat("u_RoughnessNormalWeightBiasStrength", RoughnessNormalWeightBiasStrength);
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&& TEMPORAL_SPEC);
 

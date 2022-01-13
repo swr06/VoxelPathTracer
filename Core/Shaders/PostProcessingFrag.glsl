@@ -645,7 +645,7 @@ void main()
 			
 		// Weighted average ->
 
-		float Weights[5] = float[5](5.75f, 4.85f, 4.75f, 4.5f, 4.35f);
+		float Weights[5] = float[5](5.75f, 4.95f, 4.9f, 4.8f, 4.75f);
 		const float DetailWeight = 7.2f;
 
 		TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;

@@ -3,6 +3,8 @@
 //	   TAA (Neighbourhood clamping, box clipping) : INSIDE TAA
 //     Variance Clipping : https://www.dropbox.com/sh/dmye840y307lbpx/AAAQpC0MxMbuOsjm6XmTPgFJa	
 
+// Todo : Handle sky motion vectors and specular motion vectors
+
 #version 330 core
 
 layout (location = 0) out vec3 o_Color;

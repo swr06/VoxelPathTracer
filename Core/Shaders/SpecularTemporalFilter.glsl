@@ -341,7 +341,7 @@ void main()
 		// Usually we wouldn't be able to use such a high roughness threshold 
 		// But this works since we apply a bilateral filter to the distance reproj data
 		
-		
+		const float Diagonal = sqrt(2.0f);
 		
 		if (HitDistanceCurrent > 0.0f && UseNewReprojection && !SkySample && RoughnessAt <= 0.875f+0.01f)
 		{
@@ -361,13 +361,7 @@ void main()
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
 			
-			if (abs(PreviousT - HitDistanceCurrent) >= 3.0f) {
-			
-				// If hit distance is invalid, fallback on very-approximate reprojection
-				
-				vec3 CameraOffset = u_CurrentCameraPos - u_PrevCameraPos; 
-				CameraOffset *= 0.6f;
-				Reprojected = Reprojection(CurrentPosition.xyz - CameraOffset);
+			if (abs(PreviousT - HitDistanceCurrent) >= Diagonal * 2. || PreviousT < 0.0f != HitDistanceCurrent < 0.0f) {
 				LessValid = true;
 			}
 		}
@@ -412,12 +406,12 @@ void main()
 			vec3 BasePrevColor = PrevColor.xyz;
 			
 
-			const float DistanceEps = 0.001f;
-			bool Moved = GetDistSquared(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
+			const float DistanceEps = 0.0001f;
+			bool Moved = GetDistSquared(u_CurrentCameraPos, u_PrevCameraPos) >= DistanceEps;
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
-			float AccumulationFactor = LessValid ? (Moved ? (RoughnessAt > 0.75f ? 0.825f : (RoughnessAt > 0.575f ? 0.7f : 0.575f)) : 0.875f) : (Moved ? 0.875f : 0.95f); 
+			float AccumulationFactor = LessValid ? (Moved ? 0.25f : 0.15f) : (Moved ? 0.875f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;

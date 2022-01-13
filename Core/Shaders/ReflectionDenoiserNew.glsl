@@ -1,8 +1,9 @@
-// Gaussian reflection denoiser
-// This denoiser has specialized weights so that it doesn't overblur anything 
+// Spatio-Temporal Gaussian Reflection Denoiser
+// This denoiser has specialized weights so that it doesn't overblur anything
+// (Also accounts for temporal filter contibution, contact hardening, normal maps, roughness and specular lobe patterns)
+
 
 // "Welcome to magic number land, we hope you enjoy your stay."
-
 
 #version 430 core
 
@@ -46,6 +47,7 @@ uniform float u_NormalMapWeightStrength;
 uniform float u_ReflectionDenoiserScale;
 
 uniform float u_ResolutionScale;
+uniform float u_RoughnessNormalWeightBiasStrength;
 
 uniform sampler2D u_Frames;
 
@@ -145,10 +147,10 @@ void main()
 	float TexelSize = u_Dir ? 1.0f / u_Dimensions.x : 1.0f / u_Dimensions.y;
 
 	vec3 SampledPBR = texture(u_GBufferPBR, v_TexCoords).xyz;
-	float RoughnessAt = SampledPBR.x;
-	RoughnessAt += 0.001f;
-	float RawRoughness = RoughnessAt;
-	RoughnessAt *= mix(1.0f, 0.91f, float(u_RoughnessBias));
+	float BaseRoughness = SampledPBR.x;
+	BaseRoughness += 0.001f;
+	float RawRoughness = BaseRoughness;
+	BaseRoughness *= mix(1.0f, 0.91f, float(u_RoughnessBias));
 
 	vec3 NormalMappedBase = texture(u_GBufferNormals, v_TexCoords).xyz;
 
@@ -170,11 +172,11 @@ void main()
 	// Handle roughness lobe deviation
 
 	if (u_HandleLobeDeviation) {
-		if (RoughnessAt <= 0.25f + 0.05f) {
+		if (BaseRoughness <= 0.25f + 0.05f) {
 			HitDistanceFetch = clamp(HitDistanceFetch, 0.0f, 8.0f);
 		}
 
-		if (RoughnessAt <= 0.2) {
+		if (BaseRoughness <= 0.2) {
 			HitDistanceFetch = clamp(HitDistanceFetch, 0.0f, 5.5f);
 		}
 	}
@@ -189,7 +191,7 @@ void main()
 
 	// View length weight ->
 
-	if (RoughnessAt > 0.135f) {
+	if (BaseRoughness > 0.135f) {
 		ViewLengthWeight = max(ViewLengthWeight, 0.750);
 	}
 
@@ -197,19 +199,19 @@ void main()
 		ViewLengthWeight = max(ViewLengthWeight, 3.0f);
 	}
 
-	if (RoughnessAt < 0.125f) {
+	if (BaseRoughness < 0.125f) {
 		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 6.0f);
 	}
 
-	else if (RoughnessAt < 0.25f) {
+	else if (BaseRoughness < 0.25f) {
 		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 8.0f+1.0f);
 	}
 
-	else if (RoughnessAt < 0.5f) {
+	else if (BaseRoughness < 0.5f) {
 		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 16.0f);
 	}
 
-	else if (RoughnessAt < 0.75f) {
+	else if (BaseRoughness < 0.75f) {
 		ViewLengthWeight = clamp(ViewLengthWeight, 0.000001f, 24.0f);
 	}
 
@@ -220,28 +222,28 @@ void main()
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
 	float TransversalContrib_ = TransversalContrib;
 
-	if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.625f) {
+	if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.625f) {
 		TransversalContrib = pow(TransversalContrib, 2.5f);
 	}
 
-	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.525f) {
+	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.525f) {
 		TransversalContrib = pow(TransversalContrib, 1.35f);
 	}
 
-	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && RoughnessAt <= 0.35f) {
+	if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.35f) {
 		TransversalContrib = pow(TransversalContrib, 1.4f);
 	}
 
 
-	float Radius = clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
-	float NormalMapRadius = 1.0f - clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib), pow((1.0f-RoughnessAt),1.0/1.4f)*5.0f), 0.0f, 1.0f);
+	float Radius = clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
+	float NormalMapRadius = 1.0f - clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	
 	// Calculate gaussian radius ->
 	int EffectiveRadius = int(floor(Radius * 15.0f));
 	EffectiveRadius = clamp(EffectiveRadius, 1, 15);
 
 	// reduce noise on too rough objects 
-	bool BaseTooRough = RoughnessAt > 0.897511f;
+	bool BaseTooRough = BaseRoughness > 0.897511f;
 	EffectiveRadius = BaseTooRough ? 15 : EffectiveRadius;
 
 	// Basic jitter to reduce 2 pass gaussian artifacts 
@@ -253,13 +255,13 @@ void main()
 	
 	int RadiusBias = 0;
 	
-	if (SampledPBR.y > 0.1f && RoughnessAt > 0.45f) {
+	if (SampledPBR.y > 0.1f && BaseRoughness > 0.45f) {
 		RadiusBias += 1;
 	}
 	
 	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
 
-	//Scale = mix(1.0f, 2.0f, (clamp(pow(mix(1.0f * RoughnessAt, 1.0f, TransversalContrib_), pow((1.0f-RoughnessAt),1.0/2.4f)*8.0f), 0.0f, 1.0f) * 1.75f)+0.4f);
+	//Scale = mix(1.0f, 2.0f, (clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib_), pow((1.0f-BaseRoughness),1.0/2.4f)*8.0f), 0.0f, 1.0f) * 1.75f)+0.4f);
 
 
 	// Since we derived this pixel from the diffuse spherical harmonic (which is already denoised)
@@ -273,9 +275,11 @@ void main()
 
 	Scale *= u_ReflectionDenoiserScale;
 
-	// Temporal weight ->
-	float TemporalWeight = 0.0f;
 
+
+	// Temporal weight ->
+
+	float TemporalWeight = 0.0f;
 	float AccumulatedFramesClamped = 0.01f;
 
 	if (u_TemporalWeight) {
@@ -296,15 +300,22 @@ void main()
 
 	// HF normal + transversal weight 
 	float HF_e = 64.0f * u_NormalMapWeightStrength * 1.350f;
-	HF_e *= pow(NormalMapRadius, 1.0f/1.333f);
-	
-	
-	
+	HF_e *= pow(NormalMapRadius, 1.0f / 1.33f);
+	float HF_WeightAdder = mix(0.0f, 0.005f, float(BaseRoughness > 0.45f));
+	HF_WeightAdder += mix(0.0f, 0.0125f, float(BaseRoughness > 0.525f));
+	HF_WeightAdder += mix(0.0f, 0.022f, float(BaseRoughness > 0.625f));
+	HF_WeightAdder += mix(0.0f, 0.026f, float(BaseRoughness > 0.725f));
+	HF_WeightAdder += mix(0.0f, 0.031f, float(BaseRoughness > 0.75f));
+
+
+
+
 	// --- Gaussian spatial filtering --- 
 
-	float SqrtScale = sqrt(Scale);
 
-	float RoughnessPow8 = clamp(pow(RoughnessAt * 1.0f, 7.0f), 0.0000000001f, 1.0f);
+	//float SqrtScale = sqrt(Scale);
+
+	float RoughnessPow8 = clamp(pow(BaseRoughness * 1.0f, 7.0f), 0.0000000001f, 1.0f);
 
 	EffectiveRadius = clamp(EffectiveRadius,1,15);
 
@@ -358,16 +369,17 @@ void main()
 
 			// High frequency normal weight ->
 			float HFNormalWeight = 1.0f;
-			if (u_NormalMapAware && !SampleTooRough && RoughnessAt < 0.71f && AccumulatedFramesClamped <= 0.175f + 0.001f) {
+			if (u_NormalMapAware && !SampleTooRough && BaseRoughness < 0.8f && AccumulatedFramesClamped <= 0.185f + 0.001f + 0.001f + 0.0001f) {
 				vec3 NormalMapAt = texture(u_GBufferNormals, SampleCoord).xyz;
-				HFNormalWeight = pow(clamp(dot(NormalMapAt,NormalMappedBase), 0.00000001f, 1.0f), HF_e);
-				HFNormalWeight = clamp(HFNormalWeight, 0.00000000001f, 1.0f);
+				float Angle = dot(NormalMapAt,NormalMappedBase);
+				HFNormalWeight = pow(clamp(Angle, 0.00000001f, 1.0f), HF_e);
+				HFNormalWeight = clamp(HFNormalWeight + (HF_WeightAdder * u_RoughnessNormalWeightBiasStrength), 0.00000000001f, 1.0f);
 			}
 
 			// Roughness transversal weight ->
-			float RoughnessError = abs(SampleRoughness - RoughnessAt);
+			float RoughnessError = abs(SampleRoughness - BaseRoughness);
 			float RoughnessTransversalWeight = 1.0f / RoughnessError;
-			RoughnessTransversalWeight = pow(RoughnessTransversalWeight, 16.0f);
+			RoughnessTransversalWeight = pow(RoughnessTransversalWeight, 12.0f);
 			RoughnessTransversalWeight = clamp(RoughnessTransversalWeight, 0.00000000001f, 1.0f);
 
 			// Kernel weight ->
@@ -379,14 +391,19 @@ void main()
 			CurrentWeight *= NormalWeight;
 			CurrentWeight *= HFNormalWeight;
 			CurrentWeight *= LuminanceWeight;
-			CurrentWeight *= CurrentKernelWeight;
 			CurrentWeight *= RoughnessTransversalWeight;
+
+			// Gaussian kernel weight ->
+			CurrentWeight *= CurrentKernelWeight;
+
 
 			// Prevent division by zero
 			CurrentWeight = clamp(CurrentWeight, 0.000000001f, 1.0f);
 
 			// Average ->
 			FilteredColor += SampleData * CurrentWeight;
+
+			// Add total weight ->
 			TotalWeight += CurrentWeight;
 		}
 	}
@@ -400,9 +417,9 @@ void main()
 		float SmoothnessMixFactor = 1.0f;
 		
 		// Preserve a few more details in "too" smooth materials
-		if (RoughnessAt <= 0.10550f)
+		if (BaseRoughness <= 0.1f + 0.007f)
 		{
-			SmoothnessMixFactor = RoughnessAt * 16.0f;
+			SmoothnessMixFactor = BaseRoughness * 16.0f;
 			SmoothnessMixFactor = 1.0f - SmoothnessMixFactor;
 			SmoothnessMixFactor = pow(SmoothnessMixFactor, 4.0f);
 			SmoothnessMixFactor = clamp(SmoothnessMixFactor, 0.1f, 0.999f); 
