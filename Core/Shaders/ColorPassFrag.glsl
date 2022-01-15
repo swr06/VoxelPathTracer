@@ -282,17 +282,6 @@ vec3 GetAtmosphereAndClouds()
 
 vec3 FetchSky() { return GetAtmosphereAndClouds(); }
 
-vec2 ReprojectShadow(in vec3 world_pos)
-{
-	vec3 WorldPos = world_pos;
-
-	vec4 ProjectedPosition = u_ShadowProjection * u_ShadowView * vec4(WorldPos, 1.0f);
-	ProjectedPosition.xyz /= ProjectedPosition.w;
-	ProjectedPosition.xy = ProjectedPosition.xy * 0.5f + 0.5f;
-
-	return ProjectedPosition.xy;
-}
-
 
 bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
 {
@@ -351,55 +340,6 @@ bool IsInScreenSpaceBounds(in vec2 tx)
 
     return false;
 }
-
-//
-float GetDisplacementAt(in vec2 txc, in float pbridx) 
-{
-    return texture(u_BlockPBRTextures, vec3(vec2(txc.x, txc.y), pbridx)).b * 0.35f * u_POMHeight;
-}
-
-// Parallax occlusion mapping 
-// Exponential ray step 
-// Tried dithering ray step, which resulted in not-good results (introduces noise which is hard to tackle as you need this to be temporally coherent)
-// - to avoid artifacts
-
-
-vec2 ParallaxOcclusionMapping(vec2 TextureCoords, vec3 ViewDirection, in float pbridx) // View direction should be in tangent space!
-{ 
-    if (u_DitherPOM) {
-        float Bayer = bayer64(gl_FragCoord.xy);
-        ViewDirection *= mix(0.9f, 1.0f, Bayer);
-    }
-
-    float NumLayers = u_HighQualityPOM ? 96 : 64; 
-    float LayerDepth = 1.0 / (NumLayers * 0.65);
-    float CurrentLayerDepth = 0.0;
-    vec2 P = ViewDirection.xy * 1.0f; 
-    vec2 DeltaTexCoords = P / NumLayers;
-    vec2 InitialDeltaCoords = DeltaTexCoords;
-
-    vec2  CurrentTexCoords = TextureCoords;
-    float CurrentDepthMapValue = GetDisplacementAt(CurrentTexCoords, pbridx);
-
-    for (int i = 0 ; i < NumLayers ; i++)
-    {
-        if(CurrentLayerDepth < CurrentDepthMapValue)
-        {
-            //CurrentTexCoords -= max(DeltaTexCoords, InitialDeltaCoords * 0.025f);
-            CurrentTexCoords -= DeltaTexCoords;
-            CurrentDepthMapValue = GetDisplacementAt(CurrentTexCoords, pbridx);  
-            CurrentLayerDepth += LayerDepth;
-            DeltaTexCoords *=  0.95f;
-        }
-    }
-
-    vec2 PrevTexCoords = CurrentTexCoords + DeltaTexCoords;
-    float AfterDepth  = CurrentDepthMapValue - CurrentLayerDepth;
-    float BeforeDepth = GetDisplacementAt(PrevTexCoords, pbridx) - CurrentLayerDepth + LayerDepth;
-    float Weight = AfterDepth / (AfterDepth - BeforeDepth);
-    vec2 FinalTexCoords = PrevTexCoords * Weight + CurrentTexCoords * (1.0 - Weight);
-    return FinalTexCoords;
-}   
 
 
 float SHToY(vec4 shY)
@@ -595,6 +535,7 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
 		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
         SpecularIndirect += texture(u_SpecularIndirect, SampleCoord).xyzw;
         ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
+        ao = texture(u_VXAO, g_TexCoords).x;
         return;
     }
 
@@ -626,7 +567,7 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
 		    float LinearDepthAt = (1.0f/texture(u_InitialTracePositionTexture, SampleCoord).x);
         
             float ExpDepth = exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f));
-            float DepthWeight = pow(ExpDepth, 4.25f);
+            float DepthWeight = pow(ExpDepth, 5.25f);
 
             vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
 		    float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 16.0f);
@@ -997,7 +938,7 @@ void main()
                 o_Color = DeriveApproxSpecular(SHy, SampledIndirectDiffuse, I, NormalMapped.xyz, Roughness);
             }
 
-          
+
             //o_Color = DiffuseIndirect;
 
            

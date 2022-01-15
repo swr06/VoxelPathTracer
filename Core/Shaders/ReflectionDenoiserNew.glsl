@@ -235,6 +235,7 @@ void main()
 	}
 
 
+
 	float Radius = clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	float NormalMapRadius = 1.0f - clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	
@@ -259,7 +260,13 @@ void main()
 		RadiusBias += 1;
 	}
 	
+
 	EffectiveRadius = clamp(EffectiveRadius + RadiusBias + u_ReflectionDenoisingRadiusBias,1,15);
+
+	if (RawRoughness >= 0.5f - 0.01f) {
+		EffectiveRadius += 1;
+	}
+
 
 	//Scale = mix(1.0f, 2.0f, (clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib_), pow((1.0f-BaseRoughness),1.0/2.4f)*8.0f), 0.0f, 1.0f) * 1.75f)+0.4f);
 
@@ -301,6 +308,7 @@ void main()
 	// HF normal + transversal weight 
 	float HF_e = 64.0f * u_NormalMapWeightStrength * 1.350f;
 	HF_e *= pow(NormalMapRadius, 1.0f / 1.33f);
+
 	float HF_WeightAdder = mix(0.0f, 0.005f, float(BaseRoughness > 0.45f));
 	HF_WeightAdder += mix(0.0f, 0.0125f, float(BaseRoughness > 0.525f));
 	HF_WeightAdder += mix(0.0f, 0.022f, float(BaseRoughness > 0.625f));
@@ -309,8 +317,8 @@ void main()
 
 
 
-
 	// --- Gaussian spatial filtering --- 
+
 
 
 	//float SqrtScale = sqrt(Scale);
@@ -381,6 +389,8 @@ void main()
 			float RoughnessTransversalWeight = 1.0f / RoughnessError;
 			RoughnessTransversalWeight = pow(RoughnessTransversalWeight, 12.0f);
 			RoughnessTransversalWeight = clamp(RoughnessTransversalWeight, 0.00000000001f, 1.0f);
+
+
 
 			// Kernel weight ->
 			float CurrentKernelWeight = GaussianWeightsNormalized[clamp(16+Sample,0,32)];

@@ -1864,7 +1864,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 			GenerateGBuffer.SetFloat("u_Time", glfwGetTime());
 			GenerateGBuffer.SetFloat("uTime", glfwGetTime());
 			GenerateGBuffer.SetInteger("u_LavaBlockID", BlockDatabase::GetBlockID("Lava"));
-
+			GenerateGBuffer.SetBool("u_POM", POM);
+			GenerateGBuffer.SetFloat("u_POMHeight", POMHeight);
+			GenerateGBuffer.SetBool("u_HighQualityPOM", HighQualityPOM);
+			GenerateGBuffer.SetBool("u_DitherPOM", DitherPOM);
 			GenerateGBuffer.SetBool("u_UpdateGBufferThisFrame", UpdateGBufferThisFrame);
 
 			glActiveTexture(GL_TEXTURE0);
@@ -3384,6 +3387,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_POM", POM);
 		ColorShader.SetFloat("u_POMHeight", POMHeight);
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
+		ColorShader.SetBool("u_DitherPOM", DitherPOM);
+
 		ColorShader.SetBool("u_RemoveTiling", RemoveTiling);
 		ColorShader.SetBool("u_RTAO", RTAO);
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
