@@ -528,7 +528,7 @@ bool IsImmediateNeighbour(ivec2 x) {
 
 void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
 {
-    const bool DoSpatialUpscaling = false;
+    const bool DoSpatialUpscaling = true;
 
     if (! DoSpatialUpscaling) {
         vec2 SampleCoord = g_TexCoords;
