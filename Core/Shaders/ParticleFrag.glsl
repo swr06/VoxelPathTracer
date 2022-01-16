@@ -1,3 +1,5 @@
+// Shader for particles
+
 #version 330 core
 
 layout (location = 0) out vec4 o_Color;
@@ -26,21 +28,46 @@ uniform mat4 u_InverseProjection;
 const vec3 SUN_COLOR_C = (vec3(192.0f, 216.0f, 255.0f) / 255.0f) * 6.5f;
 const vec3 NIGHT_COLOR_C  = (vec3(96.0f, 192.0f, 255.0f) / 255.0f) * 2.0f; 
 
-bool RayBoxIntersect(const vec3 boxMin, const vec3 boxMax, vec3 r0, vec3 rD, out float t_min, out float t_max) 
+float RayCapsuleIntersection(in vec3 ro, in vec3 rd, in vec3 pa, in vec3 pb, in float r)
 {
-	vec3 inv_dir = 1.0f / rD;
-	vec3 tbot = inv_dir * (boxMin - r0);
-	vec3 ttop = inv_dir * (boxMax - r0);
-	vec3 tmin = min(ttop, tbot);
-	vec3 tmax = max(ttop, tbot);
-	vec2 t = max(tmin.xx, tmin.yz);
-	float t0 = max(t.x, t.y);
-	t = min(tmax.xx, tmax.yz);
-	float t1 = min(t.x, t.y);
-	t_min = t0;
-	t_max = t1;
-	return t1 > max(t0, 0.0);
+    vec3 ba = pb - pa;
+    vec3 oa = ro - pa;
+
+    float baba = dot(ba, ba);
+    float bard = dot(ba, rd);
+    float baoa = dot(ba, oa);
+    float rdoa = dot(rd, oa);
+    float oaoa = dot(oa, oa);
+
+    float a = baba - bard * bard;
+    float b = baba * rdoa - baoa * bard;
+    float c = baba * oaoa - baoa * baoa - r * r * baba;
+    float h = b * b - a * c;
+
+    if (h >= 0.0)
+    {
+        float t = (-b - sqrt(h)) / a;
+        float y = baoa + t * bard;
+        if (y > 0.0 && y < baba) return t;
+        vec3 oc = (y <= 0.0) ? oa : ro - pb;
+        b = dot(rd, oc);
+        c = dot(oc, oc) - r * r;
+        h = b * b - c;
+        if (h > 0.0) return -b - sqrt(h);
+    }
+    return -1.0;
 }
+
+
+bool GetPlayerIntersect(in vec3 WorldPos, in vec3 d)
+{
+	float x = 0.5 - 0.3f;
+	vec3 VP = u_PlayerPos + vec3(-x, -x, +x);
+    float t = RayCapsuleIntersection(WorldPos, d, VP, VP + vec3(0.0f, 1.0f, 0.0f), 0.5f);
+    return t > 0.0f;
+}
+
+
 
 vec3 SHToIrridiance(vec4 shY, vec2 CoCg)
 {
@@ -77,6 +104,8 @@ vec3 GetPositionAt(vec2 ScreenSpace)
 
 void main()
 {
+	vec3 SunDirection = normalize(u_SunDir);
+
 	// Project ->
 	vec2 ScreenSpaceCoordinates = gl_FragCoord.xy / u_Dimensions.xy;
 	vec3 WorldPosition = GetPositionAt(ScreenSpaceCoordinates).xyz;
@@ -89,14 +118,14 @@ void main()
 		discard;
 	}
 
-	vec3 MoonDirection = vec3(-u_SunDir.x, -u_SunDir.y, u_SunDir.z);
-	vec3 StrongerLightDirection = -u_SunDir.y < 0.01f ? u_SunDir : MoonDirection;
+	vec3 MoonDirection = vec3(-SunDirection.x, -SunDirection.y, SunDirection.z);
+	vec3 StrongerLightDirection = -SunDirection.y < 0.01f ? SunDirection : MoonDirection;
 
 	float ParticleAlpha = 1.0f - v_Alpha;
 	ParticleAlpha = exp(ParticleAlpha);
 
 	vec3 Color = texture(u_BlockTextures, vec3(v_TexCoords, v_IDX)).rgb; 
-	float SunVisibility = clamp(dot(u_SunDir, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
+	float SunVisibility = clamp(dot(SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
 	
 	// We need to approximate whether the block is in shadow and the gi from screen space info
 	// So the following code is meant to find the best sample coordinate 
@@ -104,20 +133,34 @@ void main()
 	const float ErrorThresh = sqrt(2.0f); // sqrt(2)
 	vec2 SamplePosition = DistanceError < ErrorThresh ? ScreenSpaceCoordinates : GetBlockSamplePosition();
 	
-	// Apply the player shadow as well :p
+	// Intersect with player capsule
 	float t1 = 0.0f, t2 = 0.0f;
-    bool PlayerIntersect = RayBoxIntersect(u_PlayerPos + vec3(0.2f, 0.0f, 0.2f), u_PlayerPos - vec3(0.75f, 1.75f, 0.75f), WorldPosition, StrongerLightDirection, t1, t2);
+    bool PlayerIntersect = GetPlayerIntersect(WorldPosition.xyz,SunDirection);
 
-	float Shadow = PlayerIntersect ? 1.0f : texture(u_ShadowTexture, SamplePosition).r;
+	float Shadow = PlayerIntersect ? 1.0f : clamp(texture(u_ShadowTexture, SamplePosition).r - 0.2f, 0.0000000000001f, 1.0f);
 	vec4 DiffuseSample = texture(u_DiffuseTexture, SamplePosition).rgba;
 	vec2 YoCoCg = texture(u_DiffuseTextureYoCoCg, SamplePosition).rg;
+	
+	// Sample spherical harmonic ->
 	vec3 Diffuse = SHToIrridiance(DiffuseSample, YoCoCg);
 	Diffuse *= 7.0f;
+	
+	// Fake direct 
 	vec3 SUN_COLOR = Shadow > 0.01f ? Diffuse : SUN_COLOR_C;
 	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;
 
 	Color = mix(Color * SUN_COLOR, Color * NIGHT_COLOR, SunVisibility); 
 	
-	vec3 Tonemap = 1.0f - exp(-Color);
-	o_Color = vec4(Tonemap, clamp(ParticleAlpha, 0.0f, 1.0f));
+	vec3 TonemappedColor = Color;
+	
+	// Tonemap ->
+	
+	//float l = dot(TonemappedColor, vec3(0.2126, 0.7152, 0.0722));
+    //vec3 tc = TonemappedColor / (TonemappedColor + 1.0);
+    //TonemappedColor = mix(TonemappedColor / (l + 1.0), tc, tc);
+	
+	TonemappedColor = 1.0f - exp(- Color);
+	
+	
+	o_Color = vec4(TonemappedColor, clamp(ParticleAlpha, 0.0f, 1.0f));
 }

@@ -85,7 +85,7 @@ vec2 Project(vec3 pos)
 
 float GetLuminance(vec3 color) 
 {
-    return dot(color, vec3(0.299, 0.587, 0.114));
+    return max(0.0f, dot(color, vec3(0.299, 0.587, 0.114)));
 }
 
 vec3 GetRayDirectionAt(vec2 screenspace)
@@ -152,7 +152,7 @@ float GetDistSquared(vec3 A, vec3 B)
     return dot(C, C);
 }
 
-void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughness, float Metalness) {
+void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughness, float Metalness, bool LessValid) {
 	
 	const float RoughnessThreshold = 0.275f + 0.01f;
 	
@@ -225,6 +225,10 @@ void ReflectionClipping(inout vec4 PreviousColor, vec2 Reprojected, float Roughn
 	// Adjust bias by importance 
 	MinColor.xyz = mix(MinColor.xyz, OriginalMinColor, mix(0.05f,0.25f,float(Metalness>0.05f)));
 	MaxColor.xyz = mix(MaxColor.xyz, OriginalMaxColor, mix(0.05f,0.25f,float(Metalness>0.05f)));
+	
+	float BiasMixer = LessValid ? 0.5f : 0.0f;
+	MinColor.xyz = mix(MinColor.xyz, OriginalMinColor, BiasMixer);
+	MaxColor.xyz = mix(MaxColor.xyz, OriginalMaxColor, BiasMixer);
 
 
 	// Clipping ->
@@ -361,7 +365,7 @@ void main()
 
 			float PreviousT = texture(u_PrevSpecularHitDist, Reprojected).x;
 			
-			if (abs(PreviousT - HitDistanceCurrent) >= 3.7f) {
+			if (abs(PreviousT - HitDistanceCurrent) >= 3.8f) {
 			
 				// If hit distance is invalid, fallback on very-approximate reprojection
 				
@@ -412,15 +416,17 @@ void main()
 			vec3 BasePrevColor = PrevColor.xyz;
 			
 
-			const float DistanceEps = 0.001f;
+			const float DistanceEps = 0.0001f;
 			bool Moved = GetDistSquared(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
 			// Compute accumulation factor ->
-			float AccumulationFactor = LessValid ? (Moved ? (RoughnessAt > 0.75f ? 0.875f : (RoughnessAt > 0.575f ? 0.84f : 0.8f)) : 0.875f) : (Moved ? 0.875f : 0.95f); 
+			float AccumulationFactor = (Moved ? 0.885f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
+
+
 
 			// Radiance clipping -> 
 			// Used to reduce ghosting 
@@ -430,10 +436,12 @@ void main()
 
 				// Clip sample ->
 
-				ReflectionClipping(PrevColor, v_TexCoords, RoughnessAt, MetalnessAt);
+				ReflectionClipping(PrevColor, v_TexCoords, RoughnessAt, MetalnessAt, LessValid);
 				
 			
 			}
+			
+			
 
 			bool PreviousSkySample = texture(u_PrevSpecularHitDist, Reprojected.xy).x < 0.0f;
 
@@ -451,7 +459,11 @@ void main()
 
 			o_HitDistanceStable = HitDistanceCurrent;
 
-			// Stabialize hit distance data 
+
+			// Temporal accumulation for hit distance data 
+			// Helps reduce flickering artifacts with the gaussian spatial filter
+
+
 			if (GetDistSquared(BasePrevColor, PrevColor.xyz) < 0.2f && u_TemporallyStabializeHitDistance) {
 
 				o_HitDistanceStable = mix(HitDistanceCurrent, texture(u_TemporalHitDist, Reprojected).x, clamp(AccumulationFactor * 1.1f, 0.0f, 0.9f));

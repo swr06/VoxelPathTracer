@@ -5,6 +5,8 @@
 
 // "Welcome to magic number land, we hope you enjoy your stay."
 
+
+
 #version 430 core
 
 //#define NORMAL_MAP_KERNEL_WEIGHT
@@ -386,7 +388,7 @@ void main()
 				vec3 NormalMapAt = texture(u_GBufferNormals, SampleCoord).xyz;
 				float Angle = dot(NormalMapAt,NormalMappedBase);
 				HFNormalWeight = pow(clamp(Angle, 0.00000001f, 1.0f), HF_e);
-				HFNormalWeight = clamp(HFNormalWeight + (HF_WeightAdder * u_RoughnessNormalWeightBiasStrength), 0.00000000001f, 1.0f);
+				HFNormalWeight = clamp(HFNormalWeight + (HF_WeightAdder * u_RoughnessNormalWeightBiasStrength * 1.4f), 0.00000000001f, 1.0f);
 			}
 
 			// Roughness transversal weight ->
@@ -440,6 +442,7 @@ void main()
 			SmoothnessMixFactor = clamp(SmoothnessMixFactor, 0.1f, 0.999f); 
 		}  
 
+		// Mix filtered result
 		o_SpatialResult = mix(BaseColor, FilteredColor, SmoothnessMixFactor);
 	}
 
