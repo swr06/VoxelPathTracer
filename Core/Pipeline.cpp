@@ -1001,7 +1001,6 @@ ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS(1
 
 
 
-
 void VoxelRT::MainPipeline::StartPipeline()
 {
 	using std::chrono::high_resolution_clock;
@@ -2598,6 +2597,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			MainTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
 			MainTemporalFilter.SetInteger("u_NormalTexture", 8);
 			MainTemporalFilter.SetInteger("u_ShadowTransversals", 17);
+			MainTemporalFilter.SetInteger("u_DenoisedTransversals", 19);
 
 			MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
 			MainTemporalFilter.SetMatrix4("u_View", CurrentView);
@@ -2635,7 +2635,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			glActiveTexture(GL_TEXTURE17);
 			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture(1));
-
+			
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
@@ -2904,12 +2904,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				BilateralHitDist_1.SetInteger("u_PositionTexture", 0);
 				BilateralHitDist_1.SetInteger("u_HitDist", 1);
+				BilateralHitDist_1.SetInteger("u_Normals", 2);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 				glActiveTexture(GL_TEXTURE1);
 				glBindTexture(GL_TEXTURE_2D, ReflectionTraceFBO.GetTexture(1));
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2926,12 +2930,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				BilateralHitDist_2.SetInteger("u_PositionTexture", 0);
 				BilateralHitDist_2.SetInteger("u_HitDist", 1);
+				BilateralHitDist_2.SetInteger("u_Normals", 2);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 				glActiveTexture(GL_TEXTURE1);
 				glBindTexture(GL_TEXTURE_2D, ReflectionHitDataDenoised.GetTexture());
+
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(1));
 
 				VAO.Bind();
 				glDrawArrays(GL_TRIANGLES, 0, 6);

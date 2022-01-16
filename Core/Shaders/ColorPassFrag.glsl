@@ -524,18 +524,20 @@ bool IsImmediateNeighbour(ivec2 x) {
 }
 
 
-// Spatially upscales indirect data ->
+// -- Spatial upscaler based on atrous wavelet filter --
+
 void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
 {
-    const bool BE_FUCKING_USELESS = false;
+    const bool DoSpatialUpscaling = false;
 
-    if (BE_FUCKING_USELESS) {
+    if (! DoSpatialUpscaling) {
         vec2 SampleCoord = g_TexCoords;
         SH = texture(u_DiffuseSHy, SampleCoord).xyzw;
 		CoCg += texture(u_DiffuseCoCg, SampleCoord).xy;
         SpecularIndirect += texture(u_SpecularIndirect, SampleCoord).xyzw;
         ShadowSample += texture(u_ShadowTexture, SampleCoord).x;
         ao = texture(u_VXAO, g_TexCoords).x;
+		
         return;
     }
 
@@ -560,35 +562,53 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
 	for (int x = -1 ; x <= 1 ; x++) {
 
         for (int y = -1 ; y <= 1 ; y++) {
-
-            bool SampleDirect = IsImmediateNeighbour(ivec2(x,y));
             
+			// Calculate sample coordinate ->
             vec2 SampleCoord = g_TexCoords + (vec2(x,y)) * TexelSize;
+			
+			// Depth weight ->
 		    float LinearDepthAt = (1.0f/texture(u_InitialTracePositionTexture, SampleCoord).x);
-        
             float ExpDepth = exp(-(abs(LinearDepthAt - BaseLinearDepth) * 2.0f));
             float DepthWeight = pow(ExpDepth, 5.25f);
 
+			// Normal weight ->
             vec3 NormalAt = SampleNormal(u_NormalTexture, SampleCoord.xy).xyz;
 		    float NormalWeight = pow(max(dot(NormalAt, BaseNormal),0.000001f), 16.0f);
             NormalWeight = max(NormalWeight, 0.0001f);
 
+			// Kernel weight ->
             float KernelWeight = AtrousWeights[abs(x)] * AtrousWeights[abs(y)];
-		    
+
+			// Combine weights ->
             float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
-            float SpecWeight = Weight;//clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
-		    Weight = max(Weight, 0.01f);
-		    SpecWeight = max(SpecWeight, 0.01f);
+           
+			// Specular weight ->
+		    float SpecWeight = Weight;//clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
+		    
+			// To avoid division by 0
+			Weight = max(Weight, 0.00000001f);
+		    SpecWeight = max(SpecWeight, 0.00000001);
 
-
+			// Sum ->
+			
+			// Diffuse 
 		    TotalSH += texture(u_DiffuseSHy, SampleCoord).xyzw * Weight;
 		    TotalCoCg += texture(u_DiffuseCoCg, SampleCoord).xy * Weight;
+			
+			// Spec 
             TotalSpecColor += texture(u_SpecularIndirect, SampleCoord).xyzw * SpecWeight;
+			
+			// Ambient occlusion 
             ao += texture(u_VXAO, SampleCoord).x * Weight;
+			
+			// Weights 
 		    TotalWeight += Weight;
             TotalSpecWeight += SpecWeight;
 
+			// Filter shadows if current offset is an immediate neighbour
             if (FilterShadows) {
+				bool SampleDirect = IsImmediateNeighbour(ivec2(x,y));
+				
                 if (SampleDirect) {
                     float ShadowWeight = KernelWeight * clamp(pow(ExpDepth, 32.0f), 0.00001f, 1.0f) * (NormalWeight * NormalWeight);
 		            TotalShadow += texture(u_ShadowTexture, SampleCoord).x * ShadowWeight;
@@ -598,8 +618,9 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
         }
 	}
 
-    TotalWeight = max(TotalWeight, 0.001f);
+    TotalWeight = max(TotalWeight, 0.0000001f);
 
+	
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
     TotalSpecColor = TotalSpecColor / TotalSpecWeight;
@@ -609,8 +630,15 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
         TotalShadow = TotalShadow / TotalShadowWeight;
     }
 
+
+	// We use low precision buffers for sun shadows, this is to avoid precision artifacts (banding) ->
+	TotalShadow  += 0.05f;
+	
+	TotalShadow = clamp(TotalShadow, 0.00000000000001f, 1.0f);
+
     SpecularIndirect = TotalSpecColor;
     ShadowSample = TotalShadow;
+	
 }
 
 
@@ -892,35 +920,44 @@ void main()
                 vec3 kS = FresnelTerm;
                 vec3 kD = 1.0f - kS;
                 kD *= 1.0f - PBRMap.y;
+				
+				// Environment brdf (Karis)
                 vec2 EnvironmentBRDFSampleLocation = vec2(max(dot(-I, NormalMapped.xyz), 0.000001f), PBRMap.x);
                 EnvironmentBRDFSampleLocation = clamp(EnvironmentBRDFSampleLocation, 0.0f, 1.0f);
                 vec2 EnvironmentBRDF = KarisEnvBRDFApprox(EnvironmentBRDFSampleLocation.x, EnvironmentBRDFSampleLocation.y);
+				
+				// Combine using environment brdf and fresnel term
                 vec3 IndirectSpecularFinal = SpecularIndirect * (FresnelTerm * EnvironmentBRDF.x + EnvironmentBRDF.y);
                 vec3 IndirectLighting = (kD * DiffuseIndirect) + IndirectSpecularFinal + SubsurfaceScatter;
                 o_Color = DirectLighting + IndirectLighting;
             }
 
-            if (u_LPVDebugState == 1) {
-                o_Color = GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz);
-            }
 
-            if (u_LPVDebugState == 2) {
-                o_Color = GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz);
-            }
-
-            if (u_DEBUGDiffuseGI) {
-                o_Color = 1.0f - exp(-SampledIndirectDiffuse);
-            }
-
-            if (u_DEBUGSpecGI) {
-                o_Color = 1.0f - exp(-SpecularIndirect);
-            }
-
-            if (u_DEBUGShadows) {
-                o_Color = vec3(1.0f - RayTracedShadow);
-               // o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
-            }
-
+			// Debug ->
+				if (u_LPVDebugState == 1) {
+					o_Color = GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz);
+				}
+	
+				if (u_LPVDebugState == 2) {
+					o_Color = GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz);
+				}
+	
+				if (u_DEBUGDiffuseGI) {
+					o_Color = 1.0f - exp(-SampledIndirectDiffuse);
+				}
+	
+				if (u_DEBUGSpecGI) {
+					o_Color = 1.0f - exp(-SpecularIndirect);
+				}
+	
+				if (u_DEBUGShadows) {
+					o_Color = vec3(1.0f - RayTracedShadow);
+				// o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
+				}
+			//
+	
+	
+	
             
             o_EmissivityData = Emissivity;
 

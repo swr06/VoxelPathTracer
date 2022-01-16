@@ -105,27 +105,32 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
 
     float ClampedTransversal = clamp(Transversal, 0.0f, 10.0f);
     float VarianceEstimate = mix(20.0f, 6.0f, ClampedTransversal / 10.0f)+(Transversal < 6.0f ? 5.0f : 2.0f);
+	VarianceEstimate = clamp(VarianceEstimate - 1.75f, 0.0000001f, 64.0f);
+	
+	
 
-    for (int x = -XSize ; x <= XSize ; x++) {
+    for (int x = -XSize ; x <= XSize ; x++) 
+	{
         for (int y = -YSize ; y <= YSize ; y++) 
         {
             vec2 d = vec2(x, y);
-            vec2 SampleCoord = uv + d * TexelSize * 1.1f * Scale;
-            vec4 SamplePosition = GetPositionAt(u_PositionTexture, SampleCoord);
+            vec2 SampleCoord = uv + d * TexelSize * 1.2f * Scale;
+            float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
             vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
-            // Sample valiation : 
-            if (distance(SamplePosition.xyz, CenterPosition.xyz) > Diagonal ||
-                SampleNormal != CenterNormal)
-            {
-                continue;
-            }
+            float DepthWeight = pow(exp(-(abs(CenterPosition.w - SampleDepth))), 3.0f);
+			float NormalWeight = pow(max(dot(CenterNormal, SampleNormal), 0.000000001f), 32.0f);
             
             float ShadowAt = texture(u_InputTexture, SampleCoord).x;
             float LumaAt = Luminance(vec3(ShadowAt));
             float LuminanceError = clamp(1.0f - clamp(abs(ShadowAt - CenterShadow) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
-            float Weight = clamp(pow(LuminanceError, VarianceEstimate), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
-            Weight = clamp(Weight, 0.01f, 1.0f);
+            
+			float Weight = clamp(pow(LuminanceError, VarianceEstimate), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
+			Weight *= DepthWeight;
+			Weight *= NormalWeight;
+			
+			
+            Weight = clamp(Weight, 0.000000001f, 1.0f);
             TotalShadow += ShadowAt * Weight;
             TotalWeight += Weight;
         }

@@ -201,12 +201,14 @@ float ManhattanDistance(vec3 p1, vec3 p2) {
 	return abs(p1.x - p2.x) + abs(p1.y - p2.y) + abs(p1.z - p2.z);
 }
 
-vec3 GetShadowSpatial(float TransversalAt) {
+vec3 GetShadowSpatial(float TransversalAt, float BaseDepth) {
+	
+	
 	
 	const float UnitDiagonal = sqrt(2.0f);
-	TransversalAt = TransversalAt < 0.0f ? UnitDiagonal * 4.001f : TransversalAt;
 
-	if (TransversalAt < UnitDiagonal * 2.4f) {
+	if (TransversalAt < UnitDiagonal * 2.0f) {
+		return vec3(1.0f);
 		return texture(u_CurrentColorTexture, v_TexCoords).xyz;
 	}
 
@@ -215,16 +217,16 @@ vec3 GetShadowSpatial(float TransversalAt) {
 	vec3 Base = Total.xyz;
 	float Weight = 1.0f;
 
-	vec3 BasePosition = GetPositionAt(u_CurrentPositionTexture, v_TexCoords).xyz;
+
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, v_TexCoords).xyz;
 
 	float Scale = 1.0f;
 
-	Scale = TransversalAt > 8.0f ? 2.0f : 1.0f;
+	Scale = TransversalAt > 8.0f ? 1.414f : 1.0f;
 
-	for (int x = -2 ; x <= 2 ; x++) 
+	for (int x = -1 ; x <= 1 ; x++) 
 	{
-		for (int y = -2 ; y <= 2 ; y++) 
+		for (int y = -1 ; y <= 1 ; y++) 
 		{
 			if (x == 0 && y == 0) { continue; }
 
@@ -232,14 +234,14 @@ vec3 GetShadowSpatial(float TransversalAt) {
 
 			if (InThresholdedScreenSpace(SampleCoord)) {
 				
-				vec3 SamplePosition = GetPositionAt(u_CurrentPositionTexture, SampleCoord).xyz;
+				float SampleDepth = texture(u_CurrentPositionTexture, SampleCoord).x;
 				vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
 
-				if (SampleNormal == BaseNormal && ManhattanDistance(SamplePosition, BasePosition) < 0.4f)
+				if (SampleNormal == BaseNormal && abs(SampleDepth - BaseDepth) < 1.0f)
 				{
 					vec3 Sample = texture(u_CurrentColorTexture, SampleCoord).xyz;
 					float WeightAt = clamp(1.0f - clamp(abs(Sample.x - Base.x) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
-					WeightAt = clamp(pow(WeightAt, 4.0f), 0.0525f, 1.0f);
+					WeightAt = clamp(pow(WeightAt, 6.0f), 0.0525f, 1.0f);
 					Total += Sample * WeightAt;
 					Weight += WeightAt;
 				}
@@ -377,15 +379,15 @@ void main()
 		Reprojected = Reprojection(CurrentPosition.xyz);
 
 		float ShadowTransversalAt = texture(u_ShadowTransversals, v_TexCoords).x * 100.0f;
-		vec4 CurrentColor = u_ShadowTemporal && u_ShouldFilterShadows ? vec4(GetShadowSpatial(ShadowTransversalAt), 1.0f) : texture(u_CurrentColorTexture, CurrentCoord).rgba;
-		vec4 PrevColor = u_ShadowTemporal && (ShadowTransversalAt <= 1.414*2.25f||ShadowTransversalAt<0.0f) ? vec4(ClipShadow(Reprojected), 1.) : texture(u_PreviousColorTexture, Reprojected);
-		vec3 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyz;
+		vec4 CurrentColor = u_ShadowTemporal && u_ShouldFilterShadows ? vec4(GetShadowSpatial(ShadowTransversalAt, CurrentPosition.w), 1.0f) : texture(u_CurrentColorTexture, CurrentCoord).rgba;
+		vec4 PrevColor = u_ShadowTemporal && ShadowTransversalAt < 1.414f * 3.0f ? vec4(ClipShadow(Reprojected), 1.) : texture(u_PreviousColorTexture, Reprojected);
+		vec4 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyzw;
 
 		float Bias = u_ShadowTemporal ? 0.006f : 0.01;
 
 		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
 		{
-			float d = abs(distance(PrevPosition, CurrentPosition.xyz));
+			float d = abs(distance(PrevPosition.xyz, CurrentPosition.xyz));
 			float ShadowTemporalCutoff = 3.0f;
 
 			if (ShadowTransversalAt < 1.414f + 0.01f) {
@@ -393,7 +395,7 @@ void main()
 			}
 
 			else if (ShadowTemporalCutoff < 4.0f) {
-				ShadowTemporalCutoff = 0.5f;
+				ShadowTemporalCutoff = 0.4f;
 			}
 
 			else if (ShadowTemporalCutoff <= 5.75f) {
@@ -413,7 +415,7 @@ void main()
 			}
 
 			float t = u_ShadowTemporal ? ShadowTemporalCutoff : 1.1f;
-
+			
 			if (d > t) 
 			{
 				o_Color = CurrentColor;
@@ -425,33 +427,34 @@ void main()
 
 				return;
 			}
+			
+
+			
+			
 
 			float BlendFactor = d;
 			BlendFactor = exp(-BlendFactor);
 			BlendFactor = clamp(BlendFactor, clamp(u_MinimumMix, 0.01f, 0.9f), clamp(u_MaximumMix, 0.1f, 0.98f));
 			
+			
+			
 			if (u_ShadowTemporal) {  
 				CurrentColor = clamp(CurrentColor, 0.0f, 1.0f);  // Bias
 				PrevColor = clamp(PrevColor, 0.0f, 1.0f);  // Bias
-				bool Moved = u_PrevCameraPos != u_CurrentCameraPos;
-				BlendFactor *= 1.2f;
-				if (!u_ShouldFilterShadows) {
-					BlendFactor = 0.0f;
-				}
-
-				if (!Moved) {
-					BlendFactor = 0.95f;
-				}
-
-				BlendFactor = clamp(BlendFactor, 0.000001f, 0.95f);
-
+				
+				
+				vec2 VelocityRejection = (v_TexCoords.xy - Reprojected.xy) * textureSize(u_CurrentColorTexture, 0).xy;
+				
+				BlendFactor = clamp(exp(-length(VelocityRejection)) * 0.8f + 0.750f, 0.00000001f, 0.95f);
+					
+				
 			}
 
 			o_Color = mix(CurrentColor, PrevColor, clamp(BlendFactor, 0.0f, 0.96f));
 
-			if (u_ShadowTemporal) {  
-				o_Color = clamp(o_Color+0.0075f, 0.0f, 1.0f);  // Bias
-			}
+			
+			
+			
 
 			if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
@@ -474,7 +477,7 @@ void main()
 	else 
 	{
 		float ShadowTransversalAt = u_ShadowTemporal ? texture(u_ShadowTransversals, v_TexCoords).x * 100.0f : 0.001f;
-		o_Color = u_ShadowTemporal ? vec4(GetShadowSpatial(ShadowTransversalAt),1.0f) : texture(u_CurrentColorTexture, v_TexCoords);
+		o_Color =  texture(u_CurrentColorTexture, v_TexCoords);
 		if (u_DiffuseTemporal) {
 				vec2 CurrentSH = texture(u_CurrentSH, v_TexCoords).xy;
 				o_CoCg = CurrentSH;

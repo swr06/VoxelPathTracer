@@ -503,7 +503,12 @@ void main()
 		}
 
 		o_Shadow = float(T > 0.0f || block_at > 0);
-		o_IntersectionTransversal = -1.0f;
+		
+		o_IntersectionTransversal = clamp(T / 100.0f, 0.00001f, 196.0f);
+		
+		if (T < 0.0f) {
+			o_IntersectionTransversal = 4.25f / 100.0f;
+		}
 	}
 }
 
