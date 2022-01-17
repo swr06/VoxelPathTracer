@@ -256,7 +256,7 @@ static bool DeriveReflectionsFromDiffuseSH = false;
 static bool TemporallyStabializeHitDistance = !false; // ;)
 static bool ReflectionTemporalWeight = true;
 static float RoughnessNormalWeightBiasStrength = 1.075f;
-
+static bool AmplifyReflectionTransversalWeight = false;
 
 static bool RenderParticles = true;
 
@@ -319,6 +319,8 @@ static bool RandomDebugVar = false;
 const bool DOWNSAMPLE_GBUFFERS = false;
 
 static bool HighlightFocusedBlock = false;
+
+
 
 
 
@@ -466,6 +468,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
+			ImGui::Checkbox("Strong Reflection Transversal Weight? (Improves contact hardening clarity, increases noise.)", &AmplifyReflectionTransversalWeight);
 			ImGui::NewLine();
 			ImGui::Checkbox("Denoise specular reprojection data? ", &DENOISE_REFLECTION_HIT_DATA);
 
@@ -3083,6 +3086,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&&TEMPORAL_SPEC);
 				ReflectionDenoiser.SetFloat("u_RoughnessNormalWeightBiasStrength", RoughnessNormalWeightBiasStrength);
+				ReflectionDenoiser.SetBool("u_AmplifyReflectionTransversalWeight", AmplifyReflectionTransversalWeight);
 
 				BlockDataStorageBuffer.Bind(0);
 
@@ -3168,6 +3172,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 				ReflectionDenoiser.SetFloat("u_RoughnessNormalWeightBiasStrength", RoughnessNormalWeightBiasStrength);
 				ReflectionDenoiser.SetFloat("u_ReflectionDenoiserScale", ReflectionDenoiserScale);
 				ReflectionDenoiser.SetBool("u_TemporalWeight", ReflectionTemporalWeight&& TEMPORAL_SPEC);
+				ReflectionDenoiser.SetBool("u_AmplifyReflectionTransversalWeight", AmplifyReflectionTransversalWeight);
 
 				BlockDataStorageBuffer.Bind(0);
 

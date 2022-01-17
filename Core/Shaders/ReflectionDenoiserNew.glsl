@@ -31,6 +31,7 @@ uniform bool u_RoughnessBias;
 uniform bool u_NormalMapAware; 
 uniform bool u_HandleLobeDeviation; 
 uniform bool u_DeriveFromDiffuseSH; 
+uniform bool u_AmplifyReflectionTransversalWeight; 
 uniform vec2 u_Dimensions;
 uniform int u_Step;
 
@@ -229,14 +230,7 @@ void main()
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
 	float TransversalContrib_ = TransversalContrib;
 
-
-	
-	
-	const bool APPLY_TRANSVERSAL_EXPONENT = true;
-
-
-
-	if (RawRoughness < 0.535f && APPLY_TRANSVERSAL_EXPONENT) {
+	if (RawRoughness < 0.535f && u_AmplifyReflectionTransversalWeight) {
 	
 		TransversalContrib = clamp(TransversalContrib, 0.00000000001f, 1.0f);;
 		float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
@@ -246,17 +240,10 @@ void main()
 	}
 		
 	else {
-		
-		
 		///TransversalContrib = pow(1.0f - TransversalContrib, 0.75f) * pow(TransversalContrib, 4.0f);
-		
 		
 	}
 		
-		
-	
-
-
 
 	float Radius = clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
 	float NormalMapRadius = 1.0f - clamp(pow(mix(1.0f * BaseRoughness, 1.0f, TransversalContrib), pow((1.0f-BaseRoughness),1.0/1.4f)*5.0f), 0.0f, 1.0f);
