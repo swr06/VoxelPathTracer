@@ -234,8 +234,8 @@ void main()
 	
 		TransversalContrib = clamp(TransversalContrib, 0.00000000001f, 1.0f);;
 		float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
-		RemappedRoughnessx = sqrt(RemappedRoughnessx);
-		float TransversalExponent = mix(1.0f, 3.0f, RemappedRoughnessx);
+		RemappedRoughnessx = pow(RemappedRoughnessx, 1.0f / 2.2f);
+		float TransversalExponent = mix(1.0f, 3.85f, RemappedRoughnessx);
 		TransversalContrib = pow(TransversalContrib, clamp(TransversalExponent * 1.0f,1.0f,3.0f));
 	}
 		
@@ -257,7 +257,7 @@ void main()
 	EffectiveRadius = BaseTooRough ? 15 : EffectiveRadius;
 
 	// Basic jitter to reduce 2 pass gaussian artifacts 
-	int Jitter = int((GradientNoise() - 0.5f) * 1.25f);
+	int Jitter = int((GradientNoise() - 0.5f) * 0.75f);
 	
 	// Sample scale based on resolution scale
 	float Scale = 1.0f;
@@ -341,6 +341,7 @@ void main()
 	{
 		float SampleOffset = Sample;
 		vec2 SampleCoord = u_Dir ? vec2(v_TexCoords.x + (SampleOffset * Scale * TexelSize), v_TexCoords.y) : vec2(v_TexCoords.x, v_TexCoords.y + (SampleOffset * Scale * TexelSize));
+		SampleCoord += Jitter * TexelSize * 0.75f;
 		vec2 Mask = u_Dir ? vec2(1.0f, 0.0f) : vec2(0.0, 1.0f);
 		
 		float bias = 0.01f;

@@ -454,6 +454,9 @@ void main()
 			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.94f);
 
 			// mix sh
+			CurrentColor = max(CurrentColor, 0.0f);
+			PrevColor = max(PrevColor, 0.0f);
+			
 			o_Color = mix(CurrentColor, PrevColor, AccumulationFactor);
 
 			o_AccumulatedFrames = AccumulationFactor;

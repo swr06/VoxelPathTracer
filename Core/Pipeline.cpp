@@ -256,7 +256,7 @@ static bool DeriveReflectionsFromDiffuseSH = false;
 static bool TemporallyStabializeHitDistance = !false; // ;)
 static bool ReflectionTemporalWeight = true;
 static float RoughnessNormalWeightBiasStrength = 1.075f;
-static bool AmplifyReflectionTransversalWeight = false;
+static bool AmplifyReflectionTransversalWeight = true;
 
 static bool RenderParticles = true;
 
