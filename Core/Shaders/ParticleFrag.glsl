@@ -124,7 +124,7 @@ void main()
 	float ParticleAlpha = 1.0f - v_Alpha;
 	ParticleAlpha = exp(ParticleAlpha);
 
-	vec3 Color = texture(u_BlockTextures, vec3(v_TexCoords, v_IDX)).rgb; 
+	vec3 AlbedoColor = texture(u_BlockTextures, vec3(v_TexCoords, v_IDX)).rgb; 
 	float SunVisibility = clamp(dot(SunDirection, vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0; SunVisibility = 1.0f  - SunVisibility;
 	
 	// We need to approximate whether the block is in shadow and the gi from screen space info
@@ -143,13 +143,14 @@ void main()
 	
 	// Sample spherical harmonic ->
 	vec3 Diffuse = SHToIrridiance(DiffuseSample, YoCoCg);
-	Diffuse *= 7.0f;
+	Diffuse *= 2.75f;
 	
 	// Fake direct 
-	vec3 SUN_COLOR = Shadow > 0.01f ? Diffuse : SUN_COLOR_C;
-	vec3 NIGHT_COLOR = Shadow > 0.01f ? Diffuse : NIGHT_COLOR_C;
+	vec3 SUN_COLOR = Shadow > 0.01f ? vec3(0.0f) : SUN_COLOR_C;
+	vec3 NIGHT_COLOR = Shadow > 0.01f ? vec3(0.0f) : NIGHT_COLOR_C;
 
-	Color = mix(Color * SUN_COLOR, Color * NIGHT_COLOR, SunVisibility); 
+	vec3 Color = vec3(1.0f);
+	Color = (mix(SUN_COLOR, NIGHT_COLOR, SunVisibility) * AlbedoColor) + (AlbedoColor * Diffuse); 
 	
 	vec3 TonemappedColor = Color;
 	
