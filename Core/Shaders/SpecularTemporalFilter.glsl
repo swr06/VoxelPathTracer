@@ -267,6 +267,7 @@ vec3 VarianceFireflyRejection(vec3 Radiance, float VarianceEstimate, vec3 Mean)
     return clamp(Radiance - ErrorEstimate, 0.0f, 16.0f); 
 }
 
+// Not accurate, but a huge improvement over not having it
 void FireflyReject(inout vec4 InputColor) 
 {
 	float Y = GetLuminance(InputColor.xyz);

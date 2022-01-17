@@ -127,6 +127,11 @@ float GetLuminance(vec3 color)
 }
 
 
+float remap(float x, float a, float b, float c, float d)
+{
+    return (((x - a) / (b - a)) * (d - c)) + c;
+}
+
 void main()
 {
 	o_SpatialResult = vec4(0.000000001f);
@@ -224,21 +229,32 @@ void main()
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
 	float TransversalContrib_ = TransversalContrib;
 
-	//if (RawHitDistance < 3.5f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.625f) {
-	//	TransversalContrib = pow(TransversalContrib, 2.5f);
-	//}
-	//
-	//if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.525f) {
-	//	TransversalContrib = pow(TransversalContrib, 1.5f);
-	//}
-	//
-	//if (RawHitDistance < 4.0f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.35f) {
-	//	TransversalContrib = pow(TransversalContrib, 1.5f);
-	//}
-	//
-	//if (RawHitDistance < 5.0f && RawHitDistance > 0.0000001f && BaseRoughness <= 0.35f) {
-	//	TransversalContrib = pow(TransversalContrib, 1.35f);
-	//}
+
+	
+	
+	const bool APPLY_TRANSVERSAL_EXPONENT = true;
+
+
+
+	if (RawRoughness < 0.535f && APPLY_TRANSVERSAL_EXPONENT) {
+	
+		TransversalContrib = clamp(TransversalContrib, 0.00000000001f, 1.0f);;
+		float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
+		RemappedRoughnessx = sqrt(RemappedRoughnessx);
+		float TransversalExponent = mix(1.0f, 3.0f, RemappedRoughnessx);
+		TransversalContrib = pow(TransversalContrib, clamp(TransversalExponent * 1.0f,1.0f,3.0f));
+	}
+		
+	else {
+		
+		
+		///TransversalContrib = pow(1.0f - TransversalContrib, 0.75f) * pow(TransversalContrib, 4.0f);
+		
+		
+	}
+		
+		
+	
 
 
 
