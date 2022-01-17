@@ -195,11 +195,22 @@ bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_
 
 }
 
-void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& acceleration, bool is_falling, float dt)
+
+// DDA Voxel Traversal Algorithm ->
+
+bool VoxelRT::World::Raycast(uint8_t op, glm::vec3 pos, const glm::vec3& dir, const glm::vec3& acceleration, bool is_falling, float dt)
 {
+	bool ret_val = false;
+
+	if (op == 1 ) {
+		pos += dir * 2.05f;
+	}
+
 	glm::vec3 position = pos;
 	const glm::vec3& direction = dir;
 	int max = 48; // block reach
+
+	bool PlacedSomething = false;
 
 	glm::vec3 sign;
 
@@ -242,7 +253,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 				if ((int)floor(position.x) >= WORLD_SIZE_X || (int)floor(position.y) >= WORLD_SIZE_Y || (int)floor(position.z) >= WORLD_SIZE_Z ||
 					(int)floor(position.x) <= 0 || (int)floor(position.y) <= 0 || (int)floor(position.z) <= 0)
 				{ 
-					return; 
+					return false; 
 				}
 
 				if (op == 1)
@@ -297,10 +308,6 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 
 
 
-					if (TestRayPlayerCollision(glm::vec3((position.x), (position.y), (position.z)), pos, acceleration, is_falling, dt))
-					{
-						return;
-					}
 
 					uint8_t editblock = m_CurrentlyHeldBlock;
 
@@ -314,20 +321,34 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 							floor(position.z)));
 					}
 
-					SoundManager::PlayBlockSound(editblock, position, false);
+					auto PrevBlock = GetBlock((int)position.x, (int)position.y, (int)position.z);
+
+					PlacedSomething = PrevBlock.block != editblock;
+
+					if (PlacedSomething)
+					{
+						SoundManager::PlayBlockSound(editblock, position, false);
+						ret_val = true;
+					}
+
+
+
 					SetBlock((int)position.x, (int)position.y, (int)position.z, { editblock });
 
-					if (m_Buffered)
+					if (m_Buffered && PlacedSomething)
 					{
 					
 						glBindTexture(GL_TEXTURE_3D, m_DataTexture.GetTextureID());
 						glTexSubImage3D(GL_TEXTURE_3D, 0, (int)position.x, (int)position.y, (int)position.z, 1, 1, 1, GL_RED, GL_UNSIGNED_BYTE, &editblock);
 						GenerateDistanceField();
 					}
+
 				}
 
 				else if (op == 0)
 				{
+					ret_val = true; 
+
 					float y1 = rand() % 2 == 0 ? 0.05f : 0.075f;
 					float y2 = y1 == 0.05f ? 0.1f : 0.113f;
 					glm::vec3 x = rand() % 2 == 0 ? glm::vec3(y1, 1, y2) : glm::vec3(y2, 1, y1);
@@ -423,7 +444,7 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 						m_CurrentlyHeldBlock = block;
 					}
 
-					return;
+					return ret_val;
 				}
 
 				glBindTexture(GL_TEXTURE_3D, 0);
@@ -433,10 +454,12 @@ void VoxelRT::World::Raycast(uint8_t op, const glm::vec3& pos, const glm::vec3& 
 					Volumetrics::PropogateVolume();
 				}
 
-				return;
+				return ret_val;
 			}
 		}
 	}
+
+	return ret_val;
 }
 
 glm::ivec4 VoxelRT::World::RaycastDetect(const glm::vec3& pos, const glm::vec3& dir)

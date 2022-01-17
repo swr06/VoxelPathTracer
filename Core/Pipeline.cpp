@@ -853,8 +853,11 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
-				ModifiedWorld = true;
+				ModifiedWorld = world->Raycast(0, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
+				
+				if (ModifiedWorld)
+					std::cout << "\n\nMODIFIED WORLD!\n\n";
+
 			}
 		}
 
@@ -862,8 +865,10 @@ public:
 		{
 			if (world)
 			{
-				world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
-				ModifiedWorld = true;
+				ModifiedWorld = world->Raycast(1, MainCamera.GetPosition(), MainCamera.GetFront(), MainPlayer.m_Velocity, !MainPlayer.m_isOnGround, DeltaTime);
+				
+				if (ModifiedWorld)
+					std::cout << "\n\nMODIFIED WORLD!\n\n";
 			}
 		}
 
