@@ -1,5 +1,5 @@
 # Voxel Path Tracer
-An **Unfinished** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
+An ***Unfinished*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
 This engine was coded using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 # Features Implemented
