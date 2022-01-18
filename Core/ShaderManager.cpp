@@ -55,6 +55,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	// FXAA
 	AddShader("FXAA_SECONDARY", "Core/Shaders/FBOVert.glsl", "Core/Shaders/FXAA311.glsl");
 
+	AddShader("DOF", "Core/Shaders/FBOVert.glsl", "Core/Shaders/BokehDOF.glsl");
 
 	// anti flicker
 	AddShader("ANTI_FLICKER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/HandleFlicker.glsl");

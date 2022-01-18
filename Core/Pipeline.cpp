@@ -168,6 +168,14 @@ static bool NebulaGIColor = true;
 
 //
 
+// Depth of field
+static bool DOF = false;
+static bool LargeKernelDOF = false;
+static float DOFCOCScale = 2.5f;
+static float DOFBlurScale = 1.0f;
+static float DOFCAScale = 1.75f;
+static float DOFResolution = 0.350f;
+static float DOFTemporalDepthBlend = 0.875f;
 
 static bool VXAO = true;
 static bool WiderSVGF = false;
@@ -321,6 +329,7 @@ const bool DOWNSAMPLE_GBUFFERS = false;
 static bool HighlightFocusedBlock = false;
 
 
+static float CenterDepthSmooth = 1.0f;
 
 
 
@@ -371,6 +380,9 @@ public:
 			ImGui::Text("Moon Direction : %f, %f, %f", g_MoonDirection[0], g_MoonDirection[1], g_MoonDirection[2]);
 			ImGui::Text("Time : %f", glfwGetTime());
 			ImGui::Text("Sun Tick : %f", SunTick);
+
+			if (DOF)
+				ImGui::Text("Temporal Center Depth (x1000) : %f", CenterDepthSmooth * 1000.0f);
 			
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -637,6 +649,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Nebula affects moon color?", &NebulaCelestialColor);
 			ImGui::Checkbox("Nebula affects GI colors?", &NebulaGIColor);
+
 			ImGui::SliderFloat("Nebula Strength", &NebulaStrength, 0.0f, 6.0f);
 			ImGui::SliderFloat("Nebula GI Strength", &NebulaGIStrength, 0.0f, 8.0f);
 			ImGui::NewLine();
@@ -651,6 +664,19 @@ public:
 				ImGui::SliderFloat("Secondary RTAO Resolution", &RTAOResolution, 0.1f, 0.5f);
 			}
 			ImGui::NewLine();
+
+			ImGui::NewLine();
+			ImGui::Checkbox("Depth of field (DOF) ?", &DOF);
+			ImGui::Checkbox("Large Kernel DOF?", &LargeKernelDOF);
+			ImGui::SliderFloat("DOF COC Scale", &DOFCOCScale, 0.0f, 7.0f);
+			ImGui::SliderFloat("DOF Blur Scale", &DOFBlurScale, 0.25f, 4.0f);
+			ImGui::SliderFloat("DOF Chromatic Aberration Scale", &DOFCAScale, 0.0f, 4.0f);
+			ImGui::SliderFloat("DOF Resolution", &DOFResolution, 0.1f, 1.0f);
+			ImGui::NewLine();
+
+			//ImGui::SliderFloat("DOF Temporal Depth Blend Weight", &DOFTemporalDepthBlend, 0.1f, 0.95f); ImGui::SameLine();
+			//if (ImGui::Button("Reset")) { DOFTemporalDepthBlend = 0.875f;  }
+
 
 			ImGui::NewLine();
 			ImGui::Checkbox("Bloom?", &Bloom);
@@ -719,6 +745,8 @@ public:
 		} ImGui::End();
 
 		if (LightListDebug) {
+
+
 			if (ImGui::Begin("Light List Debug")) {
 
 				glm::ivec3 block_loc = glm::ivec3(glm::floor(MainPlayer.m_Position));
@@ -976,6 +1004,7 @@ GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, 
 //	GLClasses::Framebuffer(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false) };
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
+GLClasses::Framebuffer DOFFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT, true, true }, false);
 GLClasses::Framebuffer TonemappedFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer FXAA_FBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -1206,6 +1235,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& AntiFlickerShader = ShaderManager::GetShader("ANTI_FLICKER");
 	GLClasses::Shader& CubeItemRenderer = ShaderManager::GetShader("CUBE_ITEM_RENDERER");
 	GLClasses::Shader& FXAA_Secondary = ShaderManager::GetShader("FXAA_SECONDARY");
+	GLClasses::Shader& DOFShader = ShaderManager::GetShader("DOF");
 	GLClasses::Shader& Tonemapper = ShaderManager::GetShader("TONEMAPPER");
 
 
@@ -1403,6 +1433,20 @@ void VoxelRT::MainPipeline::StartPipeline()
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint) * 256, &Zero256UINT, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
+
+	// DOF 
+
+	GLuint DOFSSBO = 0;
+	float DOFDATA = 0.;
+	glGenBuffers(1, &DOFSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, DOFSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * 1, &DOFDATA, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+
+
+
+	
 	// Create Compute Shaders!
 	GLClasses::ComputeShader AutoExposureComputePDF;
 	AutoExposureComputePDF.CreateComputeShader("Core/Shaders/CalculateAverageLuminance.comp");
@@ -1411,6 +1455,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::ComputeShader ComputeAutoExposure;
 	ComputeAutoExposure.CreateComputeShader("Core/Shaders/ComputeExposure.comp");
 	ComputeAutoExposure.Compile();
+
+	GLClasses::ComputeShader WriteCenterDepth;
+	WriteCenterDepth.CreateComputeShader("Core/Shaders/WriteCenterDepth.comp");
+	WriteCenterDepth.Compile();
 
 	////////////
 
@@ -1535,6 +1583,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			DOFFBO.SetSize(TRUE_PADDED_WIDTH * DOFResolution, TRUE_PADDED_HEIGHT * DOFResolution);
 			TonemappedFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			FXAA_FBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
@@ -1832,8 +1881,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 				glDrawArrays(GL_TRIANGLES, 0, 6);
 				VAO.Unbind();
 			}
-
-
 			
 		}
 
@@ -1908,6 +1955,39 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 		}
+
+
+
+		if (DOF) {
+			WriteCenterDepth.Use();
+
+			WriteCenterDepth.SetInteger("u_DepthTexture", 0);
+			WriteCenterDepth.SetVector2f("u_CameraPlanes", glm::vec2(MainCamera.GetNearPlane(), MainCamera.GetFarPlane()));
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
+
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, DOFSSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, DOFSSBO);
+
+			glDispatchCompute(1, 1, 1);
+
+			glUseProgram(0);
+
+			float DownloadedCenterDepth = 0.0f;
+
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, DOFSSBO);
+			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float), &DownloadedCenterDepth);;
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+			CenterDepthSmooth = glm::mix(DownloadedCenterDepth, CenterDepthSmooth, DOFTemporalDepthBlend);
+
+			if (app.GetCurrentFrame() % 16 == 0)
+				std::cout << "\n\nDOF Temporal Center Depth : " << CenterDepthSmooth << "\n";
+		}
+
+
+
 
 		// Diffuse tracing
 
@@ -3562,7 +3642,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		BlockDatabase::SetTextureArraysFilteringNearest();
 
+
+
 		// ----- TAA ----- //
+
+
 
 		TAAFBO.Bind();
 
@@ -3607,7 +3691,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Unbind();
 
 
+
+
+
 		// ---- SSAO ---- //
+
+
 
 		if (SSAO)
 		{
@@ -3659,6 +3748,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glUseProgram(0);
 		}
 
+
+
 		// ---- Bloom ----
 
 		GLuint BrightTex = 0;
@@ -3668,8 +3759,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 			BloomRenderer::RenderBloom(BloomFBO, BloomFBOAlternate, GeneratedGBuffer.GetTexture(0), ColoredFBO.GetEmissiveMask(), false, BrightTex, BloomWide);
 		}
 
+
+
 		// ---- Auto Exposure ----
 
+
+
+		// WIP  !
 
 		float ComputedExposure = 3.25f;
 		
@@ -3711,8 +3807,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AutoExposureSSBO);
 			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(float), &DownloadedExposure);;
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-			DownloadedExposure = DownloadedExposure * DownloadedExposure;
+			
 
+			// Compute final exposure ->
 			float AE_BoundsMin = 3.0f;
 			float AE_BoundsMax = 20.0f;
 			float ExposureMultiplier = 5.0f;
@@ -3733,6 +3830,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			
 		}
+
+
+
+
 
 		// ---- Volumetric Scattering ----
 
@@ -4082,19 +4183,61 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		PostProcessingFBO.Unbind();
 
+		// DOF ->
+
+
+		if (DOF) {
+			DOFShader.Use();
+			DOFFBO.Bind();
+
+
+			DOFShader.SetInteger("u_DepthTexture", 0);
+			DOFShader.SetInteger("u_InputTexture", 1);
+			DOFShader.SetVector2f("u_Dimensions", glm::vec2(DOFFBO.GetWidth(), DOFFBO.GetHeight()));
+			DOFShader.SetFloat("u_TexelScale", MainCamera.GetProjectionMatrix()[1][1] / 1.37f);
+			DOFShader.SetFloat("u_FocalDepthTemporal", CenterDepthSmooth);
+			DOFShader.SetVector2f("u_CameraPlanes", glm::vec2(MainCamera.GetNearPlane(), MainCamera.GetFarPlane()));
+			DOFShader.SetBool("u_LargeKernel", LargeKernelDOF);
+			DOFShader.SetFloat("u_COCScale", DOFCOCScale);
+			DOFShader.SetFloat("u_BlurScale", DOFBlurScale);
+			DOFShader.SetFloat("u_CAScale", DOFCAScale);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
+
 		// Tonemapping ->
 
 		TonemappedFBO.Bind();
 		Tonemapper.Use();
 		Tonemapper.SetInteger("u_Texture", 0);
+		Tonemapper.SetInteger("u_DOFTexture", 1);
+		Tonemapper.SetInteger("u_Depth", 2);
 		Tonemapper.SetBool("u_FilmGrain", FilmGrainStrength > 0.001f);
 		Tonemapper.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
 		Tonemapper.SetFloat("u_Time", glfwGetTime());
 		Tonemapper.SetFloat("u_Exposure", ComputedExposure* ExposureMultiplier);
 		Tonemapper.SetBool("u_HejlBurgess", HejlBurgessTonemap);
+		Tonemapper.SetBool("u_DOF", DOF);
+		Tonemapper.SetFloat("u_FocalDepthTemporal", CenterDepthSmooth);
+		Tonemapper.SetVector2f("u_CameraPlanes", glm::vec2(MainCamera.GetNearPlane(), MainCamera.GetFarPlane()));
+		Tonemapper.SetFloat("u_COCScale", DOFCOCScale);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+		
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, DOFFBO.GetTexture());
+
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);

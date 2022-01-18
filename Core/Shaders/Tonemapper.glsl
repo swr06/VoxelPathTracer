@@ -6,11 +6,17 @@ layout (location = 0) out vec3 o_Color;
 in vec2 v_TexCoords;
 
 uniform sampler2D u_InputTexture;
+uniform sampler2D u_DOFTexture;
+uniform sampler2D u_Depth;
 uniform bool u_FilmGrain;
 uniform bool u_HejlBurgess;
+uniform bool u_DOF;
 uniform float u_FilmGrainStrength;
 uniform float u_Time;
 uniform float u_Exposure;
+uniform vec2 u_CameraPlanes;
+uniform float u_FocalDepthTemporal;
+uniform float u_COCScale;
 
 float HASH2SEED = 0.0f;
 vec2 hash2() 
@@ -86,6 +92,7 @@ vec4 ACESFitted(vec4 Color, float Exposure)
 
 vec2 g_TexCoords;
 
+// Basic cubic distortion 
 vec2 CubicDistort(vec2 uv) {
 	float k = -1.0f * 0.085f, kcube = 0.5f * 0.4f;
     float r2 = (uv.x - 0.5f) * (uv.x - 0.5f) + (uv.y - 0.5f) * (uv.y - 0.5f);
@@ -97,9 +104,29 @@ vec2 CubicDistort(vec2 uv) {
 	return vec2(x, y);
 }
 
+vec4 textureBicubic(sampler2D sampler, vec2 texCoords);
+
+// https://en.wikipedia.org/wiki/Circle_of_confusion
+float GetCircleOfConfusion(float Depth, float CenterDepth, float Scale) 
+{
+	float CircleOfConfusion = abs(Depth - CenterDepth) / 0.6f;
+	return CircleOfConfusion / (1.0f / Scale + CircleOfConfusion);
+}
+
+float DelinearizeDepth(float d) 
+{
+	float near = u_CameraPlanes.x;
+	float far = u_CameraPlanes.y;
+    d = d < 0.0f ? d : d + near;
+	d = d < 0.0f ? far - 0.01f : d;
+	float Delinearized = -((near + far) * d - (2.0f * near)) / ((near - far) * d);
+	return Delinearized;
+}
+
 
 // Main ->
 void main() {
+
 	HASH2SEED = (g_TexCoords.x * g_TexCoords.y) * 489.0 * 20.0f;
 	HASH2SEED += fract(u_Time) * 100.0f;
 
@@ -108,7 +135,31 @@ void main() {
 	//g_TexCoords = CubicDistort(g_TexCoords);
 
 
-	o_Color = texture(u_InputTexture, g_TexCoords).xyz;
+    // Linear depth ->
+    float BaseDepth = texture(u_Depth, g_TexCoords).x;
+
+
+	vec3 BaseColor = texture(u_InputTexture, g_TexCoords).xyz;
+    o_Color = BaseColor;
+
+
+    // Mix DOF 
+    if (u_DOF) {
+        
+        // CoC is calculated using delinearized depth
+        float DelinearizedCenterDepth = DelinearizeDepth(BaseDepth);
+        
+        vec3 DOFFetch = textureBicubic(u_DOFTexture, g_TexCoords).xyz;
+
+	    float CoC = GetCircleOfConfusion(DelinearizedCenterDepth, u_FocalDepthTemporal, u_COCScale);
+        float MixFactor = CoC * 5850.0f;
+
+        MixFactor = clamp(MixFactor, 0.0f, 1.0f);
+
+        o_Color = mix(BaseColor, DOFFetch, MixFactor);
+    }
+
+
 	float Exposure = u_Exposure * 0.9f * 0.58f;
 
 	// Tonemap ->
@@ -134,4 +185,49 @@ void main() {
 	}
 	
 
+}
+
+vec4 cubic(float v){
+    vec4 n = vec4(1.0, 2.0, 3.0, 4.0) - v;
+    vec4 s = n * n * n;
+    float x = s.x;
+    float y = s.y - 4.0 * s.x;
+    float z = s.z - 4.0 * s.y + 6.0 * s.x;
+    float w = 6.0 - x - y - z;
+    return vec4(x, y, z, w) * (1.0/6.0);
+}
+
+vec4 textureBicubic(sampler2D sampler, vec2 texCoords)
+{
+
+   vec2 texSize = textureSize(sampler, 0);
+   vec2 invTexSize = 1.0 / texSize;
+
+   texCoords = texCoords * texSize - 0.5;
+
+
+    vec2 fxy = fract(texCoords);
+    texCoords -= fxy;
+
+    vec4 xcubic = cubic(fxy.x);
+    vec4 ycubic = cubic(fxy.y);
+
+    vec4 c = texCoords.xxyy + vec2 (-0.5, +1.5).xyxy;
+
+    vec4 s = vec4(xcubic.xz + xcubic.yw, ycubic.xz + ycubic.yw);
+    vec4 offset = c + vec4 (xcubic.yw, ycubic.yw) / s;
+
+    offset *= invTexSize.xxyy;
+
+    vec4 sample0 = texture(sampler, offset.xz);
+    vec4 sample1 = texture(sampler, offset.yz);
+    vec4 sample2 = texture(sampler, offset.xw);
+    vec4 sample3 = texture(sampler, offset.yw);
+
+    float sx = s.x / (s.x + s.y);
+    float sy = s.z / (s.z + s.w);
+
+    return mix(
+       mix(sample3, sample2, sx), mix(sample1, sample0, sx)
+    , sy);
 }

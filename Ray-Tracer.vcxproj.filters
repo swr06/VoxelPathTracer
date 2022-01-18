@@ -741,7 +741,7 @@
     <None Include="Core\Shaders\GBufferDownsampler.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\DOFBokeh.glsl">
+    <None Include="Core\Shaders\BokehDOF.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\Tonemapper.glsl">
@@ -772,6 +772,9 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\WriteCenterDepth.comp">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

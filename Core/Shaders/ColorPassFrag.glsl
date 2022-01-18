@@ -102,6 +102,7 @@ uniform mat4 u_Projection;
 
 uniform vec3 u_ViewerPosition;
 uniform vec2 u_Dimensions;
+uniform vec2 u_CameraPlanes;
 
 uniform bool u_CloudsEnabled;
 uniform bool u_POM = false;
@@ -713,11 +714,21 @@ vec3 LavaTextureDistortion(vec3 UV) {
     return UV;
 }
 
+float DelinearizeDepth(float d) 
+{
+	float near = u_CameraPlanes.x;
+	float far = u_CameraPlanes.y;
+    d = d < 0.0f ? d : d + near;
+	d = d < 0.0f ? far - 0.01f : d;
+	float Delinearized = -((near + far) * d - (2.0f * near)) / ((near - far) * d);
+	return Delinearized;
+}
+
 void main()
 {
     g_TexCoords = v_TexCoords;
     //g_TexCoords += u_Halton/u_Dimensions;
-     o_EmissivityData.x = (-1.0f);
+    o_EmissivityData.x = (-1.0f);
 
 
 	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(100.0f * fract(u_Time));
@@ -1005,6 +1016,9 @@ void main()
         //o_Color = max(vec3(DebugData.x / 20.0f), 0.0f);
         o_Color = max(vec3(DebugData.xyz),0.00001f);
     }
+
+
+
 
 	o_Color = max(o_Color, vec3(0.000001f));
 }
