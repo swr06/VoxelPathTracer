@@ -11,6 +11,8 @@
 
 //#define NORMAL_MAP_KERNEL_WEIGHT
 
+#define sqr(x) (x*x)
+
 layout (location = 0) out vec4 o_SpatialResult;
 
 in vec2 v_TexCoords;
@@ -190,7 +192,7 @@ void main()
 	}
 
 	// Distance weight ->
-	float SpecularHitDistance = max(HitDistanceFetch,0.02f) / 1.3f;
+	float SpecularHitDistance = max(HitDistanceFetch,0.01f) * (RawRoughness < 0.51f ? 0.5f : 0.85f);
 
 
 	vec3 ViewSpaceBase = vec3(u_View * vec4(BasePosition.xyz, 1.0f));
@@ -230,13 +232,22 @@ void main()
 	float TransversalContrib = SpecularHitDistance / max((SpecularHitDistance + ViewLengthWeight), 0.00001f);
 	float TransversalContrib_ = TransversalContrib;
 
-	if (RawRoughness < 0.535f && u_AmplifyReflectionTransversalWeight) {
+	if (RawRoughness < 0.535f && u_AmplifyReflectionTransversalWeight && BasePosition.w < 50.0f) {
 	
-		TransversalContrib = clamp(TransversalContrib, 0.00000000001f, 1.0f);;
+		//TransversalContrib = clamp(TransversalContrib, 0.00000000001f, 1.0f);;
+		//float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
+		//RemappedRoughnessx = pow(RemappedRoughnessx, 1.0f / 2.2f);
+		//RemappedRoughnessx = clamp(RemappedRoughnessx, 0.000000001f, 1.0f);
+		//float TransversalExponent = mix(4.0f, 1.0f, RemappedRoughnessx);
+		//TransversalContrib = pow(TransversalContrib, clamp(TransversalExponent * 1.0f,1.0f,3.0f));
+		
+		//float NormalizedHitDist = remap(clamp(RawHitDistance, 0.0f, 32.0f), 0.0f, 32.0f, 0.0f, 1.0f);
+		//float TransversalExponent = mix(4.0f, 1.75f, pow(NormalizedHitDist, 2.0f));
+		//TransversalContrib = pow(TransversalContrib, TransversalExponent);
+		
 		float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
-		RemappedRoughnessx = pow(RemappedRoughnessx, 1.0f / 2.2f);
-		float TransversalExponent = mix(1.0f, 3.85f, RemappedRoughnessx);
-		TransversalContrib = pow(TransversalContrib, clamp(TransversalExponent * 1.0f,1.0f,3.0f));
+		float TransversalExponent = mix(3.5f, 2.0f, pow(RemappedRoughnessx, 4.0f));
+		TransversalContrib = pow(TransversalContrib, TransversalExponent);
 	}
 		
 	else {
@@ -379,7 +390,7 @@ void main()
 				LuminanceError = pow(LuminanceError, 1.7f);
 				float LumaWeightExponent = 1.0f;
 				LumaWeightExponent = mix(0.001f, 8.0f, pow(SampleRoughness, 16.0f));
-				LuminanceWeight = pow(LuminanceError, LumaWeightExponent + 0.6f);
+				LuminanceWeight = pow(LuminanceError, LumaWeightExponent + 0.8f);
 				LuminanceWeight = clamp(LuminanceWeight, 0.0000000001f, 1.0f);
 				LuminanceWeight = mix(LuminanceWeight, 1.0f, TemporalWeight);
 				LuminanceWeight = clamp(LuminanceWeight, 0.0000000001f, 1.0f);
