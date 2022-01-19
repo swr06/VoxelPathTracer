@@ -724,6 +724,12 @@ float DelinearizeDepth(float d)
 	return Delinearized;
 }
 
+
+float ComputeSpecularAO(float NoV, float ao, float roughness) 
+{
+    return clamp(pow(NoV + ao, exp2(-16.0f * roughness - 1.0f)) - 1.0f + ao, 0.0f, 1.0f);
+}
+
 void main()
 {
     g_TexCoords = v_TexCoords;
@@ -919,12 +925,29 @@ void main()
 
             else {
 
-                // Not physically accurate
+                
+				
+				// Account for Specular AO ->
+				float NoV = clamp(dot(NormalMapped, Lo), 0.0000000001f, 1.0f);
+				float SpecularAO = ComputeSpecularAO(NoV, PBRMap.w, Roughness);
+				SpecularAO = pow(SpecularAO, 1.5f);
+				
+				// Light leak handling -> (from filament BRDF) 
+				float HorizonAmount = min(1.0f + dot(R, NormalMapped), 1.0f);
+				HorizonAmount *= HorizonAmount * HorizonAmount;
+				
+
+				// Not physically accurate
                 // Done for stylization purposes 
                 // Metals have their reflections 60% brighter and have their albedos 10% more desaturated
-                if (PBRMap.y >= 0.1f) {
+                
+				
+				if (PBRMap.y >= 0.1f) {
                     SpecularIndirect *= 1.6f;
                 }
+				
+				SpecularIndirect *= SpecularAO;
+				SpecularIndirect *= HorizonAmount;
 
                 vec3 FresnelTerm = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
                 FresnelTerm = clamp(FresnelTerm, 0.0f, 1.0f);
@@ -989,7 +1012,7 @@ void main()
 
             //o_Color = DiffuseIndirect;
 
-           
+          // o_Color = vec3(pow(PBRMap.w, 10.0f));
 
         }
 

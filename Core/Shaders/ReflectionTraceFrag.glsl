@@ -269,6 +269,12 @@ vec3 CalculateDirectionalLight(vec3 world_pos, vec3 light_dir, vec3 radiance, ve
     return max(Result, 0.0f) * clamp((1.0f - Shadow), 0.0f, 1.0f);
 }
 
+void CreateBasisVectors(vec3 normal, out vec3 tangent, out vec3 binormal){
+    tangent = cross(normal, vec3(1.,0.,1.));
+    binormal = normalize(cross(normal, tangent));
+    tangent = normalize(cross(normal,binormal));
+}
+
 // Samples the ggx vndf and returns a microfacet normal ->
 vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 {
