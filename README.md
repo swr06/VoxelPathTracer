@@ -1,5 +1,5 @@
 # Voxel Path Tracer
-An **Unfinished** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
+An ***Unfinished*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
 This engine was coded using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 # Features Implemented
@@ -9,31 +9,31 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Procedural Terrain Generation (Plains, superflat) 
 - Indirect Light Tracing (Diffuse, Specular, AO)
 - Temporal Indirect Light Filtering (Specular reprojection done using hit distance.) 
-- Parallax Occlusion Mapping (Buggy with materials adapted from minecraft texture packs!)
-- Normal mapping
-- PBR Texture support 
 - Physically based lighting (Cook torrance BRDF)
+- Spherical harmonics (First order harmonic that integrates over luminance, used to encode indirect radiance data, used for indirect diffuse) 
 - Ray traced contact hardening soft shadows (with specialized shadow denoiser)
-- Flexible material system
-- Temporal Anti Aliasing (And temporal supersampling)
-- FXAA 3.11
-- HDR Tonemapping, Gamma correction
-- Post Processing (Lens flare, Purkinje Effect, Film grain, Color Dither, Color grading with an LUT, Chromatic Aberration, Screen Space God Rays etc.)
-- Ray traced reflections 
-- Ray traced rough reflections (Importance Sampled GGX with specialized specular denoiser)
-- Naive world saving and loading
-- Physically based atmosphere
 - Per Pixel Emissive Materials
 - Basic Screen Space Subsurface Scattering
 - Spatial filtering (Atrous and SVGF)
 - Spatial Upscaling
-- Screen Space Ambient Occlusion 
+- Ray traced reflections 
+- Ray traced rough reflections (Importance Sampled GGX with specialized specular denoiser)
 - Ray Traced Ambient Occlusion
+- Temporal Anti Aliasing (And temporal supersampling)
+- Normal mapping
+- PBR Texture support 
+- Flexible material system
+- FXAA 3.11
+- HDR Tonemapping, Gamma correction
+- Post Processing (Lens flare, Purkinje Effect, Film grain, Color Dither, Color grading with an LUT, Chromatic Aberration, Screen Space God Rays etc.)
+- Bokeh Depth Of Field
+- Screen Space Ambient Occlusion 
 - Bloom (Mip based) 
 - Volumetric 3D clouds (Implemented Cumulus & Cirrus Clouds, with temporal and spatial upscaling/filtering)
 - Cloud Reflections 
 - Basic Particle system
-- Spherical harmonics (First order harmonic that integrates over luminance, used to encode indirect radiance data, used for indirect diffuse) 
+- Naive world saving and loading
+- Physically based atmosphere
 - Alpha testing
 - Fully 3D Audio
 - Light Propogation Volumes with custom smooth interpolation and support for colored lights
@@ -41,13 +41,17 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Contrast Adaptive Sharpening
 - Minecraft world loading (WIP)
 
+# Half Implemented / WIP Features
+- Histogram based auto exposure
+- Parallax mapping (Parallax Relief Mapping, Parallax Occlusion Mapping and Ground Truth Parallax)
+
 # Todo Features / QOL Improvements
-- Depth Of Field
 - Foliage
 - (Preferably sthochastic) Refractions
 - Glass rendering 
 - Water Rendering (Tesselation with FFT? tessendorf waves?)
 - Raytraced realistic sound
+- Weather?
 
 # Performance Metrics 
 
