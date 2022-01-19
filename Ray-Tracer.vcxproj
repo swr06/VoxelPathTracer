@@ -277,6 +277,7 @@
     <None Include="Core\Shaders\Bakers\BakeAnimatedPBR.glsl" />
     <None Include="Core\Shaders\Bakers\BakeTexture.glsl" />
     <None Include="Core\Shaders\BasicCubemapBlit.glsl" />
+    <None Include="Core\Shaders\BicubicDownsample.glsl" />
     <None Include="Core\Shaders\BloomBlur.glsl" />
     <None Include="Core\Shaders\BloomBlurTwoPass.glsl" />
     <None Include="Core\Shaders\BlurHitDistancePass2_Bilateral.glsl" />

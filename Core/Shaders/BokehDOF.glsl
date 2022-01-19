@@ -94,7 +94,7 @@ void main() {
 
 		vec2 SampleOffset = v_TexCoords + BokehSampleOffset * CoC * u_TexelScale * 8.25f * u_BlurScale;
 		
-		if (SampleOffset != clamp(SampleOffset, 0.001f, 0.999f)) {
+		if (SampleOffset != clamp(SampleOffset, 0.0001f, 0.9999f)) {
 			continue;
 		}
 

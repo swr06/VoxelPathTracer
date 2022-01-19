@@ -152,7 +152,7 @@ void main() {
         vec3 DOFFetch = textureBicubic(u_DOFTexture, g_TexCoords).xyz;
 
 	    float CoC = GetCircleOfConfusion(DelinearizedCenterDepth, u_FocalDepthTemporal, u_COCScale);
-        float MixFactor = CoC * 5850.0f;
+        float MixFactor = CoC * 2050.0f;
 
         MixFactor = clamp(MixFactor, 0.0f, 1.0f);
 

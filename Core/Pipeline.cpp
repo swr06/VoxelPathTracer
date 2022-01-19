@@ -1005,6 +1005,7 @@ GLClasses::Framebuffer VolumetricsComputeBlurred(16, 16, { { GL_RGB16F, GL_RGB, 
 
 GLClasses::Framebuffer PostProcessingFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 GLClasses::Framebuffer DOFFBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT, true, true }, false);
+GLClasses::Framebuffer DOFFBOInput(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT, true, true }, false);
 GLClasses::Framebuffer TonemappedFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
 GLClasses::Framebuffer FXAA_FBO(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, false);
 
@@ -1236,6 +1237,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& CubeItemRenderer = ShaderManager::GetShader("CUBE_ITEM_RENDERER");
 	GLClasses::Shader& FXAA_Secondary = ShaderManager::GetShader("FXAA_SECONDARY");
 	GLClasses::Shader& DOFShader = ShaderManager::GetShader("DOF");
+	GLClasses::Shader& BicubicDownsampler = ShaderManager::GetShader("BICUBIC_DOWNSAMPLE");
 	GLClasses::Shader& Tonemapper = ShaderManager::GetShader("TONEMAPPER");
 
 
@@ -1584,6 +1586,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			DOFFBO.SetSize(TRUE_PADDED_WIDTH * DOFResolution, TRUE_PADDED_HEIGHT * DOFResolution);
+			DOFFBOInput.SetSize(TRUE_PADDED_WIDTH * DOFResolution, TRUE_PADDED_HEIGHT * DOFResolution);
 			TonemappedFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			FXAA_FBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
@@ -4187,9 +4190,24 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		if (DOF) {
+
+			// Downsample ->
+			BicubicDownsampler.Use();
+			DOFFBOInput.Bind();
+			
+			BicubicDownsampler.SetInteger("u_Texture", 0);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+
+			// Blur ->
 			DOFShader.Use();
 			DOFFBO.Bind();
-
 
 			DOFShader.SetInteger("u_DepthTexture", 0);
 			DOFShader.SetInteger("u_InputTexture", 1);
@@ -4206,7 +4224,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
 
 			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, PostProcessingFBO.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, DOFFBOInput.GetTexture());
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

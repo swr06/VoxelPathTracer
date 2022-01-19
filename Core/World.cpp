@@ -196,15 +196,29 @@ bool TestRayPlayerCollision(const glm::vec3& ray_block, const glm::vec3& player_
 }
 
 
+glm::vec3 RayBoxIntersection(glm::vec3 ray_origin, glm::vec3 ray_dir, glm::vec3 minpos, glm::vec3 maxpos) {
+	using namespace glm;
+	vec3 inverse_dir = 1.0f / ray_dir;
+	vec3 tbot = inverse_dir * (minpos - ray_origin);
+	vec3 ttop = inverse_dir * (maxpos - ray_origin);
+	vec3 tmin = min(ttop, tbot);
+	vec3 tmax = max(ttop, tbot);
+	vec2 traverse = glm::max(glm::vec2(tmin.x), glm::vec2(tmin.y, tmin.z));
+	float traverselow = max(traverse.x, traverse.y);
+	traverse = min(glm::vec2(tmax.x), glm::vec2(tmax.y, tmax.z));
+	float traversehi = min(traverse.x, traverse.y);
+	return vec3(float(traversehi > max(traverselow, 0.0f)), traversehi, traverselow);
+}
+
 // DDA Voxel Traversal Algorithm ->
 
 bool VoxelRT::World::Raycast(uint8_t op, glm::vec3 pos, const glm::vec3& dir, const glm::vec3& acceleration, bool is_falling, float dt)
 {
+	glm::vec3 OriginalOrigin = pos;
+
 	bool ret_val = false;
 
-	if (op == 1 ) {
-		pos += dir * 2.05f;
-	}
+
 
 	glm::vec3 position = pos;
 	const glm::vec3& direction = dir;
@@ -321,7 +335,24 @@ bool VoxelRT::World::Raycast(uint8_t op, glm::vec3 pos, const glm::vec3& dir, co
 							floor(position.z)));
 					}
 
+
+					// Make sure that the placed block doesn't intersect with the player 
 					auto PrevBlock = GetBlock((int)position.x, (int)position.y, (int)position.z);
+					auto PlayerUnderBlock = GetBlock((int)OriginalOrigin.x, ((int)OriginalOrigin.y) - 1.0f, (int)OriginalOrigin.z);
+					auto PlayerUnderBlock2 = GetBlock((int)OriginalOrigin.x, (int)(OriginalOrigin.y - 1.0f), (int)OriginalOrigin.z);
+					auto PlayerUnderBlock3 = GetBlock((int)OriginalOrigin.x, (int)(OriginalOrigin.y - 1.1f), (int)OriginalOrigin.z);
+
+					if (PrevBlock.block != 0 || glm::distance(glm::floor(position), (glm::vec3(OriginalOrigin.x, OriginalOrigin.y, OriginalOrigin.z))) < 1.25f) {
+						return false;
+					}
+
+					if (PlayerUnderBlock.block == 0 || PlayerUnderBlock2.block == 0 || PlayerUnderBlock3.block == 0) {
+						if (glm::distance(glm::floor(position), glm::vec3(OriginalOrigin.x, OriginalOrigin.y - 1.0f, OriginalOrigin.z)) < 1.35f) {
+							return false;
+						}
+					}
+					//
+
 
 					PlacedSomething = PrevBlock.block != editblock;
 
