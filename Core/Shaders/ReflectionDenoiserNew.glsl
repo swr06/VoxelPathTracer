@@ -316,7 +316,7 @@ void main()
 		AccumulatedFramesClamped = AccumulatedFrames < -0.1f ? 0.0f : (1.0f - AccumulatedFrames);
 		AccumulatedFramesClamped = clamp(AccumulatedFramesClamped, 0.000001f, 1.0f);
 		TemporalWeight = clamp(AccumulatedFramesClamped * 0.85f, 0.0f, 1.0f);
-		Scale = mix(Scale, Scale * Diagonal, AccumulatedFramesClamped * 1.04f);
+		
 	
 		// Temporal radius weight ->
 		float FLT_radius = EffectiveRadius;

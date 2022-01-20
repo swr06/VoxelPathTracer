@@ -306,6 +306,13 @@ void FireflyReject(inout vec4 InputColor)
 	return;
 }
 
+float GetAccumulationFactor(vec2 CurrentCoordinate, vec2 Reprojected) {
+
+	vec2 VelocityRejection = (CurrentCoordinate.xy - Reprojected.xy) * textureSize(u_CurrentColorTexture, 0).xy;		
+	float Factor = clamp(exp(-length(VelocityRejection)) * 0.9f + 0.750f, 0.00000001f, 0.96f);
+	return Factor;
+}
+
 void main()
 {
 	Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
@@ -421,8 +428,6 @@ void main()
 			bool Moved = GetDistSquared(u_CurrentCameraPos, u_PrevCameraPos) > DistanceEps;
 			//bool Moved = u_CurrentCameraPos != u_PrevCameraPos;
 			
-			// Compute accumulation factor ->
-			float AccumulationFactor = (Moved ? 0.885f : 0.95f); 
 
 			//bool FuckingSmooth = RoughnessAt <= 0.25f + 0.01f;
 			bool TryClipping = RoughnessAt < 0.5f + 0.01f;
@@ -449,9 +454,14 @@ void main()
 			//if (SkySample == PreviousSkySample) {
 			//	BlendFactor *= 1.15f;
 			//}
+			
+			
+			// Compute accumulation factor 
+			
+			float AccumulationFactor = GetAccumulationFactor(v_TexCoords, Reprojected.xy);
 
-			AccumulationFactor *= 1.05f;
-			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.94f);
+			
+			AccumulationFactor = clamp(AccumulationFactor, 0.001f, 0.95f);
 
 			// mix sh
 			CurrentColor = max(CurrentColor, 0.0f);
