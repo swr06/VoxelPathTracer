@@ -48,4 +48,4 @@ void main()
             WriteToDistBuffer(ivec3(x, y, z), 1 + ReadFromDistBuffer(ivec3(x, y + 1, z)));
 		}
 	}
-}
+} 
