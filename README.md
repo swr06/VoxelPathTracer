@@ -46,6 +46,8 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 - Parallax mapping (Parallax Relief Mapping, Parallax Occlusion Mapping and Ground Truth Parallax)
 
 # Todo Features / QOL Improvements
+- Bug fixes
+- Better Player Controller
 - Foliage
 - (Preferably sthochastic) Refractions
 - Glass rendering 
