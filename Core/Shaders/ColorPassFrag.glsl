@@ -527,7 +527,7 @@ bool IsImmediateNeighbour(ivec2 x) {
 
 // -- Spatial upscaler based on atrous wavelet filter --
 
-void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
+void SpatiallyUpscaleBuffers(vec3 BaseNormal, vec3 BaseHFNormal, float BaseRoughness, float BaseLinearDepth, out vec4 SH, out vec2 CoCg, out vec4 SpecularIndirect, out float ShadowSample, bool fuckingsmooth, out float ao)
 {
     const bool DoSpatialUpscaling = true;
 
@@ -558,11 +558,15 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
     }
 
 	vec2 TexelSize = 1.0f / textureSize(u_DiffuseSHy, 0);
+	
+	// Atrous kernel
     const float AtrousWeights[3] = float[3]( 1.0f, 2.0f / 3.0f, 1.0f / 6.0f );
-
-	for (int x = -1 ; x <= 1 ; x++) {
-
-        for (int y = -1 ; y <= 1 ; y++) {
+	
+	// 3x3 sampling 
+	for (int x = -1 ; x <= 1 ; x++) 
+	{
+        for (int y = -1 ; y <= 1 ; y++) 
+		{
             
 			// Calculate sample coordinate ->
             vec2 SampleCoord = g_TexCoords + (vec2(x,y)) * TexelSize;
@@ -584,7 +588,10 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
             float Weight = clamp(NormalWeight * DepthWeight * KernelWeight, 0.0f, 1.0f);
            
 			// Specular weight ->
-		    float SpecWeight = Weight;//clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
+			float RoughnessAt = texture(u_GBufferPBR, SampleCoord).x;
+			float RoughnessTransversal = abs(RoughnessAt - BaseRoughness);
+			vec3 HFNormal = texture(u_GBufferNormals, SampleCoord).xyz;
+		    float SpecWeight = (Weight/((RoughnessTransversal*12.0f)+1.))*pow(max(dot(HFNormal, BaseHFNormal),0.),8.);//clamp(NormalWeight * NormalWeight * pow(ExpDepth, mix(4.25f, 12.0f, BaseLinearDepth < 32.0f)) * KernelWeight, 0.0f, 1.0f);
 		    
 			// To avoid division by 0
 			Weight = max(Weight, 0.00000001f);
@@ -620,12 +627,14 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
 	}
 
     TotalWeight = max(TotalWeight, 0.0000001f);
+    TotalSpecWeight = max(TotalSpecWeight, 0.0000001f);
 
 	
     SH = TotalSH / TotalWeight;
     CoCg = TotalCoCg / TotalWeight;
+	ao = ao / TotalWeight;
     TotalSpecColor = TotalSpecColor / TotalSpecWeight;
-    ao = ao / TotalWeight;
+
 
     if (FilterShadows) {
         TotalShadow = TotalShadow / TotalShadowWeight;
@@ -634,8 +643,8 @@ void SpatiallyUpscaleBuffers(vec3 BaseNormal, float BaseLinearDepth, out vec4 SH
 
 	// We use low precision buffers for sun shadows, this is to avoid precision artifacts (banding) ->
 	TotalShadow  += 0.05f;
-	
 	TotalShadow = clamp(TotalShadow, 0.00000000000001f, 1.0f);
+
 
     SpecularIndirect = TotalSpecColor;
     ShadowSample = TotalShadow;
@@ -811,7 +820,7 @@ void main()
 			float UpscaledShadow=0.0f;
             float UpscaledAO = 0.0f;
 		
-            SpatiallyUpscaleBuffers(SampledNormals.xyz, WorldPosition.w, SHy, ShCoCg, UpscaledSpecularIndirect,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
+            SpatiallyUpscaleBuffers(SampledNormals.xyz, NormalMapped.xyz, PBRMap.x, WorldPosition.w, SHy, ShCoCg, UpscaledSpecularIndirect,UpscaledShadow, PBRMap.x <= 0.1, UpscaledAO);
 			UpscaledShadow = clamp(UpscaledShadow,0.0f,1.0f);
 
 			float RayTracedShadow = ComputeShadow(WorldPosition.xyz, SampledNormals.xyz,UpscaledShadow);
