@@ -800,7 +800,7 @@ void main()
 	NormalizedSUNDIR = normalize(u_SunDirection);
 	
 	
-	o_Data = vec4(0.0f, 0.0f, 0.0f, 1.0f / 2.0f);
+	o_Data = vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	
 	vec3 CameraPosition = u_InverseView[3].xyz;
 	vec3 Direction = normalize(ComputeRayDirection());
@@ -811,7 +811,7 @@ void main()
 	if (!SampleValid(g_TexCoords))
 	{
 		o_Data.xyz = AtmosphereAtViewRay;
-		o_Data.w = 0.2f;
+		o_Data.w = 1.0f;
 		o_Transversal = -1. / 10.0f;
 		return;
 	}
@@ -833,7 +833,7 @@ void main()
 	if (SphereMin.y >= 49000.0f && DoFade)
 	{
 		o_Data.xyz = AtmosphereAtViewRay;
-		o_Data.w = 0.2f;
+		o_Data.w = 1.0f;
 		o_Transversal = -1. / 10.0f;
 		return;
 	}
@@ -1014,9 +1014,9 @@ void main()
 	{
 		float Fade = 1.0f-(exp(-(SphereMin.y/15000.0f)));
 		Fade = clamp(Fade, 0.0f, 1.0f);
-		Fade = Fade * Fade;
+		Fade = Fade * Fade * Fade;
 		Fade = clamp(Fade, 0.0f, 1.0f);
-		vec4 Identity = vec4(AtmosphereAtViewRay, 0.333f);
+		vec4 Identity = vec4(AtmosphereAtViewRay, 1.0f);
 		FinalData = mix(FinalData, Identity, Fade);
 	}
 

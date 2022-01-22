@@ -215,7 +215,8 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
     vec3 ray_dir = (in_ray_dir);
     
-    if (true_transmittance > 0.325f) {
+    if (true_transmittance > 0.325f) 
+	{
 
         if(dot(ray_dir, sun_dir) > 0.999825f)
         {
