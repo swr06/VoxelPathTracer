@@ -177,9 +177,11 @@ float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
 void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
 
-
+// Percieved luminance ->
 float Luma(vec3 x) { return dot(x, vec3(0.2125, 0.7154, 0.0721)); }
+float GetLuminance(vec3 x) { return Luma(x); }
 
+// ray-player capsule intersection 
 bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
 
 vec3 GetRayDirectionAt(vec2 screenspace)
