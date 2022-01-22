@@ -44,6 +44,7 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 # Half Implemented / WIP Features
 - Histogram based auto exposure
 - Parallax mapping (Parallax Relief Mapping, Parallax Occlusion Mapping and Ground Truth Parallax)
+- Anisotropic raytraced reflections (for materials such as brushed metal, based on principled disney BRDF)
 
 # Todo Features / QOL Improvements
 - Bug fixes
