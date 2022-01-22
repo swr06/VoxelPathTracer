@@ -101,7 +101,15 @@ void main() {
 		//TotalColor += clamp(texture(u_InputTexture, SampleOffset).xyz, 0.0f, 1.0f);
 
 		if (CAEnabled) {
-			vec3 CurrentSampleColor = vec3(texture(u_InputTexture, SampleOffset + ChromaticOffset).r, texture(u_InputTexture, SampleOffset).g, texture(u_InputTexture, SampleOffset - ChromaticOffset).b);
+		
+		
+			vec2 ROffset = SampleOffset + ChromaticOffset;
+			if (ROffset != clamp(ROffset, 0.0001f, 0.9999f)) { ROffset = SampleOffset; }
+			
+			vec2 BOffset = SampleOffset - ChromaticOffset;
+			if (BOffset != clamp(BOffset, 0.0001f, 0.9999f)) { BOffset = SampleOffset; }
+			
+			vec3 CurrentSampleColor = vec3(texture(u_InputTexture, ROffset).r, texture(u_InputTexture, SampleOffset).g, texture(u_InputTexture, BOffset).b);
 			TotalColor += max(CurrentSampleColor, 0.0f);
 		}
 

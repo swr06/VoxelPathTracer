@@ -14,6 +14,7 @@
 
 
 
+
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
 
@@ -179,6 +180,72 @@ void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block
 
 float Luma(vec3 x) { return dot(x, vec3(0.2125, 0.7154, 0.0721)); }
 
+bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
+
+vec3 GetRayDirectionAt(vec2 screenspace)
+{
+	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
+	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
+	return vec3(u_InverseView * eye);
+}
+
+vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
+{
+	float Dist = texture(pos_tex, txc).r;
+	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
+}
+
+// Fetch correct texture ids 
+vec4 GetTextureIDs(int BlockID) 
+{
+	return vec4(float(BlockAlbedoData[BlockID]),
+				float(BlockNormalData[BlockID]),
+				float(BlockPBRData[BlockID]),
+				float(BlockEmissiveData[BlockID]));
+}
+
+// Samples the block id data texture 
+int GetBlockID(vec2 txc)
+{
+	float id = texture(u_BlockIDTex, txc).r;
+	return clamp(int(floor(id * 255.0f)), 0, 127);
+}
+
+bool InThresholdedScreenSpace(in vec2 v) 
+{
+	float b = 0.032593f;
+	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
+}
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
+    return GetNormalFromID(texture(samp, txc).x);
+}
+
+vec3 BasicSaturation(vec3 Color, float Adjustment)
+{
+    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
+    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
+    return mix(Luminosity, Color, Adjustment);
+}
+
+
 
 
 float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec2 px, int sampleIndex, int sampleDimension)
@@ -206,12 +273,6 @@ float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec
 	return v;
 }
 
-vec3 BasicSaturation(vec3 Color, float Adjustment)
-{
-    const vec3 LuminosityCoefficients = vec3(0.2125f, 0.7154f, 0.0721f);
-    vec3 Luminosity = vec3(dot(Color, LuminosityCoefficients));
-    return mix(Luminosity, Color, Adjustment);
-}
 
 // GGX ->
 
@@ -300,90 +361,57 @@ vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
     return normalize(sampleVec);
 } 
 
-
-// By iq
-vec4 TextureSmooth(sampler2D samp, vec2 uv) 
-{
-    vec2 textureResolution = textureSize(samp, 0).xy;
-	uv = uv*textureResolution + 0.5f;
-	vec2 iuv = floor(uv);
-	vec2 fuv = fract(uv);
-	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
-	uv = (uv - 0.5f) / textureResolution;
-	return texture(samp, uv).xyzw;
+vec3 ConvertToSphericalDir(float sinTheta, float cosTheta, float sinPhi, float cosPhi) {
+    return vec3(sinTheta * cosPhi, sinTheta * sinPhi, cosTheta);
 }
 
-vec2 ProjectDirection(vec3 Direction, vec2 TextureSize);
+bool IsSameHemisphere(const in vec3 wo, const in vec3 wi, const in vec3 normal) {
+    return dot(wo, normal) * dot(wi, normal) > 0.0;
+}
 
-vec3 RetrieveProjectedClouds(vec3 Sky, vec3 R)
+// From disney principled brdf
+// Returns an anisotropic microfacet sample ->
+vec3 DisneyAnisotropicVNDF(const in vec3 wo, float roughness, float anisotropy, 
+							     const vec3 N, const in vec3 X, const in vec3 Y, const in vec2 u) 
 {
-	if (!u_CloudReflections) {
-		return Sky;
-	}
+	vec3 aniso_normal = vec3(0.0f);
 
-	vec2 TextureSize = vec2(textureSize(u_ProjectedClouds,0).xy);
-	vec2 ProjectedDirection = ProjectDirection(R, TextureSize);
+    float cosTheta = 0., phi = 0.;
+    float aspect = sqrt(1. - anisotropy*.9);
+    float alphax = max(.001, pow2(roughness)/aspect);
+    float alphay = max(.001, pow2(roughness)*aspect);
 
-	if (ProjectedDirection != clamp(ProjectedDirection, 0.001f, 0.999f)) {
-		return Sky;
-	}
+    phi = atan(alphay / alphax * tan(2. * PI * u[1] + .5 * PI));
+    if (u[1] > .5f) phi += PI;
+
+    float sinPhi = sin(phi), cosPhi = cos(phi);
+    float alphax2 = alphax * alphax, alphay2 = alphay * alphay;
+    float alpha2 = 1. / (cosPhi * cosPhi / alphax2 + sinPhi * sinPhi / alphay2);
+    float tanTheta2 = alpha2 * u[0] / (1. - u[0]);
+    cosTheta = 1. / sqrt(1. + tanTheta2);
+    float sinTheta = sqrt(max(0., 1. - cosTheta * cosTheta));
+
+    vec3 whLocal = ConvertToSphericalDir(sinTheta, cosTheta, sin(phi), cos(phi));
+         
+    vec3 wh = whLocal.x * X + whLocal.y * Y + whLocal.z * N;
+    
+    if(!IsSameHemisphere(wo, wh, N)) {
+       wh *= -1.;
+    }
+         
+	aniso_normal = wh;
+	return aniso_normal;
+}
+
+vec3 SampleAnisotropicNormal(vec3 wo, float R, float A, vec3 N, vec2 Xi) {
 	
-	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
-	vec3 Return = Sky * max(0.0f, CloudFetch.w) + clamp(CloudFetch.xyz, 0.0f, 1.0f) * 0.925f;
-	return Return;
-}	
+	vec3 X, Y;
+	CreateBasisVectors(N, X, Y);
 
-
-void GetAtmosphere(inout vec3 Out, in vec3 V)
-{
-    vec3 SunDirection = (u_SunDirection); 
-    vec3 MoonDirection = vec3(-SunDirection.x, -SunDirection.y, SunDirection.z); 
-    vec3 NormalizedV = normalize(V);
-    vec3 SampledSky = texture(u_Skymap, NormalizedV).rgb;
-	SampledSky = RetrieveProjectedClouds(SampledSky, NormalizedV);
-    Out = SampledSky;
+	return DisneyAnisotropicVNDF(wo, R, A, N, X, Y, Xi);
 }
 
-
-bool GetPlayerIntersect(in vec3 pos, in vec3 ldir);
-
-vec3 GetRayDirectionAt(vec2 screenspace)
-{
-	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);
-	vec4 eye = vec4(vec2(u_InverseProjection * clip), -1.0, 0.0);
-	return vec3(u_InverseView * eye);
-}
-
-vec4 GetPositionAt(sampler2D pos_tex, vec2 txc)
-{
-	float Dist = texture(pos_tex, txc).r;
-	return vec4(v_RayOrigin + normalize(GetRayDirectionAt(txc)) * Dist, Dist);
-}
-
-vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
-{
-    float x = dot(shY.xyz, v);
-    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
-    Y = max(Y, 0.0);
-	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
-    float T = Y - CoCg.y * 0.5f;
-    float G = CoCg.y + T;
-    float B = T - CoCg.x * 0.5f;
-    float R = B + CoCg.x;
-    return max(vec3(R, G, B), vec3(0.0f));
-}
-
-vec3 SHToIrradianceA(vec4 shY, vec2 CoCg)
-{
-	float Y = max(0, 3.544905f * shY.w);
-	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
-    float T = Y - CoCg.y * 0.5f;
-    float G = CoCg.y + T;
-    float B = T - CoCg.x * 0.5f;
-    float R = B + CoCg.x;
-    return max(vec3(R, G, B), vec3(0.0f));
-}
-
+// geometry term ->
 float G_Smith_over_NdotV(float roughness, float NdotV, float NdotL)
 {
     float alpha = square(roughness);
@@ -392,6 +420,7 @@ float G_Smith_over_NdotV(float roughness, float NdotV, float NdotL)
     return 2.0 *  NdotL / (g1 + g2);
 }
 
+// ggx specular ->
 float SpecularGGX(vec3 V, vec3 L, vec3 N, float roughness, float NoH_offset)
 {
     vec3 H = normalize(L - V);
@@ -414,6 +443,76 @@ float SpecularGGX(vec3 V, vec3 L, vec3 N, float roughness, float NoH_offset)
 vec3 F0toIOR(vec3 F0) {
 	F0 = sqrt(F0) * 0.99999;
 	return (1.0 + F0) / (1.0 - F0);
+}
+
+// Samples irradiance value from a spherical harmonic 
+vec3 SHToIrridiance(vec4 shY, vec2 CoCg, vec3 v)
+{
+    float x = dot(shY.xyz, v);
+    float Y = 2.0 * (1.023326f * x + 0.886226f * shY.w);
+    Y = max(Y, 0.0);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
+
+// Samples stored irradiance value
+vec3 SHToIrradianceA(vec4 shY, vec2 CoCg)
+{
+	float Y = max(0, 3.544905f * shY.w);
+	CoCg *= Y * 0.282095f / (shY.w + 1e-6);
+    float T = Y - CoCg.y * 0.5f;
+    float G = CoCg.y + T;
+    float B = T - CoCg.x * 0.5f;
+    float R = B + CoCg.x;
+    return max(vec3(R, G, B), vec3(0.0f));
+}
+
+
+// By iq
+vec4 TextureSmooth(sampler2D samp, vec2 uv) 
+{
+    vec2 textureResolution = textureSize(samp, 0).xy;
+	uv = uv*textureResolution + 0.5f;
+	vec2 iuv = floor(uv);
+	vec2 fuv = fract(uv);
+	uv = iuv + fuv*fuv*(3.0f-2.0f*fuv); 
+	uv = (uv - 0.5f) / textureResolution;
+	return texture(samp, uv).xyzw;
+}
+
+// Projects direction to cubemap
+vec2 ProjectDirection(vec3 Direction, vec2 TextureSize);
+
+vec3 RetrieveProjectedSky(vec3 Sky, vec3 R)
+{
+	if (!u_CloudReflections) {
+		return Sky;
+	}
+
+	vec2 TextureSize = vec2(textureSize(u_ProjectedClouds,0).xy);
+	vec2 ProjectedDirection = ProjectDirection(R, TextureSize);
+
+	if (ProjectedDirection != clamp(ProjectedDirection, 0.001f, 0.999f)) {
+		return Sky;
+	}
+	
+	vec4 CloudFetch = TextureSmooth(u_ProjectedClouds, ProjectedDirection);
+	vec3 Return = Sky * max(0.001f, CloudFetch.w) + clamp(CloudFetch.xyz, 0.0f, 1.0f) * 0.925f;
+	return Return;
+}	
+
+void GetAtmosphere(inout vec3 Out, in vec3 V)
+{
+    vec3 SunDirection = (u_SunDirection); 
+    vec3 MoonDirection = vec3(-SunDirection.x, -SunDirection.y, SunDirection.z); 
+    vec3 NormalizedV = normalize(V);
+    vec3 SampledSky = texture(u_Skymap, NormalizedV).rgb;
+	SampledSky = RetrieveProjectedSky(SampledSky, NormalizedV);
+    Out = SampledSky;
 }
 
 
@@ -467,9 +566,6 @@ vec3 DeriveSpecularFromDiffuseSH(vec4 SHy, vec3 IndirectDiffuse, vec3 Eye, vec3 
 
 }
 
-
-
-
 // Shift x texture coordinate if the current step is a checker step ->
 vec2 GetCheckerboardedUV()
 {
@@ -478,57 +574,6 @@ vec2 GetCheckerboardedUV()
 	Screenspace.x += (float(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == int(u_CurrentFrame % 2)) * TexelSizeX);
 	return Screenspace;
 }
-
-// Fetch correct texture ids 
-vec4 GetTextureIDs(int BlockID) 
-{
-	return vec4(float(BlockAlbedoData[BlockID]),
-				float(BlockNormalData[BlockID]),
-				float(BlockPBRData[BlockID]),
-				float(BlockEmissiveData[BlockID]));
-}
-
-// Samples the block id data texture 
-int GetBlockID(vec2 txc)
-{
-	float id = texture(u_BlockIDTex, txc).r;
-	return clamp(int(floor(id * 255.0f)), 0, 127);
-}
-
-bool InThresholdedScreenSpace(in vec2 v) 
-{
-	float b = 0.032593f;
-	return v.x > b && v.x < 1.0f - b && v.y > b && v.y < 1.0f - b;
-}
-
-bool CompareFloatNormal(float x, float y) {
-    return abs(x - y) < 0.02f;
-}
-
-vec3 GetNormalFromID(float n) {
-	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
-					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
-					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
-    int idx = int(round(n*10.0f));
-
-    if (idx > 5) {
-        return vec3(1.0f, 1.0f, 1.0f);
-    }
-
-    return Normals[idx];
-}
-
-vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) { 
-    return GetNormalFromID(texture(samp, txc).x);
-}
-
-
-
-float GetLuminance(vec3 color) {
-	return dot(color, vec3(0.299, 0.587, 0.114));
-}
-
-
 
 // Reprojects hit coordinate to screen space to try and infer indirect lighting and the visibility term for the direct brdf ->
 vec2 ReprojectReflectionToScreenSpace(vec3 HitPosition, vec3 HitNormal, out bool Success, out vec4 PositionAt)
@@ -568,10 +613,9 @@ vec2 SampleBlueNoise2D(int Index)
 	return Noise;
 }
 
-
 // Gets the most closest reflection direction to help reduce variance 
 // *NOT* physically correct as this will add bias which is not accounted for in the pdf 
-vec3 GetReflectionDirection(vec3 N, float R) {
+vec3 GetReflectionDirection(vec3 wo, vec3 N, float R) {
 
 	// Gets a reflection vector that is closest to the normal
 	R = max(R, 0.05f);
@@ -579,9 +623,13 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 	vec3 BestDirection;
 
 	for (int i = 0 ; i < 3 ; i++) {
+
 		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(TEMPORAL_SPEC?u_CurrentFrameMod128:100) : hash2();
 		Xi = Xi * vec2(0.9f, 0.65f);
+		
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
+		//vec3 ImportanceSampled = SampleAnisotropicNormal(wo, R, 1.0f, N, Xi);
+		
 		float d = dot(ImportanceSampled,N);
 		if (d > NearestDot) {
 			BestDirection = ImportanceSampled;
@@ -777,7 +825,7 @@ void main()
 	// trace ->
 	for (int s = 0 ; s < SPP ; s++)
 	{
-		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (NormalMappedInitial);
+		vec3 ReflectionNormal = u_RoughReflections ? GetReflectionDirection(I, NormalMappedInitial,clamp(RoughnessAt*RoughnessBias,0.01,1.)) : (NormalMappedInitial);
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;
