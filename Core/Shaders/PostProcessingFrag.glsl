@@ -220,6 +220,9 @@ float GetScreenSpaceGodRays(vec3 position)
     return rays;
 }
 
+// not my code.
+// by mu6k
+
 float Fnoise(float t)
 {
 	return texture(u_BlueNoise, vec2(t, 0.0f) / vec2(256).xy).x;
@@ -230,7 +233,6 @@ float Fnoise(vec2 t)
 	return texture(u_BlueNoise, t / vec2(256).xy).x;
 }
 
-// by mu6k
 vec3 lensflare(vec2 uv, vec2 pos)
 {
 	vec2 main = uv - pos;
@@ -312,8 +314,7 @@ vec3 BasicChromaticAberation()
     vec3 Final = vec3(0.0f);
 	float TotalWeight = 0.01f;
     
-	// Barrel Distortion
-    for (int i = 1; i <= 16; i++)
+    for (int i = 1; i <= 12; i++)
     {
         float wg = 1.0f / pow(2.0f, float(i)); // Blur Weights, tested.
 
@@ -410,7 +411,6 @@ vec3 Blackbody(float temperature)
 	return xyz * XyzToRgb;
 }
 
-// Fragment
 float Noise2d(in vec2 x)
 {
     float xhash = cos(x.x * 37.0);
@@ -434,15 +434,6 @@ float NoisyStarField(in vec2 UV, float Threshold)
     }
 
     return StarVal;
-}
-
-
-vec3 Rotate(vec3 vector, vec3 from, vec3 to) 
-{
-	float cosTheta = dot(from, to);
-	vec3 axis = normalize(cross(from, to));
-	vec2 sc = vec2(sqrt(1.0 - cosTheta * cosTheta), cosTheta);
-	return sc.y * vector + sc.x * cross(axis, vector) + (1.0 - sc.y) * dot(axis, vector) * axis;
 }
 
 vec2 Hash2(vec3 p3) {

@@ -120,7 +120,6 @@ vec3 Lookup(vec3 color)
 
 void BasicColorDither(inout vec3 color)
 {
-    color += bayer128(gl_FragCoord.xy) / 128.0f;
 	const vec2 LestynCoefficients = vec2(171.0f, 231.0f);
     vec3 Lestyn = vec3(dot(LestynCoefficients, gl_FragCoord.xy));
     Lestyn = fract(Lestyn.rgb / vec3(103.0f, 71.0f, 97.0f));

@@ -219,7 +219,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
 
         if(dot(ray_dir, sun_dir) > 0.999825f)
         {
-            atmosphere_color = ATMOSPHERE_SUN_COLOR; 
+            atmosphere_color = SAMPLED_SUN_COLOR; 
             o_EmissivityData = -8.0f;
            // o_BloomAlbedos = vec3(3.0f,3.0f,2.0f);
             return true;
@@ -227,7 +227,7 @@ bool GetAtmosphere(inout vec3 atmosphere_color, in vec3 in_ray_dir, float transm
         
         if(dot(ray_dir, moon_dir) > 0.99986f)
         {
-            atmosphere_color = ATMOSPHERE_MOON_COLOR;
+            atmosphere_color = SAMPLED_MOON_COLOR;
             o_EmissivityData = -16.0f;
            // o_BloomAlbedos = vec3(0.6f,0.6f,1.0f) * 1.0f;
             return true;

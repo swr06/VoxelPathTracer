@@ -1,16 +1,18 @@
 #version 430 core
-
 #define WORLD_SIZE_X 384
 #define WORLD_SIZE_Y 128
 #define WORLD_SIZE_Z 384
 #define PI 3.14159265359
-
-//#define DERIVE_FROM_DIFFUSE_SH
-
+#define pi PI
+#define sqr(x) (x * x) 
+#define pow2(x) sqr(x)
 #define REPROJECT_TO_SCREEN_SPACE
 #define TRACE_LENGTH 64
 #define clamp01(x) (clamp(x,0.0f,1.0F))
 #define square(x) (x*x)
+
+
+
 
 //#define ALBEDO_TEX_LOD 3 // 512, 256, 128
 //#define JITTER_BASED_ON_ROUGHNESS
@@ -275,7 +277,7 @@ void CreateBasisVectors(vec3 normal, out vec3 tangent, out vec3 binormal){
     tangent = normalize(cross(normal,binormal));
 }
 
-// Samples the ggx vndf and returns a microfacet normal ->
+// Samples the ggx vndf and returns an isotropic microfacet normal ->
 vec3 ImportanceSampleGGX(vec3 N, float roughness, vec2 Xi)
 {
     float alpha = roughness * roughness;
@@ -576,9 +578,9 @@ vec3 GetReflectionDirection(vec3 N, float R) {
 	float NearestDot = -100.0f;
 	vec3 BestDirection;
 
-	for (int i = 0 ; i < 4 ; i++) {
+	for (int i = 0 ; i < 3 ; i++) {
 		vec2 Xi = u_UseBlueNoise ? SampleBlueNoise2D(TEMPORAL_SPEC?u_CurrentFrameMod128:100) : hash2();
-		Xi = Xi * vec2(1.0f, 0.75f);
+		Xi = Xi * vec2(0.9f, 0.65f);
 		vec3 ImportanceSampled = ImportanceSampleGGX(N, R, Xi);
 		float d = dot(ImportanceSampled,N);
 		if (d > NearestDot) {

@@ -13,6 +13,8 @@
 
 #define sqr(x) (x*x)
 
+#define EPS 0.001f
+
 layout (location = 0) out vec4 o_SpatialResult;
 
 in vec2 v_TexCoords;
@@ -276,8 +278,8 @@ void main()
 	
 	int RadiusBias = 0;
 	
-	if (SampledPBR.y > 0.1f && BaseRoughness > 0.45f) {
-		RadiusBias += 1;
+	if (SampledPBR.y > 0.1f - EPS && BaseRoughness > 0.4f - EPS) {
+		RadiusBias += 2;
 	}
 	
 

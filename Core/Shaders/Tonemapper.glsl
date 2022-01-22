@@ -176,7 +176,7 @@ void main() {
 
 		else {
 			o_Color = ACESFitted(vec4(o_Color, 1.0f), Exposure).rgb;
-			o_Color = mix(vibrance(o_Color), o_Color, 0.6f);
+			o_Color = mix(vibrance(o_Color), o_Color, 0.45f);
 		}
 	}
 
