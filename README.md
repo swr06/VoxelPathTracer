@@ -1,6 +1,6 @@
 # Voxel Path Tracer
-An ***Unfinished*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. 
-This engine was coded using C++ and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
+An ***Unfinished*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment.
+This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 # Features Implemented
 - Voxel Ray Casting 
@@ -58,7 +58,7 @@ This engine was coded using C++ and the modern OpenGL programmable pipeline (Ope
 
 # Performance Metrics 
 
-- 25-30 FPS on a Vega 8 iGPU on the default settings.
+- 24 FPS on a Vega 8 iGPU on the default settings.
 - 180 - 200 FPS on a GTX 1080Ti.
 
 # Note
