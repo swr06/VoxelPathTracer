@@ -50,10 +50,12 @@ uniform float u_PurkingeEffectStrength;
 
 uniform sampler2D u_Clouds;
 
-uniform bool u_Fucktard;
+uniform sampler2D u_DiffractionSpikes;
+uniform bool u_DiffractionSpikesEnabled;
 
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
+uniform float u_DiffractionStrength;
 
 uniform float u_ChromaticAberrationStrength = 0.0f;
 
@@ -78,6 +80,7 @@ uniform sampler2D u_BlueNoise;
 uniform sampler2D u_SSAOTexture;
 
 uniform sampler2D u_BloomCombined;
+uniform sampler2D u_BloomMip;
 
 uniform sampler2D u_ShadowTexture;
 
@@ -585,6 +588,15 @@ void main()
 		
 		vec3 TotalBloom = textureBicubic(u_BloomCombined, v_TexCoords).xyz;
 
+
+		vec3 Diffraction = textureBicubic(u_DiffractionSpikes, v_TexCoords).xyz;
+
+		if (u_DiffractionSpikesEnabled) {
+			float L = GetLuminance(TotalBloom);
+			TotalBloom = mix(Diffraction * 0.1f * u_DiffractionStrength, TotalBloom, clamp01(pow(L * 1.3f, 1.5f)));
+		}
+
+		
 		if (u_LensDirt) {
 			vec3 LensDirtFetch = TextureSmooth(u_LensDirtOverlay, v_TexCoords).xyz;
 			TotalBloom += v_BloomCenter * 5.33f * LensDirtFetch * u_LensDirtStrength * pow(1.0f-distance(v_TexCoords, vec2(0.5f)),6.0f);

@@ -71,6 +71,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("GBUFFER_GENERATE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GenerateGBuffer.glsl");
 	AddShader("TONEMAPPER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Tonemapper.glsl");
 	AddShader("BLOOM_COMBINE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CombineBloom.glsl");
+	AddShader("DIFFRACTION_SPIKES", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DiffractionSpikes.glsl");
 
 
 }

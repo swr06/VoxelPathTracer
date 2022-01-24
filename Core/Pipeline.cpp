@@ -91,6 +91,12 @@ static float FilmGrainStrength = 0.0f;
 static float ChromaticAberrationStrength = 0.0f;
 static float ExposureMultiplier = 1.0f;
 
+static float DiffractionResolution = 0.25f;
+static float DiffractionStrength = 1.0f;
+static int DiffractionKernel = 14;
+static float DiffractionScaler = 1.0f;
+static bool BlurDiffraction = false;
+
 // pixel padding
 static int PIXEL_PADDING = 20;
 
@@ -233,6 +239,7 @@ static bool ShouldAlphaTestShadows = false;
 static bool TAA = true;
 static bool FXAA = true;
 static bool Bloom = true;
+static bool DoDiffractionSpikes = false;
 static bool USE_SVGF = true;
 static bool DO_VARIANCE_SPATIAL = true;
 static bool DO_SVGF_SPATIAL = true;
@@ -690,6 +697,14 @@ public:
 				ImGui::SliderFloat("Lens Dirt Strength", &LensDirtStrength, 0.001f, 4.0f);
 			}
 			ImGui::NewLine();
+			ImGui::Checkbox("Bloom Diffraction Spikes? (WIP!) ", &DoDiffractionSpikes);
+			ImGui::SliderFloat("Diffraction Resolution", &DiffractionResolution, 0.05f, 1.0f);
+			ImGui::SliderFloat("Diffraction Strength", &DiffractionStrength, 0.25f, 10.0f);
+			ImGui::SliderFloat("Diffraction Scale", &DiffractionScaler, 0.125f, 1.5f);
+			ImGui::SliderInt("Diffraction Kernel Size", &DiffractionKernel, 4, 48);
+			ImGui::Checkbox("Blur? ", &BlurDiffraction);
+			ImGui::NewLine();
+			ImGui::NewLine();
 
 			ImGui::Checkbox("Auto Exposure (WIP!) ?", &AutoExposure);
 			ImGui::SliderFloat("Exposure Multiplier", &ExposureMultiplier, 0.01f, 1.0f);
@@ -1041,6 +1056,8 @@ ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS(1
 
 
 GLClasses::Framebuffer BloomCombined(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
+GLClasses::Framebuffer DiffractionSpikes(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
+GLClasses::Framebuffer DiffractionSpikesDenoised(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
 
 
 
@@ -1068,7 +1085,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		\n\tF2->Recompile shaders\
 		\n\tImGui Windows ->\
 		\n\tWindow 1 : Various Other Settings(Resolution settings)\
-		\n\tWindow 2 : Player sensitivity, speedand sound options\n\n ";
+		\n\tWindow 2 : Player sensitivity, speed and sound options\n\n ";
 	
 	VoxelRT::BlockDatabase::Initialize();
 
@@ -1247,6 +1264,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	GLClasses::Shader& GenerateGBuffer = ShaderManager::GetShader("GBUFFER_GENERATE");
 	GLClasses::Shader& CombineBloom = ShaderManager::GetShader("BLOOM_COMBINE");
+	GLClasses::Shader& DiffractionSpikesShader = ShaderManager::GetShader("DIFFRACTION_SPIKES");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -1584,8 +1602,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 				TAAFBO2.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			}
 
+
 			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
 			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
+			DiffractionSpikes.SetSize(PADDED_WIDTH * DiffractionResolution, PADDED_HEIGHT * DiffractionResolution);
+			DiffractionSpikesDenoised.SetSize(PADDED_WIDTH * DiffractionResolution, PADDED_HEIGHT * DiffractionResolution);
 			BloomFBOAlternate.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
 			BloomCombined.SetSize(PADDED_WIDTH * 0.5f, PADDED_HEIGHT * 0.5f);
 			
@@ -4007,6 +4028,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			//VAO.Unbind();
 		}
 
+		
 
 		// Combine bloom 
 
@@ -4046,6 +4068,40 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 
+		if (DoDiffractionSpikes) {
+			DiffractionSpikesShader.Use();
+			DiffractionSpikes.Bind();
+
+			DiffractionSpikesShader.SetInteger("u_Input", 0);
+			DiffractionSpikesShader.SetInteger("u_KernelSize", DiffractionKernel);
+			DiffractionSpikesShader.SetFloat("u_Scale", DiffractionScaler);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);
+			//glBindTexture(GL_TEXTURE_2D, BloomCombined.GetTexture());
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+
+			if (BlurDiffraction) {
+
+				Gaussian5TapOptimized.Use();
+				DiffractionSpikesDenoised.Bind();
+
+				Gaussian5TapOptimized.SetInteger("u_Texture", 0);
+
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, DiffractionSpikes.GetTexture());
+
+				VAO.Bind();
+				glDrawArrays(GL_TRIANGLES, 0, 6);
+				VAO.Unbind();
+			}
+			
+		}
+
+
 		// ---- POST PROCESSING ----
 
 		PostProcessingFBO.Bind();
@@ -4064,6 +4120,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_VolumetricsCompute", 16);
 		PostProcessingShader.SetInteger("u_BlockIDTexture", 17);
 		PostProcessingShader.SetInteger("u_BloomCombined", 5);
+		PostProcessingShader.SetInteger("u_DiffractionSpikes", 6);
+		PostProcessingShader.SetInteger("u_BloomMip", 7);
+		PostProcessingShader.SetInteger("u_DiffractionSpikesEnabled", DoDiffractionSpikes);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -4131,6 +4190,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetFloat("u_ExposureMultiplier", ExposureMultiplier);
 		PostProcessingShader.SetFloat("u_NebulaStrength", NebulaStrength);
 		PostProcessingShader.SetFloat("u_BloomStrength", BloomStrength);
+		PostProcessingShader.SetFloat("u_DiffractionStrength", DiffractionStrength);
 
 		PostProcessingShader.SetBool("u_LensDirt", LensDirt);
 		PostProcessingShader.SetFloat("u_LensDirtStrength", LensDirtStrength);
@@ -4151,6 +4211,12 @@ void VoxelRT::MainPipeline::StartPipeline()
 		
 		glActiveTexture(GL_TEXTURE5);
 		glBindTexture(GL_TEXTURE_2D, BloomCombined.GetTexture());
+		
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, BlurDiffraction ? DiffractionSpikesDenoised.GetTexture() : DiffractionSpikes.GetTexture());
+
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);
 
 
 		glActiveTexture(GL_TEXTURE9);

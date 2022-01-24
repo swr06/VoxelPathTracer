@@ -295,6 +295,7 @@
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\CubeItemShader.glsl" />
     <None Include="Core\Shaders\CubemapCombine.glsl" />
+    <None Include="Core\Shaders\DiffractionSpikes.glsl" />
     <None Include="Core\Shaders\DownsampleColorTexture.glsl" />
     <None Include="Core\Shaders\DownsampleDepth4x.glsl" />
     <None Include="Core\Shaders\DownsampleNormals4x.glsl" />
