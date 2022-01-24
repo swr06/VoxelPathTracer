@@ -211,7 +211,7 @@ static float PreviousSunTick = 50.0f;
 static float DiffuseLightIntensity = 1.2f;
 static float LensFlareIntensity = 0.075f;
 static float BloomQuality = 0.25f;
-static bool BloomWide = false;
+static bool BloomWide = true;
 static float BloomStrength = 1.0f;
 bool LensDirt = false;
 float LensDirtStrength = 1.1f;
@@ -1031,11 +1031,16 @@ GLClasses::Framebuffer ReflectionDenoised_1(16, 16, { { GL_RGBA16F, GL_RGBA, GL_
 GLClasses::Framebuffer ReflectionDenoised_2(16, 16, { { GL_RGBA16F, GL_RGBA, GL_FLOAT } }, false);
 GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL_FLOAT } }, false);
 
+
+
 // shadow buffers
 GLClasses::Framebuffer ShadowRawTrace(16, 16, { { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, { GL_R16F, GL_RED, GL_FLOAT } }, false),
 ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
 ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false);
 
+
+
+GLClasses::Framebuffer BloomCombined(16, 16, { { GL_RGB16F, GL_RGB, GL_FLOAT } }, false);
 
 
 
@@ -1193,7 +1198,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& FinalShader = ShaderManager::GetShader("FINAL_SHADER");
 	GLClasses::Shader& DiffuseTraceShader = ShaderManager::GetShader("DIFFUSE_TRACE");
 	GLClasses::Shader& MainTemporalFilter = ShaderManager::GetShader("MAIN_TEMPORAL_FILER");
-	GLClasses::Shader& DenoiseFilter = ShaderManager::GetShader("SMART_DENOISER");
 	GLClasses::Shader& ColorShader = ShaderManager::GetShader("COLOR_SHADER");
 	GLClasses::Shader& PostProcessingShader = ShaderManager::GetShader("POST_PROCESS");
 	GLClasses::Shader& TemporalAAShader = ShaderManager::GetShader("TEMPORAL_AA");
@@ -1242,6 +1246,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 	GLClasses::Shader& GenerateGBuffer = ShaderManager::GetShader("GBUFFER_GENERATE");
+	GLClasses::Shader& CombineBloom = ShaderManager::GetShader("BLOOM_COMBINE");
 
 	GLClasses::TextureArray BlueNoise;
 
@@ -1582,7 +1587,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			DownsampledFBO.SetSize(PADDED_WIDTH * 0.125f, PADDED_HEIGHT * 0.125f);
 			BloomFBO.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
 			BloomFBOAlternate.SetSize(PADDED_WIDTH * BloomQuality, PADDED_HEIGHT * BloomQuality);
-			
+			BloomCombined.SetSize(PADDED_WIDTH * 0.5f, PADDED_HEIGHT * 0.5f);
 			
 			PostProcessingFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			DOFFBO.SetSize(TRUE_PADDED_WIDTH * DOFResolution, TRUE_PADDED_HEIGHT * DOFResolution);
@@ -4002,6 +4007,45 @@ void VoxelRT::MainPipeline::StartPipeline()
 			//VAO.Unbind();
 		}
 
+
+		// Combine bloom 
+
+
+		if (Bloom) {
+			BloomCombined.Bind();
+			CombineBloom.Use();
+			CombineBloom.SetInteger("u_BloomMips[0]", 0);
+			CombineBloom.SetInteger("u_BloomMips[1]", 1);
+			CombineBloom.SetInteger("u_BloomMips[2]", 2);
+			CombineBloom.SetInteger("u_BloomMips[3]", 3);
+			CombineBloom.SetInteger("u_BloomMips[4]", 4);
+			CombineBloom.SetInteger("u_BloomBrightTexture", 5);
+			CombineBloom.SetBool("u_HQBloomUpscale", HQBloomUpscale);
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[1]);
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[2]);
+
+			glActiveTexture(GL_TEXTURE3);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[3]);
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
+
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_2D, BrightTex);
+
+			VAO.Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+			VAO.Unbind();
+		}
+
+
 		// ---- POST PROCESSING ----
 
 		PostProcessingFBO.Bind();
@@ -4019,6 +4063,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetInteger("u_CloudData", 15);
 		PostProcessingShader.SetInteger("u_VolumetricsCompute", 16);
 		PostProcessingShader.SetInteger("u_BlockIDTexture", 17);
+		PostProcessingShader.SetInteger("u_BloomCombined", 5);
 		PostProcessingShader.SetInteger("u_GodRaysStepCount", GodRaysStepCount);
 		PostProcessingShader.SetVector3f("u_SunDirection", SunDirection);
 		PostProcessingShader.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -4062,12 +4107,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		// Set the bloom mips
-		PostProcessingShader.SetInteger("u_BloomMips[0]", 5);
-		PostProcessingShader.SetInteger("u_BloomMips[1]", 6);
-		PostProcessingShader.SetInteger("u_BloomMips[2]", 7);
-		PostProcessingShader.SetInteger("u_BloomMips[3]", 8);
-		PostProcessingShader.SetInteger("u_BloomMips[4]", 23);
-		PostProcessingShader.SetInteger("u_BloomBrightTexture", 22);
+		
 		PostProcessingShader.SetInteger("u_LensDirtOverlay", 24);
 		PostProcessingShader.SetInteger("u_SmallestBloomMip", 25);
 		PostProcessingShader.SetInteger("u_ShadowTexture", 9);
@@ -4107,27 +4147,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		glActiveTexture(GL_TEXTURE3);
 		glBindTexture(GL_TEXTURE_2D, SSAOBlurred.GetTexture());
-
-		//glActiveTexture(GL_TEXTURE4);
-		//glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
-
-		// Bloom mips
+		
+		
 		glActiveTexture(GL_TEXTURE5);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);
+		glBindTexture(GL_TEXTURE_2D, BloomCombined.GetTexture());
 
-		glActiveTexture(GL_TEXTURE6);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[1]);
-
-		glActiveTexture(GL_TEXTURE7);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[2]);
-
-		glActiveTexture(GL_TEXTURE8);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[3]);
-
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
-
-		//
 
 		glActiveTexture(GL_TEXTURE9);
 		glBindTexture(GL_TEXTURE_2D, SoftShadows ? (DenoiseSunShadows ? ShadowFiltered.GetTexture() : ShadowTemporalFBO.GetTexture()) : ShadowRawTrace.GetTexture());
@@ -4165,12 +4189,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		glActiveTexture(GL_TEXTURE21);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, NightSkyMap.GetID());
 		
-		glActiveTexture(GL_TEXTURE22);
-		glBindTexture(GL_TEXTURE_2D, BrightTex);
-
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[4]);
-		
+			
 		glActiveTexture(GL_TEXTURE24);
 		glBindTexture(GL_TEXTURE_2D, LensDirtTexture.GetTextureID());
 
