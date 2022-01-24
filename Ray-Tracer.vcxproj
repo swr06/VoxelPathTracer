@@ -288,12 +288,14 @@
     <None Include="Core\Shaders\Clouds\CurlNoise.glsl" />
     <None Include="Core\Shaders\Clouds\NoiseUtil.glsl" />
     <None Include="Core\Shaders\Clouds\WeatherMapGenerator.glsl" />
+    <None Include="Core\Shaders\CombineBloom.glsl" />
     <None Include="Core\Shaders\ComputeExposure.comp" />
     <None Include="Core\Shaders\ComputeUtility\ClearData.comp" />
     <None Include="Core\Shaders\ContactShadows.glsl" />
     <None Include="Core\Shaders\ContrastAdaptiveSharpening.glsl" />
     <None Include="Core\Shaders\CubeItemShader.glsl" />
     <None Include="Core\Shaders\CubemapCombine.glsl" />
+    <None Include="Core\Shaders\DiffractionSpikes.glsl" />
     <None Include="Core\Shaders\DownsampleColorTexture.glsl" />
     <None Include="Core\Shaders\DownsampleDepth4x.glsl" />
     <None Include="Core\Shaders\DownsampleNormals4x.glsl" />
@@ -349,7 +351,6 @@
     <None Include="Core\Shaders\ShadowTransversalDenoiser_2.glsl" />
     <None Include="Core\Shaders\ShadowVarianceEstimate.glsl" />
     <None Include="Core\Shaders\SimpleDownsampleFrag.glsl" />
-    <None Include="Core\Shaders\SmartDenoise.glsl" />
     <None Include="Core\Shaders\Spatial3x3Initial_Gaussian.glsl" />
     <None Include="Core\Shaders\SpatialFilter.glsl" />
     <None Include="Core\Shaders\Spatial3x3Initial.glsl" />

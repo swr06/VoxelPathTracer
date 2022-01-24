@@ -29,7 +29,7 @@ void VoxelRT::ShaderManager::CreateShaders()
 
 	AddShader("VARIANCE_ESTIMATOR", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SampleVarianceCompute.glsl");
 	
-	AddShader("SMART_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SmartDenoise.glsl");
+	
 	AddShader("SIMPLE_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SimpleDownsampleFrag.glsl");
 	AddShader("LUMA_AVERAGER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CalculateAverageLuminance.glsl");
 	AddShader("VOLUMETRIC_SCATTERING", "Core/Shaders/FBOVert.glsl", "Core/Shaders/VolumetricLighting.glsl");
@@ -70,6 +70,8 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("GBUFFER_DOWNSAMPLE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GBufferDownsampler.glsl");
 	AddShader("GBUFFER_GENERATE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/GenerateGBuffer.glsl");
 	AddShader("TONEMAPPER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Tonemapper.glsl");
+	AddShader("BLOOM_COMBINE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/CombineBloom.glsl");
+	AddShader("DIFFRACTION_SPIKES", "Core/Shaders/FBOVert.glsl", "Core/Shaders/DiffractionSpikes.glsl");
 
 
 }

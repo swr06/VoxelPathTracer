@@ -477,9 +477,6 @@
     <None Include="Core\Shaders\TemporalFilter.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
-    <None Include="Core\Shaders\SmartDenoise.glsl">
-      <Filter>Source Files\Shaders</Filter>
-    </None>
     <None Include="Core\Shaders\ColorPassFrag.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
@@ -778,6 +775,12 @@
       <Filter>Source Files\Shaders</Filter>
     </None>
     <None Include="Core\Shaders\BicubicDownsample.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\CombineBloom.glsl">
+      <Filter>Source Files\Shaders</Filter>
+    </None>
+    <None Include="Core\Shaders\DiffractionSpikes.glsl">
       <Filter>Source Files\Shaders</Filter>
     </None>
   </ItemGroup>

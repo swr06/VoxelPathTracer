@@ -50,10 +50,12 @@ uniform float u_PurkingeEffectStrength;
 
 uniform sampler2D u_Clouds;
 
-uniform bool u_Fucktard;
+uniform sampler2D u_DiffractionSpikes;
+uniform bool u_DiffractionSpikesEnabled;
 
 uniform float u_Time;
 uniform float u_FilmGrainStrength;
+uniform float u_DiffractionStrength;
 
 uniform float u_ChromaticAberrationStrength = 0.0f;
 
@@ -77,8 +79,8 @@ uniform sampler2D u_RTAOTexture;
 uniform sampler2D u_BlueNoise;
 uniform sampler2D u_SSAOTexture;
 
-uniform sampler2D u_BloomMips[5];
-uniform sampler2D u_BloomBrightTexture;
+uniform sampler2D u_BloomCombined;
+uniform sampler2D u_BloomMip;
 
 uniform sampler2D u_ShadowTexture;
 
@@ -583,72 +585,18 @@ void main()
 	
 	if (u_Bloom)
 	{
-		vec3 Bloom[5] = vec3[](vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f), vec3(0.0f));
+		
+		vec3 TotalBloom = textureBicubic(u_BloomCombined, v_TexCoords).xyz;
 
-		// bicubic upsampling because the bloom textures are super low res
-		// res : 0.25, 0.125, 0.0625, 0.03125
-		// 4 * 4 + 9 (or 1 if blur is disabled) samples 
-		// We sample the bright texture to preserve some detail from the emissive textures 
 
-		vec3 BaseBrightTex = vec3(0.0f);
+		vec3 Diffraction = textureBicubic(u_DiffractionSpikes, v_TexCoords).xyz;
 
-		bool Blur = false;
-
-		if (Blur) {
-
-			vec2 TexelSizeBlur = 1./textureSize(u_BloomBrightTexture,0).xy;
-			
-			for (int x = -1 ; x <= 1 ; x++) {
-				for (int y = -1 ; y <= 1 ; y++) {
-					BaseBrightTex += texture(u_BloomBrightTexture, v_TexCoords + vec2(x, y) * TexelSizeBlur * 1.0f).xyz;
-				}
-			}
-
-			BaseBrightTex *= 1.0f / 9.0f;
+		if (u_DiffractionSpikesEnabled) {
+			float L = GetLuminance(TotalBloom);
+			TotalBloom = mix(Diffraction * 0.1f * u_DiffractionStrength, TotalBloom, clamp01(pow(L * 1.3f, 1.5f)));
 		}
 
-		else {
-			BaseBrightTex = textureBicubic(u_BloomBrightTexture, v_TexCoords).xyz;
-		}
-
-
-
-		if (u_HQBloomUpscale) {
-			Bloom[0] += textureBicubic(u_BloomMips[0], v_TexCoords).xyz;
-			Bloom[1] += textureBicubic(u_BloomMips[1], v_TexCoords).xyz; 
-			Bloom[2] += textureBicubic(u_BloomMips[2], v_TexCoords).xyz; 
-			Bloom[3] += textureBicubic(u_BloomMips[3], v_TexCoords).xyz; 
-			Bloom[4] += textureBicubic(u_BloomMips[4], v_TexCoords).xyz; 
-		}
-
-		else {
-			Bloom[0] += TextureSmooth(u_BloomMips[0], v_TexCoords).xyz;
-			Bloom[1] += TextureSmooth(u_BloomMips[1], v_TexCoords).xyz; 
-			Bloom[2] += TextureSmooth(u_BloomMips[2], v_TexCoords).xyz; 
-			Bloom[3] += TextureSmooth(u_BloomMips[3], v_TexCoords).xyz; 
-			Bloom[4] += TextureSmooth(u_BloomMips[4], v_TexCoords).xyz; 
-		}
-
-		vec3 TotalBloom = vec3(0.0f);
-
-		// Tweaks the bloom color a bit
-		float AmplificationFactor = 1.1;
-			
-		// Weighted average ->
-
-		float Weights[5] = float[5](5.75f, 4.95f, 4.9f, 4.8f, 4.75f);
-		const float DetailWeight = 7.2f;
-
-		TotalBloom = (BaseBrightTex * DetailWeight * 1.0f) + TotalBloom;
-		TotalBloom = (pow(Bloom[0], vec3(1.0f / AmplificationFactor)) * Weights[0]) + TotalBloom;
-		TotalBloom = (pow(Bloom[1], vec3(1.0f / AmplificationFactor)) * Weights[1]) + TotalBloom;
-		TotalBloom = (pow(Bloom[2], vec3(1.0f / AmplificationFactor)) * Weights[2]) + TotalBloom;
-		TotalBloom = (pow(Bloom[3], vec3(1.0f / AmplificationFactor)) * Weights[3]) + TotalBloom;
-		TotalBloom = (pow(Bloom[4], vec3(1.0f / AmplificationFactor)) * Weights[4]) + TotalBloom;
-
-		float TotalWeights = DetailWeight + Weights[0] + Weights[1] + Weights[2] + Weights[3] + Weights[4];
-		TotalBloom /= TotalWeights;
-
+		
 		if (u_LensDirt) {
 			vec3 LensDirtFetch = TextureSmooth(u_LensDirtOverlay, v_TexCoords).xyz;
 			TotalBloom += v_BloomCenter * 5.33f * LensDirtFetch * u_LensDirtStrength * pow(1.0f-distance(v_TexCoords, vec2(0.5f)),6.0f);
