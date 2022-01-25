@@ -237,6 +237,8 @@ static bool ShouldAlphaTestShadows = false;
 
 
 static bool TAA = true;
+static bool TAADepthWeight = true;
+static float TAADepthWeightExp = 0.8f;
 static bool FXAA = true;
 static bool Bloom = true;
 static bool DoDiffractionSpikes = false;
@@ -722,7 +724,11 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
+			ImGui::Checkbox("TAA Depth Weight (Reduces ghosting)", &TAADepthWeight);
+			if (TAADepthWeight)
+				ImGui::SliderFloat("TAA Depth Weight Exponent Multiplier", &TAADepthWeightExp, 0.1f, 4.0f);
 			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			ImGui::NewLine();
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
 			//ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
 			ImGui::NewLine();
@@ -3686,6 +3692,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		TemporalAAShader.SetInteger("u_PreviousPositionTexture", 3);
 		TemporalAAShader.SetBool("u_Enabled", TAA);
 		TemporalAAShader.SetBool("u_BlockModified", ModifiedWorld);
+		TemporalAAShader.SetBool("u_DepthWeight", TAADepthWeight);
+		TemporalAAShader.SetFloat("u_DepthExponentMultiplier", TAADepthWeightExp);
 
 		TemporalAAShader.SetMatrix4("u_PrevProjection", PreviousProjection);
 		TemporalAAShader.SetMatrix4("u_PrevView", PreviousView);

@@ -1,8 +1,3 @@
-// Temporal Anti Aliasing implementation 
-// Resources :
-//	   TAA (Neighbourhood clamping, box clipping) : INSIDE TAA
-//     Variance Clipping : https://www.dropbox.com/sh/dmye840y307lbpx/AAAQpC0MxMbuOsjm6XmTPgFJa	
-
 // Todo : Handle sky motion vectors and specular motion vectors
 
 #version 330 core
@@ -35,6 +30,9 @@ uniform vec3 u_CameraHistory[2];
 vec2 View;
 vec2 Dimensions;
 vec2 TexCoord;
+
+uniform bool u_DepthWeight;
+uniform float u_DepthExponentMultiplier;
 
 // reprojection.
 vec2 Reprojection(vec3 WorldPos) 
@@ -135,104 +133,73 @@ vec3 InverseReinhard(vec3 RGB)
 }
 
 
+vec2 GetNearestDepths(vec2 Reprojected) {
+	
+	float MinCurrentDepth = 1000.0f;
+	float MinEffectiveCurrentDepth = 2000.0f;
+
+	float MinPreviousDepth = 1000.0f;
+	float MinEffectivePreviousDepth = 2000.0f;
+
+	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0).xy;
+
+	for (int x = -1 ; x <= 1 ; x++) {
+		for (int y = -1 ; y <= 1 ; y++) {
+			
+			float SampleDepth = texture(u_PositionTexture, v_TexCoords + vec2(x,y) * TexelSize).x;
+			float EffectiveDepth = SampleDepth;
+			EffectiveDepth = EffectiveDepth < 0.0f ? 995.0f : EffectiveDepth;
+			
+			if (EffectiveDepth < MinEffectiveCurrentDepth) {
+				MinCurrentDepth = SampleDepth;
+				MinEffectiveCurrentDepth = EffectiveDepth;
+			}
+
+
+
+			float SamplePrevDepth = texture(u_PreviousPositionTexture, Reprojected + vec2(x,y) * TexelSize).x;
+			float EffectivePrevDepth = SamplePrevDepth;
+			EffectivePrevDepth = EffectivePrevDepth < 0.0f ? 995.0f : EffectivePrevDepth;
+			
+			if (EffectivePrevDepth < MinEffectivePreviousDepth) {
+				MinPreviousDepth = SamplePrevDepth;
+				MinEffectivePreviousDepth = EffectivePrevDepth;
+			}
+
+		}
+	}
+
+	return vec2(MinCurrentDepth, MinPreviousDepth);
+}
+
+
 vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
 {
     vec3 MinColor = vec3(100.0);
 	vec3 MaxColor = vec3(-100.0); 
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture,0);
-	vec2 BestOffset = vec2(0.0f);
-	float BestDistance = 1000.0f;
-	int KernelX = 2;
+	int KernelX = 1;
 	int KernelY = 2;
-	bool FindBestPixel = false;
 
     for(int x = -KernelX; x <= KernelX; x++) 
 	{
         for(int y = -KernelY; y <= KernelY; y++) 
 		{
-			if (WorldPosition.w > 0.0f&&FindBestPixel) {
-				vec4 PrevPositionAt = GetPREVPositionAt(Reprojected + vec2(x, y) * TexelSize).xyzw;
-				
-				if (PrevPositionAt.w > 0.0f) 
-				{
-					float DistanceAt = FastDistance(WorldPosition.xyz, PrevPositionAt.xyz);
-					if (DistanceAt < BestDistance) {
-						BestDistance = DistanceAt;
-						BestOffset = vec2(x,y);
-					}
-				}
-			}
-
-
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
-
             MinColor = min(Sample, MinColor); 
 			MaxColor = max(Sample, MaxColor); 
         }
     }
 
-	BestOffset = FindBestPixel ? BestOffset : vec2(0.0f);
-
 	float Bias = 0.00001f;
 	MinColor -= Bias;
 	MaxColor += Bias;
 
-
 	vec3 Color = texture(u_PreviousColorTexture, Reprojected ).xyz;
 	
     return (clipAABB((Color), (MinColor), (MaxColor))).xyz;
-    return (Color).xyz;
 }
 
-
-
-///
-vec3 DiagonalColorClamp(vec2 Reprojected) {
-	vec3 MinBox = vec3(100.0f);
-	vec3 MaxBox = vec3(-100.0f);
-
-	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0);
-
-	vec3 CenterColor = texture(u_CurrentColorTexture, Reprojected).xyz;
-
-	const vec2 SampleOffsets[8] = vec2[8](vec2(-1, 1), vec2(0, 1), vec2(1, 1), vec2(-1, 0), vec2(1, 0), vec2(-1,-1), vec2(0,-1), vec2(1,-1));
-	vec3 Samples[8];
-
-	for (int x = 0 ; x < 8 ; x++) {
-		vec2 Offset = SampleOffsets[x];
-		vec2 Coord = Reprojected+Offset*TexelSize;
-		vec3 SampleColor = texture(u_CurrentColorTexture, Coord).xyz; 
-		MinBox = min(SampleColor, MinBox);
-		MaxBox = min(SampleColor, MaxBox);
-		Samples[x] = SampleColor;
-	}
-
-	// Diagonal Clamp
-	const vec3 dgx = normalize(vec3(1.0f)); 
-    const vec3 dgz = normalize(cross(dgx, vec3(0,1,0)));
-    const vec3 dgy = cross(dgz, dgx);
-    mat3x3 rgb2drgb = mat3x3(dgx, dgy, dgz);
-
-    vec3 dc = rgb2drgb * CenterColor;
-    vec3 mnd = dc;
-	vec3 mxd = dc;
-
-    for (int i = 0; i < 8; i++)
-    {
-        vec3 ds = rgb2drgb * Samples[i];
-        mnd = min(mnd, ds);
-        mxd = max(mxd, ds);
-    }
-
-
-	// History
-	vec3 History = texture(u_PreviousColorTexture, Reprojected).xyz;
-	History = clamp(History, MinBox, MaxBox);
-	vec3 DiagonalTransform = rgb2drgb * History;
-    DiagonalTransform = clamp(DiagonalTransform, mnd, mxd );
-    return DiagonalTransform * rgb2drgb;
-}
-///
 
 // inside taa 
 vec3 clipToAABB(in vec3 cOld, in vec3 cNew, in vec3 centre, in vec3 halfSize)
@@ -351,13 +318,23 @@ void main()
 		////vec3 PrevColor = AdvancedClamp(PreviousCoord); //SampleHistory(PreviousCoord, WorldPosition.xyzw);////
 		////vec3 PrevColor = VarianceClip(PreviousCoord, CurrentColor.xyz);////
 
+
 		vec3 PrevColor = SampleHistory(PreviousCoord, WorldPosition.xyzw);
 
 		// Construct our motion vector
 		vec2 velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(velocity)) * 0.7f + 0.45f;
+		float BlendFactor = exp(-length(velocity)) * 0.84f + 0.45f;
+		BlendFactor = clamp(BlendFactor, 0.0f, 0.96f);
+
+		if (u_DepthWeight) {
+			vec2 MinDepths = GetNearestDepths(PreviousCoord);
+			BlendFactor *= pow(exp(-abs(MinDepths.x - MinDepths.y)), 26.0f * u_DepthExponentMultiplier);
+		}
+
+
 		BlendFactor = u_BlockModified ? 0.1f : BlendFactor;
 		o_Color = InverseReinhard(mix(Reinhard(CurrentColor.xyz), Reinhard(PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
+		//o_Color = vec3(BlendFactor);
 	}
 
 	else 

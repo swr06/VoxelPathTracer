@@ -204,6 +204,12 @@ vec3 SAMPLED_COLOR_MIXED = vec3(0.0f);
 float HASH2SEED = 0.0f;
 
 
+float LinearizeDepth(float depth)
+{
+    float near = u_CameraPlanes.x;
+    float far = u_CameraPlanes.y;
+	return (2.0 * near) / (far + near - depth * (far - near));
+}
 
 
 // Fetches atmosphere and calculates celestial spheres ->
