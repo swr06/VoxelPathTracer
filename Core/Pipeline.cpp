@@ -1817,7 +1817,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// GBuffer ->
 
-		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 60 == 0 ||
+		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 10 == 0 ||
 			ModifiedWorld || JitterSceneForTAA;
 
 		if (UpdateGBufferThisFrame)
