@@ -853,7 +853,7 @@ void main()
     ProjectedOuter = mix(ProjectedOuter, Direction * CloudAltitudeMin * 12.0, Range);
 
 	// Low frequency hash ->
-	float Hash = Bayer32(gl_FragCoord.xy + vec2(u_CurrentFrame * (0.9f/1.0f), u_CurrentFrame * 0.5));
+	float Hash = Bayer64(gl_FragCoord.xy + vec2(u_CurrentFrame * (0.9f/1.0f), u_CurrentFrame * 0.5));
 	
 	
 	int StepCount = clamp(int(u_StepCounts.x),2,64);
@@ -893,7 +893,7 @@ void main()
 
 	// Start from projected inner sphere ->
 	vec3 RayPosition = CameraPosition + ProjectedInner + (Increment * Hash);
-	RayPosition += Increment * 0.5f;
+	RayPosition += Increment * Hash;
 
 	float TransversalDistance = distance(RayPosition, CameraPosition);
 	float AverageTransversalDistance = 0.0f;
