@@ -223,7 +223,7 @@ vec3 InverseReinhard(vec3 RGB)
 
 float GetLuminosityWeightFXAA(vec3 color, bool edge, bool skyedge, vec2 txc) 
 {
-	if (u_ExponentiallyMagnifyColorDifferences) 
+	if (u_ExponentiallyMagnifyColorDifferences && skyedge) 
 	{
 		//color = exp(color*25.0f);
 		color = pow(exp(color * 2.4f), vec3(4.0f));

@@ -119,9 +119,10 @@ float GetLuminosityWeightFXAANoBias(vec3 color, bool edge, vec2 txc)
 
 float quality[12] = float[12] (1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0);
 
-bool DetectEdge(out bool skysample)
+
+bool DetectEdge(out bool skysample, out float BaseDepth)
 {
-	vec4 BasePosition = SamplePositionAt(TexCoords).xyzw;
+	BaseDepth = texture(u_PositionTexture, TexCoords).x;
 	vec3 BaseNormal = SampleNormalFromTex(u_NormalTexture, TexCoords).xyz;
 	vec3 BaseColor = texture(u_FramebufferTexture, TexCoords).xyz;
 	vec2 TexelSize = 1.0f / textureSize(u_FramebufferTexture, 0);
@@ -133,12 +134,12 @@ bool DetectEdge(out bool skysample)
 		for (int y = -1 ; y <= 1 ; y++)
 		{
 			vec2 SampleCoord = TexCoords + vec2(x, y) * TexelSize;
-			vec4 SamplePosition = SamplePositionAt(SampleCoord);
+			float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
 			vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).xyz;
-			float PositionError = abs(BasePosition.w - SamplePosition.w);//distance(BasePosition, SamplePosition.xyz);
+			float PositionError = abs(BaseDepth - SampleDepth);//distance(BasePosition, SamplePosition.xyz);
 			int SampleBlock = GetBlockAt(SampleCoord);
 
-			if (SamplePosition.w < 0.0f) {
+			if (SampleDepth < 0.0f) {
 				skysample = true;
 			}
 
@@ -160,8 +161,9 @@ void FXAA311(inout vec3 color)
 {
 	float edgeThresholdMin = 0.03125;
 	float edgeThresholdMax = 0.125;
-	bool skysample = false;
-	bool IsAtEdge = DetectEdge(skysample);
+	bool skysample = false; 
+	float bd = 0.0f;
+	bool IsAtEdge = DetectEdge(skysample, bd);
 	float subpixelQuality = IsAtEdge ? 0.8125f : 0.120f; 
 	bool skyedge = skysample;
 
