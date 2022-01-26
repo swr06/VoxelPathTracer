@@ -111,7 +111,7 @@ vec3 InverseReinhard(vec3 RGB)
 }
 
 // Gets the nearest depth sample in a 3x3 area 
-vec2 GetNearestDepths3x3(vec2 Reprojected, out bool SkyEdge) 
+vec2 GetNearestDepths3x4(vec2 Reprojected, out bool SkyEdge) 
 {
 	vec2 TexelSize = 1.0f / textureSize(u_CurrentColorTexture, 0).xy;
 
@@ -158,7 +158,7 @@ vec2 GetNearestDepths3x3(vec2 Reprojected, out bool SkyEdge)
 // Samples history texture and applies neighbourhood clipping
 vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
 {
-	const int KernelX = 1;
+	const int KernelX = 2;
 	const int KernelY = 2;
 	
     vec3 MinColor = vec3(100.0);
@@ -235,15 +235,16 @@ void main()
 
 		// Depth rejection ->
 		if (u_DepthWeight) {
-			vec2 MinDepths = GetNearestDepths3x3(PreviousCoord, SkySample);
-			bool MovedThresh = distance(u_View[3].xyz, u_PrevView[3].xyz) > 0.01f;
-			const float BaseExp = 18.0f;
+			vec2 MinDepths = GetNearestDepths3x4(PreviousCoord, SkySample);
+			bool MovedThresh = distance(u_View[3].xyz, u_PrevView[3].xyz) > 0.001f;
+			const float BaseExp = 24.0f;
 			float DepthRejection = mix(mix(pow(exp(-abs(MinDepths.x - MinDepths.y)), BaseExp * u_DepthExponentMultiplier), 1.0f, (MovedThresh ? 0.0f : 0.5f)), 1.0f, SkySample ? 0.9f : 0.0f);
+			DepthRejection = clamp(DepthRejection, 0.0f, 1.0f);
 			BlendFactor *= DepthRejection;
 		}
 
 		// Avoid clipping artifacts if a block modification is made 
-		BlendFactor = u_BlockModified ? max(BlendFactor * 0.5f, 0.2f) : BlendFactor;
+		BlendFactor = u_BlockModified ? max(BlendFactor * 0.5f, 0.225f) : BlendFactor;
 
 		// Blend with history (with reinhard bias)
 		o_Color = InverseReinhard(mix(Reinhard(CurrentColor.xyz), Reinhard(PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
