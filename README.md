@@ -98,3 +98,27 @@ This engine was coded from scratch using C++17 and the modern OpenGL programmabl
 
 # Notice
 This project is purely educational. I own none of the assets. All the rights go to their respective owners.
+
+# Screenshots 
+
+</br>
+![glare](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/glare.png)
+</br>
+![dof](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/dof.png)
+</br>
+![night](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/night1.png)
+</br>
+![night2](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/night2.png)
+</br>
+![amogsus](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/amogus.png)
+</br>
+![amogsus2](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/amogus2.png)
+</br>
+![vol1](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/vol1.png)
+</br>
+![clood](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/volclouds.png)
+</br>
+![clood2](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/volclouds2.png)
+</br>
+
+
