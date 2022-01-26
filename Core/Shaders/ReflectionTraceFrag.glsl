@@ -7,7 +7,7 @@
 #define sqr(x) (x * x) 
 #define pow2(x) sqr(x)
 #define REPROJECT_TO_SCREEN_SPACE
-#define TRACE_LENGTH 64
+#define TRACE_LENGTH (u_ReflectionTraceLength)
 #define clamp01(x) (clamp(x,0.0f,1.0F))
 #define square(x) (x*x)
 
@@ -96,6 +96,7 @@ uniform sampler2DArray u_BlockEmissiveTextures;
 uniform vec3 u_ViewerPosition;
 uniform int u_SPP;
 uniform int u_LavaBlockID;
+uniform int u_ReflectionTraceLength;
 
 uniform int u_CurrentFrame;
 
@@ -170,12 +171,12 @@ vec3 C_DUSK_COLOR = (vec3(255.0f, 204.0f, 144.0f) / 255.0f) * 0.1f;
 
 		
 // Function prototypes
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout float blockType, bool shadow);
 float GetVoxel(ivec3 loc);
 float GetShadowAt(in vec3 pos, in vec3 ldir);
 void ComputePlayerReflection(in vec3 ro, in vec3 rd, inout vec3 col, float block_t);
+float SimpleDDA(const vec3 origin, vec3 direction, inout vec3 normal, inout float block, int traversal_length);
 
 // Percieved luminance ->
 float Luma(vec3 x) { return dot(x, vec3(0.2125, 0.7154, 0.0721)); }
@@ -831,7 +832,14 @@ void main()
 		vec3 R = (reflect(I, ReflectionNormal)); ReflectionVector = R;
 		vec3 Normal;
 		float Blocktype;
+		//float T = SimpleDDA(SampledWorldPosition.xyz, R, Normal, Blocktype, 2); 
+		//
+		//if (T < 0.) {
+		//	T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype, false);
+		//}
+
 		float T = VoxelTraversalDF(SampledWorldPosition.xyz, R, Normal, Blocktype, false);
+
 		vec3 HitPosition = SampledWorldPosition.xyz + (R * T);
 
 
@@ -1146,6 +1154,109 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
+float SimpleDDA(const vec3 origin, vec3 direction, inout vec3 normal, inout float block, int traversal_length)
+{
+	const vec3 BLOCK_CALCULATED_NORMALS[6] = vec3[]
+	(
+			vec3(1.0, 0.0, 0.0),
+			vec3(-1.0, 0.0, 0.0),
+			vec3(0.0, 1.0, 0.0),
+			vec3(0.0, -1.0, 0.0),
+			vec3(0.0, 0.0, 1.0),
+			vec3(0.0, 0.0, -1.0)
+	);
+	
+	vec3 world_pos = origin;
+
+	vec3 Temp;
+	vec3 VoxelCoord; 
+	vec3 FractPosition;
+
+	Temp.x = direction.x > 0.0 ? 1.0 : 0.0;
+	Temp.y = direction.y > 0.0 ? 1.0 : 0.0;
+	Temp.z = direction.z > 0.0 ? 1.0 : 0.0;
+
+	vec3 plane = floor(world_pos + Temp);
+
+	for (int x = 0; x < traversal_length; x++)
+	{
+		if (!IsInVolume(world_pos))
+		{
+			break;
+		}
+
+		vec3 Next = (plane - world_pos) / direction;
+		int side = 0;
+
+		if (Next.x < min(Next.y, Next.z)) 
+		{
+			world_pos += direction * Next.x;
+			world_pos.x = plane.x;
+			plane.x += sign(direction.x);
+			side = 0;
+		}
+
+		else if (Next.y < Next.z) 
+		{
+			world_pos += direction * Next.y;
+			world_pos.y = plane.y;
+			plane.y += sign(direction.y);
+			side = 1;
+		}
+
+		else 
+		{
+			world_pos += direction * Next.z;
+			world_pos.z = plane.z;
+			plane.z += sign(direction.z);
+			side = 2;
+		}
+
+		VoxelCoord = (plane - Temp);
+
+		int Side = ((side + 1) * 2) - 1;
+
+		if (side == 0) 
+		{
+			if (world_pos.x - VoxelCoord.x > 0.5)
+			{
+				Side = 0;
+			}
+		}
+
+		else if (side == 1)
+		{
+			if (world_pos.y - VoxelCoord.y > 0.5)
+			{
+				Side = 2;
+			}
+		}
+
+		else 
+		{
+			if (world_pos.z - VoxelCoord.z > 0.5)
+			{
+				Side = 4;
+			}
+		}
+
+		normal = BLOCK_CALCULATED_NORMALS[Side];
+		block = GetVoxel(ivec3(VoxelCoord.xyz));
+
+		if (block > 0)
+		{
+			return distance(world_pos, origin); 
+		}
+	}
+
+	return -1.0f;
+}
+
+
+
+
+
+
 
 // Ray capsule intersection test ->
 
@@ -1337,45 +1448,6 @@ void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3
     }
 }
 
-void CalculateUV(vec3 world_pos, in vec3 normal, out vec2 uv)
-{
-	const vec3 NORMAL_TOP = vec3(0.0f, 1.0f, 0.0f);
-	const vec3 NORMAL_BOTTOM = vec3(0.0f, -1.0f, 0.0f);
-	const vec3 NORMAL_FRONT = vec3(0.0f, 0.0f, 1.0f);
-	const vec3 NORMAL_BACK = vec3(0.0f, 0.0f, -1.0f);
-	const vec3 NORMAL_LEFT = vec3(-1.0f, 0.0f, 0.0f);
-	const vec3 NORMAL_RIGHT = vec3(1.0f, 0.0f, 0.0f);
-
-    if (CompareVec3(normal, NORMAL_TOP))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_BOTTOM))
-    {
-        uv = vec2(fract(world_pos.xz));
-    }
-
-    else if (CompareVec3(normal, NORMAL_RIGHT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-
-    else if (CompareVec3(normal, NORMAL_LEFT))
-    {
-        uv = vec2(fract(world_pos.zy));
-    }
-    
-    else if (CompareVec3(normal, NORMAL_FRONT))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-
-     else if (CompareVec3(normal, NORMAL_BACK))
-    {
-        uv = vec2(fract(world_pos.xy));
-    }
-}
 
 
 vec2 ProjectDirection(vec3 Direction, vec2 TextureSize) 
@@ -1439,60 +1511,7 @@ vec3 InterpolateLPVColorDithered(vec3 UV)
 vec3 SampleLPVColorTexel(ivec3 Texel, int L) {
     uint BlockID = texelFetch(u_LPVBlocks, Texel, 0).x;
     return vec3(BlockAverageColorData[clamp(BlockID,0,128)]);
-
 }   
-
-// Ground truth triquadratic interpolation, only here for experimentation mostly
-vec3 InterpolateLPVColorData(vec3 uv)
-{
-    vec3 res = vec3(384.0f, 128.0f, 384.0f);
-    vec3 q = fract(uv * res);
-    ivec3 t = ivec3(uv * res);
-    ivec3 e = ivec3(-1, 0, 1);
-    vec3 q0 = (q+1.0)/2.0;
-    vec3 q1 = q/2.0;	
-    vec3 s000 = SampleLPVColorTexel(t + e.xxx, 0);
-    vec3 s001 = SampleLPVColorTexel(t + e.xxy, 0);
-    vec3 s002 = SampleLPVColorTexel(t + e.xxz, 0);
-    vec3 s012 = SampleLPVColorTexel(t + e.xyz, 0);
-    vec3 s011 = SampleLPVColorTexel(t + e.xyy, 0);
-    vec3 s010 = SampleLPVColorTexel(t + e.xyx, 0);
-    vec3 s020 = SampleLPVColorTexel(t + e.xzx, 0);
-    vec3 s021 = SampleLPVColorTexel(t + e.xzy, 0);
-    vec3 s022 = SampleLPVColorTexel(t + e.xzz, 0);
-    vec3 y00 = mix(mix(s000, s001, q0.z), mix(s001, s002, q1.z), q.z);
-    vec3 y01 = mix(mix(s010, s011, q0.z), mix(s011, s012, q1.z), q.z);
-    vec3 y02 = mix(mix(s020, s021, q0.z), mix(s021, s022, q1.z), q.z);
-	vec3 x0 = mix(mix(y00, y01, q0.y), mix(y01, y02, q1.y), q.y);
-    vec3 s122 = SampleLPVColorTexel(t + e.yzz, 0);
-    vec3 s121 = SampleLPVColorTexel(t + e.yzy, 0);
-    vec3 s120 = SampleLPVColorTexel(t + e.yzx, 0);
-    vec3 s110 = SampleLPVColorTexel(t + e.yyx, 0);
-    vec3 s111 = SampleLPVColorTexel(t + e.yyy, 0);
-    vec3 s112 = SampleLPVColorTexel(t + e.yyz, 0);
-    vec3 s102 = SampleLPVColorTexel(t + e.yxz, 0);
-    vec3 s101 = SampleLPVColorTexel(t + e.yxy, 0);
-    vec3 s100 = SampleLPVColorTexel(t + e.yxx, 0);
-    vec3 y10 = mix(mix(s100, s101, q0.z), mix(s101, s102, q1.z), q.z);
-    vec3 y11 = mix(mix(s110, s111, q0.z), mix(s111, s112, q1.z), q.z);
-    vec3 y12 = mix(mix(s120, s121, q0.z), mix(s121, s122, q1.z), q.z);
-    vec3 x1 = mix(mix(y10, y11, q0.y), mix(y11, y12, q1.y), q.y);
-    vec3 s200 = SampleLPVColorTexel(t + e.zxx, 0);
-    vec3 s201 = SampleLPVColorTexel(t + e.zxy, 0);
-    vec3 s202 = SampleLPVColorTexel(t + e.zxz, 0);
-    vec3 s212 = SampleLPVColorTexel(t + e.zyz, 0);
-    vec3 s211 = SampleLPVColorTexel(t + e.zyy, 0);
-    vec3 s210 = SampleLPVColorTexel(t + e.zyx, 0);
-    vec3 s220 = SampleLPVColorTexel(t + e.zzx, 0);
-    vec3 s221 = SampleLPVColorTexel(t + e.zzy, 0);
-    vec3 s222 = SampleLPVColorTexel(t + e.zzz, 0);
-    vec3 y20 = mix(mix(s200, s201, q0.z), mix(s201, s202, q1.z), q.z);
-    vec3 y21 = mix(mix(s210, s211, q0.z), mix(s211, s212, q1.z), q.z);
-    vec3 y22 = mix(mix(s220, s221, q0.z), mix(s221, s222, q1.z), q.z);
-    vec3 x2 = mix(mix(y20, y21, q0.y), mix(y21, y22, q1.y), q.y);
-    return mix(mix(x0, x1, q0.x), mix(x1, x2, q1.x), q.x);
-}
-
 
 vec3 SampleLPVData(vec3 UV)
 {    
@@ -1500,18 +1519,14 @@ vec3 SampleLPVData(vec3 UV)
 	float level = texture(u_LPV, UV).x;
 	vec3 InterpolatedColor = vec3(0.0f);
 
-	if (!u_QualityLPVGI) {
-		InterpolatedColor = InterpolateLPVColorDithered(UV);
-	}
-
-	else {
-		InterpolatedColor = InterpolateLPVColorData(UV);
-	}
+	InterpolatedColor = InterpolateLPVColorDithered(UV);
 
 	// Tweak colors to look close to reprojected gi
 	vec3 FinalInterpolated = vec3(level * 325.0f) * InterpolatedColor;
 	FinalInterpolated = mix(vec3(Luma(FinalInterpolated)), FinalInterpolated, 0.5f);
     return FinalInterpolated;
 }
+
+
 
 // End 

@@ -62,6 +62,9 @@ int VoxelRT_FloodFillDistanceLimit = 4; // Used in other files as an extern
 
 static int DEBUGTraceLevel = 0;
 
+static int DiffuseTraceLength = 42;
+static int ReflectionTraceLength = 64;
+
 static bool VSync = false;
 
 static bool Fucktard = false;
@@ -237,7 +240,7 @@ static bool ShouldAlphaTestShadows = false;
 
 
 static bool TAA = true;
-static bool TAADepthWeight = true;
+const bool TAADepthWeight = true;
 static float TAADepthWeightExp = 1.0f;
 static bool FXAA = true;
 static bool Bloom = true;
@@ -457,7 +460,10 @@ public:
 			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
+			ImGui::NewLine();
+			ImGui::SliderInt("Diffuse Trace LENGTH", &DiffuseTraceLength, 2, 96);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
+			ImGui::NewLine();
 			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
 			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::SliderFloat("Diffuse Indirect Supersample Res", &DiffuseIndirectSuperSampleRes, 0.0f, 1.5f);
@@ -480,7 +486,10 @@ public:
 			ImGui::Text("--- Reflections/Indirect Specular Settings --");
 			ImGui::NewLine();
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
+			ImGui::NewLine();
+			ImGui::SliderInt("Reflection Trace LENGTH", &ReflectionTraceLength, 2, 128);
 			ImGui::SliderInt("Reflection Trace SPP", &ReflectionSPP, 1, 24);
+			ImGui::NewLine();
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
 			
@@ -724,10 +733,10 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
-			ImGui::Checkbox("TAA Depth Weight (Reduces ghosting)", &TAADepthWeight);
+			//ImGui::Checkbox("TAA Depth Weight (Reduces ghosting)", &TAADepthWeight);
 
 			if (TAADepthWeight)
-				ImGui::SliderFloat("TAA Depth Weight Exponent Multiplier", &TAADepthWeightExp, 0.25f, 2.0f);
+				ImGui::SliderFloat("TAA Depth Weight Exponent Multiplier", &TAADepthWeightExp, 0.05f, 2.0f);
 
 			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
@@ -2045,6 +2054,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		DiffuseTraceShader.SetInteger("u_BlockPBRTextures", 8);
 		DiffuseTraceShader.SetInteger("u_BlockEmissiveTextures", 11);
 		DiffuseTraceShader.SetInteger("u_DistanceFieldTexture", 13);
+		DiffuseTraceShader.SetInteger("u_DiffuseTraceLength", DiffuseTraceLength);
 		DiffuseTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
 
 		DiffuseTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
@@ -2902,6 +2912,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ReflectionTraceShader.SetInteger("u_PlayerSprite", 12);
 			ReflectionTraceShader.SetInteger("u_IndirectAO", 17);
 			ReflectionTraceShader.SetInteger("u_ProjectedClouds", 18);
+			ReflectionTraceShader.SetInteger("u_ReflectionTraceLength", ReflectionTraceLength);
 			ReflectionTraceShader.SetInteger("u_SPP", ReflectionSPP);
 			ReflectionTraceShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
 			ReflectionTraceShader.SetInteger("u_CurrentFrameMod128", app.GetCurrentFrame()%128);

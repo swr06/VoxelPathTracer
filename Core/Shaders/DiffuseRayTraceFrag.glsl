@@ -13,7 +13,7 @@
 #define USE_COLORED_DIFFUSE // Applies diffuse from the block albedo
 #define USE_HEMISPHERICAL_DIFFUSE_SCATTERING 
 #define ANIMATE_NOISE // Has to be enabled for temporal filtering to work properly 
-#define MAX_VOXEL_DIST 30
+#define MAX_VOXEL_DIST (u_DiffuseTraceLength)
 #define MAX_BOUNCE_LIMIT 2
 
 // Bayer matrix, used for testing some dithering, unused 
@@ -64,6 +64,8 @@ uniform bool u_APPLY_PLAYER_SHADOW;
 uniform bool u_UseDirectSampling;
 
 uniform int u_SPP;
+uniform int u_DiffuseTraceLength;
+
 uniform int u_CheckerSPP;
 uniform int u_CurrentFrame;
 uniform int u_CurrentFrameMod512;
@@ -148,15 +150,8 @@ float samplerBlueNoiseErrorDistribution_128x128_OptimizedFor_2d2d2d2d_32spp(ivec
 
 
 
-// Function prototypes
-float nextFloat(inout int seed, in float min, in float max);
-float nextFloat(inout int seed, in float max);
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n); 
-float nextFloat(inout int seed); 
-int nextInt(inout int seed); 
 vec3 GetSkyColorAt(vec3 rd);
-vec3 RandomPointInUnitSphereRejective();
-vec3 CosineSampleHemisphere_2(float u1, float u2);
 void CalculateVectors(vec3 world_pos, in vec3 normal, out vec3 tangent, out vec3 bitangent, out vec2 uv);
 float GetShadowAt(vec3 pos, in vec3 ldir);
 vec2 ReprojectShadow(vec3);
@@ -370,44 +365,6 @@ float signum(float x) {
 	return uintBitsToFloat((floatBitsToUint(x) & 0x80000000u) | floatBitsToUint(1.0));
 }
 
-mat3 GenerateRotationMatrix(vec3 from, vec3 to) 
-{
-	float cosine = dot(from, to);
-
-	float tmp = signum(cosine);
-	tmp = 1.0 / (tmp + cosine);
-
-	vec3 axis = cross(to, from);
-	vec3 tmpv = axis * tmp;
-
-	return mat3(
-		axis.x * tmpv.x + cosine, axis.x * tmpv.y - axis.z, axis.x * tmpv.z + axis.y,
-		axis.y * tmpv.x + axis.z, axis.y * tmpv.y + cosine, axis.y * tmpv.z - axis.x,
-		axis.z * tmpv.x - axis.y, axis.z * tmpv.y + axis.x, axis.z * tmpv.z + cosine
-	);
-}
-
-vec2 ConcentricSampleDisk(vec2 random) 
-{
-    random = 2.0 * random - 1.0;
-    if (all(equal(random, vec2(0)))) return vec2(0);
-
-    float theta, r;
-
-    if (abs(random.x) > abs(random.y)) 
-	{
-        r = random.x;
-        theta = (PI / 4.0f) * (random.y / random.x);
-    }
-	
-	else 
-	{
-        r = random.y;
-        theta = (PI / 2.0f) - (PI / 4.0f) * (random.x / random.y);
-    }
-    return r * vec2(cos(theta), sin(theta));
-}
-
 // Stochastically selects a light from the light chunks 
 // s : boolean valid, P : sample position
 
@@ -492,35 +449,7 @@ vec3 StochasticallySampleLight(vec3 P, out bool s, out float LightSelectPDF, out
 }
 
 
-vec3 SampleLightDisk(vec3 P, vec3 Center, vec3 Normal, vec2 Xi, out float DiskPDF) {
-	
-	// Ideal constants for voxels 
-	const float DiskRadius = 0.45f; 
-	const float Area = PI / 2.0f;
-
-	// Sample concentric disk 
-	vec2 DiskSample = ConcentricSampleDisk(Xi);
-
-	vec3 ScaledPoint = vec3(DiskSample.x, 0.0, DiskSample.y) * DiskRadius;
-	vec3 DiskDirection = normalize(P - Center);
-	mat3 RotationMatrix = GenerateRotationMatrix(vec3(0,1,0), DiskDirection);
-
-	// Rotate Point 
-	ScaledPoint = RotationMatrix * ScaledPoint;
-
-	// Translate 
-	ScaledPoint += Center;
-
-	vec3 ScaledPointToOriginDir = normalize(ScaledPoint - P);
-	float Distance = clamp(distance(P, ScaledPoint), 0.001, 99.0);
-	
-	// Generate Disk based on surface area :
-	DiskPDF = (0.45f + Distance * Distance) / max(Area * dot(DiskDirection, -ScaledPointToOriginDir) * dot(Normal, ScaledPointToOriginDir), 0.001f);
-	
-	return ScaledPointToOriginDir;
-}
-
-//#define SAMPLE_CONE_DL
+#define SAMPLE_CONE_DL
 
 vec3 GetStochasticDirectLightDir(bool DontGuide, vec3 O, vec3 N, inout float PDF, inout bool SampleSuccess, inout float sPDF, out ivec3 LightPositionFetch) {
 	
@@ -559,8 +488,8 @@ vec3 GetStochasticDirectLightDir(bool DontGuide, vec3 O, vec3 N, inout float PDF
 	#else 
 		// Sample a perfect sized disk ->
 
-		vec3 SampleDirection = SampleLightDisk(O + N * 0.07f, SelectedLight, N, hash2(), sPDF);
-		return SampleDirection;
+		//vec3 SampleDirection = SampleLightDisk(O + N * 0.07f, SelectedLight, N, hash2(), sPDF);
+		//return SampleDirection;
 	#endif
 }
 
@@ -1012,43 +941,6 @@ vec3 lerp(vec3 v1, vec3 v2, float t)
 
 
 // RNG
-int MIN = -2147483648;
-int MAX = 2147483647;
-
-int xorshift(in int value) 
-{
-    // Xorshift*32
-    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
-    value ^= value << 13;
-    value ^= value >> 17;
-    value ^= value << 5;
-    return value;
-}
-
-int nextInt(inout int seed) 
-{
-    seed = xorshift(seed);
-    return seed;
-}
-
-float nextFloat(inout int seed) 
-{
-    seed = xorshift(seed);
-    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
-    return abs(fract(float(seed) / 3141.592653));
-}
-
-float nextFloat(inout int seed, in float max) 
-{
-    return nextFloat(seed) * max;
-}
-
-float nextFloat(inout int seed, in float min, in float max) 
-{
-    return min + (max - min) * nextFloat(seed);
-}
-
-// RNG
 
 vec3 cosWeightedRandomHemisphereDirection(const vec3 n) 
 {
@@ -1217,291 +1109,9 @@ float VoxelTraversalDF(vec3 origin, vec3 direction, inout vec3 normal, inout flo
 	return -1.0f;
 }
 
-bool voxel_traversal(vec3 origin, vec3 direction, inout float block, out vec3 normal, out vec3 world_pos, int dist)
-{
-	const vec3 BLOCK_CALCULATED_NORMALS[6] = vec3[]
-	(
-			vec3(1.0, 0.0, 0.0),
-			vec3(-1.0, 0.0, 0.0),
-			vec3(0.0, 1.0, 0.0),
-			vec3(0.0, -1.0, 0.0),
-			vec3(0.0, 0.0, 1.0),
-			vec3(0.0, 0.0, -1.0)
-	);
-	
-	world_pos = origin;
-
-	vec3 Temp;
-	vec3 VoxelCoord; 
-	vec3 FractPosition;
-
-	Temp.x = direction.x > 0.0 ? 1.0 : 0.0;
-	Temp.y = direction.y > 0.0 ? 1.0 : 0.0;
-	Temp.z = direction.z > 0.0 ? 1.0 : 0.0;
-
-	vec3 plane = floor(world_pos + Temp);
-
-	for (int x = 0; x < dist; x++)
-	{
-		if (!IsInVolume(world_pos))
-		{
-			break;
-		}
-
-		vec3 Next = (plane - world_pos) / direction;
-		int side = 0;
-
-		if (Next.x < min(Next.y, Next.z)) 
-		{
-			world_pos += direction * Next.x;
-			world_pos.x = plane.x;
-			plane.x += sign(direction.x);
-			side = 0;
-		}
-
-		else if (Next.y < Next.z) 
-		{
-			world_pos += direction * Next.y;
-			world_pos.y = plane.y;
-			plane.y += sign(direction.y);
-			side = 1;
-		}
-
-		else 
-		{
-			world_pos += direction * Next.z;
-			world_pos.z = plane.z;
-			plane.z += sign(direction.z);
-			side = 2;
-		}
-
-		VoxelCoord = (plane - Temp);
-
-		int Side = ((side + 1) * 2) - 1;
-
-		if (side == 0) 
-		{
-			if (world_pos.x - VoxelCoord.x > 0.5)
-			{
-				Side = 0;
-			}
-		}
-
-		else if (side == 1)
-		{
-			if (world_pos.y - VoxelCoord.y > 0.5)
-			{
-				Side = 2;
-			}
-		}
-
-		else 
-		{
-			if (world_pos.z - VoxelCoord.z > 0.5)
-			{
-				Side = 4;
-			}
-		}
-
-		normal = BLOCK_CALCULATED_NORMALS[Side];
-		block = GetVoxel(ivec3(VoxelCoord.xyz));
-
-		if (block > 0)
-		{
-			return true; 
-		}
-	}
-
-	return false;
-}
 
 
-/*
 
-// initial DDA algorithm 
-// thanks to telo for the help with understanding it 
-
-
-// Project to cube to make sure that the ray always starts at the volume -> 
-float ProjectToCube(vec3 ro, vec3 rd) 
-{	
-	float tx1 = (0 - ro.x) / rd.x;
-	float tx2 = (MapSize.x - ro.x) / rd.x;
-
-	float ty1 = (0 - ro.y) / rd.y;
-	float ty2 = (MapSize.y - ro.y) / rd.y;
-
-	float tz1 = (0 - ro.z) / rd.z;
-	float tz2 = (MapSize.z - ro.z) / rd.z;
-
-	float tx = max(min(tx1, tx2), 0);
-	float ty = max(min(ty1, ty2), 0);
-	float tz = max(min(tz1, tz2), 0);
-
-	float t = max(tx, max(ty, tz));
-	
-	return t;
-}
-
-// My *FIRST* ever DDA implementation, amazing. I know.
-float DDA(vec3 orig, vec3 direction, inout vec3 normal, inout float blockType) 
-{
-	vec3 origin = orig;
-	const float epsilon = 0.001f;
-	float t1 = max(ProjectToCube(origin, direction) - epsilon, 0.0f);
-	origin += t1 * direction;
-
-	int mapX = int(floor(origin.x));
-	int mapY = int(floor(origin.y));
-	int mapZ = int(floor(origin.z));
-
-	float sideDistX;
-	float sideDistY;
-	float sideDistZ;
-
-	float deltaDX = abs(1.0f / direction.x);
-	float deltaDY = abs(1.0f / direction.y);
-	float deltaDZ = abs(1.0f / direction.z);
-	float T = -1.0;
-
-	int stepX;
-	int stepY;
-	int stepZ;
-
-	int hit = 0;
-	int side;
-
-	if (direction.x < 0)
-	{
-		stepX = -1;
-		sideDistX = (origin.x - mapX) * deltaDX;
-	} 
-	
-	else 
-	{
-		stepX = 1;
-		sideDistX = (mapX + 1.0 - origin.x) * deltaDX;
-	}
-
-	if (direction.y < 0) 
-	{
-		stepY = -1;
-		sideDistY = (origin.y - mapY) * deltaDY;
-	} 
-	
-	else 
-	{
-		stepY = 1;
-		sideDistY = (mapY + 1.0 - origin.y) * deltaDY;
-	}
-
-	if (direction.z < 0) 
-	{
-		stepZ = -1;
-		sideDistZ = (origin.z - mapZ) * deltaDZ;
-	} 
-	
-	else 
-	{
-		stepZ = 1;
-		sideDistZ = (mapZ + 1.0 - origin.z) * deltaDZ;
-	}
-
-	for (int i = 0; i < 175; i++) 
-	{
-		if ((mapX >= MapSize.x && stepX > 0) || (mapY >= MapSize.y && stepY > 0) || (mapZ >= MapSize.z && stepZ > 0)) break;
-		if ((mapX < 0 && stepX < 0) || (mapY < 0 && stepY < 0) || (mapZ < 0 && stepZ < 0)) break;
-
-		if (sideDistX < sideDistY && sideDistX < sideDistZ) 
-		{
-			sideDistX += deltaDX;
-			mapX += stepX;
-			side = 0;
-		} 
-		
-		else if (sideDistY < sideDistX && sideDistY < sideDistZ)
-		{
-			sideDistY += deltaDY;
-			mapY += stepY;
-			side = 1;
-		} 
-		
-		else 
-		{
-			sideDistZ += deltaDZ;
-			mapZ += stepZ;
-			side = 2;
-		}
-
-		float block = GetVoxel(ivec3(mapX, mapY, mapZ));
-
-		if (block != 0) 
-		{
-			hit = 1;
-			blockType = block;
-
-			if (side == 0) 
-			{
-				T = (mapX - origin.x + (1 - stepX) / 2) / direction.x + t1;
-				normal = vec3(1, 0, 0) * -stepX;
-			}
-
-			else if (side == 1) 
-			{
-				T = (mapY - origin.y + (1 - stepY) / 2) / direction.y + t1;
-				normal = vec3(0, 1, 0) * -stepY;
-			}
-
-			else
-			{
-				T = (mapZ - origin.z + (1 - stepZ) / 2) / direction.z + t1;
-				normal = vec3(0, 0, 1) * -stepZ;
-			}
-
-			break;
-		}
-	}
-
-	return T;
-}
-
-*/
-
-
-// 
-bool PointIsInSphere(vec3 point, float radius)
-{
-	return ((point.x * point.x) + (point.y * point.y) + (point.z * point.z)) < (radius * radius);
-}
-
-vec3 RandomPointInUnitSphereRejective() // unused since this is slow asf, it was only ever used as a test, nothing else.
-{
-	float x, y, z;
-	const int accuracy = 10;
-
-	for (int i = 0 ; i < clamp(accuracy, 2, 40); i++)
-	{
-		x = nextFloat(RNG_SEED, -1.0f, 1.0f);
-		y = nextFloat(RNG_SEED, -1.0f, 1.0f);
-		z = nextFloat(RNG_SEED, -1.0f, 1.0f);
-
-		if (PointIsInSphere(vec3(x, y, z), 1.0f))
-		{
-			return vec3(x, y, z);
-		}
-	}
-
-	return vec3(x, y, z);
-}
-
-vec3 CosineSampleHemisphere_2(float u1, float u2)
-{
-    float r = sqrt(u1);
-    float theta = 2.0f * 3.14159265f * u2;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    return vec3(x, y, sqrt(max(0.0f, 1 - u1)));
-}
 
 bool CompareVec3(vec3 v1, vec3 v2) {
 	float e = 0.0125f;
@@ -1607,7 +1217,7 @@ float GetShadowAt(vec3 pos, in vec3 ldir)
 		}
 	}
 
-	T = VoxelTraversalDF(pos.rgb, RayDirection, norm, block, 150);
+	T = VoxelTraversalDF(pos.rgb, RayDirection, norm, block, 128);
 	return float(T > 0.0f);
 }
 

@@ -228,7 +228,7 @@ void main()
 
 		// Velocity vector 
 		vec2 Velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(Velocity)) * 0.85f + 0.425f;
+		float BlendFactor = exp(-length(Velocity)) * 0.85f + 0.475f;
 		BlendFactor = clamp(BlendFactor, 0.0f, 0.975f);
 
 		bool SkySample = false;
