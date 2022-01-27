@@ -1,4 +1,4 @@
-// Shadow/Diffuse/Old Reflection Temporal filter ->
+// Diffuse/Old Reflection Temporal filter ->
 
 #version 330 core
 

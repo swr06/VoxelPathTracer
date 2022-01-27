@@ -210,8 +210,8 @@ void main()
 			float FrameCountFetch = texture(u_FrameCount, Reprojected.xy).x;
 			o_Frames = FrameCountFetch + FrameIncrement;
 
-			// Linearly decreasing blur factor 
-			float BlendFactor = clamp(1.0f - (1.0f / o_Frames), 0.01f, 0.97f);
+			// Linearly increasing blur factor 
+			float BlendFactor = clamp((1.0f - (1.0f / o_Frames))*1.2f, 0.01f, 0.97f);
 			
 			BlendFactor *= clamp(exp(-length(VelocityRejection)) * 0.8f + 0.6f, 0.00000001f, 1.0f);
 			
