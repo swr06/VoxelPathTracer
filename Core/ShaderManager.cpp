@@ -43,6 +43,9 @@ void VoxelRT::ShaderManager::CreateShaders()
 	AddShader("SVGF_SPATIAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SVGF/SpatialFilter.glsl");
 	AddShader("SVGF_VARIANCE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/SVGF/VarianceEstimate.glsl");
 
+
+	AddShader("SHADOW_TEMPORAL", "Core/Shaders/FBOVert.glsl", "Core/Shaders/ShadowTemporalFilter.glsl");
+
 	// Volumetrics
 	AddShader("VOLUMETRICS_COMPUTE", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/ComputeVolumetrics.glsl");
 	AddShader("VOLUMETRICS_DENOISER", "Core/Shaders/FBOVert.glsl", "Core/Shaders/Volumetrics/Denoiser.glsl");

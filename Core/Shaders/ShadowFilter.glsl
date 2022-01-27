@@ -10,6 +10,11 @@ uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
 uniform sampler2D u_IntersectionTransversals;
 
+// temporal frame count
+uniform sampler2D u_FrameCount;
+
+uniform float u_ShadowFilterScale;
+
 uniform mat4 u_InverseView;
 uniform mat4 u_InverseProjection;
 
@@ -61,6 +66,9 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
 {
     const float Diagonal = sqrt(2.0f);
 
+    float Frames = texture(u_FrameCount, v_TexCoords).x;
+    bool ApplyLumaWeight = Frames > 7.5f;
+
     vec4 CenterPosition = GetPositionAt(u_PositionTexture, v_TexCoords);
     bool Sky = CenterPosition.w < 0.0f;
 
@@ -107,6 +115,16 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
     float VarianceEstimate = mix(20.0f, 6.0f, ClampedTransversal / 10.0f)+(Transversal < 6.0f ? 5.0f : 2.0f);
 	VarianceEstimate = clamp(VarianceEstimate - 1.75f, 0.0000001f, 64.0f);
 	
+
+    float LumaMixer = 1.0f;
+
+    // Limit variance weight when accumulated frames are low
+    if (!ApplyLumaWeight) {
+        
+        // 0 -> 1
+        float FrameNormalized = Frames / 7.5f;
+        LumaMixer = mix(0.1f, 0.5f, FrameNormalized);
+    }
 	
 
     for (int x = -XSize ; x <= XSize ; x++) 
@@ -114,7 +132,7 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
         for (int y = -YSize ; y <= YSize ; y++) 
         {
             vec2 d = vec2(x, y);
-            vec2 SampleCoord = uv + d * TexelSize * 1.2f * Scale;
+            vec2 SampleCoord = uv + d * TexelSize * 1.2f * Scale * u_ShadowFilterScale;
             float SampleDepth = texture(u_PositionTexture, SampleCoord).x;
             vec3 SampleNormal = SampleNormalFromTex(u_NormalTexture, SampleCoord).rgb;
 
@@ -125,7 +143,9 @@ float ShadowSpatial(sampler2D tex, vec2 uv)
             float LumaAt = Luminance(vec3(ShadowAt));
             float LuminanceError = clamp(1.0f - clamp(abs(ShadowAt - CenterShadow) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
             
-			float Weight = clamp(pow(LuminanceError, VarianceEstimate), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
+			float Weight = 1.0f;
+
+            Weight *= clamp(pow(LuminanceError, VarianceEstimate * LumaMixer * 0.9f), 0.0f, 1.0f); //Kernel * clamp(pow(LuminanceError, 3.5f), 0.0f, 1.0f);
 			Weight *= DepthWeight;
 			Weight *= NormalWeight;
 			

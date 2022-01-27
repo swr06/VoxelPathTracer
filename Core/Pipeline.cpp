@@ -227,6 +227,10 @@ float LensDirtStrength = 1.1f;
 bool HQBloomUpscale = true;
 
 static bool SoftShadows = true;
+static float ShadowSupersampleRes = 0.5f;
+static float ShadowFilterScale = 1.0f;
+
+
 static bool SSSSS = false;
 static float SSSSSStrength = 0.9f / 1.0f;
 
@@ -563,6 +567,11 @@ public:
 			ImGui::Text("--- Ray Traced Direct Shadows Settings --");
 			ImGui::NewLine();
 			ImGui::SliderFloat("Shadow Trace Resolution ", &ShadowTraceResolution, 0.1f, 1.25f);
+			ImGui::SliderFloat("Shadow Supersample Resolution ", &ShadowSupersampleRes, 0.1f, 1.25f);
+
+			if (DenoiseSunShadows)
+				ImGui::SliderFloat("Shadow Filter Scale ", &ShadowFilterScale, 0.25f, 3.0f);
+
 			ImGui::Checkbox("Contact Hardening Shadows?", &SoftShadows);
 			ImGui::Checkbox("Denoise sun (or moon.) shadows?", &DenoiseSunShadows);
 			ImGui::Checkbox("SCREEN SPACE subsurface scattering? (Or SSS)", &SSSSS);
@@ -1067,7 +1076,7 @@ GLClasses::Framebuffer ReflectionHitDataDenoised(16, 16, { { GL_R16F, GL_RED, GL
 
 // shadow buffers
 GLClasses::Framebuffer ShadowRawTrace(16, 16, { { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, { GL_R16F, GL_RED, GL_FLOAT } }, false),
-ShadowTemporalFBO_1(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowTemporalFBO_2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false),
+ShadowTemporalFBO_1(16, 16, { { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, { GL_R16F, GL_RED, GL_FLOAT } }, false), ShadowTemporalFBO_2(16, 16,{ { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, { GL_R16F, GL_RED, GL_FLOAT } }, false),
 ShadowFiltered(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false), ShadowSSS2(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, false);
 
 
@@ -1232,6 +1241,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& FinalShader = ShaderManager::GetShader("FINAL_SHADER");
 	GLClasses::Shader& DiffuseTraceShader = ShaderManager::GetShader("DIFFUSE_TRACE");
 	GLClasses::Shader& MainTemporalFilter = ShaderManager::GetShader("MAIN_TEMPORAL_FILER");
+	GLClasses::Shader& ShadowTemporalFilter = ShaderManager::GetShader("SHADOW_TEMPORAL");
 	GLClasses::Shader& ColorShader = ShaderManager::GetShader("COLOR_SHADER");
 	GLClasses::Shader& PostProcessingShader = ShaderManager::GetShader("POST_PROCESS");
 	GLClasses::Shader& TemporalAAShader = ShaderManager::GetShader("TEMPORAL_AA");
@@ -1522,6 +1532,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		ShadowSupersampleRes = glm::max(ShadowSupersampleRes, ShadowTraceResolution);
+
 		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
 		auto& ReflectionDenoiser = USE_NEW_SPECULAR_SPATIAL ? ReflectionDenoiserNew : ReflectionDenoiserOld;
@@ -1642,9 +1654,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ColoredFBO.SetDimensions(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
 			ShadowRawTrace.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
-			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
-			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
-			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
+			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowSupersampleRes, PADDED_HEIGHT * ShadowSupersampleRes);
+			ShadowTemporalFBO_2.SetSize(PADDED_WIDTH * ShadowSupersampleRes, PADDED_HEIGHT * ShadowSupersampleRes);
+			ShadowFiltered.SetSize(PADDED_WIDTH * ShadowSupersampleRes, PADDED_HEIGHT * ShadowSupersampleRes);
 			ShadowSSS.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 			ShadowSSS2.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 
@@ -2690,7 +2702,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowTraceShader.SetBool("u_ShouldAlphaTest", ShouldAlphaTestShadows);
 			ShadowTraceShader.SetFloat("u_FOV", MainCamera.GetFov());
 			ShadowTraceShader.SetFloat("u_TanFOV", glm::tan(MainCamera.GetFov()));
-			ShadowTraceShader.SetVector2f("u_Halton", glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())));
+			ShadowTraceShader.SetVector2f("u_Halton", glm::abs(ShadowSupersampleRes - ShadowTraceResolution) > 0.1f ? glm::vec2(GetTAAJitterSecondary(app.GetCurrentFrame())) : glm::vec2(0.));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -2725,33 +2737,34 @@ void VoxelRT::MainPipeline::StartPipeline()
 		{
 			ShadowTemporalFBO.Bind();
 
-			MainTemporalFilter.Use();
-			MainTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
-			MainTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
-			MainTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
-			MainTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
-			MainTemporalFilter.SetInteger("u_NormalTexture", 8);
-			MainTemporalFilter.SetInteger("u_ShadowTransversals", 17);
-			MainTemporalFilter.SetInteger("u_DenoisedTransversals", 19);
+			ShadowTemporalFilter.Use();
+			ShadowTemporalFilter.SetInteger("u_CurrentColorTexture", 0);
+			ShadowTemporalFilter.SetInteger("u_CurrentPositionTexture", 1);
+			ShadowTemporalFilter.SetInteger("u_PreviousColorTexture", 2);
+			ShadowTemporalFilter.SetInteger("u_PreviousFramePositionTexture", 3);
+			ShadowTemporalFilter.SetInteger("u_NormalTexture", 8);
+			ShadowTemporalFilter.SetInteger("u_ShadowTransversals", 17);
+			ShadowTemporalFilter.SetInteger("u_DenoisedTransversals", 19);
+			ShadowTemporalFilter.SetInteger("u_FrameCount", 22);
 
-			MainTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
-			MainTemporalFilter.SetMatrix4("u_View", CurrentView);
-			MainTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
-			MainTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
-			MainTemporalFilter.SetFloat("u_ClampBias", 0.001f);
-			MainTemporalFilter.SetBool("u_DiffuseTemporal", false);
-			MainTemporalFilter.SetBool("u_ShadowTemporal", true);
+			ShadowTemporalFilter.SetMatrix4("u_Projection", CurrentProjection);
+			ShadowTemporalFilter.SetMatrix4("u_View", CurrentView);
+			ShadowTemporalFilter.SetMatrix4("u_PrevProjection", PreviousProjection);
+			ShadowTemporalFilter.SetMatrix4("u_PrevView", PreviousView);
+			ShadowTemporalFilter.SetFloat("u_ClampBias", 0.001f);
+			ShadowTemporalFilter.SetBool("u_DiffuseTemporal", false);
+			ShadowTemporalFilter.SetBool("u_ShadowTemporal", true);
 
-			MainTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
-			MainTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.375250f : 0.95f);
-			MainTemporalFilter.SetInteger("u_TemporalQuality", 1);
-			MainTemporalFilter.SetBool("u_ReflectionTemporal", false);
-			MainTemporalFilter.SetBool("u_ShouldFilterShadows", DenoiseSunShadows);
+			ShadowTemporalFilter.SetFloat("u_MinimumMix", 0.0f);
+			ShadowTemporalFilter.SetFloat("u_MaximumMix", ModifiedWorld ? 0.375250f : 0.95f);
+			ShadowTemporalFilter.SetInteger("u_TemporalQuality", 1);
+			ShadowTemporalFilter.SetBool("u_ReflectionTemporal", false);
+			ShadowTemporalFilter.SetBool("u_ShouldFilterShadows", DenoiseSunShadows);
 
-			MainTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
-			MainTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
-			MainTemporalFilter.SetMatrix4("u_InverseView", inv_view);
-			MainTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
+			ShadowTemporalFilter.SetMatrix4("u_VertInverseView", inv_view);
+			ShadowTemporalFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
+			ShadowTemporalFilter.SetMatrix4("u_InverseView", inv_view);
+			ShadowTemporalFilter.SetMatrix4("u_InverseProjection", inv_projection);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture());
@@ -2770,6 +2783,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			
 			glActiveTexture(GL_TEXTURE17);
 			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE22);
+			glBindTexture(GL_TEXTURE_2D, PrevShadowTemporalFBO.GetTexture(1));
 			
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -2787,11 +2803,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 			ShadowFilter.SetInteger("u_PositionTexture", 1);
 			ShadowFilter.SetInteger("u_NormalTexture", 2);
 			ShadowFilter.SetInteger("u_IntersectionTransversals", 3);
+			ShadowFilter.SetInteger("u_FrameCount", 4);
 			ShadowFilter.SetVector2f("u_Dimensions", glm::vec2(ShadowFiltered.GetWidth(), ShadowFiltered.GetHeight()));
 			ShadowFilter.SetMatrix4("u_VertInverseView", inv_view);
 			ShadowFilter.SetMatrix4("u_VertInverseProjection", inv_projection);
 			ShadowFilter.SetMatrix4("u_InverseView", inv_view);
 			ShadowFilter.SetMatrix4("u_InverseProjection", inv_projection);
+			ShadowFilter.SetFloat("u_ShadowFilterScale", ShadowFilterScale);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ShadowTemporalFBO.GetTexture());
@@ -2804,6 +2822,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			glActiveTexture(GL_TEXTURE3);
 			glBindTexture(GL_TEXTURE_2D, ShadowRawTrace.GetTexture(1));
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, ShadowTemporalFBO.GetTexture(1));
 
 			VAO.Bind();
 			glDrawArrays(GL_TRIANGLES, 0, 6);

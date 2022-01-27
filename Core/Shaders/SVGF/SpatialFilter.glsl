@@ -164,11 +164,11 @@ float GradientNoise()
 	return noise;
 }
 
-float CurveVariance(float V, float E) {
+float TweakVariance(float V, float E) {
 	float FittedEstimate = V;
 	FittedEstimate = clamp(FittedEstimate, 0.0f, 1.0f);
 	float T = 1.0f - FittedEstimate;
-	FittedEstimate = FittedEstimate * pow(T, E);
+	FittedEstimate = FittedEstimate * pow(T, E + 6.0f);
 	return FittedEstimate;
 }
 
@@ -240,7 +240,7 @@ void main()
 		CurveExponent = 70.0f;
 	}
 
-	float TweakedVariance = VarianceEstimate < 0.1f ? CurveVariance(VarianceEstimate, CurveExponent) : VarianceEstimate;
+	float TweakedVariance = VarianceEstimate < 0.1f ? TweakVariance(VarianceEstimate, CurveExponent) : VarianceEstimate;
 	float PhiColor = sqrt(max(0.0f, 0.000001f + TweakedVariance));
 	PhiColor /= max(u_ColorPhiBias, 0.1f); 
 

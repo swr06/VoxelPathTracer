@@ -853,7 +853,7 @@ void main()
 
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
 			
-			const int VXGI_CUTOFF = 196;
+			const int VXGI_CUTOFF = 256;
 			
             if (do_vxao)
             {
@@ -864,7 +864,7 @@ void main()
                     float ao = UpscaledAO;//BetterTexture(u_VXAO, g_TexCoords).x;
 
                     //float fade = u_VXAOCutoff ? (1.0f - exp(-WorldPosition.w * 0.00125f)) : 0.0f;
-                    float fade = u_VXAOCutoff ? (WorldPosition.w < VXGI_CUTOFF ? 0.0f : 1.0f) : 0.0f;
+                    float fade = u_VXAOCutoff ? (distance(WorldPosition.xz, u_ViewerPosition.xz) < VXGI_CUTOFF ? 0.0f : 1.0f) : 0.0f;
 
                     ao = mix(ao, 1.0f, fade);
 					

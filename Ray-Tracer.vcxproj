@@ -347,6 +347,7 @@
     <None Include="Core\Shaders\SampleVarianceCompute.glsl" />
     <None Include="Core\Shaders\ShadowFilter.glsl" />
     <None Include="Core\Shaders\ShadowRayTraceFrag.glsl" />
+    <None Include="Core\Shaders\ShadowTemporalFilter.glsl" />
     <None Include="Core\Shaders\ShadowTransversalDenoiser_1.glsl" />
     <None Include="Core\Shaders\ShadowTransversalDenoiser_2.glsl" />
     <None Include="Core\Shaders\ShadowVarianceEstimate.glsl" />
