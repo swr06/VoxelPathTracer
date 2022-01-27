@@ -107,10 +107,6 @@ This project is purely educational. I own none of the assets. All the rights go 
 
 </br>
 
-![terrain](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/terrain.png)
-
-</br>
-
 </br>
 
 ![day](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/day.png)
@@ -120,6 +116,12 @@ This project is purely educational. I own none of the assets. All the rights go 
 </br>
 
 ![dof](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/dof.png)
+
+</br>
+
+</br>
+
+![terrain](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/terrain.png)
 
 </br>
 
