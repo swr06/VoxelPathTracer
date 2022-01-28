@@ -196,8 +196,10 @@ void main()
 		vec4 PrevPosition = GetPositionAt(u_PreviousFramePositionTexture, Reprojected).xyzw;
 
 		float Bias = u_ShadowTemporal ? 0.005f : 0.01;
+		
+		bool ReprojectionRejection = !(Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias);
 
-		if (Reprojected.x > 0.0 + Bias && Reprojected.x < 1.0 - Bias && Reprojected.y > 0.0 + Bias && Reprojected.y < 1.0 - Bias)
+		if (!ReprojectionRejection)
 		{
 			float d = (distance(PrevPosition.xyz, CurrentPosition.xyz));
 			
@@ -208,20 +210,35 @@ void main()
 			float ClipError = abs(PrevColorOrig.x - PrevColor.x);
 			float FrameIncrement = ClipError < 0.2f ? 1.0f : 0.6f;
 			float FrameCountFetch = texture(u_FrameCount, Reprojected.xy).x;
-			o_Frames = FrameCountFetch + FrameIncrement;
+			float FrameIncremented = FrameCountFetch + FrameIncrement;
 
 			// Linearly increasing blur factor 
-			float BlendFactor = clamp((1.0f - (1.0f / o_Frames))*1.2f, 0.01f, 0.97f);
+			float BlendFactor = clamp((1.0f - (1.0f / FrameIncremented))*1.2f, 0.01f, 0.97f);
 			
-			BlendFactor *= clamp(exp(-length(VelocityRejection)) * 0.8f + 0.6f, 0.00000001f, 1.0f);
+			float VelocityRejectionFactor =  clamp(exp(-length(VelocityRejection)) * 0.8f + 0.6f, 0.00000001f, 1.0f);
 			
+			BlendFactor *= VelocityRejectionFactor;
+			
+			float DepthRejection = 1.;
 			if (d > Diagonal) {
-				float DepthRejection = pow(exp(-d), 32.0f);
+				DepthRejection = pow(exp(-d), 32.0f);
 				BlendFactor *= clamp(DepthRejection, 0.0f, 1.0f);
 			}
 			
 			o_Color = mix(CurrentColor, PrevColor, clamp(BlendFactor, 0.0f, 0.97f));
 
+			// Increment frame count ->
+			float BlendFactorMultipliers = DepthRejection * VelocityRejectionFactor;
+			
+			o_Frames = FrameCountFetch + clamp((BlendFactorMultipliers * 1.1f), 0.0f, 1.0f);
+			
+			if (BlendFactorMultipliers < 0.125f) {
+				o_Frames = 0.0f;
+			}
+			
+			//o_Color = vec4(1.-o_Frames);
+			
+			
 		}
 
 		else 
