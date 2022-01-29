@@ -99,7 +99,7 @@ vec3 GetShadowSpatial(float TransversalAt, float BaseDepth) {
 	
 	const float UnitDiagonal = sqrt(2.0f);
 
-	if (TransversalAt < UnitDiagonal * 2.25f) {
+	if (TransversalAt <= UnitDiagonal * 2.0f) {
 		return vec3(1.0f);
 		return texture(u_CurrentColorTexture, v_TexCoords).xyz;
 	}
@@ -133,7 +133,7 @@ vec3 GetShadowSpatial(float TransversalAt, float BaseDepth) {
 				{
 					vec3 Sample = texture(u_CurrentColorTexture, SampleCoord).xyz;
 					float WeightAt = clamp(1.0f - clamp(abs(Sample.x - Base.x) / 3.0f, 0.0f, 1.0f), 0.0f, 1.0f);
-					WeightAt = clamp(pow(WeightAt, 6.0f), 0.0525f, 1.0f);
+					WeightAt = clamp(pow(WeightAt, 7.0f), 0.000001f, 1.0f);
 					Total += Sample * WeightAt;
 					Weight += WeightAt;
 				}
@@ -220,7 +220,7 @@ void main()
 			BlendFactor *= VelocityRejectionFactor;
 			
 			float DepthRejection = 1.;
-			if (d > Diagonal) {
+			if (d > 0.4) {
 				DepthRejection = pow(exp(-d), 32.0f);
 				BlendFactor *= clamp(DepthRejection, 0.0f, 1.0f);
 			}
@@ -232,8 +232,12 @@ void main()
 			
 			o_Frames = FrameCountFetch + clamp((BlendFactorMultipliers * 1.1f), 0.0f, 1.0f);
 			
-			if (BlendFactorMultipliers < 0.125f) {
+			if (BlendFactorMultipliers < 0.1f) {
 				o_Frames = 0.0f;
+			}
+			
+			else if (BlendFactorMultipliers <= 0.2f + 0.001f) {
+				o_Frames = 2.f;
 			}
 			
 			//o_Color = vec4(1.-o_Frames);
