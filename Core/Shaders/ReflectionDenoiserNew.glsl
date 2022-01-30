@@ -249,7 +249,9 @@ void main()
 		
 		float RemappedRoughnessx = remap(RawRoughness, 0.0f, 0.535f, 0.0f, 1.0f);
 		float TransversalExponent = mix(3.5f, 2.0f, pow(RemappedRoughnessx, 4.0f));
-		TransversalContrib = pow(TransversalContrib, TransversalExponent);
+		TransversalContrib = pow(TransversalContrib, TransversalExponent + 0.8125f);
+		
+		
 	}
 		
 	else {

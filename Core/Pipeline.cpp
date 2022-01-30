@@ -245,7 +245,7 @@ static bool ShouldAlphaTestShadows = false;
 
 static bool TAA = true;
 const bool TAADepthWeight = true;
-static float TAADepthWeightExp = 1.0f;
+static float TAADepthWeightExp = 2.0f;
 static bool FXAA = true;
 static bool Bloom = true;
 static bool DoDiffractionSpikes = false;
@@ -745,9 +745,9 @@ public:
 			//ImGui::Checkbox("TAA Depth Weight (Reduces ghosting)", &TAADepthWeight);
 
 			if (TAADepthWeight)
-				ImGui::SliderFloat("TAA Depth Weight Exponent Multiplier", &TAADepthWeightExp, 0.05f, 2.0f);
+				ImGui::SliderFloat("TAA Depth Weight Strength (Higher = Lesser ghosting, might cause higher aliasing)", &TAADepthWeightExp, 0.1f, 8.0f);
 
-			ImGui::Checkbox("Jitter Projection For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
 			//ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);

@@ -221,7 +221,7 @@ void main()
 			
 			float DepthRejection = 1.;
 			if (d > 0.4) {
-				DepthRejection = pow(exp(-d), 32.0f);
+				DepthRejection = pow(exp(-d), 48.0f);
 				BlendFactor *= clamp(DepthRejection, 0.0f, 1.0f);
 			}
 			
@@ -237,7 +237,11 @@ void main()
 			}
 			
 			else if (BlendFactorMultipliers <= 0.2f + 0.001f) {
-				o_Frames = 2.f;
+				o_Frames = 2.0f;
+			}
+
+			else if (BlendFactorMultipliers <= 0.3f + 0.001f) {
+				o_Frames = 3.25f;
 			}
 			
 			//o_Color = vec4(1.-o_Frames);
