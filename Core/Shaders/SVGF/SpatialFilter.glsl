@@ -298,7 +298,7 @@ void main()
 				float YWeight = AtrousWeights[abs(y)];
 
 				Weight = (XWeight * YWeight) * Weight;
-				Weight = max(Weight, 0.001f);
+				Weight = max(Weight, 0.00000001f);
 
 				TotalSH += SampleSH * Weight;
 				TotalCoCg += SampleCoCg * Weight;

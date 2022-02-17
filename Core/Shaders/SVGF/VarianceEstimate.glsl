@@ -136,8 +136,8 @@ void main()
                 float Weight = exp(-LuminosityWeight) * NormalWeight * DepthWeight;
                 float Weight_2 = Weight;
 
-                Weight = max(Weight, 0.0015f);
-                Weight_2 = max(Weight_2, 0.0015f);
+                Weight = max(Weight, 0.000000015f);
+                Weight_2 = max(Weight_2, 0.0000000015f);
 
                 TotalWeight += Weight;
                 TotalMoment += SampleMoment * Weight_2;
