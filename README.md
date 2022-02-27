@@ -10,7 +10,6 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ### Rendering 
 - Voxel Ray Casting 
-- Over 100+ block types with 512x512 textures (Albedo, normals, metalness, roughness, indirect occlusion & displacement)
 - Manhattan Distance Field acceleration (Distance fields are generated using compute shaders) 
 - Procedural Terrain Generation (Plains, superflat) 
 
@@ -35,7 +34,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 ### Others
 - Basic Particle system
 - 3D Sound
-- Material/Block database system
+- Material/Block database system (with around 100 block types with 512x512 textures (Albedo, normals, metalness, roughness, indirect occlusion & displacement))
 - World saving/loading
 - Minecraft world loading 
 
@@ -66,21 +65,6 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
 - If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile)
 - See `Controls.txt` for the controls (Or look at the console when you start up the program!)
-
-## Resource List
-- https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.42.3443&rep=rep1&type=pdf (DDA)
-- ScratchAPixel
-- https://google.github.io/filament/Filament.md
-- http://advances.realtimerendering.com/s2015/The%20Real-time%20Volumetric%20Cloudscapes%20of%20Horizon%20-%20Zero%20Dawn%20-%20ARTR.pdf
-- http://www.diva-portal.org/smash/get/diva2:1223894/FULLTEXT01.pdf
-- https://github.com/NVIDIA/Q2RTX
-- https://cg.ivd.kit.edu/publications/2017/svgf/svgf_preprint.pdf
-- https://www.youtube.com/watch?v=2XXS5UyNjjU (A Talk on TAA, from Inside.)
-- https://teamwisp.github.io/research/svfg.html
-- http://magnuswrenninge.com/wp-content/uploads/2010/03/Wrenninge-OzTheGreatAndVolumetric.pdf
-- https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
-- Textures from CC0 textures (or AmbientCG), Quixel Megascans and textures.com
-- Exactly 5 block textures are taken from the realism mats texture pack and 5 more from the umsoea texture pack. And 3 from the patrix texture pack. (If you want them removed, I will happily do so)
 
 ## Credits (In no particular order.)
 - [Fuzdex](https://github.com/Shadax-stack)
