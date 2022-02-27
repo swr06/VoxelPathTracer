@@ -20,6 +20,10 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - Screen space SSS
 - Dynamic atmosphere rendering 
 
+### Denoising
+- Temporal Denoiser/Reprojection (Diffuse, specular, direct shadow, cloud motion vectors)
+- Screenspace Spatial Denoiser (SVGF, Atrous, Specialized denoisers for shadow/reflections)
+
 ### Post Process
 
 - AO : SSAO
@@ -45,19 +49,13 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - Anisotropic raytraced reflections (for materials such as brushed metal, based on principled disney BRDF)
 
 ## Todo Features / QOL Improvements
-- Bug fixes
-- Better Player Controller
-- Foliage
-- (Preferably sthochastic) Refractions
-- Glass rendering 
-- Water Rendering (Tesselation with FFT? tessendorf waves?)
-- Raytraced realistic sound
-- Weather?
+- Glass/water with stochastic refractions
+- Worldspace MIS 
 
 ## Performance Metrics 
 
 - 24 FPS on a Vega 8 iGPU on the default settings.
-- 180 - 200 FPS on a GTX 1080Ti.
+- 150 - 160 FPS on a GTX 1080Ti.
 
 ## Note
 - This project is still not finished, the current state is not a representation of the final version.
