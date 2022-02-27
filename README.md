@@ -54,8 +54,8 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ## Performance Metrics 
 
-- 24 FPS on a Vega 8 iGPU on the default settings.
-- 150 - 160 FPS on a GTX 1080Ti.
+- 20 - 22 FPS on a Vega 8 iGPU on the default settings. (@ 768p)
+- 150 - 160 FPS on a GTX 1080Ti. (@ 1080p)
 
 ## Note
 - This project is still not finished, the current state is not a representation of the final version.
@@ -65,7 +65,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile)
 - See `Controls.txt` for the controls (Or look at the console when you start up the program!)
 
-## Credits (In no particular order.)
+## Credits (Testing, programming and understanding)
 - [Fuzdex](https://github.com/Shadax-stack)
 - [UglySwedishFish](https://github.com/UglySwedishFish)
 - [Lars](https://github.com/Ciwiel3/)
