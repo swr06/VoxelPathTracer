@@ -16,6 +16,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 ### Lighting 
 - Direct lighting based on the Cook torrance BRDF
 - Path traced lighting (Direct shadows, Global Illumination, Rough/Smooth reflections, Ambient Occlusion)
+- Spherical harmonic projection for indirect lighting 
 - Screen space SSS
 - Dynamic atmosphere rendering 
 
