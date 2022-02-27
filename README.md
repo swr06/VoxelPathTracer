@@ -1,5 +1,5 @@
 # Voxel Path Tracer
-An ***UNFINISHED*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, volumetrics and intersection algorithms.
+An unnamed ***UNFINISHED*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, physically based rendering, volumetrics and intersection algorithms.
 This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 ## Project status 
@@ -10,18 +10,18 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ### Rendering 
 - Voxel Ray Casting 
-- Manhattan Distance Field acceleration (Distance fields are generated using compute shaders) 
-- Procedural Terrain Generation (Plains, superflat) 
+- Manhattan Distance Field acceleration structure (Generation accelerated using GPU compute shaders) 
+- Deferred rendering pipeline
 
 ### Lighting 
 - Direct lighting based on the Cook torrance BRDF
 - Path traced lighting (Direct shadows, Global Illumination, Rough/Smooth reflections, Ambient Occlusion)
 - Spherical harmonic projection for indirect lighting 
 - Screen space SSS
-- Dynamic atmosphere rendering 
+- Dynamic atmosphere/sky rendering
 
 ### Denoising
-- Temporal Denoiser/Reprojection (Diffuse, specular, direct shadow, cloud motion vectors)
+- Temporal Denoiser/Reprojection ((indirect) Diffuse, (indirect) reflection, (direct) shadow, cloud motion vectors)
 - Screenspace Spatial Denoiser (SVGF, Atrous, Specialized denoisers for shadow/reflections)
 
 ### Post Process
@@ -33,13 +33,14 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - Color Compositing : Tonemapping, Gamma correction, color dithering, color grading, purkinje effect, film grain
 
 ### Volumetrics 
-- 3D Volumetric Clouds
-- LPV for volumetrics from light sources (could be used for distant lighting or quick second bounce gi in the future)
+- 3D Volumetric Clouds (+ 2D cirrus cloud layer)
+- LPV for volumetrics from light sources (could be used for distant lighting or performant second bounce gi in the future)
 
 ### Others
 - Basic Particle system
 - 3D Sound
 - Material/Block database system (with around 100 block types with 512x512 textures (Albedo, normals, metalness, roughness, indirect occlusion & displacement))
+- Procedural Terrain Generation (Plains, superflat) 
 - World saving/loading
 - Minecraft world loading 
 
@@ -142,3 +143,6 @@ This project is purely educational. I own none of the assets. All the rights go 
 
 
 
+# Supporting
+
+If you'd like to support this project, consider starring it. Thanks!
