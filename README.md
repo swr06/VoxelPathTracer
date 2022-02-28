@@ -10,7 +10,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ### Rendering 
 - Voxel Ray Casting 
-- Manhattan Distance Field acceleration structure (Generation accelerated using GPU compute shaders) 
+- Manhattan distance field acceleration structure (Generated using GPU compute shaders) 
 - Deferred rendering pipeline
 
 ### Lighting 
@@ -21,8 +21,8 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - Dynamic atmosphere/sky rendering
 
 ### Denoising
-- Temporal Denoiser/Reprojection ((indirect) Diffuse, (indirect) reflection, (direct) shadow, cloud motion vectors)
-- Screenspace Spatial Denoiser (SVGF, Atrous, Specialized denoisers for shadow/reflections)
+- Temporal Denoiser/Reprojection (Pathtraced Lighting, Clouds)
+- Screenspace Spatial Denoiser (SVGF, Atrous, Gaussian and other specialized denoisers for shadow/reflections)
 
 ### Post Process
 
