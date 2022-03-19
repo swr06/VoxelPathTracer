@@ -131,15 +131,19 @@ This project is purely educational. I own none of the assets. All the rights go 
 
 </br>
 
-![clood](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/volclouds.png)
-
-</br>
-
 ![clood2](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/volclouds2.png)
 
 </br>
 
 ![postprocesshahahahahhahahahALSOifyouSeeThisIWillGiveYouACookieAddMeOnDiscord](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/postprocessgobrr.png)
+
+</br>
+
+![clood3](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/clood2.png)
+
+</br>
+
+![shadowwww](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/shadow.png)
 
 </br>
 
