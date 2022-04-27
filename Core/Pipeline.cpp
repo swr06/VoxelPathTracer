@@ -1,43 +1,8 @@
-// Main program render/gameplay pipeline code
-
-
-
-// License
-
-//////////////////////////////////////////////////////////////////////////////////////
-//    																					
-//    MIT License																		
-//    																					
-//    Copyright (c) 2021 Samuel Rasquinha												
-//    																					
-//    Permission is hereby granted, free of charge, to any person obtaining a copy		
-//    of this software and associated documentation files (the "Software"), to deal		
-//    in the Software without restriction, including without limitation the rights		
-//    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell			
-//    copies of the Software, and to permit persons to whom the Software is				
-//    furnished to do so, subject to the following conditions:							
-//    																					
-//    The above copyright notice and this permission notice shall be included in all	
-//    copies or substantial portions of the Software.									
-//    																					
-//    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR		
-//    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,			
-//    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE		
-//    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER			
-//    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,		
-//    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE		
-//    SOFTWARE.																			
-//    																		            
-//////////////////////////////////////////////////////////////////////////////////////
-
-
-// License
-
-
+// VoxelRT 
+// By @swr06 on github.
 
 
 // includes 
-
 #include "Pipeline.h"
 #include <chrono>
 #include "ShaderManager.h"
@@ -49,218 +14,93 @@
 #include "NBT/Importer.h"
 #include "AnimatedTexture.h"
 
-// includes
-
-
-// static globals 
-// these variables are used all over the file 
-// yes, I know i'm a degenerate for using globals but whatever 
-
+// Player/World/Cameras
 static VoxelRT::Player MainPlayer;
+static VoxelRT::World* world = nullptr;
+static VoxelRT::FPSCamera& MainCamera = MainPlayer.Camera;
+static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
 
-int VoxelRT_FloodFillDistanceLimit = 4; // Used in other files as an extern
+// Flags
+static bool ModifiedWorld = false;
 
+// Timings
+static float Frametime;
+static float DeltaTime;
+static float DeltaSum = 0.0f;
+
+// Sound related settings
+float VoxelRT_VolumeMultiplier = 1.0f;
+static float AmbienceAmount = 1.0f;
+static float AmbientSoundStrength = 1.0f;
+static bool TraceAmbientSound = true;
+
+// Globals 
+static glm::vec3 CloudProjectionSunDir = glm::vec3(0.0f);
+static glm::vec3 g_SunDirection;
+static glm::vec3 g_MoonDirection;
+static bool RandomDebugVar = false;
+static bool HighlightFocusedBlock = false;
+static float CenterDepthSmooth = 1.0f;
+
+// Important settings
+static bool ADVANCED_MODE = false;
 static int DEBUGTraceLevel = 0;
-
-static int DiffuseTraceLength = 42;
-static int ReflectionTraceLength = 64;
-
-static bool VSync = false;
-
-static bool Fucktard = false;
-
-static bool DiffuseDirectLightSampling = false;
-
-static float DiffuseIndirectSuperSampleRes = 0.25f;
-
-static bool JitterSceneForTAA = false;
-
-static bool CloudReflections = true;
-
-//static bool SmartUpscaleCloudTemporal = true;
-
-static int LPVDebugState = 0;
-
-static bool LightListDebug = false;
-
-static bool HejlBurgessTonemap = false;
-
-static float TextureDesatAmount = 0.1f;
-static bool PreTemporalSpatialPass = true;
-static float PurkingeEffectStrength = 0.0f;
-static int SelectedColorGradingLUT = -1;
-static bool ColorDither = true;
-static float FilmGrainStrength = 0.0f;
-static float ChromaticAberrationStrength = 0.0f;
-static float ExposureMultiplier = 1.0f;
-
-static float DiffractionResolution = 0.25f;
-static float DiffractionStrength = 1.0f;
-static int DiffractionKernel = 14;
-static float DiffractionScaler = 1.0f;
-static bool BlurDiffraction = false;
-
-// pixel padding
-static int PIXEL_PADDING = 20;
-
-static bool TEMPORAL_SPEC = true;
-
-static bool APPLY_PLAYER_SHADOW_FOR_GI = false;
-
-static int RenderDistance = 400;
-
-static bool REFLECT_PLAYER = false;
-
-static bool DENOISE_REFLECTION_HIT_DATA = true;
-
-static bool SVGF_LARGE_KERNEL = false;
-
-static float ColorPhiBias = 3.325f;
-
-//static bool ANTI_FLICKER = true;
-
-
-
-static bool DenoiseSunShadows = true;
-
-
-static bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
-
-static bool CHECKERBOARD_SPP = true;
-static bool CHECKERBOARD_SPEC_SPP = false;
-static bool InferSpecularDetailSpatially = false;
-
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
+const bool DOWNSAMPLE_GBUFFERS = false;
+int VoxelRT_FloodFillDistanceLimit = 4; // extern
 
-static bool ContrastAdaptiveSharpening = true;
-static float CAS_SharpenAmount = 0.3 + 0.05f;
-
-static bool UseEnvironmentBRDF = true;
-static bool RemoveTiling = false;
-
-
-static bool VXAO_CUTOFF = true;
-
-
-
-
-// Clouds ->
-static bool CloudsEnabled = true;
-static float CloudCoverage = 1.1f;
-static const bool CloudBayer = true;
-static float CloudDetailScale = 1.1f;
-static float CloudErosionWeightExponent = 0.56f;
-static float CloudDetailFBMPower = 1.125f;
-static bool CloudDetailWeightEnabled = false;
-static bool ClampCloudTemporal = false;
-static glm::vec2 CloudModifiers = glm::vec2(-0.950, 0.1250f); 
-static bool CurlNoiseOffset = false;
-static float CirrusScale = 1.8667f;
-static float CirrusStrength = 0.11f;
-static float CloudTimeScale = 1.0f;
-static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
-static bool CloudCheckerStepCount = false;
-static bool CloudLODLighting = true;
-static bool CloudForceSupersample = true;
-static float CloudForceSupersampleRes = 1.0f;
-static float CloudResolution = 0.200f;
-static bool CloudSpatialUpscale = true;
-static bool CloudFinalCatmullromUpsample = false;
-static float CloudAmbientDensityMultiplier = 1.2f;
-static float CloudThiccness = 1250.0f;
-
-// basic nebula settings ->
-static float NebulaStrength = 1.0f;
-static float NebulaGIStrength = 0.50f;
-static bool NebulaCelestialColor = false;
-static bool NebulaGIColor = true;
-
-//
-
-// Depth of field
-static bool DOF = false;
-static bool LargeKernelDOF = false;
-static float DOFCOCScale = 2.5f;
-static float DOFBlurScale = 1.0f;
-static float DOFCAScale = 1.75f;
-static float DOFResolution = 0.350f;
-static float DOFTemporalDepthBlend = 0.875f;
-
-static bool VXAO = true;
-static bool WiderSVGF = false;
-static bool DITHER_SPATIAL_UPSCALE = true;
-static bool USE_NEW_SPECULAR_SPATIAL = true;
-static bool USE_BLUE_NOISE_FOR_TRACING = true;
-
-static bool PointVolumetricsToggled = false;
-static float PointVolumetricStrength = 0.525f;
-static bool ColoredPointVolumetrics = false;
-static bool PointVolumetricsBayer = true;
-static bool PointVolPerlinOD = false;
-static bool DenoisePointVol = true;
-static bool PointVolTriquadraticDensityInterpolation = false;
-static bool PointVolGroundTruthColorInterpolation = false;
-
+// GBuffer
 static float InitialTraceResolution = 1.0f;
 static float GBufferResolution = 1.0f;
-static float DiffuseTraceResolution = 0.250f; 
+static int RenderDistance = 400;
 
-static float ShadowTraceResolution = 0.500f;
-static float ReflectionTraceResolution = 0.250; 
-static float ReflectionSuperSampleResolution = 0.250f;
+// Misc
+static bool VSync = false;
+static bool Fucktard = false;
+static bool JitterSceneForTAA = false;
+static int PIXEL_PADDING = 20; // to reduce artifacts on edges
 
-
-static float SSAOResolution = 0.35f;
-static float SSAOStrength = 0.325f;
-static float RTAOResolution = 0.125f;
-static float VolumetricResolution = 0.5f;
-
+// Sun rotation
 static float SunTick = 50.0f;
 static float PreviousSunTick = 50.0f;
+
+// SPP checkering
+static bool CHECKERBOARD_SPP = true;
+static bool CHECKERBOARD_SPEC_SPP = false;
+
+// Diffuse 
+static float DiffuseTraceResolution = 0.250f;
+static int DiffuseSPP = 3;
 static float DiffuseLightIntensity = 1.2f;
-static float LensFlareIntensity = 0.075f;
-static float BloomQuality = 0.25f;
-static bool BloomWide = true;
-static float BloomStrength = 1.0f;
-bool LensDirt = false;
-float LensDirtStrength = 1.1f;
-bool HQBloomUpscale = true;
+static int DiffuseTraceLength = 45;
+static bool VXAO_CUTOFF = true; // Doesnt apply vxao when fragment is too far away (helps reduce artifacts)
+static bool DiffuseDirectLightSampling = false;
+static float DiffuseIndirectSuperSampleRes = 0.25f;
+static bool APPLY_PLAYER_SHADOW_FOR_GI = false;
+static bool LightListDebug = false; // Direct sampling/MIS (WIP!)
 
-static bool SoftShadows = true;
-static float ShadowSupersampleRes = 0.5f;
-static float ShadowFilterScale = 1.0f;
-
-
-static bool SSSSS = false;
-static float SSSSSStrength = 0.9f / 1.0f;
-
-
-static int DiffuseSPP = 3; 
-static int ReflectionSPP = 2;
-
-// Alpha test : 
-static bool ShouldAlphaTest = false;
-static bool ShouldAlphaTestShadows = false;
-
-
-static bool TAA = true;
-const bool TAADepthWeight = true;
-static float TAADepthWeightExp = 2.0f;
-static bool FXAA = true;
-static bool Bloom = true;
-static bool DoDiffractionSpikes = false;
+// SVGF / Upscaling
+static bool AGGRESSIVE_DISOCCLUSION_HANDLING = true;
+static bool SVGF_LARGE_KERNEL = false;
+static float ColorPhiBias = 3.325f;
 static bool USE_SVGF = true;
 static bool DO_VARIANCE_SPATIAL = true;
 static bool DO_SVGF_SPATIAL = true;
 static bool DO_SVGF_TEMPORAL = true;
 
+static bool WiderSVGF = false;
+static bool DITHER_SPATIAL_UPSCALE = true;
+static bool USE_NEW_SPECULAR_SPATIAL = true;
+static bool USE_BLUE_NOISE_FOR_TRACING = true;
 
-static bool BrutalFXAA = true;
-//static bool DoSecondaryFXAA = true;
+// VXAO
+static bool VXAO = true;
 
-
-static bool GodRays = false;
-static bool FakeGodRays = false;
+// Specular Indirect
+static int ReflectionTraceLength = 64;
+static float ReflectionTraceResolution = 0.250;
+static float ReflectionSuperSampleResolution = 0.250f;
+static int ReflectionSPP = 2;
 static bool RoughReflections = true;
 static bool DenoiseReflections = true;
 static bool ReflectionFireflyRejection = true;
@@ -281,29 +121,157 @@ static bool TemporallyStabializeHitDistance = !false; // ;)
 static bool ReflectionTemporalWeight = true;
 static float RoughnessNormalWeightBiasStrength = 1.075f;
 static bool AmplifyReflectionTransversalWeight = true;
+static bool TEMPORAL_SPEC = true;
+static bool REFLECT_PLAYER = false;
+static bool DENOISE_REFLECTION_HIT_DATA = true;
 
+// Shadows
+static float ShadowTraceResolution = 0.500f;
+static bool SoftShadows = true;
+static float ShadowSupersampleRes = 0.5f;
+static float ShadowFilterScale = 1.0f;
+static bool DenoiseSunShadows = true;
+
+
+// Subsurface scattering
+static bool SSSSS = false;
+static float SSSSSStrength = 0.9f / 1.0f;
+
+// Alpha test : 
+static bool ShouldAlphaTest = false;
+static bool ShouldAlphaTestShadows = false;
+
+
+// Post process 
+// Anti aliasing  
+static bool TAA = true;
+const bool TAADepthWeight = true;
+static float TAADepthWeightExp = 2.0f;
+static bool FXAA = true;
+static bool BrutalFXAA = true;
+
+// Post process
+static float SSAOResolution = 0.35f;
+static float SSAOStrength = 0.325f;
+static float RTAOResolution = 0.125f;
+static float VolumetricResolution = 0.5f;
+static bool Bloom = true;
+static bool DoDiffractionSpikes = false;
+static bool AutoExposure = false;
+static bool ExponentialFog = false;
+
+
+// Clouds ->
+static bool CloudsEnabled = true;
+static float CloudCoverage = 1.1f;
+static const bool CloudBayer = true;
+static float CloudDetailScale = 1.1f;
+static float CloudErosionWeightExponent = 0.56f;
+static float CloudDetailFBMPower = 1.125f;
+static bool CloudDetailWeightEnabled = false;
+static bool ClampCloudTemporal = false;
+static glm::vec2 CloudModifiers = glm::vec2(-0.950, 0.1250f);
+static bool CurlNoiseOffset = false;
+static float CirrusScale = 1.8667f;
+static float CirrusStrength = 0.11f;
+static float CloudTimeScale = 1.0f;
+static glm::ivec3 CloudStepCount = glm::ivec3(32, 8, 4);
+static bool CloudCheckerStepCount = false;
+static bool CloudLODLighting = true;
+static bool CloudForceSupersample = true;
+static float CloudForceSupersampleRes = 1.0f;
+static float CloudResolution = 0.250f;
+static bool CloudSpatialUpscale = true;
+static bool CloudFinalCatmullromUpsample = false;
+static float CloudAmbientDensityMultiplier = 1.2f;
+static float CloudThiccness = 1250.0f;
+static bool CloudReflections = true;
+
+// Nebula
+static float NebulaStrength = 1.0f;
+static float NebulaGIStrength = 0.50f;
+static bool NebulaCelestialColor = false;
+static bool NebulaGIColor = true;
+
+// Depth of field
+static bool DOF = false;
+static bool LargeKernelDOF = false;
+static float DOFCOCScale = 2.75f;
+static float DOFBlurScale = 1.0f;
+static float DOFCAScale = 1.75f;
+static float DOFResolution = 0.350f;
+static float DOFTemporalDepthBlend = 0.875f;
+static glm::vec2 DOFFocusPixel = glm::vec2(0.0f);
+
+// Volumetrics 
+static int LPVDebugState = 0;
+static bool PointVolumetricsToggled = false;
+static float PointVolumetricStrength = 0.525f;
+static bool ColoredPointVolumetrics = false;
+static bool PointVolumetricsBayer = true;
+static bool PointVolPerlinOD = false;
+static bool DenoisePointVol = true;
+static bool PointVolTriquadraticDensityInterpolation = false;
+static bool PointVolGroundTruthColorInterpolation = false;
+static float PointVolumetricsScale = 0.2f; // 1/25 the pixels
+
+// Bloom
+static float BloomQuality = 0.25f;
+static bool BloomWide = true;
+static float BloomStrength = 1.0f;
+bool HQBloomUpscale = true;
+
+// Lens 
+bool LensDirt = false;
+float LensDirtStrength = 1.1f;
+static bool LensFlare = false;
+static float LensFlareIntensity = 0.075f;
+
+// Godrays
+static bool GodRays = false;
+static bool FakeGodRays = false;
+static int GodRaysStepCount = 12;
+static float GodRaysStrength = 0.5f;
+
+// Post process misc
+static bool HejlBurgessTonemap = false;
+static float TextureDesatAmount = 0.1f;
+static bool PreTemporalSpatialPass = true;
+static float PurkingeEffectStrength = 0.0f;
+static int SelectedColorGradingLUT = -1;
+static bool ColorDither = true;
+static float FilmGrainStrength = 0.0f;
+static float ChromaticAberrationStrength = 0.0f;
+static float ExposureMultiplier = 1.0f;
+
+// Diffraction spikes
+static float DiffractionResolution = 0.25f;
+static float DiffractionStrength = 1.0f;
+static int DiffractionKernel = 14;
+static float DiffractionScaler = 1.0f;
+static bool BlurDiffraction = false;
+
+// CAS 
+static bool ContrastAdaptiveSharpening = true;
+static float CAS_SharpenAmount = 0.3 + 0.05f;
+
+// Particles
 static bool RenderParticles = true;
 
-static bool LensFlare = false;
+// Experimental
 static bool SSAO = false;
 static bool RTAO = false;
 static bool POM = false;
 static float POMHeight = 1.0f;
 static bool DitherPOM = false;
 static bool HighQualityPOM = false;
-
-//static bool CheckerboardClouds = true;
 static bool AmplifyNormalMap = true;
 
-
+// Item cube 
 static bool DoSmallItemCube = true;
 static bool SimpleLightingItemCube = false;
 static int AntialiasItemCubeLevel = 4;
 static int ItemCubeSpecularSampleBias = 0;
-
-
-static int GodRaysStepCount = 12;
-static float GodRaysStrength = 0.5f;
 
 // Color modifiers
 static float SunStrengthModifier = 0.850f;
@@ -311,44 +279,7 @@ static float MoonStrengthModifier = 1.0f;
 static float GISunStrength = 1.0f;
 static float GISkyStrength = 1.125f;
 
-static bool AutoExposure = false;
-static bool ExponentialFog = false;
-
-
-static VoxelRT::World* world = nullptr;
-static bool ModifiedWorld = false;
-static VoxelRT::FPSCamera& MainCamera = MainPlayer.Camera;
-static VoxelRT::OrthographicCamera OCamera(0.0f, 800.0f, 0.0f, 600.0f);
-
-static float Frametime;
-static float DeltaTime;
-
-float VoxelRT_VolumeMultiplier = 1.0f;
-
-static float DeltaSum = 0.0f;
-
-static float PointVolumetricsScale = 0.2f; // 1/25 the pixels
-
-
-static glm::vec3 CloudProjectionSunDir = glm::vec3(0.0f);
-
-
-
-static glm::vec3 g_SunDirection;
-static glm::vec3 g_MoonDirection;
-
-static bool RandomDebugVar = false;
-
-
-const bool DOWNSAMPLE_GBUFFERS = false;
-
-static bool HighlightFocusedBlock = false;
-
-
-static float CenterDepthSmooth = 1.0f;
-
-
-
+// Calculates 6 matrices that can be used to reliably generate a cubemap
 std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
 
 	std::array<glm::mat4, 6> view_matrices = {
@@ -363,6 +294,31 @@ std::array<glm::mat4, 6> GetMatrices(const glm::vec3& center) {
 	return view_matrices;
 }
 
+// Basic math
+static double RoundToNearest(double n, double x) {
+	return round(n / x) * x;
+}
+
+static float Align(float value, float size) {
+	return std::floor(value / size) * size;
+}
+
+static glm::vec3 SnapPosition(glm::vec3 p, float amt) {
+	p.x = Align(p.x, amt);
+	p.y = Align(p.y, amt);
+	p.z = Align(p.z, amt);
+	return p;
+}
+
+static glm::vec3 SnapPosition(glm::vec3 p, float ax, float ay, float az) {
+
+	p.x = Align(p.x, ax);
+	p.y = Align(p.y, ay);
+	p.z = Align(p.z, az);
+	return p;
+}
+
+// Application
 class RayTracerApp : public VoxelRT::Application
 {
 public:
@@ -387,7 +343,10 @@ public:
 	{
 		if (ImGui::Begin("Settings"))
 		{
-			ImGui::Checkbox("Debug Variable", &RandomDebugVar);
+
+			if (ADVANCED_MODE)
+				ImGui::Checkbox("Debug Variable", &RandomDebugVar);
+
 			ImGui::Text("Player Position : %f, %f, %f", MainCamera.GetPosition().x, MainCamera.GetPosition().y, MainCamera.GetPosition().z);
 			ImGui::Text("Camera Front : %f, %f, %f", MainCamera.GetFront().x, MainCamera.GetFront().y, MainCamera.GetFront().z);
 			ImGui::Text("Player Grounded : %d", MainPlayer.m_isOnGround);
@@ -397,10 +356,14 @@ public:
 			ImGui::Text("Time : %f", glfwGetTime());
 			ImGui::Text("Sun Tick : %f", SunTick);
 
+			ImGui::NewLine();
+			ImGui::NewLine();
+			ImGui::Checkbox("---- ADVANCED MODE? ----", &ADVANCED_MODE);
+
 			if (DOF)
+				ImGui::NewLine();
 				ImGui::Text("Temporal Center Depth (x1000) : %f", CenterDepthSmooth * 1000.0f);
 			
-			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Highlight focused block?", &HighlightFocusedBlock);
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
@@ -421,7 +384,10 @@ public:
 			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular, 3 : Direct", &DEBUGTraceLevel, 0, 3);
 
 			ImGui::NewLine();
-			ImGui::Checkbox("* Use accurate indirect light combining? (Option for stylization) (Accounts for metals)", &UseEnvironmentBRDF);
+			ImGui::SliderFloat("GLOBAL RENDER SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 2.0f);
+			if (ImGui::Button("Reset Global Render Scale")) {
+				GLOBAL_RESOLUTION_SCALE = 1.0f;
+			}
 			ImGui::NewLine();
 
 			// Sun/Moon ->
@@ -452,7 +418,8 @@ public:
 			ImGui::NewLine();
 			ImGui::SliderFloat("Initial Trace Resolution", &InitialTraceResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("GBuffer Generate Resolution", &GBufferResolution, 0.1f, 1.0f);
-			ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 500);
+			if (ADVANCED_MODE)
+				ImGui::SliderInt("DF Trace Length.", &RenderDistance, 20, 500);
 			ImGui::NewLine();
 
 
@@ -461,17 +428,24 @@ public:
 			ImGui::NewLine();
 			ImGui::Text("--- Indirect Diffuse Settings ---");
 			ImGui::NewLine();
-			ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
+
+			if (ADVANCED_MODE) {
+				ImGui::Text("- Advanced Settings -");
+				ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
+				ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
+				ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
+				ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
+			}
+
+
+			ImGui::NewLine();
 			ImGui::SliderFloat("Diffuse Trace Resolution ", &DiffuseTraceResolution, 0.1f, 1.25f);
 			ImGui::SliderFloat("Diffuse Light Intensity ", &DiffuseLightIntensity, 0.05f, 1.25f);
 			ImGui::NewLine();
 			ImGui::SliderInt("Diffuse Trace LENGTH", &DiffuseTraceLength, 2, 96);
 			ImGui::SliderInt("Diffuse Trace SPP", &DiffuseSPP, 1, 32);
 			ImGui::NewLine();
-			ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
-			ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 			ImGui::SliderFloat("Diffuse Indirect Supersample Res", &DiffuseIndirectSuperSampleRes, 0.0f, 1.5f);
-			ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
 			ImGui::Checkbox("Use Blue noise for tracing?", &USE_BLUE_NOISE_FOR_TRACING);
 			ImGui::NewLine();
 			ImGui::Checkbox("Use SVGF? (Uses Atrous if disabled, SVGF recommended) ", &USE_SVGF);
@@ -489,6 +463,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Text("--- Reflections/Indirect Specular Settings --");
 			ImGui::NewLine();
+
 			ImGui::SliderFloat("Reflection Trace Resolution ", &ReflectionTraceResolution, 0.1f, 1.25f);
 			ImGui::NewLine();
 			ImGui::SliderInt("Reflection Trace LENGTH", &ReflectionTraceLength, 2, 128);
@@ -502,28 +477,10 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Use new reflection denoiser? (Preserves detail, might increase noise in some rare cases.)", &USE_NEW_SPECULAR_SPATIAL);
 			ImGui::Checkbox("Denoise reflections?", &DenoiseReflections);
-			ImGui::Checkbox("Strong Reflection Transversal Weight? (Improves contact hardening clarity, increases noise.)", &AmplifyReflectionTransversalWeight);
 			ImGui::NewLine();
-			ImGui::Checkbox("Denoise specular reprojection data? ", &DENOISE_REFLECTION_HIT_DATA);
 
-			if (TEMPORAL_SPEC)
-				ImGui::Checkbox("Temporally filter specular reprojection data? (gets rid of flickering artifacts from denoiser)", &TemporallyStabializeHitDistance);
 			ImGui::SliderFloat("Reflection denoiser scale", &ReflectionDenoiserScale, 0.25f, 6.0f);
 			ImGui::NewLine();
-
-			if (TEMPORAL_SPEC)
-				ImGui::Checkbox("Apply Reflection Denoiser Accumulation Weight?", &ReflectionTemporalWeight);
-			
-			ImGui::NewLine();
-			ImGui::Checkbox("Derive reflections from diffuse spherical harmonic (derives when the material is too rough)", &DeriveReflectionsFromDiffuseSH);
-
-			if (DenoiseReflections) {
-				ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
-				ImGui::Checkbox("Reflection Roughness-Based Distance Weight Clamping?", &ReflectionDenoiserDeviationHandling);
-				
-			}
-
-
 
 			if (USE_NEW_SPECULAR_SPATIAL) {
 				ImGui::SliderInt("Reflection Denoiser Radius Bias", &ReflectionDenoisingRadiusBias, -4, 4);
@@ -536,29 +493,54 @@ public:
 
 			ImGui::NewLine();
 
-			if (TEMPORAL_SPEC) {
-				ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
-				ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
-
-				if (ReflectionFireflyRejection) {
-					ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
-				}
-			}
+			
 			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
 
 			ImGui::NewLine();
 
-			ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
-			ImGui::Checkbox("Use screen space data for GI in reflections?", &ReprojectReflectionsToScreenSpace);
-			ImGui::Checkbox("Approximate GI in reflections using LPV?", &ReflectionLPVGI);
-			ImGui::Checkbox("Decouple GI (Decouples sky and point light gi)?", &RefectionUseDecoupledGI);
+			if (ADVANCED_MODE) {
+				ImGui::Text("- Advanced Settings -");
+				ImGui::Checkbox("Strong Reflection Transversal Weight? (Improves contact hardening clarity, increases noise.)", &AmplifyReflectionTransversalWeight);
+				ImGui::Checkbox("Denoise specular reprojection data? ", &DENOISE_REFLECTION_HIT_DATA);
 
-			if (ReflectionLPVGI) {
-				ImGui::Checkbox("High Quality LPVGI in reflections?", &ReflectionHighQualityLPVGI);
+				if (TEMPORAL_SPEC)
+					ImGui::Checkbox("Temporally filter specular reprojection data? (gets rid of flickering artifacts from denoiser)", &TemporallyStabializeHitDistance);
 
+				if (TEMPORAL_SPEC)
+					ImGui::Checkbox("Apply Reflection Denoiser Accumulation Weight?", &ReflectionTemporalWeight);
+
+				ImGui::NewLine();
+				ImGui::Checkbox("Derive reflections from diffuse spherical harmonic (derives when the material is too rough)", &DeriveReflectionsFromDiffuseSH);
+
+				if (DenoiseReflections) {
+					ImGui::Checkbox("Reflection Roughness Bias? (Increases reflection clarity by biasing the roughness value)", &ReflectionRoughnessBias);
+					ImGui::Checkbox("Reflection Roughness-Based Distance Weight Clamping?", &ReflectionDenoiserDeviationHandling);
+
+				}
+
+				if (TEMPORAL_SPEC) {
+					ImGui::Checkbox("Reflection radiance clipping? (Reduces ghosting, might cause more noise)", &SmartReflectionClip);
+					ImGui::Checkbox("Filter fireflies in reflections?", &ReflectionFireflyRejection);
+
+					if (ReflectionFireflyRejection) {
+						ImGui::Checkbox("Aggressive Firefly Rejection?", &AggressiveFireflyRejection);
+					}
+				}
+
+
+				ImGui::Checkbox("Reflect player capsule?", &REFLECT_PLAYER);
+				ImGui::Checkbox("Use screen space data for GI in reflections?", &ReprojectReflectionsToScreenSpace);
+				ImGui::Checkbox("Approximate GI in reflections using LPV?", &ReflectionLPVGI);
+				ImGui::Checkbox("Decouple GI (Decouples sky and point light gi)?", &RefectionUseDecoupledGI);
+
+				if (ReflectionLPVGI) {
+					ImGui::Checkbox("High Quality LPVGI in reflections?", &ReflectionHighQualityLPVGI);
+
+				}
+
+				ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
 			}
-
-			ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
+			
 			ImGui::NewLine();
 
 			// Shadows ->
@@ -599,7 +581,6 @@ public:
 			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
 			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
 			ImGui::Checkbox("Denoise?", &DenoisePointVol);
-			ImGui::Checkbox("Triquadratic Density Interpolation (Much slower, Gets rid of all bilinear interpolation artifacts)?", &PointVolTriquadraticDensityInterpolation);
 			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
 			ImGui::SliderInt("LPV Debug State (0 = OFF, 1 = LEVEL, 2 = LEVEL * COLOR, 3 = LEVEL AS INDIRECT, 4 = [LEVEL * COLOR] AS INDIRECT)", &LPVDebugState, 0, 4, "%d");
 			
@@ -608,7 +589,9 @@ public:
 				world->RepropogateLPV_();
 			}
 
-
+			if (ADVANCED_MODE) {
+				ImGui::Checkbox("Triquadratic Density Interpolation (Much slower, Gets rid of all bilinear interpolation artifacts)?", &PointVolTriquadraticDensityInterpolation);
+			}
 
 			//
 			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(ImColor(128, 0, 0)));
@@ -631,11 +614,14 @@ public:
 			ImGui::Text("--- Volumetric cloud Settings ---");
 			ImGui::NewLine();
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
+			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
+			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
+			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
+
 			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
 			ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
 			//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
 			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
-			ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
 			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
 			ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
 			ImGui::SliderInt("Ambient Step Count", &CloudStepCount[2], 2, 32);
@@ -644,24 +630,27 @@ public:
 			//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
 			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
 			ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
-			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
-			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
-			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
+			
 			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -3.0f, 0.5);
 			ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
 			ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
 			ImGui::SliderFloat("Detail FBM Power : ", &CloudDetailFBMPower, 0.5f, 3.0f);
 
 			//ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
-			ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
-			ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
 
 			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
 
 			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
 			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
 
-			ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
+
+
+			if (ADVANCED_MODE) {
+				ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
+				ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
+				ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
+				ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
+			}
 
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -695,7 +684,7 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Depth of field (DOF) ?", &DOF);
 			ImGui::Checkbox("Large Kernel DOF?", &LargeKernelDOF);
-			ImGui::SliderFloat("DOF COC Scale", &DOFCOCScale, 0.0f, 7.0f);
+			ImGui::SliderFloat("DOF COC Scale", &DOFCOCScale, 0.0f, 8.0f);
 			ImGui::SliderFloat("DOF Blur Scale", &DOFBlurScale, 0.25f, 4.0f);
 			ImGui::SliderFloat("DOF Chromatic Aberration Scale", &DOFCAScale, 0.0f, 4.0f);
 			ImGui::SliderFloat("DOF Resolution", &DOFResolution, 0.1f, 1.0f);
@@ -721,7 +710,8 @@ public:
 			ImGui::SliderFloat("Diffraction Resolution", &DiffractionResolution, 0.05f, 1.0f);
 			ImGui::SliderFloat("Diffraction Strength", &DiffractionStrength, 0.25f, 10.0f);
 			ImGui::SliderFloat("Diffraction Scale", &DiffractionScaler, 0.125f, 1.5f);
-			ImGui::SliderInt("Diffraction Kernel Size", &DiffractionKernel, 4, 48);
+			if (ADVANCED_MODE)
+				ImGui::SliderInt("Diffraction Kernel Size", &DiffractionKernel, 4, 48);
 			ImGui::Checkbox("Blur? ", &BlurDiffraction);
 			ImGui::NewLine();
 			ImGui::NewLine();
@@ -755,10 +745,13 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
 			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
-			ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
-			ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
-			ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
-			ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
+
+			if (ADVANCED_MODE) {
+				ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
+				ImGui::Checkbox("(Implementation - 2) (WIP) God Rays? (faster, more crisp, Adjust the step count in the menu)", &FakeGodRays);
+				ImGui::SliderFloat("God Ray Strength", &GodRaysStrength, 0.0f, 2.0f);
+				ImGui::Checkbox("Exponential Fog?", &ExponentialFog);
+			}
 
 			ImGui::NewLine();
 			
@@ -766,11 +759,9 @@ public:
 			ImGui::NewLine();
 
 
-			
-
 			ImGui::NewLine();
 			ImGui::NewLine();
-			ImGui::Text("--- WIP and not-recommended stuff ---");
+			ImGui::Text("--- WIP and not-recommended settings ---");
 			ImGui::NewLine();
 
 			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
@@ -813,6 +804,12 @@ public:
 		if (ImGui::Begin("Other Settings and properties"))
 		{
 			static bool soundpack = true;
+
+			ImGui::SliderFloat("Ambient Sound Strength", &AmbientSoundStrength, 0.0f, 3.0f);
+			ImGui::Checkbox("Trace Ambient Sound Occlusion?", &TraceAmbientSound);
+
+			ImGui::NewLine();
+
 			std::string sndpackalt = soundpack ? "Alternate" : "Default";
 			if (ImGui::Button(std::string("Switch Sound Pack To " + sndpackalt).c_str())) {
 				soundpack = !soundpack;
@@ -911,6 +908,13 @@ public:
 
 	void OnEvent(VoxelRT::Event e) override
 	{
+		if (e.type == VoxelRT::EventTypes::MouseScroll)
+		{
+			float Sign = e.msy < 0.0f ? 1.0f : -1.0f;
+			MainCamera.SetFov(MainCamera.GetFov() + 2.0f * Sign);
+			MainCamera.SetFov(glm::clamp(MainCamera.GetFov(), 4.0f, 89.0f));
+		}
+
 		if (e.type == VoxelRT::EventTypes::KeyPress && e.key == GLFW_KEY_SPACE)
 		{
 			MainPlayer.Jump();
@@ -1010,6 +1014,15 @@ public:
 			OCamera.SetProjection(0.0f, pwx, 0.0f, pwy);
 		}
 
+		if (e.type == VoxelRT::EventTypes::MousePress)
+		{
+			if (!this->GetCursorLocked()) {
+				double mxx, myy;
+				glfwGetCursorPos(this->m_Window, &mxx, &myy);
+				myy = (double)this->GetHeight() - myy;
+				DOFFocusPixel = glm::vec2((float)mxx, (float)myy);
+			}
+		}
 
 		//world->RebufferLightList();
 		
@@ -1206,7 +1219,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ShadowTraceResolution = 1.0f;
 		ReflectionTraceResolution = 0.5f;
 		DiffuseTraceResolution = 0.5f;
-		DiffuseSPP = 4;
+		ReflectionSPP = 2;
+		DiffuseSPP = 2;
 		ColorPhiBias = 3.5f;
 		SVGF_LARGE_KERNEL = true;
 		WiderSVGF = true;
@@ -1229,11 +1243,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 	std::cout << "\nLoaded Sounds..";
 	std::cout << "\n\n";
 
-
 	// Create and compile shaders 
 	ShaderManager::CreateShaders();
-
-
 	VoxelRT::Renderer2D RendererUI;
 	GLClasses::VertexBuffer VBO;
 	GLClasses::VertexArray VAO;
@@ -1288,19 +1299,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Shader& BicubicDownsampler = ShaderManager::GetShader("BICUBIC_DOWNSAMPLE");
 	GLClasses::Shader& Tonemapper = ShaderManager::GetShader("TONEMAPPER");
 
-
 	GLClasses::Shader& GenerateGBuffer = ShaderManager::GetShader("GBUFFER_GENERATE");
 	GLClasses::Shader& CombineBloom = ShaderManager::GetShader("BLOOM_COMBINE");
 	GLClasses::Shader& DiffractionSpikesShader = ShaderManager::GetShader("DIFFRACTION_SPIKES");
 
-	GLClasses::TextureArray BlueNoise;
 
 
-	
+	// Other framebuffers 
 	VoxelRT::ColorPassFBO ColoredFBO;
-
 	GLClasses::Framebuffer FXAA_Final(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
-
 	GLClasses::Framebuffer TAAFBO1(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
 	GLClasses::Framebuffer TAAFBO2(16, 16, { GL_RGB16F, GL_RGB, GL_FLOAT }, true);
 	GLClasses::Framebuffer DownsampledFBO(16, 16, { GL_RGBA16F, GL_RGBA, GL_FLOAT }, false);
@@ -1313,12 +1320,14 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Framebuffer SSAOFBO(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 	GLClasses::Framebuffer SSAOBlurred(16, 16, { GL_RED, GL_RED, GL_UNSIGNED_BYTE }, true);
 
+	// Matrices
 	glm::mat4 CurrentProjection, CurrentView;
 	glm::mat4 PreviousProjection, PreviousView;
 	glm::mat4 ShadowProjection, ShadowView;
 	glm::mat4 ReflectionProjection, ReflectionView;
 	glm::vec3 CurrentPosition, PreviousPosition;
 
+	// Atmospheres
 	VoxelRT::AtmosphereRenderMap SkymapMain(64); 
 	VoxelRT::AtmosphereRenderMap SkymapSecondary(24); // 8 * 3
 	VoxelRT::AtmosphereRenderMap SkymapSecondary_2(16); 
@@ -1326,6 +1335,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	BlueNoiseDataSSBO BlueNoise_SSBO;
 
+	// Textures
 	GLClasses::Texture Crosshair;
 	GLClasses::Texture BluenoiseTexture;
 	GLClasses::Texture BluenoiseHighResTexture;
@@ -1334,8 +1344,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 	GLClasses::Texture BlueNoiseLowResolution;
 	GLClasses::Texture LensDirtTexture;
 	GLClasses::CubeTextureMap NightSkyMap;
+	GLClasses::TextureArray BlueNoise;
 
-
+	// high res nebula map
 	NightSkyMap.CreateCubeTextureMap({
 			"Res/nebulae/right.png",
 			"Res/nebulae/left.png",
@@ -1345,9 +1356,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 			"Res/nebulae/back.png"
 	}, true);
 
+	// Nebula map
 	GLClasses::CubeTextureMap NightSkyMapLowRes;
-
-
 	NightSkyMapLowRes.CreateCubeTextureMap({
 			"Res/nebulae_lowres/right.png",
 			"Res/nebulae_lowres/left.png",
@@ -1357,7 +1367,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			"Res/nebulae_lowres/back.png"
 		}, true);
 
-
+	// HDRI for specular lighting on item cube
 	GLClasses::CubeTextureMap RandomHDRI;
 	RandomHDRI.CreateCubeTextureMap({
 			"Res/AssHdr/px.png",
@@ -1368,7 +1378,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			"Res/AssHdr/nz.png"
 		}, true);
 
-
+	// HDRI for diffuse lighting on item cube
 	GLClasses::CubeTextureMap RandomHDRIDiffuse;
 	RandomHDRIDiffuse.CreateCubeTextureMap({
 			"Res/AssHdrDiffuse/px.png",
@@ -1379,20 +1389,19 @@ void VoxelRT::MainPipeline::StartPipeline()
 			"Res/AssHdrDiffuse/nz.png"
 		}, true);
 
-
-
+	// Create textures
 	Crosshair.CreateTexture("Res/Misc/crosshair.png", false, false);
 	ColorGradingLUT.CreateTexture("Res/Misc/colorluts.png", false);
 	BluenoiseTexture.CreateTexture("Res/Misc/blue_noise.png", false);
 	BluenoiseHighResTexture.CreateTexture("Res/Misc/BluenoiseHighRes.png", false);
 	PlayerSprite.CreateTexture("Res/Misc/player.png", false, true);
-	//BlueNoise64x.CreateTexture("Res/Misc/blue_noise64x.png", false, false);
 	BlueNoiseLowResolution.CreateTexture("Res/Misc/blue_noise32x.png", false, false);
 	LensDirtTexture.CreateTexture("Res/Misc/lensdirt.png", true, true);
 
 	BlockDataSSBO BlockDataStorageBuffer;
 	BlockDataStorageBuffer.CreateBuffers();
 	
+	// Bluenoise textures
 	BlueNoise.CreateArray({
 		"Res/Misc/BL_0.png",
 		"Res/Misc/BL_1.png",
@@ -1400,13 +1409,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 		"Res/Misc/BL_3.png"
 		}, { 256, 256 }, true, false);
 
-
+	// Animated textures
 	AnimatedTexture LavaAlbedo;
 	LavaAlbedo.Create("Res/Block/Lava/Frames/Albedo", 256, 7);
 	AnimatedTexture LavaNormals;
 	LavaNormals.Create("Res/Block/Lava/Frames/Normal", 256, 7);
 
-
+	// Create VAO/VBO for screen sized quad (used for post process steps)
 	float Vertices[] =
 	{
 		-1.0f,  1.0f,  0.0f, 1.0f, -1.0f, -1.0f,  0.0f, 0.0f,
@@ -1423,37 +1432,36 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 	app.SetCursorLocked(true);
 
+	// Disable blending (enabled by default on some dumbass gpus)
 	glDisable(GL_BLEND);
 
+	// Set camera position to center of the map
 	MainCamera.SetPosition(glm::vec3(WORLD_SIZE_X / 2, 75, WORLD_SIZE_Z / 2));
 
-	BloomRenderer::Initialize();
-	AverageLumaFBO.SetSize(1, 1);
-
-	Clouds::CloudRenderer::Initialize();
-
+	// Initializations
+	glm::vec3 StrongerLightDirection;
+	GLfloat PreviousLuma = 3.0f;
 	auto* InitialTraceFBO = &InitialTraceFBO_1;
 	auto* InitialTraceFBOPrev = &InitialTraceFBO_2;
 
-	glm::vec3 StrongerLightDirection;
+	BloomRenderer::Initialize();
+	AverageLumaFBO.SetSize(1, 1);
+	Clouds::CloudRenderer::Initialize();
 
-	GLfloat PreviousLuma = 3.0f;
-
+	// Exposure
 	float CameraExposure = 1.0f;
 	float PrevCameraExposure = 1.0f;
 
-
 	Frametime = glfwGetTime();
-
 	bool UpdatePlayerCollision = true;
 
+	// For temporal upscaling/reprojection
 	GenerateJitterStuff();
 
-
-	// Volumetricssss 
-
+	// Volumetrics
 	world->InitializeLightList();
 
+	// Create volume, propogate lighting
 	Volumetrics::CreateVolume(world, BlockDataStorageBuffer.GetSSBO(), BlockDatabase::GetTextureArray());
 	for (auto& e : LightLocations) {
 		uint8_t block_at = world->GetBlock(e).block;
@@ -1465,11 +1473,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 		Volumetrics::PropogateVolume();
 	}
 
-
-	/////////////
-
-	// Auto exposure!
-
+	// Post process 
+	// Auto exposure
 	const float ZeroFloat = 0.0f;
 	GLuint AutoExposureSSBO = 0, AutoExposurePDF;
 	GLuint Zero256UINT[256];
@@ -1487,7 +1492,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 	// DOF 
-
 	GLuint DOFSSBO = 0;
 	float DOFDATA = 0.;
 	glGenBuffers(1, &DOFSSBO);
@@ -1495,9 +1499,13 @@ void VoxelRT::MainPipeline::StartPipeline()
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float) * 1, &DOFDATA, GL_DYNAMIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
-
-
-
+	// Ambient sound 
+	GLuint AmbientSSBO = 0;
+	GLuint EmptyUint = 0;
+	glGenBuffers(1, &AmbientSSBO);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, AmbientSSBO);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint) * 1, &EmptyUint, GL_DYNAMIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	
 	// Create Compute Shaders!
 	GLClasses::ComputeShader AutoExposureComputePDF;
@@ -1508,16 +1516,21 @@ void VoxelRT::MainPipeline::StartPipeline()
 	ComputeAutoExposure.CreateComputeShader("Core/Shaders/ComputeExposure.comp");
 	ComputeAutoExposure.Compile();
 
+	// For DOF
 	GLClasses::ComputeShader WriteCenterDepth;
 	WriteCenterDepth.CreateComputeShader("Core/Shaders/WriteCenterDepth.comp");
 	WriteCenterDepth.Compile();
 
-	////////////
+	// Ambient Sound Estimating SSBOs
+	GLClasses::ComputeShader AmbientSoundEstimator;
+	AmbientSoundEstimator.CreateComputeShader("Core/Shaders/EstimateAmbientSoundLevel.comp");
+	AmbientSoundEstimator.Compile();
+	float AmbienceAmount = 0.0f;
+
+	auto* SoundEngine = SoundManager::GetSoundEngine();
+	irrklang::ISound* AmbientSoundPtr = SoundEngine->play2D("Res/Sounds/Ambience/Ambience.wav", true, false, true);
 
 	// Equi rectangular projected cloud map ->
-
-
-
 	GLClasses::Framebuffer CloudProjection(512 * 3, 512 * 3, { GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE }, true);
 	CloudProjection.CreateFramebuffer();
 
@@ -1525,18 +1538,32 @@ void VoxelRT::MainPipeline::StartPipeline()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	CloudProjection.Unbind();
-
-	// 
-
+	
+	// Focused on block
 	glm::ivec4 FocusedOnBlock = glm::ivec4(-1);
 
+	// Gets rid of atmosphere sampling artifacts
+	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+	// Application loop
 	while (!glfwWindowShouldClose(app.GetWindow()))
 	{
+		// Round all resolutions to maintain consistency
 		ShadowSupersampleRes = glm::max(ShadowSupersampleRes, ShadowTraceResolution);
+		InitialTraceResolution = RoundToNearest(InitialTraceResolution, 0.125f);
+		GBufferResolution = RoundToNearest(GBufferResolution, 0.125f);
+		DiffuseTraceResolution = RoundToNearest(DiffuseTraceResolution, 0.125f);
+		DiffuseIndirectSuperSampleRes = RoundToNearest(DiffuseIndirectSuperSampleRes, 0.125f);
+		ReflectionTraceResolution = RoundToNearest(ReflectionTraceResolution, 0.125f);
+		ReflectionSuperSampleResolution = RoundToNearest(ReflectionSuperSampleResolution, 0.125f);
+		ShadowTraceResolution = RoundToNearest(ShadowTraceResolution, 0.125f);
+		SSAOResolution = RoundToNearest(SSAOResolution, 0.125f);
+		RTAOResolution = RoundToNearest(RTAOResolution, 0.125f);
+		CloudResolution = RoundToNearest(CloudResolution, 0.125f);
+		DOFResolution = RoundToNearest(DOFResolution, 0.125f);
+		VolumetricResolution = RoundToNearest(VolumetricResolution, 0.125f);
+		GLOBAL_RESOLUTION_SCALE = RoundToNearest(GLOBAL_RESOLUTION_SCALE, 0.125f);
 
-		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
-		auto& ReflectionDenoiser = USE_NEW_SPECULAR_SPATIAL ? ReflectionDenoiserNew : ReflectionDenoiserOld;
 
 		// Player update flag
 		if (glfwGetWindowAttrib(app.GetWindow(), GLFW_FOCUSED) == 0) {
@@ -1551,41 +1578,41 @@ void VoxelRT::MainPipeline::StartPipeline()
 			UpdatePlayerCollision = true;
 		}
 
-
-		// Sound update ->
-
-		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
-
-
-
-		// view bob
-
+		if (app.GetCursorLocked()) {
+			DOFFocusPixel = glm::vec2(app.GetWidth() / 2, app.GetHeight() / 2);
+		}
 
 		// Jitter
+		JitterSceneForTAA = JitterSceneForTAA || GLOBAL_RESOLUTION_SCALE < 0.749f;
 
-
+		// Sound update 
+		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());
 
 		// Tick the sun and moon
 		float time_angle = SunTick * 2.0f;
 		glm::mat4 sun_rotation_matrix;
 
+		// Normalized directions
 		glm::vec3 SunDirection;
 		glm::vec3 MoonDirection;
 
+		// Calculate directions
 		sun_rotation_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(time_angle), glm::vec3(0.0f, 0.0f, 1.0f));
 		SunDirection = glm::vec3(sun_rotation_matrix * glm::vec4(1.0f));
 		MoonDirection = glm::vec3(-SunDirection.x, -SunDirection.y, SunDirection.z);
 		StrongerLightDirection = -SunDirection.y < 0.01f ? SunDirection : MoonDirection;
 
+		// Calculate directions
 		SunDirection = glm::normalize(SunDirection);
 		MoonDirection = glm::normalize(MoonDirection);
 		g_SunDirection = SunDirection;
 		g_MoonDirection = MoonDirection;
 		StrongerLightDirection = glm::normalize(StrongerLightDirection);
 
-
+		// VSync
 		glfwSwapInterval((int)VSync);
 		
+		// Dimensions
 		float PADDED_WIDTH = app.GetWidth() + PIXEL_PADDING;
 		float PADDED_HEIGHT = app.GetHeight() + PIXEL_PADDING;
 		float TRUE_PADDED_WIDTH = app.GetWidth() + PIXEL_PADDING;
@@ -1594,21 +1621,18 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PADDED_HEIGHT *= GLOBAL_RESOLUTION_SCALE;
 
 		
-		// Resize the framebuffers
+		// Resize the framebuffers (only gets resized if needed)
 		{
-			
 			// Without padding!
 			FXAA_Final.SetSize(app.GetWidth(), app.GetHeight());
 
-
-
-			InitialTraceFBO_1.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
-			InitialTraceFBO_2.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution));
-			GeneratedGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * GBufferResolution), floor(TRUE_PADDED_HEIGHT * GBufferResolution));
+			InitialTraceFBO_1.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+			InitialTraceFBO_2.SetSize(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution));
+			GeneratedGBuffer.SetSize(floor(PADDED_WIDTH * GBufferResolution), floor(PADDED_HEIGHT * GBufferResolution));
 			
 			if (DOWNSAMPLE_GBUFFERS) {
-				HalfResGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution * 0.5f), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution * 0.5f));
-				QuarterResGBuffer.SetSize(floor(TRUE_PADDED_WIDTH * InitialTraceResolution * 0.25f), floor(TRUE_PADDED_HEIGHT * InitialTraceResolution * 0.25f));
+				HalfResGBuffer.SetSize(floor(PADDED_WIDTH * InitialTraceResolution * 0.5f), floor(PADDED_HEIGHT * InitialTraceResolution * 0.5f));
+				QuarterResGBuffer.SetSize(floor(PADDED_WIDTH * InitialTraceResolution * 0.25f), floor(PADDED_HEIGHT * InitialTraceResolution * 0.25f));
 			}
 
 			VolumetricsCompute.SetSize(floor(PADDED_WIDTH * PointVolumetricsScale), floor(PADDED_HEIGHT * PointVolumetricsScale));
@@ -1645,13 +1669,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			TonemappedFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 			FXAA_FBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
 
-			//PostProcessingFBO_History[0].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
-			//PostProcessingFBO_History[1].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
-			//PostProcessingFBO_History[2].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
-			//PostProcessingFBO_History[3].SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
-			//AntiFlickerFBO.SetSize(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
-
-			ColoredFBO.SetDimensions(TRUE_PADDED_WIDTH, TRUE_PADDED_HEIGHT);
+			ColoredFBO.SetDimensions(PADDED_WIDTH, PADDED_HEIGHT);
 
 			ShadowRawTrace.SetSize(PADDED_WIDTH * ShadowTraceResolution, PADDED_HEIGHT * ShadowTraceResolution);
 			ShadowTemporalFBO_1.SetSize(PADDED_WIDTH * ShadowSupersampleRes, PADDED_HEIGHT * ShadowSupersampleRes);
@@ -1693,6 +1711,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			}
 		}
 
+		// Set ping-pong FBOs
 		GLClasses::Framebuffer& TAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO1 : TAAFBO2;
 		GLClasses::Framebuffer& PrevTAAFBO = (app.GetCurrentFrame() % 2 == 0) ? TAAFBO2 : TAAFBO1;
 		GLClasses::Framebuffer& DiffuseTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? DiffuseTemporalFBO1 : DiffuseTemporalFBO2;
@@ -1703,20 +1722,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 		GLClasses::Framebuffer& PrevRTAOTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? RTAO_TemporalFBO_2 : RTAO_TemporalFBO_1;
 		GLClasses::Framebuffer& ShadowTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ShadowTemporalFBO_1 : ShadowTemporalFBO_2;
 		GLClasses::Framebuffer& PrevShadowTemporalFBO = (app.GetCurrentFrame() % 2 == 0) ? ShadowTemporalFBO_2 : ShadowTemporalFBO_1;
-		
 		GLClasses::Framebuffer& ReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_1 : ReflectionTraceFBO_2;
 		GLClasses::Framebuffer& PrevReflectionTraceFBO = (app.GetCurrentFrame() % 2 == 0) ? ReflectionTraceFBO_2 : ReflectionTraceFBO_1;
+		auto& ReflectionDenoiser = USE_NEW_SPECULAR_SPATIAL ? ReflectionDenoiserNew : ReflectionDenoiserOld;
 
-
-		/////// history for anti flicker // unused.
-		int framemod4 = app.GetCurrentFrame() % 4; // not true mathematical modulo, not needed since this wont be negative!
-		//GLClasses::Framebuffer& PostProcessingFBO = PostProcessingFBO_History[framemod4];
-		//GLClasses::Framebuffer& PostProcessingHistory0 = PostProcessingFBO_History[(framemod4+1)%4];
-		//GLClasses::Framebuffer& PostProcessingHistory1 = PostProcessingFBO_History[(framemod4+2)%4];
-		//GLClasses::Framebuffer& PostProcessingHistory2 = PostProcessingFBO_History[(framemod4+3)%4];
-
-
-
+		// Shader recompilation
 		if (glfwGetKey(app.GetWindow(), GLFW_KEY_F2) == GLFW_PRESS)
 		{
 			system("@cls");
@@ -1725,37 +1735,42 @@ void VoxelRT::MainPipeline::StartPipeline()
 			Clouds::CloudRenderer::RecompileShaders();
 			BloomRenderer::RecompileShaders();
 			AtmosphereRenderer.Recompile();
-			VoxelRT::Logger::Log("Recompiled!");
+
+			VoxelRT::Logger::Log("Recompiled All shaders!");
 		}
 
+		// Collision update
 		if (UpdatePlayerCollision && app.GetCurrentFrame() > 6) {
 			bool TabPressed = glfwGetKey(app.GetWindow(), GLFW_KEY_TAB) == 1;
 			MainPlayer.OnUpdate(app.GetWindow(), world, DeltaTime * 6.9f, (int)app.GetCurrentFrame(), DeltaSum, TabPressed);
 		}
 
+		// Velocity clamping
 		MainPlayer.ClampVelocity();
 
+		// Application update
 		app.OnUpdate();
 
+		// Matrices
 		glm::mat4 TempView = PreviousView;
-
 		PreviousProjection = CurrentProjection;
 		PreviousView = CurrentView;
 		PreviousPosition = CurrentPosition;
 		CurrentProjection = MainCamera.GetProjectionMatrix();
 		CurrentView = MainCamera.GetViewMatrix();
 		CurrentPosition = MainCamera.GetPosition();
-
 		glm::mat4 inv_view = glm::inverse(MainCamera.GetViewMatrix());
 		glm::mat4 inv_projection = glm::inverse(MainCamera.GetProjectionMatrix());
+		
+		// Flags
 		bool PlayerMoved = TempView != MainCamera.GetViewMatrix();
 		float sun_visibility = glm::clamp(glm::dot(glm::normalize(SunDirection), glm::vec3(0.0f, 1.0f, 0.0f)) + 0.05f, 0.0f, 0.1f) * 12.0f;
 
 		// Projection update ->
 		bool CloudProjectionTimeChangeUpdate = (CloudProjectionSunDir != StrongerLightDirection);
 
-		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || CloudProjectionTimeChangeUpdate)
-		{
+		// Atmosphere/Sky rendering
+		if (app.GetCurrentFrame() %  12 == 0 || app.GetCurrentFrame() < 8 || CloudProjectionTimeChangeUpdate) {
 			AtmosphereRenderer.RenderAtmosphere(SkymapMain, glm::normalize(SunDirection), 30, 4);
 		}
 
@@ -1769,16 +1784,15 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AtmosphereRenderer.DownsampleAtmosphere(SkymapSecondary_2, SkymapMain, CuberotationMap, NightSkyMapLowRes.GetID(), sun_visibility, NebulaGIColor ? NebulaGIStrength * 0.75f : 0.00f);
 		}
 
+		// Update history sun tick
 		PreviousSunTick = SunTick;
 
+		// Cloud projection (used for reflections)
 		const int CloudProjectionUpdateRate = 359; 
-
 		if ((app.GetCurrentFrame() == 4) || (app.GetCurrentFrame() == 12) || CloudProjectionTimeChangeUpdate
 			|| (app.GetCurrentFrame() % CloudProjectionUpdateRate == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+1) == 0) || (app.GetCurrentFrame() % (CloudProjectionUpdateRate+2) == 0)) {
 
 			bool CutdownSteps = app.GetCurrentFrame() % CloudProjectionUpdateRate == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 1) == 0 || app.GetCurrentFrame() % (CloudProjectionUpdateRate + 2) == 0;
-
-
 
 			// Cube views ->
 			glm::vec3 VirtualCenter = glm::vec3(MainPlayer.m_Position.x, 150.0, MainPlayer.m_Position.z);
@@ -1829,16 +1843,60 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		CloudProjectionSunDir = StrongerLightDirection;
 
+		// Ambient sound raytracing
+		if (TraceAmbientSound && AmbientSoundStrength > 0.02f) {
+			AmbientSoundEstimator.Use();
+
+			AmbientSoundEstimator.SetInteger("u_DistanceField", 0);
+			AmbientSoundEstimator.SetVector3f("u_PlayerPosition", MainCamera.GetPosition());
+			AmbientSoundEstimator.SetInteger("u_Frame", app.GetCurrentFrame());
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_3D, world->m_DistanceFieldTexture.GetTextureID());
+
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AmbientSSBO);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, AmbientSSBO);
+
+			glDispatchCompute(2, 1, 1);
+
+			glUseProgram(0);
 
 
+			// Download 
+			GLuint DownloadedAmbienceAmount = 0;
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AmbientSSBO);
+			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &DownloadedAmbienceAmount);;
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+			glUseProgram(0);
 
+			// Clear 
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, AmbientSSBO);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(GLuint) * 1, &EmptyUint, GL_DYNAMIC_DRAW);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
+			// Compute ambience amount 
+			float CurrentAmbienceAmount = (float)DownloadedAmbienceAmount;
+			CurrentAmbienceAmount /= 32.0f;
+			CurrentAmbienceAmount /= 512.0f;
+			CurrentAmbienceAmount = glm::clamp(glm::pow(CurrentAmbienceAmount, 1.0f / 2.3333f), 0.0f, 1.0f);
 
+			// Temporally blur 
+			AmbienceAmount = glm::mix(AmbienceAmount, CurrentAmbienceAmount, ModifiedWorld ? 0.5f : 0.025); 
+			AmbienceAmount = glm::max(AmbienceAmount, 0.02f); 
 
+			if (app.GetCurrentFrame() % 12 == 0) {
+				std::cout << "\nTRACED AMBIENCE : " << AmbienceAmount << "\n\n";
+			}
+		}
 
-		// GBuffer ->
+		else {
+			AmbienceAmount = 1.0f;
+		}
 
-		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 10 == 0 ||
+		AmbientSoundPtr->setVolume(2.4f * AmbienceAmount * VoxelRT_VolumeMultiplier * AmbientSoundStrength);
+
+		// GBuffer 
+		bool UpdateGBufferThisFrame = PreviousView != CurrentView || app.GetCurrentFrame() % 8 == 0 ||
 			ModifiedWorld || JitterSceneForTAA;
 
 		if (UpdateGBufferThisFrame)
@@ -2021,6 +2079,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			WriteCenterDepth.SetInteger("u_DepthTexture", 0);
 			WriteCenterDepth.SetVector2f("u_CameraPlanes", glm::vec2(MainCamera.GetNearPlane(), MainCamera.GetFarPlane()));
+			WriteCenterDepth.SetVector2f("u_FocusPixel", DOFFocusPixel);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(3));
@@ -2043,9 +2102,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 			if (app.GetCurrentFrame() % 16 == 0)
 				std::cout << "\n\nDOF Temporal Center Depth : " << CenterDepthSmooth << "\n";
 		}
-
-
-
 
 		// Diffuse tracing
 
@@ -2168,11 +2224,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 				if (PreTemporalSpatialPass) {
 
-					if (app.GetCurrentFrame() % 32 == 0) { std::cout << "\n! pre spatial pass !\n"; }
+					//if (app.GetCurrentFrame() % 32 == 0) { std::cout << "\n! pre spatial pass !\n"; }
 
 					SpatialInitial.Use();
 					DiffusePreTemporal_SpatialFBO.Bind();
-
 
 					SpatialInitial.SetInteger("u_SH", 0);
 					SpatialInitial.SetInteger("u_CoCg", 1);
@@ -3049,11 +3104,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			// denoise the hit distance 
 			if (DENOISE_REFLECTION_HIT_DATA)
 			{
-				if (app.GetCurrentFrame() % 16 == 0) { std::cout << "\ndenoised hit data\n"; }
-
+				//if (app.GetCurrentFrame() % 16 == 0) { std::cout << "\ndenoised hit data\n"; }
 
 				// 1st spatial pass ->
-
 				// non-conservative, step size = 2
 
 				ReflectionHitDataDenoised.Bind();
@@ -3556,7 +3609,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_HighQualityPOM", HighQualityPOM);
 		ColorShader.SetBool("u_DitherPOM", DitherPOM);
 
-		ColorShader.SetBool("u_RemoveTiling", RemoveTiling);
+		ColorShader.SetBool("u_RemoveTiling", false);
 		ColorShader.SetBool("u_RTAO", RTAO);
 		ColorShader.SetBool("u_AmplifyNormalMap", AmplifyNormalMap);
 		ColorShader.SetBool("u_DitherPOM", DitherPOM);
@@ -3566,10 +3619,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGTraceLevel==2);
 		ColorShader.SetBool("u_DEBUGShadows", DEBUGTraceLevel==3);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
-		ColorShader.SetBool("u_UseDFG", UseEnvironmentBRDF);
+		ColorShader.SetBool("u_UseDFG", true);
 		ColorShader.SetBool("u_SSSSS", SSSSS && SSSSSStrength > 0.01f);
 		ColorShader.SetBool("u_NebulaCelestialColor", NebulaCelestialColor);
-		ColorShader.SetBool("u_InferSpecularDetailSpatially", InferSpecularDetailSpatially);
+		ColorShader.SetBool("u_InferSpecularDetailSpatially", false);
 		ColorShader.SetBool("u_CloudCatmullRomUpsampling", CloudFinalCatmullromUpsample);
 		ColorShader.SetVector2f("u_Dimensions", glm::vec2(PADDED_WIDTH, PADDED_HEIGHT));
 		ColorShader.SetVector2f("u_Halton", GetTAAJitterSecondary(app.GetCurrentFrame()));
@@ -4404,7 +4457,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CubeItemRenderer.Use();
 			CubeItemRenderer.SetFloat("u_Time", glfwGetTime());
 			CubeItemRenderer.SetFloat("u_SunVisibility", sun_visibility);
-			CubeItemRenderer.SetVector2f("u_Dimensions", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
+			CubeItemRenderer.SetVector2f("u_Dimensions", glm::vec2(TonemappedFBO.GetWidth(), TonemappedFBO.GetHeight()));
 			CubeItemRenderer.SetVector3f("u_SunDirection", SunDirection);
 			CubeItemRenderer.SetVector3f("u_MoonDirection", MoonDirection);
 			CubeItemRenderer.SetVector3f("u_StrongerLightDirection", StrongerLightDirection);
@@ -4616,6 +4669,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			glDisable(GL_BLEND);
 		}
 
+		OCamera.SetProjection(0.0f, app.GetWidth(), 0.0f, app.GetHeight());
 		RendererUI.RenderQuad(glm::vec2(floor((float)app.GetWidth() / 2.0f), floor((float)app.GetHeight() / 2.0f)), &Crosshair, &OCamera);
 
 		
@@ -4627,7 +4681,6 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		// Prime numbers taken to make sure that there arent any lag spikes.
 		// (You want to make sure that too many heavy operations don't take place on the exact same frame) 
-
 		if (app.GetCurrentFrame() % 643 == 0)
 		{
 			world->GenerateDistanceField();

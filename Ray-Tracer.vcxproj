@@ -299,6 +299,7 @@
     <None Include="Core\Shaders\DownsampleColorTexture.glsl" />
     <None Include="Core\Shaders\DownsampleDepth4x.glsl" />
     <None Include="Core\Shaders\DownsampleNormals4x.glsl" />
+    <None Include="Core\Shaders\EstimateAmbientSoundLevel.comp" />
     <None Include="Core\Shaders\EV100.glsl" />
     <None Include="Core\Shaders\FakeSSSSS.glsl" />
     <None Include="Core\Shaders\FakeSSSSS_Poisson.glsl" />

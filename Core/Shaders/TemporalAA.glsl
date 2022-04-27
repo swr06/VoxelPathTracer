@@ -97,7 +97,7 @@ float Luminance(vec3 RGB )
 }
 
 // Reinhard transform
-const float ReinhardExp = 2.44002939f;
+const float ReinhardExp = 1.000000f;
 vec3 Reinhard(vec3 RGB )
 {
 	RGB *= ReinhardExp;
@@ -155,10 +155,47 @@ vec2 GetNearestDepths3x4(vec2 Reprojected, out bool SkyEdge)
 	return vec2(MinCurrentDepth, MinPreviousDepth);
 }
 
+vec4 CatmullRom(sampler2D tex, in vec2 uv)
+{
+    vec2 texSize = textureSize(tex, 0).xy;
+    vec2 samplePos = uv * texSize;
+    vec2 texPos1 = floor(samplePos - 0.5f) + 0.5f;
+    vec2 f = samplePos - texPos1;
+    vec2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
+    vec2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
+    vec2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
+    vec2 w3 = f * f * (-0.5f + 0.5f * f);
+    
+    vec2 w12 = w1 + w2;
+    vec2 offset12 = w2 / (w1 + w2);
+
+    vec2 texPos0 = texPos1 - 1;
+    vec2 texPos3 = texPos1 + 2;
+    vec2 texPos12 = texPos1 + offset12;
+
+    texPos0 /= texSize;
+    texPos3 /= texSize;
+    texPos12 /= texSize;
+
+    vec4 result = vec4(0.0f);
+
+    result += texture(tex, vec2(texPos0.x, texPos0.y), 0.0f) * w0.x * w0.y;
+    result += texture(tex, vec2(texPos12.x, texPos0.y), 0.0f) * w12.x * w0.y;
+    result += texture(tex, vec2(texPos3.x, texPos0.y), 0.0f) * w3.x * w0.y;
+    result += texture(tex, vec2(texPos0.x, texPos12.y), 0.0f) * w0.x * w12.y;
+    result += texture(tex, vec2(texPos12.x, texPos12.y), 0.0f) * w12.x * w12.y;
+    result += texture(tex, vec2(texPos3.x, texPos12.y), 0.0f) * w3.x * w12.y;
+    result += texture(tex, vec2(texPos0.x, texPos3.y), 0.0f) * w0.x * w3.y;
+    result += texture(tex, vec2(texPos12.x, texPos3.y), 0.0f) * w12.x * w3.y;
+    result += texture(tex, vec2(texPos3.x, texPos3.y), 0.0f) * w3.x * w3.y;
+
+    return result;
+}
+
 // Samples history texture and applies neighbourhood clipping
 vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
 {
-	const int KernelX = 2;
+	const int KernelX = 1;
 	const int KernelY = 2;
 	
     vec3 MinColor = vec3(100.0);
@@ -169,15 +206,16 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
     for(int x = -KernelX; x <= KernelX; x++) {
         for(int y = -KernelY; y <= KernelY; y++) {
             vec3 Sample = texture(u_CurrentColorTexture, v_TexCoords + vec2(x, y) * TexelSize).rgb; 
+			Sample = Reinhard(Sample);
             MinColor = min(Sample, MinColor); 
 			MaxColor = max(Sample, MaxColor); 
         }
     }
 
-	float EpsBias = 0.00001f;
+	float EpsBias = 0.0000125f;
 	MinColor -= EpsBias;
 	MaxColor += EpsBias;
-	vec3 ReprojectedColor = texture(u_PreviousColorTexture, Reprojected).xyz;
+	vec3 ReprojectedColor = Reinhard(CatmullRom(u_PreviousColorTexture, Reprojected).xyz);
     return (AABBClip((ReprojectedColor), (MinColor), (MaxColor))).xyz;
 }
 
@@ -185,7 +223,7 @@ void main()
 {
 	vec2 Dimensions = textureSize(u_CurrentColorTexture, 0).xy;
 	vec2 TexCoord = v_TexCoords;
-	vec3 CurrentColor = texture(u_CurrentColorTexture, TexCoord).rgb;
+	vec3 CurrentColor = CatmullRom(u_CurrentColorTexture, TexCoord).rgb;
 
 	if (!u_Enabled)
 	{
@@ -223,6 +261,8 @@ void main()
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
+		CurrentColor = Reinhard(CurrentColor);
+
 		// History color 
 		vec3 PrevColor = SampleHistory(PreviousCoord, WorldPosition.xyzw);
 
@@ -247,7 +287,7 @@ void main()
 		BlendFactor = u_BlockModified ? max(BlendFactor * 0.5f, 0.225f) : BlendFactor;
 
 		// Blend with history (with reinhard bias)
-		o_Color = InverseReinhard(mix(Reinhard(CurrentColor.xyz), Reinhard(PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
+		o_Color = InverseReinhard(mix((CurrentColor.xyz), (PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
 		
 		// Blur factor debug 
 		const bool DebugTAA = false;

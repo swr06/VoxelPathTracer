@@ -11,6 +11,8 @@ uniform sampler2D u_DepthTexture;
 
 uniform vec2 u_CameraPlanes;
 
+uniform vec2 u_FocusPixel;
+
 float DelinearizeDepth(float d) 
 {
 	float near = u_CameraPlanes.x;
@@ -23,7 +25,7 @@ float DelinearizeDepth(float d)
 
 void main() {
 
-	float LinearDepth = 1./texture(u_DepthTexture, vec2(0.5f)).x;
+	float LinearDepth = 1.0f / texture(u_DepthTexture, u_FocusPixel / textureSize(u_DepthTexture,0)).x;//1./texture(u_DepthTexture, vec2(0.5f)).x;
 	o_NonLinearDepth = DelinearizeDepth(LinearDepth);
 
 }

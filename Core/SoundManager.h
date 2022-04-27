@@ -21,5 +21,6 @@ namespace VoxelRT
 		void Destroy();
 		void SetPack(bool TYPE);
 		void LoadSounds();
+		irrklang::ISoundEngine* GetSoundEngine();
 	}
 }

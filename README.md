@@ -1,5 +1,5 @@
 # Voxel Path Tracer
-An unnamed ***UNFINISHED*** and ***VERY EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, physically based rendering, volumetrics and intersection algorithms.
+An ***EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, physically based rendering, volumetrics and intersection algorithms.
 This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
 
 ## Project status 
@@ -136,10 +136,6 @@ This project is purely educational. I own none of the assets. All the rights go 
 </br>
 
 ![postprocesshahahahahhahahahALSOifyouSeeThisIWillGiveYouACookieAddMeOnDiscord](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/postprocessgobrr.png)
-
-</br>
-
-![clood3](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/clood2.png)
 
 </br>
 

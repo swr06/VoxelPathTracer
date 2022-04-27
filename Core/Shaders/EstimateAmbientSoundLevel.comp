@@ -1,0 +1,273 @@
+#version 430 core
+
+#define WORLD_SIZE_X 384
+#define WORLD_SIZE_Y 128
+#define WORLD_SIZE_Z 384
+
+#define PI 3.141592653
+
+layout(local_size_x = 4, local_size_y = 4) in;
+
+layout (std430, binding = 1) buffer OutputSSBO
+{
+    uint SkyLevelAggregate;
+};
+
+uniform sampler3D u_DistanceField;
+uniform vec3 u_PlayerPosition;
+uniform int u_Frame;
+
+vec3 GetNormalFromID(float n) {
+	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
+					vec3(0.0f, 1.0f, 0.0f), vec3(0.0f, -1.0f, 0.0f), 
+					vec3(-1.0f, 0.0f, 0.0f), vec3(1.0f, 0.0f, 0.0f));
+    int idx = int(round(n*10.0f));
+
+    if (idx > 5) {
+        return vec3(1.0f, 1.0f, 1.0f);
+    }
+
+    return Normals[idx];
+}
+
+bool CompareVec3(vec3 v1, vec3 v2) {
+	//float e = 0.0125f;
+	//return abs(v1.x - v2.x) < e && abs(v1.y - v2.y) < e && abs(v1.z - v2.z) < e;
+	return v1 == v2;
+}
+
+bool CompareFloatNormal(float x, float y) {
+    return abs(x - y) < 0.02f;
+}
+
+float HASH2SEED = 0.0f;
+vec2 hash2() 
+{
+	return fract(sin(vec2(HASH2SEED += 0.1, HASH2SEED += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+
+bool IsInVolume(in vec3 pos)
+{
+    if (pos.x < 0.0f || pos.y < 0.0f || pos.z < 0.0f || 
+        pos.x > float(WORLD_SIZE_X - 1) || pos.y > float(WORLD_SIZE_Y - 1) || pos.z > float(WORLD_SIZE_Z - 1))
+    {
+        return false;    
+    }   
+
+    return true;
+}
+
+float ToConservativeEuclidean(float Manhattan)
+{
+	return Manhattan == 1 ? 1 : Manhattan * 0.57735026918f;
+}
+
+float GetDistance(ivec3 loc)
+{
+    if (IsInVolume(loc))
+    {
+         return (texelFetch(u_DistanceField, loc, 0).r);
+    }
+    
+    return -1.0f;
+}
+
+float TraverseDistanceField(vec3 origin, vec3 direction, inout vec3 normal) 
+{
+	vec3 initial_origin = origin;
+	const float epsilon = 0.01f;
+	bool Intersection = false;
+
+	int MinIdx = 0;
+	ivec3 RaySign = ivec3(sign(direction));
+
+	int itr = 0;
+
+	for (itr = 0 ; itr < 32 ; itr++)
+	{
+		ivec3 Loc = ivec3(floor(origin));
+		
+		if (!IsInVolume(Loc))
+		{
+			Intersection = false;
+			break;
+		}
+
+		float Dist = GetDistance(Loc) * 255.0f; 
+
+		int Euclidean = int(floor(ToConservativeEuclidean(Dist)));
+
+		if (Euclidean == 0)
+		{
+			break;
+		}
+
+		if (Euclidean == 1)
+		{
+			// Do the DDA algorithm for one voxel 
+
+			ivec3 GridCoords = ivec3(origin);
+			vec3 WithinVoxelCoords = origin - GridCoords;
+			vec3 DistanceFactor = (((1 + RaySign) >> 1) - WithinVoxelCoords) * (1.0f / direction);
+
+			MinIdx = DistanceFactor.x < DistanceFactor.y && RaySign.x != 0
+				? (DistanceFactor.x < DistanceFactor.z || RaySign.z == 0 ? 0 : 2)
+				: (DistanceFactor.y < DistanceFactor.z || RaySign.z == 0 ? 1 : 2);
+
+			GridCoords[MinIdx] += RaySign[MinIdx];
+			WithinVoxelCoords += direction * DistanceFactor[MinIdx];
+			WithinVoxelCoords[MinIdx] = 1 - ((1 + RaySign) >> 1) [MinIdx]; // Bit shifts (on ints) to avoid division
+
+			origin = GridCoords + WithinVoxelCoords;
+			origin[MinIdx] += RaySign[MinIdx] * 0.0001f;
+
+			Intersection = true;
+		}
+
+		else 
+		{
+			origin += int(Euclidean - 1) * direction;
+		}
+	}
+
+	if (Intersection)
+	{
+		normal = vec3(0.0f);
+		normal[MinIdx] = -RaySign[MinIdx];
+		float D = GetDistance(ivec3(floor(origin)));
+		return D < 0.0001f || D == 0.f ? distance(origin, initial_origin) : -1.0f;
+	}
+
+	return -1.0f;
+}
+
+// RNG ->
+uint RNGSeed = 0u;
+
+void HashRNG()
+{
+    RNGSeed ^= 2747636419u;
+    RNGSeed *= 2654435769u;
+    RNGSeed ^= RNGSeed >> 16;
+    RNGSeed *= 2654435769u;
+    RNGSeed ^= RNGSeed >> 16;
+    RNGSeed *= 2654435769u;
+}
+
+void InitRNG(vec2 Pixel, vec2 Res)
+{
+    RNGSeed = uint(Pixel.y * Res.x + Pixel.x) + uint(u_Frame%512) * uint(Res.x) * uint(Res.y);
+}
+
+float Hash1()
+{
+    HashRNG();
+    return float(RNGSeed) / 4294967295.0;
+}
+
+float Hash() { return Hash1(); }
+
+vec2 Hash2()
+{
+   return vec2(Hash1(), Hash1());
+}
+
+// Sphere sampling 
+vec3 RandomVector()
+{
+    float phi = 2.0 * PI * Hash1();
+    float cosTheta = 2.0 * Hash1() - 1.0;
+    float u = Hash1();
+    float theta = acos(cosTheta);
+    float r = pow(u, 1.0 / 3.0);
+    float x = r * sin(theta) * cos(phi);
+    float y = r * sin(theta) * sin(phi);
+    float z = r * cos(theta);
+    return vec3(x, y, z);
+}
+
+vec3 UniformHemisphere(vec3 N, vec2 Random) {
+    vec2 u = Random;
+    float r = sqrt(1.0 - u.x * u.x);
+    float phi = 2.0 * PI * u.y;
+    vec3  B = normalize( cross( N, vec3(0.0,1.0,1.0) ) );
+	vec3  T = cross( B, N );
+    return normalize(r * sin(phi) * B + u.x * N + r * cos(phi) * T);
+}
+
+vec3 CosineHemisphereDirection(const vec3 n, vec2 r) 
+{
+	float PI2 = 2.0f * PI;
+	vec3  uu = normalize(cross(n, vec3(0.0,1.0,1.0)));
+	vec3  vv = cross(uu, n);
+	float ra = sqrt(r.y);
+	float rx = ra * cos(PI2 * r.x); 
+	float ry = ra * sin(PI2 * r.x);
+	float rz = sqrt(1.0 - r.y);
+	vec3  rr = vec3(rx * uu + ry * vv + rz * n );
+    return normalize(rr);
+}
+
+
+
+float RaytraceAverageAmbience() {
+
+	const vec3 UP_VECTOR = normalize(vec3(0.0f, 1.0f, 0.0f));
+
+	vec3 RayOrigin = u_PlayerPosition;
+	vec3 RayDirection = UniformHemisphere(UP_VECTOR, vec2(Hash2()));//normalize(RandomVector());
+
+	float Throughput = 1.0f;
+
+	for (int Bounce = 0 ; Bounce < 7 ; Bounce++) {
+
+		vec3 N = vec3(0.0f);
+		float Transversal = TraverseDistanceField(RayOrigin, RayDirection, N);
+		
+		if (Transversal < 0.0f) {
+			return Throughput;
+		}
+
+		else {
+
+			// Bounce ray! 
+			RayOrigin = (RayOrigin + RayDirection * Transversal) + N * 0.05f;
+			RayDirection = CosineHemisphereDirection(N, vec2(Hash(), Hash()));
+		}
+
+		// make this lower to have a dramatic effect on the attenuation. 
+		// The attenuation happens naturally due to the nature of path tracing, though 
+		Throughput *= 1.0f; 
+	}
+	
+	return 0.0f;
+}
+
+const ivec2 Dimensions = ivec2(32, 32);
+
+void main() {
+
+    ivec2 Invocation = ivec2(gl_GlobalInvocationID.xy);
+
+	InitRNG(vec2(Invocation), vec2(32.0f));
+
+	float AmbienceAmount = 0.0f;
+	float Weight = 0.0f;
+
+	int SampleCount = int(mix(1, 2, float(u_Frame % 2 == 0)));
+
+	for (int Sample = 0 ; Sample < clamp(SampleCount, 0, 3) ; Sample++) {
+		AmbienceAmount += RaytraceAverageAmbience();
+		Weight += 1.0f;
+	}
+
+	AmbienceAmount /= Weight;
+
+	// Map to range 
+	uint Mapped = uint(clamp(AmbienceAmount * 512.0f, 0.0f, 512.0f));
+
+	atomicAdd(SkyLevelAggregate, Mapped);
+
+	return;
+}

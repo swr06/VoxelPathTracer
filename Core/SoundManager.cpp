@@ -218,5 +218,9 @@ namespace VoxelRT
 
 		}
 	}
+
+	irrklang::ISoundEngine* SoundManager::GetSoundEngine() {
+		return MainSoundEngine;
+	}
 	
 }
