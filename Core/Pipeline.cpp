@@ -360,10 +360,11 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("---- ADVANCED MODE? ----", &ADVANCED_MODE);
 
-			if (DOF)
+			if (DOF && ADVANCED_MODE) {
 				ImGui::NewLine();
 				ImGui::Text("Temporal Center Depth (x1000) : %f", CenterDepthSmooth * 1000.0f);
-			
+			}
+
 			ImGui::NewLine();
 			ImGui::Checkbox("Highlight focused block?", &HighlightFocusedBlock);
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
@@ -431,7 +432,7 @@ public:
 
 			if (ADVANCED_MODE) {
 				ImGui::Text("- Advanced Settings -");
-				ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling", &DiffuseDirectLightSampling);
+				ImGui::Checkbox("WIP Light List Based Diffuse Direct Light Sampling (Note : Press F11 to toggle light list debug window)", &DiffuseDirectLightSampling);
 				ImGui::Checkbox("CHECKERBOARD_DIFFUSE_SPP", &CHECKERBOARD_SPP);
 				ImGui::Checkbox("Apply player shadow for global illumination?", &APPLY_PLAYER_SHADOW_FOR_GI);
 				ImGui::Checkbox("Pre Temporal Indirect Diffuse Spatial Pass?", &PreTemporalSpatialPass);
@@ -767,8 +768,8 @@ public:
 			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
 			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 1.0f);
 			ImGui::SliderFloat("SSAO Strength", &SSAOStrength, 0.1f, 2.0f);
-			ImGui::Checkbox("Alpha Test? (WIP, has a few artifacts.) ", &ShouldAlphaTest);
-			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few artifacts.)", &ShouldAlphaTestShadows);
+			ImGui::Checkbox("Alpha Test? (Experimental, has known artifacts.) ", &ShouldAlphaTest);
+			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few known artifacts.)", &ShouldAlphaTestShadows);
 			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
 				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
 			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
@@ -1583,7 +1584,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		}
 
 		// Jitter
-		JitterSceneForTAA = JitterSceneForTAA || GLOBAL_RESOLUTION_SCALE < 0.749f;
+		JitterSceneForTAA = (JitterSceneForTAA || GLOBAL_RESOLUTION_SCALE < 0.749f) && TAA;
 
 		// Sound update 
 		SoundManager::UpdatePosition(MainCamera.GetFront(), MainCamera.GetPosition(), MainCamera.GetUp());

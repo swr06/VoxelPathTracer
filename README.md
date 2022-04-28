@@ -1,6 +1,6 @@
 # Voxel Path Tracer
-An ***EXPERIMENTAL*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, physically based rendering, volumetrics and intersection algorithms.
-This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required)
+An ***EXPERIMENTAL*** and ***UNFINISHED*** Voxel Path Tracing Engine which has an emphasis on performance and graphics. This engine was mostly made as an experiment and a tool to help me learn more about light transport, physically based rendering, volumetrics and intersection algorithms.
+This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required).
 
 ## Project status 
 This project has been abandoned and will not be worked on anytime soon (The projects that I work on regularly are usually kept private). 
@@ -10,27 +10,27 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ### Rendering 
 - Voxel Ray Casting 
-- Manhattan distance field acceleration structure (Generated using GPU compute shaders) 
+- Manhattan distance field acceleration structure (Distance field generated using compute shaders on the GPU) 
 - Deferred rendering pipeline
 
 ### Lighting 
 - Direct lighting based on the Cook torrance BRDF
-- Path traced lighting (Direct shadows, Global Illumination, Rough/Smooth reflections, Ambient Occlusion)
+- Path traced lighting (Direct shadows, Global Illumination, Rough/Smooth reflections and Ambient Occlusion)
 - Spherical harmonic projection for indirect lighting 
-- Screen space SSS
+- (Approximate) Screenspace Subsurface Scattering
 - Dynamic atmosphere/sky rendering
 
 ### Denoising
-- Temporal Denoiser/Reprojection (Pathtraced Lighting, Clouds)
-- Screenspace Spatial Denoiser (SVGF, Atrous, Gaussian and other specialized denoisers for shadow/reflections)
+- Temporal Denoiser/Reprojection (used for Pathtraced Lighting, Volumetric Clouds and Antialiasing)
+- Screenspace Spatial Denoiser (SVGF, Atrous, Gaussian and other specialized denoisers for direct shadow/reflections)
 
 ### Post Process
 
 - AO : SSAO
 - Misc : DOF, Bloom, Lens flare, Chromatic aberration, Basic SS god rays, night stars and nebula
 - Image : CAS
-- Anti Aliasing : FXAA, TXAA
-- Color Compositing : Tonemapping, Gamma correction, color dithering, color grading, purkinje effect, film grain
+- Anti Aliasing : FXAA, TXAA/TAA-U
+- Other Effects : Tonemapping, Gamma correction, color dithering, color grading, purkinje effect, film grain
 
 ### Volumetrics 
 - 3D Volumetric Clouds (+ 2D cirrus cloud layer)
@@ -47,7 +47,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 ## Half Implemented / WIP Features
 - Histogram based auto exposure
 - Parallax mapping (Parallax Relief Mapping, Parallax Occlusion Mapping and Ground Truth Parallax)
-- Anisotropic raytraced reflections (for materials such as brushed metal, based on principled disney BRDF)
+- Anisotropic raytraced reflections (for materials such as brushed metal, based on Disney Principled BRDF)
 
 ## Todo Features / QOL Improvements
 - Glass/water with stochastic refractions
@@ -55,25 +55,25 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ## Performance Metrics 
 
-- 20 - 22 FPS on a Vega 8 iGPU on the default settings. (@ 768p)
+- 20 - 22 FPS on a Vega 8 iGPU on the default low preset. (@ 768p)
+- 30 - 34 FPS on a Vega 11 iGPU on the default low preset. (@ 768p)
 - 150 - 160 FPS on a GTX 1080Ti. (@ 1080p)
 
 ## Note
 - This project is still not finished, the current state is not a representation of the final version.
-- It has been tested on AMD Vega iGPUs, AMD GPUs, Nvidia pascal, turing and ampere cards.
-- It is *not* guarenteed to work on ANY Intel GPUs
-- It needs OpenGL 4.5 (Uses compute shaders and other features from OpenGL 4.5), if the window fails to initialize, then your GPU does not support the required OpenGL version.
-- If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile)
-- See `Controls.txt` for the controls (Or look at the console when you start up the program!)
+- This engine might not work on intel GPUs.
+- This engine requires OpenGL 4.5, if the window fails to initialize, then there is a good chance that your GPU does not support the required OpenGL version.
+- If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile page)
+- See `Controls.txt` for the controls (Or look at the console when you start up the program.)
 
 ## Credits (Testing, programming and understanding)
-- [Fuzdex](https://github.com/Shadax-stack)
-- [UglySwedishFish](https://github.com/UglySwedishFish)
 - [Lars](https://github.com/Ciwiel3/)
+- [UglySwedishFish](https://github.com/UglySwedishFish)
 - [Snurf](https://github.com/AntonioFerreras)
+- [Fuzdex](https://github.com/Shadax-stack)
 - [Telo](https://github.com/StormCreeper)
-- [Tui Vao](https://github.com/Tui-Vao)
 - [Moonsheep](https://github.com/jlagarespo)
+- [Tui Vao](https://github.com/Tui-Vao)
 
 ## License
 - MIT (See LICENSE)
@@ -94,6 +94,12 @@ This project is purely educational. I own none of the assets. All the rights go 
 ![day](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/day.png)
 
 </br>
+
+![day2](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/day2.png)
+
+</br>
+
+![day3](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/day3.png)
 
 </br>
 
@@ -143,9 +149,7 @@ This project is purely educational. I own none of the assets. All the rights go 
 
 </br>
 
-
-
-
+</br>
 
 # Supporting
 
