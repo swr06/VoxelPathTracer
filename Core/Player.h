@@ -25,7 +25,7 @@ namespace VoxelRT
 		bool InWater = false;
 		bool Freefly = false;
 		float Sensitivity = 0.25;
-		float Speed = 0.11250f;
+		float Speed = 0.1250f;
 		bool InitialCollisionDone = false;
 		bool InitialCollisionDone2 = false;
 

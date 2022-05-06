@@ -414,7 +414,7 @@ void main()
 
 		if (Reprojected.x > 0.0 + ReprojectBias && Reprojected.x < 1.0 - ReprojectBias 
 		 && Reprojected.y > 0.0 + ReprojectBias && Reprojected.y < 1.0f - ReprojectBias && 
-		 d < 0.85f && PrevNormal==InitialNormal)
+		 d < 1.0f && PrevNormal==InitialNormal)
 		{
 			vec4 PrevColor;
 			//ComputeClamped(Reprojected, PrevSH, PrevCoCg);

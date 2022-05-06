@@ -51,9 +51,7 @@ uniform bool u_UseDFG;
 uniform bool u_RemoveTiling;
 uniform bool u_CloudCatmullRomUpsampling;
 
-uniform bool u_DEBUGDiffuseGI;
-uniform bool u_DEBUGSpecGI;
-uniform bool u_DEBUGShadows;
+uniform int u_DebugLevel;
 
 
 uniform sampler2D u_SSSShadowMap;
@@ -854,6 +852,8 @@ void main()
             bool do_vxao = u_DoVXAO && u_SVGFEnabled;
 			
 			const int VXGI_CUTOFF = 256;
+
+            float ao = 1.0f;
 			
             if (do_vxao)
             {
@@ -861,14 +861,15 @@ void main()
                 if (g_TexCoords.x > bias && g_TexCoords.x < 1.0f - bias &&
                     g_TexCoords.y > bias && g_TexCoords.y < 1.0f - bias)
                 {
-                    float ao = UpscaledAO;//BetterTexture(u_VXAO, g_TexCoords).x;
+                    ao = UpscaledAO;//BetterTexture(u_VXAO, g_TexCoords).x;
 
                     //float fade = u_VXAOCutoff ? (1.0f - exp(-WorldPosition.w * 0.00125f)) : 0.0f;
                     float fade = u_VXAOCutoff ? (distance(WorldPosition.xz, u_ViewerPosition.xz) < VXGI_CUTOFF ? 0.0f : 1.0f) : 0.0f;
 
                     ao = mix(ao, 1.0f, fade);
+                    ao = pow(ao, 2.2f);
 					
-                    SampledIndirectDiffuse.xyz *= vec3(clamp(pow(ao, 2.2f), 0.05, 1.0f));
+                    SampledIndirectDiffuse.xyz *= vec3(clamp(ao, 0.05, 1.0f));
 
                     //o_Color = vec3(pow(ao, 4.2f)*0.7f);
                     //return;
@@ -902,7 +903,7 @@ void main()
 
             if (InBiasedSS) {
                 float Attenuation = clamp(pow(max(dot(SampledNormals.xyz, NonAmplifiedNormal), 0.00000001f),2.0f)*1.5f, 0.1f, 1.0f);
-                SpecularIndirect = UpscaledSpecularIndirect.xyz * 1.5f * Attenuation;
+                SpecularIndirect = UpscaledSpecularIndirect.xyz * Attenuation;
             }
 
 			SpecularIndirect = max(vec3(0.0001f), SpecularIndirect);
@@ -952,19 +953,16 @@ void main()
 				float HorizonAmount = min(1.0f + dot(R, NormalMapped), 1.0f);
 				HorizonAmount *= HorizonAmount * HorizonAmount;
 				
-
-				// Not physically accurate
-                // Done for stylization purposes 
-                // Metals have their reflections 60% brighter and have their albedos 10% more desaturated
-                
-				
+                // Boost specular for metals 
 				if (PBRMap.y >= 0.1f) {
-                    SpecularIndirect *= 1.6f;
+                    SpecularIndirect *= 1.3f;
                 }
 				
+                // Specular AO 
 				SpecularIndirect *= SpecularAO;
 				SpecularIndirect *= HorizonAmount;
 
+                // Fresnel term 
                 vec3 FresnelTerm = FresnelSchlickRoughness(Lo, NormalMapped.xyz, vec3(F0), Roughness); 
                 FresnelTerm = clamp(FresnelTerm, 0.0f, 1.0f);
                 vec3 kS = FresnelTerm;
@@ -983,34 +981,59 @@ void main()
             }
 
 
-			// Debug ->
+			// Debug Levels 
+            {
 				if (u_LPVDebugState == 1) {
 					o_Color = GetSmoothLPVDensity(WorldPosition.xyz+SampledNormals.xyz);
+                    return;
 				}
 	
 				if (u_LPVDebugState == 2) {
 					o_Color = GetSmoothLPVData(WorldPosition.xyz+SampledNormals.xyz);
+                    return;
 				}
 	
-				if (u_DEBUGDiffuseGI) {
-					o_Color = 1.0f - exp(-SampledIndirectDiffuse);
+				if (u_DebugLevel == 1) {
+					o_Color = SampledIndirectDiffuse;
 				}
 	
-				if (u_DEBUGSpecGI) {
-					o_Color = 1.0f - exp(-SpecularIndirect);
+				if (u_DebugLevel == 2) {
+					o_Color = SpecularIndirect;
 				}
 	
-				if (u_DEBUGShadows) {
+				if (u_DebugLevel == 3) {
 					o_Color = vec3(1.0f - RayTracedShadow);
-				// o_Color += bayer128(gl_FragCoord.xy) / 128.0f;
 				}
+
+                if (u_DebugLevel == 4) {
+					o_Color = vec3(SampledAO * ao);
+				}
+
+                // Albedo, normals, 
+
+                if (u_DebugLevel == 5) {
+					o_Color = vec3(AlbedoColor);
+				}
+
+                if (u_DebugLevel == 6) {
+					o_Color = vec3(NormalMapped * 0.5f + 0.5f);
+				}
+
+                if (u_DebugLevel == 7) {
+					o_Color = vec3(PBRMap.x);
+				}
+
+                if (u_DebugLevel == 8) {
+					o_Color = vec3(PBRMap.y);
+				}
+
+                if (u_DebugLevel == 9) {
+					o_Color = vec3(PBRMap.z*PBRMap.z*PBRMap.z*PBRMap.z);
+				}
+            }
 			//
-	
-	
-	
             
             o_EmissivityData = Emissivity;
-
              
             // Flicker
             if (IsLava) {
@@ -1024,11 +1047,6 @@ void main()
             if (DebugApproximateSpecular) {
                 o_Color = DeriveApproxSpecular(SHy, SampledIndirectDiffuse, I, NormalMapped.xyz, Roughness);
             }
-
-
-            //o_Color = DiffuseIndirect;
-
-          // o_Color = vec3(pow(PBRMap.w, 10.0f));
 
         }
 
@@ -1056,7 +1074,9 @@ void main()
         o_Color = max(vec3(DebugData.xyz),0.00001f);
     }
 
-
+    if (u_DebugLevel >= 5) {
+        o_Color = clamp(o_Color, 0., 1.);
+    }
 
 
 	o_Color = max(o_Color, vec3(0.000001f));

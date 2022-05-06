@@ -11,6 +11,7 @@ in vec3 v_RayOrigin;
 
 uniform sampler2D u_PositionTexture;
 uniform sampler2D u_NormalTexture;
+uniform sampler2D u_BlueNoise;
 uniform vec2 u_Dimensions;
 
 uniform mat4 u_ViewMatrix;
@@ -19,6 +20,7 @@ uniform mat4 u_ProjectionMatrix;
 uniform float u_SSAOStrength;
 
 uniform float u_Time;
+uniform int u_Frame;
 
 
 
@@ -57,12 +59,8 @@ vec3 hemispherepoint_uniform(float u, float v)
 	return vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
 }
 
-float nextFloat(inout int seed, in float min, in float max);
-
-const float Radius = 0.6f; 
+const float RadiusR = 0.8f; 
 const float Bias = 0.21f;
-
-int RNG_SEED;
 
 vec3 GetNormalFromID(float n) {
 	const vec3 Normals[6] = vec3[]( vec3(0.0f, 0.0f, 1.0f), vec3(0.0f, 0.0f, -1.0f),
@@ -83,8 +81,6 @@ vec3 SampleNormalFromTex(sampler2D samp, vec2 txc) {
 
 void main()
 {
-	RNG_SEED = int(gl_FragCoord.x) + int(gl_FragCoord.y) * int(u_Dimensions.x);
-
 	vec4 InitialTracePosition = GetPositionAt(u_PositionTexture, v_TexCoords).rgba;
 
 	if (InitialTracePosition.a <= 0.0f)
@@ -96,8 +92,14 @@ void main()
 	vec3 Position = ToViewSpace(InitialTracePosition.xyz);
 	vec3 Normal = normalize(vec3(u_ViewMatrix * vec4(SampleNormalFromTex(u_NormalTexture, v_TexCoords), 0.0f)));
 	
-	vec3 noise = vec3(nextFloat(RNG_SEED, -1.0f, 1.0f), nextFloat(RNG_SEED, -1.0f, 1.0f), nextFloat(RNG_SEED, -1.0f, 1.0f));
-	vec3 Tangent = normalize(noise - Normal * dot(noise, Normal));
+	vec3 Hash;
+	int n = u_Frame % 1024;
+	vec2 off = fract(vec2(n * 12664745, n * 9560333) / 16777216.0) * 1024.0;
+	ivec2 TextureSize = textureSize(u_BlueNoise, 0);
+	ivec2 SampleTexelLoc = ivec2(gl_FragCoord.xy + ivec2(floor(off))) % TextureSize;
+	Hash = texelFetch(u_BlueNoise, SampleTexelLoc, 0).xyz;
+
+	vec3 Tangent = normalize(Hash - Normal * dot(Hash, Normal));
 	vec3 Bitangent = cross(Normal, Tangent);
 	mat3 TBN = mat3(
 		normalize(Tangent),
@@ -105,6 +107,8 @@ void main()
 		normalize(Normal));
 
 	o_AOValue = 0.0f;
+
+	float Radius = RadiusR * Hash.y;
 
 	for (uint i = 0u ; i < clamp(SAMPLE_SIZE, 1u, 64u) ; i++)
 	{
@@ -137,38 +141,3 @@ void main()
 	o_AOValue = clamp(pow(o_AOValue, clamp(u_SSAOStrength, 0.01f, 4.0f)), 0.0f, 1.0f);
 }
 
-int MIN = -2147483648;
-int MAX = 2147483647;
-
-int xorshift(in int value) 
-{
-    // Xorshift*32
-    // Based on George Marsaglia's work: http://www.jstatsoft.org/v08/i14/paper
-    value ^= value << 13;
-    value ^= value >> 17;
-    value ^= value << 5;
-    return value;
-}
-
-int nextInt(inout int seed) 
-{
-    seed = xorshift(seed);
-    return seed;
-}
-
-float nextFloat(inout int seed) 
-{
-    seed = xorshift(seed);
-    // FIXME: This should have been a seed mapped from MIN..MAX to 0..1 instead
-    return abs(fract(float(seed) / 3141.592653));
-}
-
-float nextFloat(inout int seed, in float max) 
-{
-    return nextFloat(seed) * max;
-}
-
-float nextFloat(inout int seed, in float min, in float max) 
-{
-    return min + (max - min) * nextFloat(seed);
-}

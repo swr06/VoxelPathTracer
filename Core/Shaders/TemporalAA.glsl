@@ -8,7 +8,6 @@ in vec2 v_TexCoords;
 in vec3 v_RayOrigin;
 in vec3 v_RayDirection;
 
-
 // Current frame textures
 uniform sampler2D u_CurrentColorTexture;
 uniform sampler2D u_PositionTexture;
@@ -193,7 +192,7 @@ vec4 CatmullRom(sampler2D tex, in vec2 uv)
 }
 
 // Samples history texture and applies neighbourhood clipping
-vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition) 
+vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition, float Bias) 
 {
 	const int KernelX = 1;
 	const int KernelY = 2;
@@ -212,9 +211,9 @@ vec3 SampleHistory(vec2 Reprojected, vec4 WorldPosition)
         }
     }
 
-	float EpsBias = 0.0000125f;
-	MinColor -= EpsBias;
-	MaxColor += EpsBias;
+	MinColor -= Bias;
+	MaxColor += Bias;
+
 	vec3 ReprojectedColor = Reinhard(CatmullRom(u_PreviousColorTexture, Reprojected).xyz);
     return (AABBClip((ReprojectedColor), (MinColor), (MaxColor))).xyz;
 }
@@ -234,8 +233,9 @@ void main()
 	vec4 WorldPosition = SampleBasePosition(u_PositionTexture).rgba;
 	vec3 rD = GetRayDirection(v_TexCoords).xyz;
 	rD = normalize(rD);
-	bool MotionVector = false;
+
 	float ReduceWeight = 1.0f;
+	bool Sky = false;
 
 	// Accumulate fewer frames for the sky because i don't handle cloud motion vectors right now.
 	// Temporary!
@@ -244,40 +244,84 @@ void main()
 		const float rpd = 32.0f;
 		WorldPosition.xyz = u_InverseView[3].xyz + rD * rpd;
 		WorldPosition.w = rpd;
-		MotionVector = true;
-		ReduceWeight = 0.6f; 
+		ReduceWeight = 0.75f;
+		Sky = true;
 	}
 
 	vec2 CurrentCoord = v_TexCoords;
 	vec2 PreviousCoord;
+
+	// Todo -> Make this use motion vectors 
 	vec3 PreviousCameraPos = u_CameraHistory[1];
 	vec3 CurrentCameraPos = u_CameraHistory[0];
 	vec3 Offset = (PreviousCameraPos - CurrentCameraPos);
+	
+	bool Moved = length(Offset) > 0.01f;
+
+	bool PannedCamera = u_InversePrevView[0] != u_InverseView[0];
+	float PanAmount = distance(u_InversePrevView[0], u_InverseView[0]);
+	bool AggressivePan = PanAmount > 0.25f;
+
+	// Reproject 
 	PreviousCoord = Reprojection(WorldPosition.xyz);
 
 	float bias = 0.01f;
+	
+	// Screenspace check
 	if (PreviousCoord.x > bias && PreviousCoord.x < 1.0f-bias &&
 		PreviousCoord.y > bias && PreviousCoord.y < 1.0f-bias && 
 		CurrentCoord.x > bias && CurrentCoord.x < 1.0f-bias &&
 		CurrentCoord.y > bias && CurrentCoord.y < 1.0f-bias)
 	{
+		// Tonemap 
 		CurrentColor = Reinhard(CurrentColor);
 
 		// History color 
-		vec3 PrevColor = SampleHistory(PreviousCoord, WorldPosition.xyzw);
+
+		float ClipBias = 0.06f;
+
+		if (PannedCamera) {
+			ClipBias = 0.03f;
+
+			if (AggressivePan) {
+				ClipBias = 0.01f;
+			}
+		}
+
+		if (Moved) {
+			ClipBias = 0.0000001f;
+		}
+
+		// More aggressive clipping for sky 
+		ClipBias *= Sky ? 0.2f : 1.0f;
+
+		vec3 PrevColor = SampleHistory(PreviousCoord, WorldPosition.xyzw, ClipBias);
 
 		// Velocity vector 
 		vec2 Velocity = (TexCoord - PreviousCoord.xy) * Dimensions;
-		float BlendFactor = exp(-length(Velocity)) * 0.85f + 0.475f;
+		float BlendFactor = exp(-length(Velocity)) * 0.75f + 0.7f;
 		BlendFactor = clamp(BlendFactor, 0.0f, 0.975f);
 
 		bool SkySample = false;
 
 		// Depth rejection ->
 		if (u_DepthWeight) {
+			float BaseExp = 3.0f;
+
+			if (PannedCamera) {
+				BaseExp = 6.0f;
+
+				if (AggressivePan) {
+					BaseExp = 20.0f;
+				}
+			}
+
+			if (Moved) {
+				BaseExp = 32.0f;
+			}
+
 			vec2 MinDepths = GetNearestDepths3x4(PreviousCoord, SkySample);
 			bool MovedThresh = distance(u_View[3].xyz, u_PrevView[3].xyz) > 0.001f;
-			const float BaseExp = 24.0f;
 			float DepthRejection = mix(mix(pow(exp(-abs(MinDepths.x - MinDepths.y)), BaseExp * u_DepthExponentMultiplier), 1.0f, (MovedThresh ? 0.0f : 0.5f)), 1.0f, SkySample ? 0.9f : 0.0f);
 			DepthRejection = clamp(DepthRejection, 0.0f, 1.0f);
 			BlendFactor *= DepthRejection;
@@ -293,6 +337,8 @@ void main()
 		const bool DebugTAA = false;
 		if (DebugTAA)
 			o_Color = vec3(BlendFactor);
+
+
 	}
 
 	else 

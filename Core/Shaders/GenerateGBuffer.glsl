@@ -47,12 +47,15 @@ uniform sampler3D u_LavaTextures[2];
 uniform float u_Time;
 uniform float uTime;
 uniform bool u_UpdateGBufferThisFrame;
+uniform int u_Frame;
 
 // POM 
 
 uniform bool u_POM;
 uniform bool u_HighQualityPOM;
+uniform bool u_DitherPOM;
 uniform float u_POMHeight;
+uniform float u_POMExp;
 
 uniform mat4 u_View;
 
@@ -141,90 +144,101 @@ mat3 ArbitraryTBN(vec3 N)
 	return mat3(tangent, bitangent, N);
 }
 
+float MapHeight(float x) {
+	return pow(x, 1.5f * u_POMExp);
+}
+
+#define PHI 1.6180339
+
 
 // Custom relief parallax mapping implementation 
-// I think I fucked something up, it doesn't seem to work right 
-// And there are some floating point artifacts 
-// Todo : fix this motherfucker
 vec3 ReliefParallax(vec3 WorldPosition, vec3 ViewVector, vec3 FlatNormal, mat3 BaseTangentBasis, vec2 FlatUV, int PBRID) {
 
-	float ParallaxDepth = 0.2f;
+	const float ParallaxDepth = 0.115f * u_POMHeight;
 
 	mat3 TangentBasis = BaseTangentBasis;//ArbitraryTBN(FlatNormal);
+	
+	float BayerHashStepCount = !u_DitherPOM ? 0.5f : fract(fract(mod(float(u_Frame) + float(0.) * 2., 384.0f) * (1.0 / PHI)) + bayer32(gl_FragCoord.xy));
 
 	// Convert view vector to tangent space ->
-	vec3 TangentViewVector = TangentBasis * ViewVector;
+	vec3 TangentViewVector = TangentBasis * normalize(ViewVector);
 
 	vec2 StartUV = clamp(FlatUV, EPS, 1.0f);
-	vec2 TangentMarchDirection = TangentViewVector.xy; // Since it's in tangent space, all that matters is the x and y coordinate 
+	
+	vec3 TangentVector = normalize(vec3(dot(ViewVector, TangentBasis[0]), dot(ViewVector, TangentBasis[1]), dot(ViewVector, -FlatNormal))).xyz;
+	vec2 TangentMarchDirection = TangentVector.xy;
+	TangentMarchDirection /= abs(FlatNormal.x) > 0.01f ? TangentVector.z : -(TangentVector.z);
 	TangentMarchDirection *= ParallaxDepth;
-	TangentMarchDirection /= TangentViewVector.z;
 
-	int MarchSteps = 64;
-	int BinaryRefinementSteps = 8;
+	int MarchSteps = u_HighQualityPOM ? int(mix(64, 128, clamp(BayerHashStepCount*0.9,0.,1.))) : int(mix(32, 64, clamp(BayerHashStepCount*0.85,0.,1.)));
+	//int MarchSteps = int(mix(32, 64, clamp(bayer128(gl_FragCoord.xy)*0.85,0.,1.)));
+	int BinaryRefinementSteps = 7;
 
 	float MarchStepSize = 1.0f / MarchSteps;
 	float CurrentDepth = 1.0f;
 	float BestDepth = 1.0f;
 
-
+	//StartUV = StartUV - (TangentMarchDirection * bayer16(gl_FragCoord.xy) / 24.);
 
 	// Find best depth ->
-	for (int i = 1 ; i < MarchSteps ; i++) 
+	for (int i = 0 ; i < MarchSteps ; i++) 
 	{
 		CurrentDepth -= MarchStepSize;
 		
 		vec2 SampleUV = StartUV + TangentMarchDirection * CurrentDepth;
-		float SampleHeight = texture(u_BlockPBR, vec3(SampleUV, float(PBRID))).z;
+		
+		//if (SampleUV != clamp(SampleUV, 0.00000001f, 1.0f)) {
+		//	SampleUV -= TangentMarchDirection * MarchStepSize;
+		//	break;
+		//}
+		
+		float SampleHeight = MapHeight(texture(u_BlockPBR, vec3(SampleUV, float(PBRID))).z);
 
-		SampleHeight = 1.0f - SampleHeight;
+		SampleHeight = SampleHeight;
 
 		if (CurrentDepth >= SampleHeight) {
 			BestDepth = CurrentDepth;
 		}
 	}
 
-	CurrentDepth = BestDepth - MarchStepSize;
+	CurrentDepth = BestDepth - MarchStepSize * 0.5f;
 
+	return vec3(StartUV + TangentMarchDirection * (CurrentDepth), CurrentDepth);
 
 	// Perform a basic binary refinement step ->
 
-	float BinaryStepSize = MarchStepSize;
-	float CurrentBinaryDepth = CurrentDepth;
-	float BestBinaryDepth = BestDepth;
+	
+	// Binary search 
+	for (int i = 0 ; i < BinaryRefinementSteps ; i++) {
 
-	// Not really "step size" but I'm bad at naming variables :/
-
-	const float BinaryRefineStepSize = 0.5f; 
-
-	// Refinement loop
-	for (int i = 1 ; i < BinaryRefinementSteps ; i++) {
-
-		BinaryStepSize *= BinaryRefineStepSize;
 
 		vec2 SampleUV = StartUV + TangentMarchDirection * CurrentDepth;
-		float SampleHeight = texture(u_BlockPBR, vec3(SampleUV, float(PBRID))).z;
+		float SampleHeight = MapHeight(texture(u_BlockPBR, vec3(SampleUV, float(PBRID))).z);
 
 		SampleHeight = SampleHeight;
 
-		if (CurrentBinaryDepth >= SampleHeight) {
-			BestBinaryDepth = CurrentBinaryDepth;
-			CurrentBinaryDepth -= BinaryStepSize * (1.0f / BinaryRefineStepSize);
+		if (CurrentDepth >= SampleHeight) {
+			BestDepth = CurrentDepth;
+			CurrentDepth -= MarchStepSize;
 		}
-
-		CurrentBinaryDepth += BinaryStepSize;
+		
+		else {
+			CurrentDepth += MarchStepSize;
+		}
+		
+		MarchStepSize *= 0.5f;
 	}
 
 	// Calculate final coordinate 
 	// Origin + Direction * BestDepth
-	vec2 ParallaxCoordinate = StartUV + TangentMarchDirection * (BestBinaryDepth + 0.0001f);
+	vec2 ParallaxCoordinate = StartUV + TangentMarchDirection * (CurrentDepth);
 
 	if (ParallaxCoordinate != clamp(ParallaxCoordinate, 0.00000001f, 1.0f)) {
 
-		
+		ParallaxCoordinate = FlatUV;
 	}
 
-	return vec3(ParallaxCoordinate, BestBinaryDepth);
+	return vec3(ParallaxCoordinate, CurrentDepth);
 
 
 }
@@ -271,23 +285,26 @@ vec3 ParallaxGroundTruth(vec3 WorldPosition, vec3 ViewVector, vec3 FlatNormal, m
 }
 
 vec3 ParallaxOcclusion(vec3 WorldPosition, vec3 ViewVector, vec3 FlatNormal, mat3 BaseTangentBasis, vec2 FlatUV, int PBRID) {
-	vec3 TangentViewVector = BaseTangentBasis * ViewVector;
+	
+	mat3 TangentBasis = BaseTangentBasis;
+	vec3 TangentVector = normalize(vec3(dot(ViewVector, TangentBasis[0]), dot(ViewVector, TangentBasis[1]), dot(ViewVector, -FlatNormal))).xyz;
+	vec2 TangentMarchDirection = TangentVector.xy;
+	TangentMarchDirection *= 0.9;
+	TangentMarchDirection /= abs(FlatNormal.x) > 0.01f ? TangentVector.z : -(TangentVector.z);
+	vec2 P = TangentMarchDirection;
 
-	float NumLayers = 128; 
+	float NumLayers = 64; 
     float LayerDepth = 1.0 / NumLayers;
 
-	float PomDepth = 0.2f;
-  
 	float CurrentLayerDepth = 0.0;
     
-	vec2 P = TangentViewVector.xy * 1.0f; 
     
 	vec2 DeltaTexCoords = P / NumLayers;
    
     vec2 InitialDeltaCoords = DeltaTexCoords;
 
     vec2  CurrentTexCoords = FlatUV;
-    float CurrentDepthMapValue = texture(u_BlockPBR, vec3(FlatUV, float(PBRID))).z; CurrentDepthMapValue *= PomDepth; CurrentDepthMapValue = 1. - CurrentDepthMapValue;
+    float CurrentDepthMapValue = texture(u_BlockPBR, vec3(FlatUV, float(PBRID))).z;
 
 	// Raymarch ->
     for (int i = 0 ; i < NumLayers ; i++)
@@ -295,7 +312,7 @@ vec3 ParallaxOcclusion(vec3 WorldPosition, vec3 ViewVector, vec3 FlatNormal, mat
         if(CurrentLayerDepth < CurrentDepthMapValue)
         {
             CurrentTexCoords -= DeltaTexCoords;
-            CurrentDepthMapValue = texture(u_BlockPBR, vec3(CurrentTexCoords, float(PBRID))).z; CurrentDepthMapValue *= PomDepth; CurrentDepthMapValue = 1. - CurrentDepthMapValue;
+            CurrentDepthMapValue = texture(u_BlockPBR, vec3(CurrentTexCoords, float(PBRID))).z; 
             CurrentLayerDepth += LayerDepth;
         }
     }
@@ -306,7 +323,7 @@ vec3 ParallaxOcclusion(vec3 WorldPosition, vec3 ViewVector, vec3 FlatNormal, mat
 
 	float d = texture(u_BlockPBR, vec3(PrevTexCoords, float(PBRID))).z ;
 
-    float BeforeDepth = (1.0f-(d * PomDepth)) - CurrentLayerDepth + LayerDepth;
+    float BeforeDepth = d - CurrentLayerDepth + LayerDepth;
 
     float Weight = AfterDepth / (AfterDepth - BeforeDepth);
     vec2 FinalTexCoords = PrevTexCoords * Weight + CurrentTexCoords * (1.0 - Weight);
@@ -332,7 +349,7 @@ void main() {
 
 	int BaseID = GetBlockID(v_TexCoords);
 
-	bool ShouldUpdate = u_UpdateGBufferThisFrame || BaseID == u_LavaBlockID;
+	bool ShouldUpdate = u_UpdateGBufferThisFrame || BaseID == u_LavaBlockID || u_POM;
 
 	if (!ShouldUpdate) {
 		discard;

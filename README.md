@@ -3,8 +3,8 @@ An ***EXPERIMENTAL*** and ***UNFINISHED*** Voxel Path Tracing Engine which has a
 This engine was coded from scratch using C++17 and the modern OpenGL programmable pipeline (OpenGL 4.5+ and GLSL version 430+ required).
 
 ## Project status 
-This project has been abandoned and will not be worked on anytime soon (The projects that I work on regularly are usually kept private). 
-I intend to rewrite a voxel tracing engine in the future with much cleaner code/syntax and with newer and better acceleration structures so that larger scale worlds can be rendered with ease!
+This project has (mostly) been abandoned and new *big* features will not be worked on anytime soon.
+I intend to rewrite a voxel tracing engine in the future with much cleaner code/syntax and with newer and better acceleration structures so that larger and more detailed worlds can be rendered performantly!
 
 ## Features Implemented
 
@@ -19,6 +19,7 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - Spherical harmonic projection for indirect lighting 
 - (Approximate) Screenspace Subsurface Scattering
 - Dynamic atmosphere/sky rendering
+- Relief Parallax Mapping
 
 ### Denoising
 - Temporal Denoiser/Reprojection (used for Pathtraced Lighting, Volumetric Clouds and Antialiasing)
@@ -46,7 +47,6 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 
 ## Half Implemented / WIP Features
 - Histogram based auto exposure
-- Parallax mapping (Parallax Relief Mapping, Parallax Occlusion Mapping and Ground Truth Parallax)
 - Anisotropic raytraced reflections (for materials such as brushed metal, based on Disney Principled BRDF)
 
 ## Todo Features / QOL Improvements
@@ -60,8 +60,8 @@ I intend to rewrite a voxel tracing engine in the future with much cleaner code/
 - 150 - 160 FPS on a GTX 1080Ti. (@ 1080p)
 
 ## Note
-- This project is still not finished, the current state is not a representation of the final version.
-- This engine might not work on intel GPUs.
+- This project is still very experimental, it is not a finished product as of yet.
+- This engine has *NOT* been tested on Intel GPUs/iGPUs.
 - This engine requires OpenGL 4.5, if the window fails to initialize, then there is a good chance that your GPU does not support the required OpenGL version.
 - If you want to report an issue/bug, then you can contact me on discord or, alternatively, via email. (See github profile page)
 - See `Controls.txt` for the controls (Or look at the console when you start up the program.)

@@ -44,7 +44,7 @@ static float CenterDepthSmooth = 1.0f;
 
 // Important settings
 static bool ADVANCED_MODE = false;
-static int DEBUGTraceLevel = 0;
+static int DEBUG_LEVEL = 0;
 static float GLOBAL_RESOLUTION_SCALE = 1.0f;
 const bool DOWNSAMPLE_GBUFFERS = false;
 int VoxelRT_FloodFillDistanceLimit = 4; // extern
@@ -151,8 +151,8 @@ static bool FXAA = true;
 static bool BrutalFXAA = true;
 
 // Post process
-static float SSAOResolution = 0.35f;
-static float SSAOStrength = 0.325f;
+static float SSAOResolution = 0.5f;
+static float SSAOStrength = 0.3f;
 static float RTAOResolution = 0.125f;
 static float VolumetricResolution = 0.5f;
 static bool Bloom = true;
@@ -263,7 +263,8 @@ static bool SSAO = false;
 static bool RTAO = false;
 static bool POM = false;
 static float POMHeight = 1.0f;
-static bool DitherPOM = false;
+static float POMExp = 1.0f;
+static bool DitherPOM = true;
 static bool HighQualityPOM = false;
 static bool AmplifyNormalMap = true;
 
@@ -368,12 +369,12 @@ public:
 			ImGui::NewLine();
 			ImGui::Checkbox("Highlight focused block?", &HighlightFocusedBlock);
 			ImGui::SliderFloat("Mouse Sensitivity", &MainPlayer.Sensitivity, 0.025f, 1.0f);
-			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.3f); 
+			ImGui::SliderFloat("Player Speed", &MainPlayer.Speed, 0.025f, 0.3f);
 
 			ImGui::NewLine();
-			if (ImGui::Button("Reset Speed/Sensitivity")) 
+			if (ImGui::Button("Reset Speed/Sensitivity"))
 			{
-				MainPlayer.Speed = 0.045f;
+				MainPlayer.Speed = 0.125f;
 				MainPlayer.Sensitivity = 0.25f;
 			}
 
@@ -382,7 +383,23 @@ public:
 			ImGui::NewLine();
 			ImGui::NewLine();
 
-			ImGui::SliderInt("TRACE DEBUG Level (0 : None, 1 : Indirect Diffuse, 2 : Specular, 3 : Direct", &DEBUGTraceLevel, 0, 3);
+			ImGui::Text("---- VXRT DEBUG ----");
+			ImGui::NewLine();
+
+			ImGui::Text("Level 0 : None");
+			ImGui::Text("Level 1 : Indirect Diffuse");
+			ImGui::Text("Level 2 : Indirect Specular");
+			ImGui::Text("Level 3 : Direct Shadows");
+			ImGui::Text("Level 4 : Ambient Occlusion (VXAO * Texture AO)");
+			ImGui::Text("Level 5 : Albedo");
+			ImGui::Text("Level 6 : Normals");
+			ImGui::Text("Level 7 : Roughness");
+			ImGui::Text("Level 8 : Metalness");
+			ImGui::Text("Level 9 : Displacement/Height (raised to an exponent of 4.0)");
+
+			ImGui::NewLine();
+			ImGui::SliderInt("- LUMEN DEBUG LEVEL -", &DEBUG_LEVEL, 0, 9);
+			ImGui::NewLine();
 
 			ImGui::NewLine();
 			ImGui::SliderFloat("GLOBAL RENDER SCALE", &GLOBAL_RESOLUTION_SCALE, 0.1f, 2.0f);
@@ -472,7 +489,7 @@ public:
 			ImGui::NewLine();
 			ImGui::SliderFloat("Reflection Super Sample Resolution", &ReflectionSuperSampleResolution, 0.05f, 1.5f);
 			ImGui::Checkbox("Rough reflections?", &RoughReflections);
-			
+
 			ImGui::NewLine();
 			ImGui::Checkbox("Temporally Filter Specular? (If turned off, increase SPP to stabialize)", &TEMPORAL_SPEC);
 			ImGui::NewLine();
@@ -486,15 +503,15 @@ public:
 			if (USE_NEW_SPECULAR_SPATIAL) {
 				ImGui::SliderInt("Reflection Denoiser Radius Bias", &ReflectionDenoisingRadiusBias, -4, 4);
 				ImGui::Checkbox("Normal map aware filtering? (Slightly more noise.)", &ReflectionNormalMapWeight);
-				
+
 				if (ReflectionNormalMapWeight)
 					ImGui::SliderFloat("Normal map weight exponent", &NormalMapWeightStrength, 0.1f, 4.0f);
-					ImGui::SliderFloat("Normal map - Roughness bias strength (Higher = lesser clarity with lesser noise, lower = more clarity with more noise", &RoughnessNormalWeightBiasStrength, 0.0f, 3.0f);
+				ImGui::SliderFloat("Normal map - Roughness bias strength (Higher = lesser clarity with lesser noise, lower = more clarity with more noise", &RoughnessNormalWeightBiasStrength, 0.0f, 3.0f);
 			}
 
 			ImGui::NewLine();
 
-			
+
 			//ImGui::Checkbox("Smart sharpen reflections?", &InferSpecularDetailSpatially);
 
 			ImGui::NewLine();
@@ -541,7 +558,7 @@ public:
 
 				ImGui::Checkbox("CHECKERBOARD_SPEC_SPP", &CHECKERBOARD_SPEC_SPP);
 			}
-			
+
 			ImGui::NewLine();
 
 			// Shadows ->
@@ -575,18 +592,23 @@ public:
 			ImGui::Text("--- Point Light Volumetrics Settings ---");
 			ImGui::NewLine();
 			ImGui::Checkbox("Point Volumetric Fog? ", &PointVolumetricsToggled);
-			ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
-			ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
-			ImGui::Checkbox("Use Perlin Noise FBM for Optical Depth?", &PointVolPerlinOD);
-			ImGui::Checkbox("Use Ground Truth Color Interpolation? (EXPENSIVE! LEAVE OFF IF UNSURE.)", &PointVolGroundTruthColorInterpolation);
-			ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
-			ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
-			ImGui::Checkbox("Denoise?", &DenoisePointVol);
+
+			if (PointVolumetricsToggled)
+			{
+				ImGui::Checkbox("Colored Fog?", &ColoredPointVolumetrics);
+				ImGui::Checkbox("Use Bayer Matrix?", &PointVolumetricsBayer);
+				ImGui::Checkbox("Use Perlin Noise FBM for Optical Depth?", &PointVolPerlinOD);
+				ImGui::Checkbox("Use Ground Truth Color Interpolation? (EXPENSIVE! LEAVE OFF IF UNSURE.)", &PointVolGroundTruthColorInterpolation);
+				ImGui::SliderFloat("Volumetric Render Resolution", &PointVolumetricsScale, 0.05f, 1.0f);
+				ImGui::SliderFloat("Point Volumetrics Strength", &PointVolumetricStrength, 0.0f, 4.0f);
+				ImGui::Checkbox("Denoise?", &DenoisePointVol);
+			}
+
 			ImGui::SliderInt("Flood Fill Distance Limit", &VoxelRT_FloodFillDistanceLimit, 2, 8, "%d");
 			ImGui::SliderInt("LPV Debug State (0 = OFF, 1 = LEVEL, 2 = LEVEL * COLOR, 3 = LEVEL AS INDIRECT, 4 = [LEVEL * COLOR] AS INDIRECT)", &LPVDebugState, 0, 4, "%d");
-			
-			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) { 
-				VoxelRT_FloodFillDistanceLimit = 4; 
+
+			if (ImGui::Button("Reset Propogation Settings (REPROPOGATES as well!)")) {
+				VoxelRT_FloodFillDistanceLimit = 4;
 				world->RepropogateLPV_();
 			}
 
@@ -615,42 +637,45 @@ public:
 			ImGui::Text("--- Volumetric cloud Settings ---");
 			ImGui::NewLine();
 			ImGui::Checkbox("Volumetric Clouds?", &CloudsEnabled);
-			ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
-			ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
-			ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
 
-			ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
-			ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
-			//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
-			ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
-			ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
-			ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
-			ImGui::SliderInt("Ambient Step Count", &CloudStepCount[2], 2, 32);
-			ImGui::Checkbox("Cloud LOD Lighting? (Faster, uses LODs for acceleration)", &CloudLODLighting);
+			if (CloudsEnabled) {
+				ImGui::SliderFloat("Volumetric Cloud Resolution", &CloudResolution, 0.1f, 1.0f);
+				ImGui::Checkbox("Cloud Force Supersample? (Force samples to given resolution)", &CloudForceSupersample);
+				ImGui::SliderFloat("Cloud Force Supersample Resolution ", &CloudForceSupersampleRes, 0.1f, 1.0f);
 
-			//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
-			ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
-			ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
-			
-			ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -3.0f, 0.5);
-			ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
-			ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
-			ImGui::SliderFloat("Detail FBM Power : ", &CloudDetailFBMPower, 0.5f, 3.0f);
+				ImGui::Checkbox("Volumetric Cloud Reflections? (Doesn't affect performance!)", &CloudReflections);
+				ImGui::SliderFloat("Cloud Thiccness", &CloudThiccness, 100.0, 2000.0f);
+				//ImGui::Checkbox("High Quality Clouds? (Doubles the ray march step count)", &CloudHighQuality);
+				ImGui::Checkbox("Cloud Spatial Upscale", &CloudSpatialUpscale);
+				ImGui::SliderInt("Raymarch Step Count", &CloudStepCount[0], 4, 64);
+				ImGui::SliderInt("Lightmarch Step Count", &CloudStepCount[1], 2, 32);
+				ImGui::SliderInt("Ambient Step Count", &CloudStepCount[2], 2, 32);
+				ImGui::Checkbox("Cloud LOD Lighting? (Faster, uses LODs for acceleration)", &CloudLODLighting);
 
-			//ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
+				//ImGui::Checkbox("Use smart checker cloud upscale (uses catmull rom if disabled)?", &SmartUpscaleCloudTemporal);
+				ImGui::SliderFloat("Volumetric Cloud Density Multiplier", &CloudCoverage, 0.5f, 5.0f);
+				ImGui::SliderFloat("Volumetric Cloud AMBIENT Density Multiplier", &CloudAmbientDensityMultiplier, 0.0f, 5.0f);
 
-			ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
+				ImGui::SliderFloat2("Volumetric Cloud Modifiers", &CloudModifiers[0], -3.0f, 0.5);
+				ImGui::SliderFloat("Volumetric Cloud Detail Scale", &CloudDetailScale, 0.0f, 2.0f);
+				ImGui::SliderFloat("Detail Weight Exponent : ", &CloudErosionWeightExponent, 0.2f, 3.0f);
+				ImGui::SliderFloat("Detail FBM Power : ", &CloudDetailFBMPower, 0.5f, 3.0f);
 
-			ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
-			ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
+				//ImGui::Checkbox("Checkerboard clouds?", &CheckerboardClouds);
+
+				ImGui::SliderFloat("Cloud Time Scale", &CloudTimeScale, 0.2f, 3.0f);
+
+				ImGui::SliderFloat("Fake Cirrus Scale", &CirrusScale, 0.5f, 3.0f);
+				ImGui::SliderFloat("Fake Cirrus Strength", &CirrusStrength, 0.0f, 1.0f);
 
 
 
-			if (ADVANCED_MODE) {
-				ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
-				ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
-				ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
-				ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
+				if (ADVANCED_MODE) {
+					ImGui::Checkbox("Cloud Checker Step Count?", &CloudCheckerStepCount);
+					ImGui::Checkbox("Curl Noise Offset?", &CurlNoiseOffset);
+					ImGui::Checkbox("Final Cloud Catmullrom Upsample", &CloudFinalCatmullromUpsample);
+					ImGui::Checkbox("Clamp Cloud temporal?", &ClampCloudTemporal);
+				}
 			}
 
 			ImGui::NewLine();
@@ -684,11 +709,15 @@ public:
 
 			ImGui::NewLine();
 			ImGui::Checkbox("Depth of field (DOF) ?", &DOF);
-			ImGui::Checkbox("Large Kernel DOF?", &LargeKernelDOF);
-			ImGui::SliderFloat("DOF COC Scale", &DOFCOCScale, 0.0f, 8.0f);
-			ImGui::SliderFloat("DOF Blur Scale", &DOFBlurScale, 0.25f, 4.0f);
-			ImGui::SliderFloat("DOF Chromatic Aberration Scale", &DOFCAScale, 0.0f, 4.0f);
-			ImGui::SliderFloat("DOF Resolution", &DOFResolution, 0.1f, 1.0f);
+			
+			if (DOF) {
+				ImGui::Checkbox("Large Kernel DOF?", &LargeKernelDOF);
+				ImGui::SliderFloat("DOF COC Scale", &DOFCOCScale, 0.0f, 8.0f);
+				ImGui::SliderFloat("DOF Blur Scale", &DOFBlurScale, 0.25f, 4.0f);
+				ImGui::SliderFloat("DOF Chromatic Aberration Scale", &DOFCAScale, 0.0f, 4.0f);
+				ImGui::SliderFloat("DOF Resolution", &DOFResolution, 0.1f, 1.0f);
+			}
+
 			ImGui::NewLine();
 
 			//ImGui::SliderFloat("DOF Temporal Depth Blend Weight", &DOFTemporalDepthBlend, 0.1f, 0.95f); ImGui::SameLine();
@@ -697,23 +726,32 @@ public:
 
 			ImGui::NewLine();
 			ImGui::Checkbox("Bloom?", &Bloom);
-			ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
-			ImGui::Checkbox("Wide Bloom?", &BloomWide);
-			ImGui::SliderFloat("Bloom Strength", &BloomStrength, 0.0f, 1.25f);
-			ImGui::Checkbox("HQ Bloom Upscale?", &HQBloomUpscale);
-			ImGui::Checkbox("Lens Dirt?", &LensDirt);
+
+			if (Bloom) {
+				ImGui::SliderFloat("Bloom Resolution ", &BloomQuality, 0.25f, 0.5f);
+				ImGui::Checkbox("Wide Bloom?", &BloomWide);
+				ImGui::SliderFloat("Bloom Strength", &BloomStrength, 0.0f, 1.25f);
+				ImGui::Checkbox("HQ Bloom Upscale?", &HQBloomUpscale);
+				ImGui::Checkbox("Lens Dirt?", &LensDirt);
+			}
 
 			if (LensDirt) {
 				ImGui::SliderFloat("Lens Dirt Strength", &LensDirtStrength, 0.001f, 4.0f);
 			}
+
 			ImGui::NewLine();
 			ImGui::Checkbox("Bloom Diffraction Spikes? (WIP!) ", &DoDiffractionSpikes);
-			ImGui::SliderFloat("Diffraction Resolution", &DiffractionResolution, 0.05f, 1.0f);
-			ImGui::SliderFloat("Diffraction Strength", &DiffractionStrength, 0.25f, 10.0f);
-			ImGui::SliderFloat("Diffraction Scale", &DiffractionScaler, 0.125f, 1.5f);
-			if (ADVANCED_MODE)
-				ImGui::SliderInt("Diffraction Kernel Size", &DiffractionKernel, 4, 48);
-			ImGui::Checkbox("Blur? ", &BlurDiffraction);
+
+			if (DoDiffractionSpikes)
+			{
+				ImGui::SliderFloat("Diffraction Resolution", &DiffractionResolution, 0.05f, 1.0f);
+				ImGui::SliderFloat("Diffraction Strength", &DiffractionStrength, 0.25f, 10.0f);
+				ImGui::SliderFloat("Diffraction Scale", &DiffractionScaler, 0.125f, 1.5f);
+				if (ADVANCED_MODE)
+					ImGui::SliderInt("Diffraction Kernel Size", &DiffractionKernel, 4, 48);
+				ImGui::Checkbox("Blur? ", &BlurDiffraction);
+			}
+
 			ImGui::NewLine();
 			ImGui::NewLine();
 
@@ -735,17 +773,20 @@ public:
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
 			//ImGui::Checkbox("TAA Depth Weight (Reduces ghosting)", &TAADepthWeight);
 
-			if (TAADepthWeight)
+			if (TAA) {
 				ImGui::SliderFloat("TAA Depth Weight Strength (Higher = Lesser ghosting, might cause higher aliasing)", &TAADepthWeightExp, 0.1f, 8.0f);
+				ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
+			}
 
-			ImGui::Checkbox("Jitter Projection Matrix For TAA? (small issues, right now :( ) ", &JitterSceneForTAA);
 			ImGui::NewLine();
 			ImGui::Checkbox("Fast Approximate Anti Aliasing", &FXAA);
 			//ImGui::Checkbox("SECOND-PASS Fast Approximate Anti Aliasing", &DoSecondaryFXAA);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Lens Flare?", &LensFlare);
-			ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
+
+			if (LensFlare)
+				ImGui::SliderFloat("Lens Flare Intensity ", &LensFlareIntensity, 0.05f, 1.5f);
 
 			if (ADVANCED_MODE) {
 				ImGui::Checkbox("(Implementation - 1) (WIP) God Rays? (Slower)", &GodRays);
@@ -762,19 +803,30 @@ public:
 
 			ImGui::NewLine();
 			ImGui::NewLine();
-			ImGui::Text("--- WIP and not-recommended settings ---");
+			ImGui::Text("--- Experimental Section ---");
+			ImGui::NewLine();
+			ImGui::Checkbox("Screen Space Ambient Occlusion?", &SSAO);
+
+			if (SSAO) {
+				ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 1.0f);
+				ImGui::SliderFloat("SSAO Strength", &SSAOStrength, 0.1f, 2.0f);
+			}
+
 			ImGui::NewLine();
 
-			ImGui::Checkbox("Screen Space Ambient Occlusion? (VXAO/RTAO recommended, ssao sucks.)", &SSAO);
-			ImGui::SliderFloat("SSAO Render Resolution ", &SSAOResolution, 0.1f, 1.0f);
-			ImGui::SliderFloat("SSAO Strength", &SSAOStrength, 0.1f, 2.0f);
-			ImGui::Checkbox("Alpha Test? (Experimental, has known artifacts.) ", &ShouldAlphaTest);
-			ImGui::Checkbox("Alpha Test Shadows? (WIP, has a few known artifacts.)", &ShouldAlphaTestShadows);
-			ImGui::Checkbox("POM? (VERY WORK IN PROGRESS, \
-				The textures adapted from minecraft resource packs use a different parallax representation that needs to be handles)", &POM);
-			ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
-			ImGui::Checkbox("Dither POM?", &DitherPOM);
-			ImGui::SliderFloat("POM Depth", &POMHeight, 0.0f, 3.0f);
+			ImGui::Checkbox("POM? (Uses Relief Parallax Mapping)", &POM);
+
+			if (POM) {
+				ImGui::Checkbox("High Quality POM?", &HighQualityPOM);
+				ImGui::Checkbox("Dither POM?", &DitherPOM);
+				ImGui::SliderFloat("POM Depth", &POMHeight, 0.0f, 4.0f);
+				ImGui::SliderFloat("POM Exponent", &POMExp, 0.0f, 6.0f);
+			}
+
+			ImGui::NewLine();
+
+			ImGui::Checkbox("Alpha Test? (has known artifacts.) ", &ShouldAlphaTest);
+			ImGui::Checkbox("Alpha Test Shadows? (has a few known artifacts.)", &ShouldAlphaTestShadows);
 		} ImGui::End();
 
 		if (LightListDebug) {
@@ -2019,6 +2071,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			GenerateGBuffer.SetInteger("u_LavaTextures[0]", 7);
 			GenerateGBuffer.SetInteger("u_LavaTextures[1]", 8);
+			GenerateGBuffer.SetInteger("u_Frame", app.GetCurrentFrame());
 
 			GenerateGBuffer.SetMatrix4("u_InverseView", inv_view);
 			GenerateGBuffer.SetMatrix4("u_InverseProjection", glm::inverse(MainCamera.GetProjectionMatrix()));
@@ -2037,6 +2090,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			GenerateGBuffer.SetInteger("u_LavaBlockID", BlockDatabase::GetBlockID("Lava"));
 			GenerateGBuffer.SetBool("u_POM", POM);
 			GenerateGBuffer.SetFloat("u_POMHeight", POMHeight);
+			GenerateGBuffer.SetFloat("u_POMExp", POMExp);
 			GenerateGBuffer.SetBool("u_HighQualityPOM", HighQualityPOM);
 			GenerateGBuffer.SetBool("u_DitherPOM", DitherPOM);
 			GenerateGBuffer.SetBool("u_UpdateGBufferThisFrame", UpdateGBufferThisFrame);
@@ -3616,9 +3670,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		ColorShader.SetBool("u_DitherPOM", DitherPOM);
 		ColorShader.SetBool("u_DoVXAO", VXAO);
 		ColorShader.SetBool("u_SVGFEnabled", USE_SVGF);
-		ColorShader.SetBool("u_DEBUGDiffuseGI", DEBUGTraceLevel==1);
-		ColorShader.SetBool("u_DEBUGSpecGI", DEBUGTraceLevel==2);
-		ColorShader.SetBool("u_DEBUGShadows", DEBUGTraceLevel==3);
+		ColorShader.SetInteger("u_DebugLevel", DEBUG_LEVEL);
 		ColorShader.SetBool("u_ShouldDitherUpscale", DITHER_SPATIAL_UPSCALE);
 		ColorShader.SetBool("u_UseDFG", true);
 		ColorShader.SetBool("u_SSSSS", SSSSS && SSSSSStrength > 0.01f);
@@ -3834,8 +3886,10 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 			SSAOShader.SetInteger("u_PositionTexture", 0);
 			SSAOShader.SetInteger("u_NormalTexture", 1);
+			SSAOShader.SetInteger("u_BlueNoise", 4);
 			SSAOShader.SetInteger("u_CurrentFrame", app.GetCurrentFrame());
-			SSAOShader.SetInteger("SAMPLE_SIZE", 20);
+			SSAOShader.SetInteger("u_Frame", app.GetCurrentFrame());
+			SSAOShader.SetInteger("SAMPLE_SIZE", 16);
 			SSAOShader.SetMatrix4("u_ViewMatrix", MainCamera.GetViewMatrix());
 			SSAOShader.SetMatrix4("u_ProjectionMatrix", MainCamera.GetProjectionMatrix());
 			SSAOShader.SetVector2f("u_Dimensions", glm::vec2(SSAOFBO.GetWidth(), SSAOFBO.GetHeight()));
@@ -3843,6 +3897,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 			SSAOShader.SetFloat("u_SSAOStrength", SSAOStrength);
 			SSAOShader.SetMatrix4("u_VertInverseView", inv_view);
 			SSAOShader.SetMatrix4("u_VertInverseProjection", inv_projection);
+
+			glActiveTexture(GL_TEXTURE4);
+			glBindTexture(GL_TEXTURE_2D, BluenoiseTexture.GetTextureID());
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, InitialTraceFBO->GetTexture(0));
@@ -3903,12 +3960,16 @@ void VoxelRT::MainPipeline::StartPipeline()
 			AutoExposureComputePDF.Use();
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, AutoExposurePDF);
 			AutoExposureComputePDF.SetInteger("u_ColorTexture", 0);
+			AutoExposureComputePDF.SetInteger("u_LumaTexture", 1);
 			AutoExposureComputePDF.SetVector2f("u_Resolution", glm::vec2(ColoredFBO.GetWidth(), ColoredFBO.GetHeight()));
 			AutoExposureComputePDF.SetVector2f("u_InverseResolution", glm::vec2(1.0f/ColoredFBO.GetWidth(), 1.0f/ColoredFBO.GetHeight()));
 			AutoExposureComputePDF.SetFloat("u_DeltaTime", DeltaTime);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetColorTexture());
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, ColoredFBO.GetEmissiveMask());
 
 			glDispatchCompute(2, 2, 1);
 			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -4618,6 +4679,9 @@ void VoxelRT::MainPipeline::StartPipeline()
 		VAO.Bind();
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 		VAO.Unbind();
+		
+		
+		bool RawOutput = DEBUG_LEVEL == 6;
 
 		// CAS
 
@@ -4642,7 +4706,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CAS_Shader.SetVector4f("u_FocusedOnBlock", HighlightFocusedBlock ? glm::vec4(FocusedOnBlock) : glm::vec4(-1.0f));
 
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, FXAA_Final.GetTexture());
+			glBindTexture(GL_TEXTURE_2D, RawOutput ? ColoredFBO.GetColorTexture() : FXAA_Final.GetTexture());
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, ColorGradingLUT.GetTextureID());

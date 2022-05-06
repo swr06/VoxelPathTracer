@@ -795,7 +795,8 @@ void main()
 	
 	
 	// Bayer ->
-	GlobalBayer = vec2(Bayer8(gl_FragCoord.xy), Bayer4(gl_FragCoord.xy));
+	GlobalBayer = vec2(fract(fract(mod(float(u_CurrentFrame) + float(0.) * 2., 384.0f) * (1.0 / 1.6180339)) + Bayer8(gl_FragCoord.xy)), 
+				       fract(fract(mod(float(u_CurrentFrame) + float(4.) * 2., 384.0f) * (1.0 / 1.6180339)) + Bayer4(gl_FragCoord.xy)));
 	
 	NormalizedSUNDIR = normalize(u_SunDirection);
 	
@@ -853,7 +854,8 @@ void main()
     ProjectedOuter = mix(ProjectedOuter, Direction * CloudAltitudeMin * 12.0, Range);
 
 	// Low frequency hash ->
-	float Hash = Bayer64(gl_FragCoord.xy + vec2(u_CurrentFrame * (0.9f/1.0f), u_CurrentFrame * 0.5));
+
+	float Hash = fract(fract(mod(float(u_CurrentFrame) + float(0.) * 2., 384.0f) * (1.0 / 1.6180339)) + Bayer32(gl_FragCoord.xy));
 	
 	
 	int StepCount = clamp(int(u_StepCounts.x),2,64);
