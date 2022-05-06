@@ -52,7 +52,7 @@ int VoxelRT_FloodFillDistanceLimit = 4; // extern
 // GBuffer
 static float InitialTraceResolution = 1.0f;
 static float GBufferResolution = 1.0f;
-static int RenderDistance = 400;
+static int RenderDistance = 475;
 
 // Misc
 static bool VSync = false;
@@ -71,8 +71,8 @@ static bool CHECKERBOARD_SPEC_SPP = false;
 // Diffuse 
 static float DiffuseTraceResolution = 0.250f;
 static int DiffuseSPP = 3;
-static float DiffuseLightIntensity = 1.2f;
-static int DiffuseTraceLength = 45;
+static float DiffuseLightIntensity = 1.25f;
+static int DiffuseTraceLength = 48;
 static bool VXAO_CUTOFF = true; // Doesnt apply vxao when fragment is too far away (helps reduce artifacts)
 static bool DiffuseDirectLightSampling = false;
 static float DiffuseIndirectSuperSampleRes = 0.25f;
@@ -266,7 +266,7 @@ static float POMHeight = 1.0f;
 static float POMExp = 1.0f;
 static bool DitherPOM = true;
 static bool HighQualityPOM = false;
-static bool AmplifyNormalMap = true;
+static bool AmplifyNormalMap = false;
 
 // Item cube 
 static bool DoSmallItemCube = true;
@@ -583,7 +583,6 @@ public:
 
 			ImGui::SliderInt("Pixel Padding Amount", &PIXEL_PADDING, 0, 128);
 			ImGui::SliderInt("God ray raymarch step count", &GodRaysStepCount, 8, 64);
-			ImGui::Checkbox("BAYER 4x4 DITHER SPATIAL UPSCALE", &DITHER_SPATIAL_UPSCALE);
 			ImGui::Checkbox("Particles?", &RenderParticles);
 			ImGui::Checkbox("Amplify normal map?", &AmplifyNormalMap);
 			ImGui::NewLine();
