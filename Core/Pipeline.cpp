@@ -234,7 +234,7 @@ static int GodRaysStepCount = 12;
 static float GodRaysStrength = 0.5f;
 
 // Post process misc
-static bool HejlBurgessTonemap = false;
+static int TonemapOperator = 0;
 static float TextureDesatAmount = 0.1f;
 static bool PreTemporalSpatialPass = true;
 static float PurkingeEffectStrength = 0.0f;
@@ -398,7 +398,7 @@ public:
 			ImGui::Text("Level 9 : Displacement/Height (raised to an exponent of 4.0)");
 
 			ImGui::NewLine();
-			ImGui::SliderInt("- LUMEN DEBUG LEVEL -", &DEBUG_LEVEL, 0, 9);
+			ImGui::SliderInt("- VXRT DEBUG LEVEL -", &DEBUG_LEVEL, 0, 9);
 			ImGui::NewLine();
 
 			ImGui::NewLine();
@@ -687,6 +687,16 @@ public:
 
 			ImGui::Text("--- Post Process Settings ---");
 			ImGui::NewLine();
+			ImGui::Text("Tonemap -1 : None (Clips)");
+			ImGui::Text("Tonemap 0 : ACES (Recommended)");
+			ImGui::Text("Tonemap 1 : Uncharted");
+			ImGui::Text("Tonemap 2 : RomBinDaHouse");
+			ImGui::Text("Tonemap 3 : Hejl Burgess");
+			ImGui::Text("Tonemap 4 : Lottes");
+			ImGui::Text("Tonemap 5 : Uchimura");
+			ImGui::NewLine();
+			ImGui::SliderInt("Tonemap Operator", &TonemapOperator, -1, 5);
+			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Nebula affects moon color?", &NebulaCelestialColor);
 			ImGui::Checkbox("Nebula affects GI colors?", &NebulaGIColor);
@@ -759,14 +769,13 @@ public:
 			ImGui::Checkbox("CAS (Contrast Adaptive Sharpening)", &ContrastAdaptiveSharpening);
 			ImGui::SliderFloat("CAS SharpenAmount", &CAS_SharpenAmount, 0.0f, 0.99f);
 			ImGui::SliderFloat("Desaturation Amount", &TextureDesatAmount, 0.0f, 1.0f);
-			ImGui::Checkbox("Hejl Burgess Tonemap? (Uses ACES tonemap if disabled)", &HejlBurgessTonemap);
 			ImGui::SliderFloat("Purkinje Effect Strength", &PurkingeEffectStrength, 0.0f, 1.0f);
 			ImGui::NewLine();
 			ImGui::SliderInt("Current Color Grading LUT (-1 = No grading)", &SelectedColorGradingLUT, -1, 9, "%d");
 			ImGui::Checkbox("Emit Footstep Particles?", &MainPlayer.m_EmitFootstepParticles);
 			ImGui::Checkbox("Color Dither", &ColorDither);
-			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.04f);
-			ImGui::SliderFloat("Chromatic Aberration (OFF if negative or zero)", &ChromaticAberrationStrength, -0.01f, 0.1f);
+			ImGui::SliderFloat("Film Grain", &FilmGrainStrength, 0.0f, 0.99f);
+			ImGui::SliderFloat("Chromatic Aberration", &ChromaticAberrationStrength, 0.0f, 0.15f);
 			ImGui::NewLine();
 			ImGui::NewLine();
 			ImGui::Checkbox("Temporal Anti Aliasing", &TAA);
@@ -4293,7 +4302,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		PostProcessingShader.SetBool("u_Bloom", Bloom);
 		PostProcessingShader.SetBool("u_SSGodRays", FakeGodRays);
 		PostProcessingShader.SetBool("u_RTAO", RTAO);
-		PostProcessingShader.SetBool("u_HejlBurgess", HejlBurgessTonemap);
+
 		PostProcessingShader.SetBool("u_Fucktard", Fucktard);
 		//PostProcessingShader.SetBool("u_PurkinjeEffect", PurkinjeEffect);
 		PostProcessingShader.SetBool("u_ExponentialFog", ExponentialFog);
@@ -4483,7 +4492,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 		Tonemapper.SetFloat("u_FilmGrainStrength", FilmGrainStrength);
 		Tonemapper.SetFloat("u_Time", glfwGetTime());
 		Tonemapper.SetFloat("u_Exposure", ComputedExposure* ExposureMultiplier);
-		Tonemapper.SetBool("u_HejlBurgess", HejlBurgessTonemap);
+		Tonemapper.SetInteger("u_TonemapOperator", TonemapOperator);
 		Tonemapper.SetBool("u_DOF", DOF);
 		Tonemapper.SetFloat("u_FocalDepthTemporal", CenterDepthSmooth);
 		Tonemapper.SetVector2f("u_CameraPlanes", glm::vec2(MainCamera.GetNearPlane(), MainCamera.GetFarPlane()));

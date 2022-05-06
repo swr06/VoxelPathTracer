@@ -47,8 +47,8 @@ namespace Clouds
 		float r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 		float r2 = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
 		glm::vec2 Offset = glm::vec2(
-			glm::mix(10.0f, 800.0f, r),
-			glm::mix(870.0f, 12.0f, r2)
+			glm::mix(10.0f, 1200.0f, r),
+			glm::mix(870.0f, 122.0f, r2)
 		);
 		
 		for (int i = 0; i < slices; i++)
@@ -68,7 +68,7 @@ namespace Clouds
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 			VAO.Unbind();
 
-			std::this_thread::sleep_for(std::chrono::milliseconds(4));;
+			std::this_thread::sleep_for(std::chrono::milliseconds(4));
 		}
 	}
 

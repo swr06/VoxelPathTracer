@@ -328,7 +328,8 @@ void main()
 		}
 
 		// Avoid clipping artifacts if a block modification is made 
-		BlendFactor = u_BlockModified ? max(BlendFactor * 0.5f, 0.225f) : BlendFactor;
+		BlendFactor = u_BlockModified ? 0.2f : BlendFactor;
+		ReduceWeight = u_BlockModified ? 1. : ReduceWeight;
 
 		// Blend with history (with reinhard bias)
 		o_Color = InverseReinhard(mix((CurrentColor.xyz), (PrevColor.xyz), clamp(BlendFactor * ReduceWeight, 0.001f, 0.95f)));
