@@ -388,10 +388,10 @@ float Halton(int i, int b)
 
 vec2 BasicHaltonJitter(vec2 fragCoord, int frame)
 {
-    int num = 8;
+    int num = 32;
     return (vec2(
     	Halton(frame % num + int(fragCoord.x) % num + 1, 2),
-    	Halton(frame % num + int(fragCoord.y) % num + 1, 3)) - vec2(0.5f));
+    	Halton(frame % num + int(fragCoord.y) % num + 1, 3)) );
 }
 
 void GetRayStuff(out vec3 r0, out vec3 rD) {
@@ -401,9 +401,9 @@ void GetRayStuff(out vec3 r0, out vec3 rD) {
 	vec2 TexelSize = 1.0f / u_Dimensions;
 
 	if (u_JitterSceneForTAA) {
-		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame) * 0.7f;
-		screenspace.x += (TAAJitter.x) * TexelSize.x;
-		screenspace.y += (TAAJitter.y) * TexelSize.y;
+		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame);
+		screenspace.x -= (TAAJitter.x) * TexelSize.x;
+		screenspace.y -= (TAAJitter.y) * TexelSize.y;
 	}
 
 	vec4 clip = vec4(screenspace * 2.0f - 1.0f, -1.0, 1.0);

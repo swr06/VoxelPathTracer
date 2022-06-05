@@ -149,6 +149,8 @@ This project is purely educational. I own none of the assets. All the rights go 
 
 </br>
 
+![lampuwu](https://github.com/swr06/VoxelPathTracer/blob/Project-Main/Screenshots/lamp.png)
+
 </br>
 
 # Supporting
