@@ -401,7 +401,7 @@ void GetRayStuff(out vec3 r0, out vec3 rD) {
 	vec2 TexelSize = 1.0f / u_Dimensions;
 
 	if (u_JitterSceneForTAA) {
-		vec2 TAAJitter = BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame);
+		vec2 TAAJitter = u_CurrentTAAJitter; //BasicHaltonJitter(gl_FragCoord.xy, u_CurrentFrame);
 		screenspace.x -= (TAAJitter.x) * TexelSize.x;
 		screenspace.y -= (TAAJitter.y) * TexelSize.y;
 	}

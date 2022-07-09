@@ -7,6 +7,8 @@ in vec2 v_TexCoords;
 uniform sampler2D u_Texture;
 uniform sampler2D u_EmissiveTexture;
 
+uniform vec2 u_Jitter;
+
 float GetLuminance(vec3 color) 
 {
     return dot(color, vec3(0.299, 0.587, 0.114));
@@ -18,8 +20,8 @@ bool FloatEqual(float x, float y) {
 
 void main()
 {
-    float Emissivity = texture(u_EmissiveTexture, v_TexCoords).x;
-    vec3 Fetch = texture(u_Texture, v_TexCoords).rgb;
+    float Emissivity = texture(u_EmissiveTexture, v_TexCoords + (u_Jitter * (1.0f/textureSize(u_EmissiveTexture,0)))).x;
+    vec3 Fetch = texture(u_Texture, v_TexCoords + (u_Jitter * (1.0f/textureSize(u_Texture,0)))).xyz;
 
     if (FloatEqual(Emissivity, -8.0f)) {
         Emissivity = 1.2f;

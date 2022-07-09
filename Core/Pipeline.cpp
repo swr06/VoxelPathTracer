@@ -57,7 +57,7 @@ static int RenderDistance = 475;
 // Misc
 static bool VSync = false;
 static bool Fucktard = false;
-static bool JitterSceneForTAA = false;
+static bool JitterSceneForTAA = true;
 static int PIXEL_PADDING = 20; // to reduce artifacts on edges
 
 // Sun rotation
@@ -2489,11 +2489,11 @@ void VoxelRT::MainPipeline::StartPipeline()
 				
 				else
 				{
-					StepSizes[0] = 12;
+					StepSizes[0] = 16;
 					StepSizes[1] = 8;
-					StepSizes[2] = 6;
-					StepSizes[3] = 4;
-					StepSizes[4] = 2;
+					StepSizes[2] = 4;
+					StepSizes[3] = 2;
+					StepSizes[4] = 1;
 				}
 
 				for (int i = 0; i < 5; i++)
@@ -3946,7 +3946,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 		if (Bloom)
 		{
-			BloomRenderer::RenderBloom(BloomFBO, BloomFBOAlternate, GeneratedGBuffer.GetTexture(0), ColoredFBO.GetEmissiveMask(), false, BrightTex, BloomWide);
+			BloomRenderer::RenderBloom(BloomFBO, BloomFBOAlternate, GeneratedGBuffer.GetTexture(0), ColoredFBO.GetEmissiveMask(), false, BrightTex, BloomWide, app.GetCurrentFrame(), JitterSceneForTAA);
 		}
 
 
@@ -4199,6 +4199,8 @@ void VoxelRT::MainPipeline::StartPipeline()
 
 
 		if (Bloom) {
+			glm::vec2 TAAJitter = GetTAAJitter(app.GetCurrentFrame(), glm::vec2(floor(PADDED_WIDTH * InitialTraceResolution), floor(PADDED_HEIGHT * InitialTraceResolution)));
+
 			BloomCombined.Bind();
 			CombineBloom.Use();
 			CombineBloom.SetInteger("u_BloomMips[0]", 0);
@@ -4208,6 +4210,7 @@ void VoxelRT::MainPipeline::StartPipeline()
 			CombineBloom.SetInteger("u_BloomMips[4]", 4);
 			CombineBloom.SetInteger("u_BloomBrightTexture", 5);
 			CombineBloom.SetBool("u_HQBloomUpscale", HQBloomUpscale);
+			CombineBloom.SetVector2f("u_CurrentTAAJitter", glm::vec2(TAAJitter));
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, BloomFBO.m_Mips[0]);

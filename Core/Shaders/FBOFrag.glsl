@@ -285,7 +285,7 @@ void FXAA311(inout vec3 color, float BaseDepth, vec3 BaseNormal)
 	float edgeThresholdMax = 0.125;
 	bool Skyedge = false;
 	bool IsAtEdge = DetectEdge(Skyedge, BaseDepth, BaseNormal);
-	float subpixelQuality = IsAtEdge ? 0.935f : 0.0925f; 
+	float subpixelQuality = IsAtEdge ? 0.35f : 0.0925f; 
 
 	//if (IsAtEdge) {
 	//	color = vec3(1.,0.,0.);

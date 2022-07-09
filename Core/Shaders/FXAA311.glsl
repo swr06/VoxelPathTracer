@@ -164,7 +164,7 @@ void FXAA311(inout vec3 color)
 	bool skysample = false; 
 	float bd = 0.0f;
 	bool IsAtEdge = DetectEdge(skysample, bd);
-	float subpixelQuality = IsAtEdge ? 0.8125f : 0.120f; 
+	float subpixelQuality = IsAtEdge ? 0.35f : 0.1f; 
 	bool skyedge = skysample;
 
 	int iterations = 12;

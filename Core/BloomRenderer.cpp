@@ -1,5 +1,7 @@
 #include "BloomRenderer.h"
 
+#include "TAAJitter.h"
+
 namespace VoxelRT
 {
 	namespace BloomRenderer
@@ -103,17 +105,20 @@ namespace VoxelRT
 			glUseProgram(0);
 		}
 
-		void RenderBloom(BloomFBO& bloom_fbo, BloomFBO& bloom_fbo_alternate, GLuint source_tex, GLuint bright_tex, bool hq, GLuint& brighttex, bool wide)
+		void RenderBloom(BloomFBO& bloom_fbo, BloomFBO& bloom_fbo_alternate, GLuint source_tex, GLuint bright_tex, bool hq, GLuint& brighttex, bool wide, int frame, bool jitter)
 		{
 			// Render the bright parts to a texture
 			GLClasses::Shader& BloomBrightShader = *BloomMaskShader;
 
 			BloomAlternateFBO->SetSize(bloom_fbo.GetWidth() * floor(bloom_fbo.m_MipScales[0] * 2.0f), bloom_fbo.GetHeight() * floor(bloom_fbo.m_MipScales[0] * 2.0f));
 
+			glm::vec2 TAAJitter = jitter ? GetTAAJitter(frame, glm::vec2(0)) : glm::vec2(0.);
+
 			BloomBrightShader.Use();
 			BloomAlternateFBO->Bind();
 			BloomBrightShader.SetInteger("u_Texture", 0);
 			BloomBrightShader.SetInteger("u_EmissiveTexture", 1);
+			BloomBrightShader.SetVector2f("u_Jitter", TAAJitter);
 
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, source_tex);

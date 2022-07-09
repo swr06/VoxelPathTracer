@@ -165,7 +165,7 @@ void main()
         float AccumulatedLuminosity = TotalLuminosity;
         AccumulatedLuminosity = AccumulatedLuminosity * AccumulatedLuminosity;
         Variance = TotalMoment - AccumulatedLuminosity;
-	    Variance *= ACCUMULATED_FRAMES_THRESH / ACCUMULATED_FRAMES;
+        Variance *= 3.0f;
     } 
 
 
@@ -175,6 +175,8 @@ void main()
         o_CoCg = BaseCoCg;
         Variance = BaseMoment - BaseLuminosity * BaseLuminosity;
     }
+
+    Variance *= ACCUMULATED_FRAMES_THRESH / ACCUMULATED_FRAMES;
 
     if (!DO_SPATIAL) {
         o_SH = BaseSH;
