@@ -194,6 +194,7 @@ bool StopRay(vec3 P, vec3 N, float Type) {
 
 	vec2 SampleUV = CalculateUV(P,N);
 	SampleUV.y = 1.0f - SampleUV.y;
+	SampleUV.x = 1.0f - SampleUV.x;
 	float D = distance(P,u_InverseView[3].xyz);
 	int LOD = int(log2(512.0f / (1.0f / D * g_K)));
 	float Alpha = textureLod(u_AlbedoTextures, vec3(SampleUV, float(BlockAlbedoData[BlockID])), clamp(LOD, 0.0f, 8.0f)).w;
