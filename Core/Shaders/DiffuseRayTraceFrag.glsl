@@ -614,7 +614,7 @@ vec4 CalculateDiffuse(in vec3 initial_origin, in vec3 input_normal, out vec3 odi
 
 			RayContribution += RayThroughput * SUNBRDF; // Sun GI
 			RayContribution += EmmisivityColor * RayThroughput; // Emissive GI
-			RayThroughput *= Attenuation / PDF; 
+			RayThroughput *= Albedo * Attenuation / PDF; 
 
 			SummedContribution_t += EmmisivityColor + SUNBRDF;
 
